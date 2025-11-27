@@ -3,18 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { motion, AnimatePresence } from "framer-motion";
 
-// Import the alert components
-import SuccessAlert from "@/components/SuccessAlert"; // comp-271
-import ErrorAlert from "@/components/ErrorAlert"; // comp-269
-import PasswordAlert from "@/components/PasswordAlert"; // comp-277
+import SuccessAlert from "@/components/SuccessAlert";
+import ErrorAlert from "@/components/ErrorAlert";
+import PasswordAlert from "@/components/PasswordAlert";
 
 export default function LoginPage() {
   const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,13 +35,13 @@ export default function LoginPage() {
       );
 
       if (!user) {
-        setAlert("error"); // User not found or not HR
+        setAlert("error");
         setLoading(false);
         return;
       }
 
       if (user.user_password !== password) {
-        setAlert("password"); // Wrong password
+        setAlert("password");
         setLoading(false);
         return;
       }
@@ -52,7 +50,7 @@ export default function LoginPage() {
       localStorage.setItem("user", JSON.stringify(user));
       setAlert("success");
 
-      setTimeout(() => router.push("/dashboard"), 1000); // redirect after 1s
+      setTimeout(() => router.replace("/dashboard"), 1000);
     } catch (err) {
       console.error(err);
       setAlert("error");
@@ -61,17 +59,67 @@ export default function LoginPage() {
     }
   };
 
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-muted/40 px-4 space-y-4">
-      {/* Alert section on top of the form */}
-      {alert === "success" && <SuccessAlert />}
-      {alert === "error" && <ErrorAlert />}
-      {alert === "password" && <PasswordAlert />}
+  // Animation variants
+  const formVariant = {
+    hidden: { opacity: 0, y: 30 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.6 } },
+  };
 
-      <div className="w-full max-w-md rounded-xl border bg-background p-8 shadow-sm space-y-4">
+  const alertVariant = {
+    hidden: { opacity: 0, y: -20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.4 } },
+    exit: { opacity: 0, y: -20, transition: { duration: 0.3 } },
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen px-4 bg-linear-to-br from-gray-100 via-gray-200 to-gray-300 dark:from-gray-900 dark:via-gray-800 dark:to-gray-700">
+      {/* Animated Alerts */}
+      <AnimatePresence>
+        {alert === "success" && (
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            variants={alertVariant}
+          >
+            <SuccessAlert />
+          </motion.div>
+        )}
+        {alert === "error" && (
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            variants={alertVariant}
+          >
+            <ErrorAlert />
+          </motion.div>
+        )}
+        {alert === "password" && (
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            variants={alertVariant}
+          >
+            <PasswordAlert />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Animated Form */}
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={formVariant}
+        className="w-full max-w-md rounded-xl border bg-white dark:bg-gray-900 p-8 shadow-xl dark:shadow-gray-800 space-y-4"
+        style={{
+          boxShadow: "0 10px 25px rgba(0,0,0,0.1), 0 6px 10px rgba(0,0,0,0.08)", // subtle accent shadow
+        }}
+      >
         <div className="flex flex-col items-center gap-2 mb-2">
-          <h1 className="text-xl font-semibold">Welcome back</h1>
-          <p className="text-sm text-muted-foreground text-center">
+          <h1 className="text-2xl font-bold">Welcome back</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-300 text-center">
             Enter your credentials to login to your account.
           </p>
         </div>
@@ -103,11 +151,13 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <Button className="w-full" type="submit" disabled={loading}>
-            {loading ? "Signing in..." : "Sign in"}
-          </Button>
+          <motion.div whileTap={{ scale: 0.95 }}>
+            <Button className="w-full" type="submit" disabled={loading}>
+              {loading ? "Signing in..." : "Sign in"}
+            </Button>
+          </motion.div>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -1,3 +1,5 @@
+/* TypeScript doesn't need type declarations for Next.js global side-effect CSS imports */
+// @ts-ignore
 import "./globals.css";
 import { SidebarProvider } from "@/providers/SidebarProvider";
 
