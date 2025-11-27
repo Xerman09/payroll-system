@@ -12,7 +12,7 @@ export default function useSessionTimeout(minutes: number) {
     const resetTimer = () => {
       if (timeout) clearTimeout(timeout);
       timeout = setTimeout(() => {
-        localStorage.removeItem("user");
+        sessionStorage.removeItem("user"); // <-- sessionStorage now
         router.replace("/auth/login");
       }, minutes * 60 * 1000);
     };

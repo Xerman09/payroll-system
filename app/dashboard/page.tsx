@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Users, DollarSign, Calendar, FileText } from "lucide-react";
 import {
@@ -19,6 +20,17 @@ import {
 } from "recharts";
 
 export default function DashboardPage() {
+  const [userName, setUserName] = useState("Admin");
+
+  // Fetch user from sessionStorage
+  useEffect(() => {
+    const session = sessionStorage.getItem("user");
+    if (session) {
+      const user = JSON.parse(session);
+      setUserName(user.user_fname || "Admin"); // replace 'user_name' with the actual field from your user object
+    }
+  }, []);
+
   // Sample static data
   const payrollTrend = [
     { month: "Jan", payroll: 30000 },
@@ -51,7 +63,7 @@ export default function DashboardPage() {
     <DashboardLayout>
       {/* Welcome Header */}
       <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-1">Welcome, Admin!</h2>
+        <h2 className="text-2xl font-bold mb-1">Welcome, {userName}!</h2>
         <p className="text-gray-500 dark:text-gray-400">
           Here's a summary of your HR & Payroll system.
         </p>
@@ -162,7 +174,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Stacked Bar Chart: Monthly Payroll vs Overtime */}
+      {/* Stacked Bar Chart */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-5 hover:scale-105 transition transform mt-6">
         <h3 className="text-gray-700 dark:text-gray-200 font-semibold mb-4">
           Monthly Payroll vs Overtime

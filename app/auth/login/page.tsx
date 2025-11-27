@@ -26,10 +26,12 @@ export default function LoginPage() {
     setAlert(null);
 
     try {
+      // Fetch users
       const res = await fetch("http://100.126.246.124:8060/items/user");
       const json = await res.json();
       const users = json.data;
 
+      // Find user with matching email and department
       const user = users.find(
         (u: any) => u.user_email === email && Number(u.user_department) === 2
       );
@@ -47,10 +49,12 @@ export default function LoginPage() {
       }
 
       // Successful login
-      localStorage.setItem("user", JSON.stringify(user));
+      const { user_password, ...userSafe } = user; // remove password
+      sessionStorage.setItem("user", JSON.stringify(userSafe));
       setAlert("success");
 
-      setTimeout(() => router.replace("/dashboard"), 1000);
+      // Redirect immediately to dashboard
+      router.replace("/dashboard");
     } catch (err) {
       console.error(err);
       setAlert("error");
@@ -73,7 +77,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-4 bg-linear-to-br from-gray-100 via-gray-200 to-gray-300 dark:from-gray-900 dark:via-gray-800 dark:to-gray-700">
-      {/* Animated Alerts */}
+      {/* Alerts */}
       <AnimatePresence>
         {alert === "success" && (
           <motion.div
@@ -107,14 +111,14 @@ export default function LoginPage() {
         )}
       </AnimatePresence>
 
-      {/* Animated Form */}
+      {/* Login Form */}
       <motion.div
         initial="hidden"
         animate="visible"
         variants={formVariant}
         className="w-full max-w-md rounded-xl border bg-white dark:bg-gray-900 p-8 shadow-xl dark:shadow-gray-800 space-y-4"
         style={{
-          boxShadow: "0 10px 25px rgba(0,0,0,0.1), 0 6px 10px rgba(0,0,0,0.08)", // subtle accent shadow
+          boxShadow: "0 10px 25px rgba(0,0,0,0.1), 0 6px 10px rgba(0,0,0,0.08)",
         }}
       >
         <div className="flex flex-col items-center gap-2 mb-2">
