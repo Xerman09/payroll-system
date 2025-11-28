@@ -30,24 +30,19 @@ export default function WageManagementPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
 
-  // Password verification modal
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
 
-  // Wage data loaded from user_wage_management (or defaults)
   const [wageData, setWageData] = useState({
     id: null as number | null,
     dailyWage: 0 as number,
     vacationLeave: 0 as number,
     sickLeave: 0 as number,
     isPaidHoliday: false,
-    lastUpdatedBy: "" as string, // full name
-    lastUpdateDate: "" as string, // YYYY-MM-DD
+    lastUpdatedBy: "" as string,
+    lastUpdateDate: "" as string,
   });
 
-  /* --------------------------
-     Helper: fetch single user full name by id
-  --------------------------- */
   const getUserFullName = async (userId: number | null) => {
     if (!userId && userId !== 0) return "Unknown";
     try {
@@ -64,9 +59,6 @@ export default function WageManagementPage() {
     }
   };
 
-  /* --------------------------
-     Fetch departments (once)
-  --------------------------- */
   useEffect(() => {
     fetch("http://100.126.246.124:8060/items/department")
       .then((r) => r.json())
@@ -74,9 +66,6 @@ export default function WageManagementPage() {
       .catch((err) => console.error("departments fetch error", err));
   }, []);
 
-  /* --------------------------
-     Fetch employees when dept selected
-  --------------------------- */
   useEffect(() => {
     if (!selectedDept) {
       setEmployees([]);
@@ -101,18 +90,34 @@ export default function WageManagementPage() {
     setSelectedEmployee(null);
   };
 
-  /* --------------------------
-     Open password dialog for selected employee
-  --------------------------- */
   const openPasswordDialog = (emp: any) => {
     setSelectedEmployee(emp);
     setPasswordInput("");
     setPasswordDialogOpen(true);
   };
 
-  /* --------------------------
-     Verify password
-  --------------------------- */
+  const logWageAccess = async (
+    openedById: number,
+    userId: number,
+    employeeName: string
+  ) => {
+    try {
+      const timestamp = new Date().toISOString();
+      const remarks = `Opened wage modal for ${employeeName} at ${timestamp}`;
+      await fetch("http://100.126.246.124:8060/items/user_wage_access_log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          opened_by: openedById,
+          remarks,
+        }),
+      });
+    } catch (e) {
+      console.error("logWageAccess error:", e);
+    }
+  };
+
   const handlePasswordSubmit = async () => {
     try {
       const session = sessionStorage.getItem("user");
@@ -138,6 +143,14 @@ export default function WageManagementPage() {
         return;
       }
 
+      // Log wage access
+      await logWageAccess(
+        logged.user_id,
+        selectedEmployee.user_id,
+        `${selectedEmployee.user_fname} ${selectedEmployee.user_lname}`
+      );
+
+      // password ok -> load wage data and open modal
       setPasswordDialogOpen(false);
       await loadWageData(selectedEmployee.user_id);
       setModalOpen(true);
@@ -147,9 +160,6 @@ export default function WageManagementPage() {
     }
   };
 
-  /* --------------------------
-     Load wage data
-  --------------------------- */
   const loadWageData = async (userId: number) => {
     try {
       const res = await fetch(
@@ -200,9 +210,6 @@ export default function WageManagementPage() {
     }
   };
 
-  /* --------------------------
-     Save wage data with history
-  --------------------------- */
   const saveWageData = async () => {
     const session = sessionStorage.getItem("user");
     if (!session) {
@@ -236,52 +243,15 @@ export default function WageManagementPage() {
       : `http://100.126.246.124:8060/items/user_wage_management`;
 
     try {
-      // 1. Update main wage record
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      // 2. Update previous history record's valid_to
-      if (wageData.id) {
-        const latestHistoryRes = await fetch(
-          `http://100.126.246.124:8060/items/user_wage_history?filter[user_wage_id][_eq]=${wageData.id}&sort=-valid_from`
-        );
-        const latestHistoryJson = await latestHistoryRes.json();
-        const prevHistory = latestHistoryJson.data?.[0];
-
-        if (prevHistory && !prevHistory.valid_to) {
-          const validToISO = new Date().toISOString();
-          await fetch(
-            `http://100.126.246.124:8060/items/user_wage_history/${prevHistory.history_id}`,
-            {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ valid_to: validToISO }),
-            }
-          );
-        }
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
       }
-
-      // 3. Insert new history record
-      const historyPayload = {
-        user_wage_id: wageData.id,
-        user_id: selectedEmployee.user_id,
-        daily_wage: Number(wageData.dailyWage) || 0,
-        vacation_leave_per_year: Number(wageData.vacationLeave) || 0,
-        sick_leave_per_year: Number(wageData.sickLeave) || 0,
-        paid_holiday: wageData.isPaidHoliday ? 1 : 0,
-        valid_from: new Date().toISOString(),
-        change_type: wageData.id ? "UPDATE" : "INSERT",
-        changed_by: logged.user_id,
-      };
-      await fetch("http://100.126.246.124:8060/items/user_wage_history", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(historyPayload),
-      });
 
       toast.success("Wage information saved successfully.");
       await loadWageData(selectedEmployee.user_id);
@@ -292,14 +262,10 @@ export default function WageManagementPage() {
     }
   };
 
-  /* --------------------------
-     UI
-  --------------------------- */
   return (
     <DashboardLayout>
       <h2 className="text-2xl font-bold mb-6">Wage Management</h2>
 
-      {/* Departments */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         {departments.map((dept) => (
           <Card
@@ -321,7 +287,6 @@ export default function WageManagementPage() {
         ))}
       </div>
 
-      {/* Employees */}
       {selectedDept && (
         <>
           <h3 className="text-xl font-semibold mb-4">
@@ -365,7 +330,6 @@ export default function WageManagementPage() {
         </>
       )}
 
-      {/* Password dialog */}
       <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
         <DialogContent className="sm:max-w-sm p-6 rounded-xl shadow-lg">
           <DialogHeader>
@@ -395,7 +359,6 @@ export default function WageManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Wage modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -471,7 +434,6 @@ export default function WageManagementPage() {
               <span>Paid Holiday</span>
             </div>
 
-            {/* Last updated info */}
             {wageData.lastUpdatedBy && (
               <p className="text-sm text-gray-500 mt-2">
                 <strong>Last updated by:</strong> {wageData.lastUpdatedBy} |{" "}
