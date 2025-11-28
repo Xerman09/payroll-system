@@ -23,21 +23,6 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-/**
- * WageManagementPage
- * - Uses APIs:
- *   GET  /items/department
- *   GET  /items/user
- *   GET  /items/user/{id}
- *   GET  /items/user_wage_management?filter[user_id][_eq]={id}
- *   POST /items/user_wage_management
- *   PATCH /items/user_wage_management/{id}
- *
- * Table schemas expected (as you provided):
- * - user_wage_management: id, user_id, daily_wage, vacation_leave_per_year, sick_leave_per_year, paid_holiday, created_date, created_by, updated_date, updated_by
- * - user: user_id, user_fname, user_lname, user_password, user_department, ...
- */
-
 export default function WageManagementPage() {
   const [departments, setDepartments] = useState<any[]>([]);
   const [selectedDept, setSelectedDept] = useState<number | null>(null);
@@ -45,24 +30,19 @@ export default function WageManagementPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
 
-  // Password verification modal
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
 
-  // Wage data loaded from user_wage_management (or defaults)
   const [wageData, setWageData] = useState({
     id: null as number | null,
     dailyWage: 0 as number,
     vacationLeave: 0 as number,
     sickLeave: 0 as number,
     isPaidHoliday: false,
-    lastUpdatedBy: "" as string, // full name
-    lastUpdateDate: "" as string, // YYYY-MM-DD
+    lastUpdatedBy: "" as string,
+    lastUpdateDate: "" as string,
   });
 
-  /* --------------------------
-     Helper: fetch single user full name by id
-     --------------------------- */
   const getUserFullName = async (userId: number | null) => {
     if (!userId && userId !== 0) return "Unknown";
     try {
@@ -79,9 +59,6 @@ export default function WageManagementPage() {
     }
   };
 
-  /* --------------------------
-     Fetch departments (once)
-     --------------------------- */
   useEffect(() => {
     fetch("http://100.126.246.124:8060/items/department")
       .then((r) => r.json())
@@ -89,9 +66,6 @@ export default function WageManagementPage() {
       .catch((err) => console.error("departments fetch error", err));
   }, []);
 
-  /* --------------------------
-     Fetch employees when dept selected
-     --------------------------- */
   useEffect(() => {
     if (!selectedDept) {
       setEmployees([]);
@@ -116,18 +90,12 @@ export default function WageManagementPage() {
     setSelectedEmployee(null);
   };
 
-  /* --------------------------
-     Open password dialog for selected employee
-     --------------------------- */
   const openPasswordDialog = (emp: any) => {
     setSelectedEmployee(emp);
     setPasswordInput("");
     setPasswordDialogOpen(true);
   };
 
-  /* --------------------------
-     Verify password (compare with server's user record for logged user)
-     --------------------------- */
   const handlePasswordSubmit = async () => {
     try {
       const session = sessionStorage.getItem("user");
@@ -137,7 +105,6 @@ export default function WageManagementPage() {
       }
       const logged = JSON.parse(session);
 
-      // fetch logged user's record to compare password
       const res = await fetch(
         `http://100.126.246.124:8060/items/user/${logged.user_id}`
       );
@@ -154,7 +121,6 @@ export default function WageManagementPage() {
         return;
       }
 
-      // password ok -> load wage data and open modal
       setPasswordDialogOpen(false);
       await loadWageData(selectedEmployee.user_id);
       setModalOpen(true);
@@ -164,11 +130,6 @@ export default function WageManagementPage() {
     }
   };
 
-  /* --------------------------
-     Load wage data for a user from user_wage_management
-     - if record exists, populate wageData and also fetch responsible full name
-     - if not exists, set defaults (POST will create later)
-     --------------------------- */
   const loadWageData = async (userId: number) => {
     try {
       const res = await fetch(
@@ -190,7 +151,6 @@ export default function WageManagementPage() {
         return;
       }
 
-      // determine responsible user id: prefer updated_by, else created_by
       const responsibleUserId = record.updated_by ?? record.created_by ?? null;
       const fullName = responsibleUserId
         ? await getUserFullName(responsibleUserId)
@@ -220,12 +180,6 @@ export default function WageManagementPage() {
     }
   };
 
-  /* --------------------------
-     Save wage data (POST or PATCH)
-     - confirmation dialog before sending
-     - updated_by set to logged user id
-     - after success show toast and reload wage data
-     --------------------------- */
   const saveWageData = async () => {
     const session = sessionStorage.getItem("user");
     if (!session) {
@@ -234,13 +188,11 @@ export default function WageManagementPage() {
     }
     const logged = JSON.parse(session);
 
-    // basic validation
     if (!selectedEmployee) {
       alert("No employee selected.");
       return;
     }
 
-    // confirmation
     const confirmed = window.confirm(
       `Save wage settings for ${selectedEmployee.user_fname} ${selectedEmployee.user_lname}?`
     );
@@ -255,24 +207,45 @@ export default function WageManagementPage() {
       updated_by: logged.user_id,
     };
 
-    const method = wageData.id ? "PATCH" : "POST";
-    const url = wageData.id
-      ? `http://100.126.246.124:8060/items/user_wage_management/${wageData.id}`
-      : `http://100.126.246.124:8060/items/user_wage_management`;
-
     try {
+      // If update -> create history record
+      if (wageData.id) {
+        const historyPayload = {
+          user_wage_id: wageData.id,
+          user_id: selectedEmployee.user_id,
+          daily_wage: Number(wageData.dailyWage) || 0,
+          vacation_leave_per_year: Number(wageData.vacationLeave) || 0,
+          sick_leave_per_year: Number(wageData.sickLeave) || 0,
+          paid_holiday: wageData.isPaidHoliday ? 1 : 0,
+          valid_from: new Date().toISOString(),
+          valid_to: null,
+          change_type: "UPDATE",
+          changed_by: logged.user_id,
+          changed_at: new Date().toISOString(),
+        };
+
+        await fetch("http://100.126.246.124:8060/items/user_wage_history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(historyPayload),
+        });
+      }
+
+      // PATCH or POST main table
+      const method = wageData.id ? "PATCH" : "POST";
+      const url = wageData.id
+        ? `http://100.126.246.124:8060/items/user_wage_management/${wageData.id}`
+        : `http://100.126.246.124:8060/items/user_wage_management`;
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       toast.success("Wage information saved successfully.");
-      // reload wage data to show updated_by name and date
       await loadWageData(selectedEmployee.user_id);
       setModalOpen(false);
     } catch (e) {
@@ -281,9 +254,6 @@ export default function WageManagementPage() {
     }
   };
 
-  /* --------------------------
-     UI
-     --------------------------- */
   return (
     <DashboardLayout>
       <h2 className="text-2xl font-bold mb-6">Wage Management</h2>
@@ -383,6 +353,7 @@ export default function WageManagementPage() {
           </form>
         </DialogContent>
       </Dialog>
+
       {/* Wage modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="sm:max-w-lg">
@@ -459,7 +430,6 @@ export default function WageManagementPage() {
               <span>Paid Holiday</span>
             </div>
 
-            {/* Last updated info */}
             {wageData.lastUpdatedBy && (
               <p className="text-sm text-gray-500 mt-2">
                 <strong>Last updated by:</strong> {wageData.lastUpdatedBy} |{" "}
