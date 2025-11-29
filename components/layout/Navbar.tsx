@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ThemeToggle } from "@/components/theme-toggle";
+import ThemeToggle from "@/components/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -11,20 +11,24 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export default function Navbar() {
+// Define props interface
+interface NavbarProps {
+  toggleTheme: () => void;
+  currentTheme: "light" | "dark";
+}
+
+export default function Navbar({ toggleTheme, currentTheme }: NavbarProps) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = () => {
-    setLoggingOut(true); // start animation
-    // Clear session/local storage
+    setLoggingOut(true);
     localStorage.removeItem("user");
     sessionStorage.clear();
 
-    // Give a small delay for animation/transition
     setTimeout(() => {
-      router.replace("/auth/login"); // replace to prevent back
-    }, 300); // 0.3s for smooth effect
+      router.replace("/auth/login");
+    }, 300);
   };
 
   return (
@@ -34,13 +38,12 @@ export default function Navbar() {
       }`}
     >
       <h1 className="font-semibold text-lg transition-transform duration-300">
-        Dashboard
+        Vertex Technology Corps.
       </h1>
 
       <div className="flex items-center gap-4">
-        <ThemeToggle />
+        <ThemeToggle toggleTheme={toggleTheme} currentTheme={currentTheme} />
 
-        {/* Profile Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger>
             <Avatar className="cursor-pointer hover:opacity-80 transition-transform duration-200">
@@ -54,7 +57,7 @@ export default function Navbar() {
             <DropdownMenuItem>Settings</DropdownMenuItem>
             <DropdownMenuItem
               className="text-red-600 cursor-pointer hover:bg-red-100 dark:hover:bg-red-800 transition-colors"
-              onClick={handleLogout} // ✅ logout function
+              onClick={handleLogout}
             >
               {loggingOut ? "Logging out..." : "Logout"}
             </DropdownMenuItem>

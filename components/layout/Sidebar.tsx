@@ -3,7 +3,15 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/providers/SidebarProvider";
-import { Menu, ChevronLeft, Home, DollarSign, Users } from "lucide-react";
+import {
+  Menu,
+  ChevronLeft,
+  Home,
+  DollarSign,
+  Users,
+  Calculator,
+} from "lucide-react";
+
 import {
   TooltipProvider,
   Tooltip,
@@ -22,10 +30,17 @@ export default function Sidebar() {
       icon: <DollarSign size={20} />,
     },
     {
+      title: "Payroll System",
+      href: "/dashboard/payroll",
+      icon: <Calculator size={20} />,
+    },
+    {
       title: "Employees",
       href: "/dashboard/employees",
       icon: <Users size={20} />,
     },
+
+    // ⭐ NEW PAYROLL SYSTEM MODULE
   ];
 
   return (

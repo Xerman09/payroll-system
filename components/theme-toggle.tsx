@@ -1,24 +1,65 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Moon, Sun } from "lucide-react";
 
-export function ThemeToggle() {
-  const [theme, setTheme] = useState("light");
+type ThemeToggleProps = {
+  toggleTheme?: () => void;
+  currentTheme?: "light" | "dark";
+};
 
-  function toggleTheme() {
+export function ThemeToggle({ toggleTheme, currentTheme }: ThemeToggleProps) {
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  // Initialize theme on mount from props or localStorage or prefers-color-scheme
+  useEffect(() => {
+    try {
+      // If parent passed a currentTheme prop prefer it so SSR/RSC matches
+      const saved = currentTheme ?? localStorage.getItem("theme");
+      if (saved === "dark") {
+        setTheme("dark");
+        document.documentElement.classList.add("dark");
+      } else if (saved === "light") {
+        setTheme("light");
+        document.documentElement.classList.remove("dark");
+      } else if (
+        window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches
+      ) {
+        setTheme("dark");
+        document.documentElement.classList.add("dark");
+      } else {
+        setTheme("light");
+        document.documentElement.classList.remove("dark");
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [currentTheme]);
+
+  const handleClick = () => {
+    // If parent provided a toggle handler, call it so higher-level layout stays in sync
+    if (typeof toggleTheme === "function") toggleTheme();
+    else toggleThemeInternal();
+  };
+
+  function toggleThemeInternal() {
     const newTheme = theme === "light" ? "dark" : "light";
     setTheme(newTheme);
-    document.documentElement.classList.toggle("dark");
+    try {
+      localStorage.setItem("theme", newTheme);
+    } catch (e) {}
+    if (newTheme === "dark") document.documentElement.classList.add("dark");
+    else document.documentElement.classList.remove("dark");
   }
 
   return (
     <button
-      onClick={toggleTheme}
+      onClick={handleClick}
       className="p-2 rounded-md border hover:bg-accent transition flex items-center"
     >
-      {theme === "light" ? (
+      {(currentTheme ?? theme) === "light" ? (
         <Sun className="h-5 w-5" />
       ) : (
         <Moon className="h-5 w-5" />
@@ -26,3 +67,5 @@ export function ThemeToggle() {
     </button>
   );
 }
+
+export default ThemeToggle;
