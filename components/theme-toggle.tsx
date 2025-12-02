@@ -49,6 +49,11 @@ export function ThemeToggle({ toggleTheme, currentTheme }: ThemeToggleProps) {
     setTheme(newTheme);
     try {
       localStorage.setItem("theme", newTheme);
+      try {
+        document.cookie = `theme=${newTheme}; path=/; max-age=${
+          60 * 60 * 24 * 365
+        }; samesite=lax`;
+      } catch (e) {}
     } catch (e) {}
     if (newTheme === "dark") document.documentElement.classList.add("dark");
     else document.documentElement.classList.remove("dark");

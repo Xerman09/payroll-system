@@ -47,6 +47,9 @@ export default function WageManagementPage() {
     vacationLeave: 0,
     sickLeave: 0,
     isPaidHoliday: false,
+    sss: "0.00",
+    pagibig: "0.00",
+    philhealth: "0.00",
     lastUpdatedBy: "",
     lastUpdateDate: "",
   });
@@ -209,6 +212,9 @@ export default function WageManagementPage() {
           vacationLeave: 0,
           sickLeave: 0,
           isPaidHoliday: false,
+          sss: "0.00",
+          pagibig: "0.00",
+          philhealth: "0.00",
           lastUpdatedBy: "",
           lastUpdateDate: "",
         });
@@ -231,6 +237,9 @@ export default function WageManagementPage() {
         vacationLeave: Number(record.vacation_leave_per_year) || 0,
         sickLeave: Number(record.sick_leave_per_year) || 0,
         isPaidHoliday: record.paid_holiday === 1,
+        sss: record.sss_contribution_monthly ?? "0.00",
+        pagibig: record.pagibig_contribution_monthly ?? "0.00",
+        philhealth: record.philhealth_contribution_monthly ?? "0.00",
         lastUpdatedBy: fullName || "",
         lastUpdateDate: lastDate,
       });
@@ -259,6 +268,11 @@ export default function WageManagementPage() {
       sick_leave_per_year: Number(wageData.sickLeave) || 0,
       paid_holiday: wageData.isPaidHoliday ? 1 : 0,
       updated_by: logged.user_id,
+
+      // Benefits as strings (match API)
+      sss_contribution_monthly: wageData.sss,
+      pagibig_contribution_monthly: wageData.pagibig,
+      philhealth_contribution_monthly: wageData.philhealth,
     };
 
     const method = wageData.id ? "PATCH" : "POST";
@@ -523,9 +537,9 @@ export default function WageManagementPage() {
 
       {/* Wage Info Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-3xl w-full max-h-[80vh] p-6 rounded-md shadow-lg overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-2xl font-semibold text-gray-800 dark:text-gray-100">
               Wage Information —{" "}
               {selectedEmployee
                 ? `${selectedEmployee.user_fname} ${selectedEmployee.user_lname}`
@@ -533,31 +547,59 @@ export default function WageManagementPage() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-4 mt-2">
-            <div>
-              <label className="text-sm font-medium">Employee ID</label>
+          {/* Main Grid */}
+          <div className="grid grid-cols-2 gap-4 mt-6">
+            {/* Row 1: Employee ID */}
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                Employee ID
+              </label>
               <Input
                 type="text"
                 value={selectedEmployee?.user_id || ""}
                 disabled
+                className="w-full rounded-md focus:outline-none focus:ring-0"
               />
             </div>
-            <div>
-              <label className="text-sm font-medium">Daily Wage</label>
-              <Input
-                type="number"
-                value={wageData.dailyWageInput}
-                onChange={(e) =>
-                  setWageData((prev) => ({
-                    ...prev,
-                    dailyWageInput: e.target.value,
-                    dailyWage: Number(e.target.value),
-                  }))
-                }
-              />
+
+            {/* Row 1: Daily Wage */}
+            <div className="flex flex-col relative">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                Daily Wage
+              </label>
+              <div className="relative">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">
+                  ₱
+                </span>
+                <Input
+                  type="text"
+                  value={wageData.dailyWageInput}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (/^\d*\.?\d*$/.test(value)) {
+                      setWageData((prev) => ({
+                        ...prev,
+                        dailyWageInput: value,
+                        dailyWage: Number(value) || 0,
+                      }));
+                    }
+                  }}
+                  onBlur={() => {
+                    setWageData((prev) => ({
+                      ...prev,
+                      dailyWageInput: prev.dailyWage.toFixed(2),
+                    }));
+                  }}
+                  className="w-full rounded-md pl-6 focus:outline-none focus:ring-0"
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-sm font-medium">Vacation Leave</label>
+
+            {/* Row 2: Vacation Leave */}
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                Vacation Leave
+              </label>
               <Input
                 type="number"
                 value={wageData.vacationLeave}
@@ -567,10 +609,15 @@ export default function WageManagementPage() {
                     vacationLeave: Number(e.target.value),
                   }))
                 }
+                className="w-full rounded-md focus:outline-none focus:ring-0"
               />
             </div>
-            <div>
-              <label className="text-sm font-medium">Sick Leave</label>
+
+            {/* Row 2: Sick Leave */}
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                Sick Leave
+              </label>
               <Input
                 type="number"
                 value={wageData.sickLeave}
@@ -580,29 +627,99 @@ export default function WageManagementPage() {
                     sickLeave: Number(e.target.value),
                   }))
                 }
+                className="w-full rounded-md focus:outline-none focus:ring-0"
               />
             </div>
-            <div className="flex items-center gap-2">
+
+            {/* Row 3: Paid Holiday */}
+            <div className="flex items-center gap-2 col-span-2">
               <Checkbox
                 checked={wageData.isPaidHoliday}
                 onCheckedChange={(checked) =>
                   setWageData((prev) => ({ ...prev, isPaidHoliday: !!checked }))
                 }
               />
-              <label className="text-sm">Paid Holiday</label>
+              <label className="text-sm text-gray-700 dark:text-gray-200">
+                Paid Holiday
+              </label>
             </div>
-            <div className="text-xs text-gray-500">
-              Last Updated By: {wageData.lastUpdatedBy} on{" "}
-              {wageData.lastUpdateDate}
+
+            {/* Divider */}
+            <div className="col-span-2 border-t border-gray-300 dark:border-gray-600 mt-2 mb-1"></div>
+
+            {/* Benefits Row */}
+            <div className="col-span-2">
+              <div className="text-m font-medium text-gray-700 dark:text-gray-200 mb-2">
+                Benefits
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                {["SSS", "Pagibig", "Philhealth"].map((field) => {
+                  const key = field.toLowerCase() as
+                    | "sss"
+                    | "pagibig"
+                    | "philhealth";
+                  return (
+                    <div key={field} className="flex flex-col">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                        {field}
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">
+                          ₱
+                        </span>
+                        <Input
+                          type="text"
+                          value={wageData[key]}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (/^\d*\.?\d*$/.test(value)) {
+                              setWageData((prev) => ({
+                                ...prev,
+                                [key]: value,
+                              }));
+                            }
+                          }}
+                          onBlur={() => {
+                            setWageData((prev) => ({
+                              ...prev,
+                              [key]:
+                                prev[key] === ""
+                                  ? "0.00"
+                                  : parseFloat(prev[key]).toFixed(2),
+                            }));
+                          }}
+                          className="w-full rounded-md pl-6 py-2 focus:outline-none focus:ring-0"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          <DialogFooter className="mt-4">
-            <Button onClick={saveWageData}>Save</Button>
-            <Button variant="outline" onClick={() => setModalOpen(false)}>
-              Cancel
-            </Button>
-          </DialogFooter>
+          {/* Footer */}
+          <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              Last Updated By: {wageData.lastUpdatedBy} on{" "}
+              {wageData.lastUpdateDate}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-md px-6 py-2"
+                onClick={saveWageData}
+              >
+                Save
+              </Button>
+              <Button
+                variant="outline"
+                className="rounded-md px-6 py-2"
+                onClick={() => setModalOpen(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </DashboardLayout>
