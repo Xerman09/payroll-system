@@ -42,7 +42,7 @@ export default function Sidebar() {
         },
         {
           title: "Holiday Calendar",
-          href: "/dashboard/calendar",
+          href: "/dashboard/calendar-management",
           icon: <Calendar size={20} />,
         },
         {
