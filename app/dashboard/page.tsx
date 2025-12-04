@@ -71,7 +71,7 @@ export default function DashboardPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow hover:scale-105 transition transform p-5 flex items-center gap-3">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-5 flex items-center gap-3">
           <div className="p-3 bg-gray-200 dark:bg-gray-700 rounded-full">
             <Users className="w-6 h-6 text-gray-700 dark:text-gray-200" />
           </div>
@@ -83,7 +83,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow hover:scale-105 transition transform p-5 flex items-center gap-3">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-5 flex items-center gap-3">
           <div className="p-3 bg-gray-200 dark:bg-gray-700 rounded-full">
             <DollarSign className="w-6 h-6 text-gray-700 dark:text-gray-200" />
           </div>
@@ -95,7 +95,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow hover:scale-105 transition transform p-5 flex items-center gap-3">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-5 flex items-center gap-3">
           <div className="p-3 bg-gray-200 dark:bg-gray-700 rounded-full">
             <Calendar className="w-6 h-6 text-gray-700 dark:text-gray-200" />
           </div>
@@ -107,7 +107,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow hover:scale-105 transition transform p-5 flex items-center gap-3">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-5 flex items-center gap-3">
           <div className="p-3 bg-gray-200 dark:bg-gray-700 rounded-full">
             <FileText className="w-6 h-6 text-gray-700 dark:text-gray-200" />
           </div>
@@ -123,7 +123,7 @@ export default function DashboardPage() {
       {/* Graphs / Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Payroll Trend LineChart */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-5 hover:scale-105 transition transform">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-5">
           <h3 className="text-gray-700 dark:text-gray-200 font-semibold mb-4">
             Payroll Trend
           </h3>
@@ -145,7 +145,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Employee Distribution PieChart */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-5 hover:scale-105 transition transform">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-5">
           <h3 className="text-gray-700 dark:text-gray-200 font-semibold mb-4">
             Employee Distribution
           </h3>
@@ -175,7 +175,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stacked Bar Chart */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-5 hover:scale-105 transition transform mt-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-5 mt-6">
         <h3 className="text-gray-700 dark:text-gray-200 font-semibold mb-4">
           Monthly Payroll vs Overtime
         </h3>
@@ -197,14 +197,14 @@ export default function DashboardPage() {
 
       {/* Additional Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow hover:scale-105 transition transform p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-5">
           <h4 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">
             Late Comings
           </h4>
           <p className="text-gray-500 dark:text-gray-400">5 this week</p>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow hover:scale-105 transition transform p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-5">
           <h4 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">
             Overtime Hours
           </h4>
@@ -213,7 +213,7 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow hover:scale-105 transition transform p-5">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-5">
           <h4 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">
             Pending Documents
           </h4>

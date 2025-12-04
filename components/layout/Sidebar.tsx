@@ -13,6 +13,7 @@ import {
   Calculator,
   Calendar,
   HandCoins,
+  PiggyBank,
 } from "lucide-react";
 
 import {
@@ -41,14 +42,30 @@ export default function Sidebar() {
           icon: <DollarSign size={20} />,
         },
         {
-          title: "Holiday Calendar",
-          href: "/dashboard/calendar-management",
-          icon: <Calendar size={20} />,
+          title: "Payroll System",
+          href: "/dashboard/payroll",
+          icon: <Calculator size={20} />,
         },
+
+        // ==================================================
+        // ✅ NEW COOP MODULE TAB (PiggyBank icon)
+        // ==================================================
+        {
+          title: "COOP",
+          href: "/dashboard/coop",
+          icon: <PiggyBank size={20} />,
+        },
+        // ==================================================
+
         {
           title: "Benefit Settings",
           href: "/dashboard/benefit-settings",
           icon: <HandCoins size={20} />,
+        },
+        {
+          title: "Holiday Calendar",
+          href: "/dashboard/calendar-management",
+          icon: <Calendar size={20} />,
         },
       ],
     },
@@ -68,7 +85,7 @@ export default function Sidebar() {
     <TooltipProvider>
       <aside
         className={cn(
-          "fixed top-0 left-0 h-screen flex flex-col z-50 transition-all duration-300 shadow-xl",
+          "fixed top-0 left-0 h-screen flex flex-col z-50 transition-all duration-200 ease-out shadow-xl",
           collapsed
             ? "w-20 bg-gray-200 dark:bg-gray-800"
             : "w-[250px] bg-gray-100 dark:bg-gray-900"
@@ -78,7 +95,7 @@ export default function Sidebar() {
         <div className="flex items-center justify-between h-[65px] px-4 border-b border-gray-300 dark:border-gray-700">
           <div
             className={cn(
-              "font-bold text-lg transition-all duration-500 whitespace-nowrap",
+              "font-bold text-lg transition-all duration-200 ease-out whitespace-nowrap",
               collapsed ? "opacity-0 w-0" : "opacity-100"
             )}
           >
@@ -94,7 +111,7 @@ export default function Sidebar() {
           {collapsed ? <Menu size={22} /> : <ChevronLeft size={22} />}
         </button>
 
-        {/* Menu with Panel Titles */}
+        {/* Menu */}
         <div className="flex flex-col mt-6 px-2">
           {menuItems.map((panel, pIdx) => (
             <div key={pIdx} className="mb-4">
@@ -103,13 +120,14 @@ export default function Sidebar() {
                   {panel.panel}
                 </div>
               )}
+
               {panel.items.map((item, idx) => (
                 <Tooltip key={idx} delayDuration={0}>
                   <TooltipTrigger asChild>
                     <Link
                       href={item.href}
                       className={cn(
-                        "flex items-center gap-3 p-3 rounded-xl transition-all duration-300 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 hover:shadow-lg",
+                        "flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ease-out text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 hover:shadow-lg",
                         collapsed ? "justify-center" : "justify-start"
                       )}
                     >
@@ -117,6 +135,7 @@ export default function Sidebar() {
                       {!collapsed && <span>{item.title}</span>}
                     </Link>
                   </TooltipTrigger>
+
                   {collapsed && (
                     <TooltipContent side="right">{item.title}</TooltipContent>
                   )}

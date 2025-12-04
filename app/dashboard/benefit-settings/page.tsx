@@ -163,14 +163,14 @@ export default function BenefitSettingsPage() {
               return (
                 <div
                   key={benefit.code}
-                  className="border p-2 rounded-md space-y-2 bg-white"
+                  className="border p-2 rounded-md space-y-2 bg-card"
                 >
                   <div className="flex justify-between">
                     <h2 className="font-medium text-sm">{benefit.name}</h2>
                   </div>
 
                   {s && s.updated_by && (
-                    <p className="text-[10px] text-gray-500 italic">
+                    <p className="text-[10px] text-muted-foreground italic">
                       Updated by {getUserName(s.updated_by)} on{" "}
                       {s.updated_date
                         ? new Date(s.updated_date).toLocaleDateString()
@@ -256,7 +256,7 @@ export default function BenefitSettingsPage() {
             >
               {saving ? (
                 <div className="flex items-center space-x-1 justify-center">
-                  <span className="animate-spin border-2 border-t-transparent border-white rounded-full w-3 h-3" />
+                  <span className="animate-spin border-2 border-t-transparent border-current rounded-full w-3 h-3" />
                   <span>Saving...</span>
                 </div>
               ) : saveStatus === "success" ? (

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import useSessionTimeout from "@/hooks/useSessionTimeout";
 import PreventBackAfterLogout from "@/components/PreventBackAfterLogout";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { Toaster } from "@/components/ui/sonner";
 
 export default function DashboardLayout({
   children,
@@ -51,13 +52,14 @@ export default function DashboardLayout({
       <Sidebar />
       <div
         className={cn(
-          "flex-1 transition-all duration-300 bg-gray-50 dark:bg-gray-900",
+          "flex-1 transition-all duration-200 ease-out bg-gray-50 dark:bg-gray-900",
           collapsed ? "ml-20" : "ml-[250px]"
         )}
       >
         <Navbar toggleTheme={toggleTheme} currentTheme={theme} />
         <main className="p-6">{children}</main>
       </div>
+      <Toaster position="top-right" richColors />
     </div>
   );
 }

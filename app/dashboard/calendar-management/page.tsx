@@ -1,7 +1,6 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
-
+import { Pencil, Trash2, Calendar as IconCalendar } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar as IconCalendar } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
@@ -46,23 +44,22 @@ interface User {
 }
 
 export default function CalendarManagementPage() {
-  // --- data
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
-  // modal / form
   const [modalOpen, setModalOpen] = useState(false);
-  const [holidayDate, setHolidayDate] = useState(""); // yyyy-mm-dd
+  const [holidayDate, setHolidayDate] = useState("");
   const [description, setDescription] = useState("");
   const [holidayType, setHolidayType] = useState("regular");
   const [isRecurring, setIsRecurring] = useState(true);
   const [isPaid, setIsPaid] = useState(true);
   const [editingHolidayId, setEditingHolidayId] = useState<number | null>(null);
 
-  // blink target date ISO (yyyy-mm-dd) when clicking upcoming event
   const [blinkDateIso, setBlinkDateIso] = useState<string | null>(null);
   const calendarWrapRef = useRef<HTMLDivElement | null>(null);
+
+  const [searchTerm, setSearchTerm] = useState("");
 
   // ---------------------- load data ----------------------
   const loadHolidays = async () => {
@@ -94,19 +91,12 @@ export default function CalendarManagementPage() {
     loadUsers();
   }, []);
 
-  // ---------------------- helpers ----------------------
-  const isoDate = (d: Date) => d.toISOString().substring(0, 10); // YYYY-MM-DD
+  const isoDate = (d: Date) => d.toISOString().substring(0, 10);
 
-  // unique holiday date list for modifiers
   const holidayDateList = useMemo(() => {
-    return [
-      ...new Set(
-        holidays.map((h) => {
-          // ensure proper ISO format
-          return h.holiday_date;
-        })
-      ),
-    ].map((s) => new Date(s));
+    return [...new Set(holidays.map((h) => h.holiday_date))].map(
+      (s) => new Date(s)
+    );
   }, [holidays]);
 
   const upcomingEvents = useMemo(() => {
@@ -116,13 +106,22 @@ export default function CalendarManagementPage() {
       .slice(0, 10);
   }, [holidays]);
 
+  const filteredHolidays = useMemo(() => {
+    return holidays.filter(
+      (h) =>
+        h.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        h.holiday_date.includes(searchTerm) ||
+        h.holiday_type.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [holidays, searchTerm]);
+
   const getUserName = (id: number | undefined | null) => {
     if (!id && id !== 0) return "Unknown";
     const u = users.find((x) => x.user_id === id);
     return u ? `${u.user_fname} ${u.user_lname}` : `User ${id}`;
   };
 
-  // ---------------------- form / modal helpers ----------------------
+  // ---------------------- modal helpers ----------------------
   const resetForm = () => {
     setHolidayDate("");
     setDescription("");
@@ -142,7 +141,7 @@ export default function CalendarManagementPage() {
     setModalOpen(true);
   };
 
-  // ---------------------- save (create/update) ----------------------
+  // ---------------------- save holiday ----------------------
   const handleSaveHoliday = async () => {
     try {
       const session = sessionStorage.getItem("user");
@@ -151,6 +150,15 @@ export default function CalendarManagementPage() {
 
       if (!holidayDate || !description)
         return toast.error("Please fill all fields.");
+
+      const duplicate = holidays.find(
+        (h) =>
+          h.holiday_date === holidayDate &&
+          h.holiday_type === holidayType &&
+          h.id !== editingHolidayId
+      );
+      if (duplicate)
+        return toast.error("Holiday with this date and type already exists.");
 
       const payload: any = {
         holiday_date: holidayDate,
@@ -173,7 +181,16 @@ export default function CalendarManagementPage() {
           }
         );
 
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          const err = await res.json();
+          if (err?.errors?.[0]?.code === "RECORD_NOT_UNIQUE") {
+            return toast.error(
+              "Holiday with this date and type already exists."
+            );
+          }
+          throw new Error(`HTTP ${res.status}`);
+        }
+
         toast.success("Holiday updated successfully!");
       } else {
         payload.created_by = logged.user_id;
@@ -187,7 +204,16 @@ export default function CalendarManagementPage() {
           }
         );
 
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          const err = await res.json();
+          if (err?.errors?.[0]?.code === "RECORD_NOT_UNIQUE") {
+            return toast.error(
+              "Holiday with this date and type already exists."
+            );
+          }
+          throw new Error(`HTTP ${res.status}`);
+        }
+
         toast.success("Holiday added successfully!");
       }
 
@@ -206,9 +232,7 @@ export default function CalendarManagementPage() {
     try {
       const res = await fetch(
         `http://100.126.246.124:8060/items/holiday_calendar/${id}`,
-        {
-          method: "DELETE",
-        }
+        { method: "DELETE" }
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       toast.success("Holiday deleted successfully!");
@@ -219,57 +243,41 @@ export default function CalendarManagementPage() {
     }
   };
 
-  // ---------------------- blink + scroll into view ----------------------
-  // Setting blinkDateIso will add a 'blink' modifier to the calendar via modifiers prop.
-  // We then wait a tick and try to scroll the element with that modifier into view.
+  // ---------------------- blink + scroll ----------------------
   useEffect(() => {
     if (!blinkDateIso) return;
-
-    // after calendar updates, find the element with the blink class and scroll to it.
-    // calendarWrapRef is parent wrapper; the calendar library renders day buttons inside it.
     const timeout = setTimeout(() => {
       if (!calendarWrapRef.current) return;
-
-      // the calendar day cells that get the modifier will have the modifier class name.
-      // we assigned 'mod-blink' class in modifiersClassNames below.
       const el = calendarWrapRef.current.querySelector(".mod-blink");
       if (el && el instanceof HTMLElement) {
-        // scroll into view within the calendar wrapper
         el.scrollIntoView({
           behavior: "smooth",
           block: "center",
           inline: "center",
         });
       }
-    }, 120); // small delay to let calendar render modifier class
-
-    // stop blinking after 1s
+    }, 120);
     const stop = setTimeout(() => setBlinkDateIso(null), 1000);
-
     return () => {
       clearTimeout(timeout);
       clearTimeout(stop);
     };
   }, [blinkDateIso]);
 
-  // when clicking upcoming event
   const onClickUpcoming = (h: Holiday) => {
     setSelectedDate(new Date(h.holiday_date));
     setBlinkDateIso(h.holiday_date);
   };
 
-  // modifiers object for calendar
-  // include blink date (if any) as array of Date
   const blinkDateList = blinkDateIso ? [new Date(blinkDateIso)] : [];
 
   return (
     <DashboardLayout>
-      <div className="w-full">
-        {/* grid: left 3/8 (span-3), right 5/8 (span-5) */}
+      <div className="w-full relative">
         <div className="grid grid-cols-1 md:grid-cols-8 gap-6">
-          {/* LEFT: Calendar Overview + Upcoming (span 3) */}
+          {/* LEFT: Calendar Overview */}
           <div className="col-span-1 md:col-span-3">
-            <Card className="shadow-sm border rounded-xl">
+            <Card className="shadow-sm border rounded-xl h-full flex flex-col">
               <CardHeader>
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
                   <IconCalendar className="w-5 h-5" />
@@ -277,12 +285,10 @@ export default function CalendarManagementPage() {
                 </CardTitle>
               </CardHeader>
 
-              <CardContent>
-                {/* compact calendar */}
+              <CardContent className="flex flex-col flex-1">
                 <div
                   ref={calendarWrapRef}
                   className="w-full flex justify-center mb-3"
-                  aria-hidden={false}
                 >
                   <Calendar
                     mode="single"
@@ -300,65 +306,58 @@ export default function CalendarManagementPage() {
                         "bg-blue-200 dark:bg-blue-700 text-blue-900 dark:text-white font-bold border border-blue-500",
                       holidays:
                         "bg-red-200 dark:bg-red-700 text-red-900 dark:text-white font-semibold border border-red-500 rounded-sm",
-                      blink: "mod-blink", // class we will use to scroll and animate
+                      blink: "mod-blink",
                     }}
                   />
                 </div>
 
-                {/* upcoming events below calendar */}
-                <div>
-                  <h3 className="font-medium mb-2">Upcoming Events</h3>
-                  <div className="space-y-2 max-h-56 overflow-y-auto pr-2">
-                    {upcomingEvents.length === 0 ? (
-                      <p className="text-gray-500 text-sm">
-                        No upcoming events
-                      </p>
-                    ) : (
-                      upcomingEvents.map((h) => (
-                        <button
-                          key={h.id}
-                          onClick={() => onClickUpcoming(h)}
-                          className="w-full text-left p-2 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 transition flex justify-between items-start"
-                        >
-                          <div>
-                            <div className="font-medium">{h.description}</div>
-                            <div className="text-xs text-gray-500">
-                              {new Date(h.holiday_date).toLocaleDateString(
-                                "en-US",
-                                {
-                                  month: "short",
-                                  day: "numeric",
-                                  year: "numeric",
-                                }
-                              )}{" "}
-                              — {h.holiday_type}
-                            </div>
+                <h3 className="font-medium mb-2">Upcoming Events</h3>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                  {upcomingEvents.length === 0 ? (
+                    <p className="text-gray-500 text-sm">No upcoming events</p>
+                  ) : (
+                    upcomingEvents.map((h) => (
+                      <button
+                        key={h.id}
+                        onClick={() => onClickUpcoming(h)}
+                        className="w-full text-left p-2 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 transition flex justify-between items-start"
+                      >
+                        <div>
+                          <div className="font-medium">{h.description}</div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(h.holiday_date).toLocaleDateString(
+                              "en-US",
+                              {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              }
+                            )}{" "}
+                            — {h.holiday_type}
                           </div>
-
-                          <div className="text-xs text-gray-400 ml-2">
-                            {/* small indicator dot */}
-                            <span
-                              className={`inline-block w-2 h-2 rounded-full mt-1 ${
-                                h.holiday_type === "company"
-                                  ? "bg-yellow-500"
-                                  : h.holiday_type === "special"
-                                  ? "bg-orange-500"
-                                  : "bg-red-500"
-                              }`}
-                            />
-                          </div>
-                        </button>
-                      ))
-                    )}
-                  </div>
+                        </div>
+                        <div className="text-xs text-gray-400 ml-2">
+                          <span
+                            className={`inline-block w-2 h-2 rounded-full mt-1 ${
+                              h.holiday_type === "company"
+                                ? "bg-yellow-500"
+                                : h.holiday_type === "special"
+                                ? "bg-orange-500"
+                                : "bg-red-500"
+                            }`}
+                          />
+                        </div>
+                      </button>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* RIGHT: Holiday Calendar Table (span 5) */}
+          {/* RIGHT: Holiday Table */}
           <div className="col-span-1 md:col-span-5">
-            <Card className="shadow-sm border rounded-xl">
+            <Card className="shadow-sm border rounded-xl h-full flex flex-col">
               <CardHeader>
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
                   <IconCalendar className="w-5 h-5" />
@@ -366,112 +365,141 @@ export default function CalendarManagementPage() {
                 </CardTitle>
               </CardHeader>
 
-              <CardContent>
-                <div className="flex justify-between items-center mb-4">
+              <CardContent className="flex flex-col flex-1">
+                <div className="flex justify-between items-center mb-4 gap-2">
                   <h2 className="text-base font-semibold">List of Holidays</h2>
-                  <Button
-                    onClick={() => {
-                      resetForm();
-                      setModalOpen(true);
-                    }}
-                  >
-                    + Add Holiday
-                  </Button>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Search by description, date, or type"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="max-w-xs"
+                    />
+                    <Button
+                      onClick={() => {
+                        resetForm();
+                        setModalOpen(true);
+                      }}
+                    >
+                      + Add Holiday
+                    </Button>
+                  </div>
                 </div>
-
-                <div className="rounded-md border overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead className="bg-gray-100 dark:bg-gray-700">
-                      <tr>
-                        <th className="border p-2 text-left">No.</th>
-                        <th className="border p-2 text-left">Date</th>
-                        <th className="border p-2 text-left">Description</th>
-                        <th className="border p-2 text-left">Type</th>
-                        <th className="border p-2 text-left">Recurring</th>
-                        <th className="border p-2 text-left">Paid</th>
-                        <th className="border p-2 text-left">By</th>
-                        <th className="border p-2 text-left">Actions</th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {holidays.map((item, idx) => (
-                        <tr
-                          key={item.id}
-                          className="hover:bg-gray-50 dark:hover:bg-gray-800"
-                        >
-                          <td className="border p-2 align-top">{idx + 1}</td>
-                          <td className="border p-2 align-top">
-                            {new Date(item.holiday_date).toLocaleDateString(
-                              "en-US",
-                              {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              }
-                            )}
-                            {item.updated_date && (
-                              <div className="text-xs text-gray-400">
-                                Updated:{" "}
-                                {new Date(
-                                  item.updated_date
-                                ).toLocaleDateString()}
-                              </div>
-                            )}
-                          </td>
-                          <td className="border p-2 align-top">
-                            {item.description}
-                          </td>
-                          <td className="border p-2 align-top capitalize">
-                            {item.holiday_type}
-                          </td>
-                          <td className="border p-2 align-top">
-                            {item.is_recurring ? "Yes" : "No"}
-                          </td>
-                          <td className="border p-2 align-top">
-                            {item.is_paid ? "Yes" : "No"}
-                          </td>
-                          <td className="border p-2 align-top">
-                            {item.updated_by
-                              ? `${getUserName(item.updated_by)} (Updated)`
-                              : `${getUserName(item.created_by)} (Created)`}
-                          </td>
-                          <td className="border p-2 text-center flex items-center gap-2 justify-center">
-                            {/* Edit Button */}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEdit(item)}
-                              className="text-blue-600 hover:text-blue-800"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </Button>
-
-                            {/* Delete Button */}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDeleteHoliday(item.id)}
-                              className="text-red-600 hover:text-red-800"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-
-                      {holidays.length === 0 && (
+                <div className="rounded-md border overflow-hidden">
+                  <div className="max-h-[480px] overflow-y-auto">
+                    <table className="w-full border-collapse">
+                      {/* Sticky Header */}
+                      <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0 z-10">
                         <tr>
-                          <td
-                            colSpan={8}
-                            className="text-center p-4 text-gray-500"
-                          >
-                            No holidays found.
-                          </td>
+                          <th className="border p-2 text-left">No.</th>
+                          <th className="border p-2 text-left">Date</th>
+                          <th className="border p-2 text-left">Description</th>
+                          <th className="border p-2 text-left">Type</th>
+                          <th className="border p-2 text-left">Recurring</th>
+                          <th className="border p-2 text-left">Paid</th>
+                          <th className="border p-2 text-left">
+                            Created/Updated By
+                          </th>
+                          <th className="border p-2 text-left">Actions</th>
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
+                      </thead>
+
+                      {/* Table Body */}
+                      <tbody>
+                        {filteredHolidays.length > 0 ? (
+                          filteredHolidays.map((item, idx) => (
+                            <tr
+                              key={item.id}
+                              className="hover:bg-gray-50 dark:hover:bg-gray-800"
+                            >
+                              <td className="border p-2 align-top">
+                                {idx + 1}
+                              </td>
+
+                              {/* DATE + subtle "Updated" text */}
+                              <td className="border p-2 align-top">
+                                {new Date(item.holiday_date).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                  }
+                                )}
+
+                                {item.updated_date && (
+                                  <div className="text-[11px] text-gray-400 mt-1">
+                                    Updated:{" "}
+                                    {new Date(
+                                      item.updated_date
+                                    ).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </td>
+
+                              <td className="border p-2 align-top">
+                                {item.description}
+                              </td>
+                              <td className="border p-2 align-top">
+                                {item.holiday_type}
+                              </td>
+                              <td className="border p-2 align-top">
+                                {item.is_recurring ? "Yes" : "No"}
+                              </td>
+                              <td className="border p-2 align-top">
+                                {item.is_paid ? "Yes" : "No"}
+                              </td>
+
+                              {/* CREATED / UPDATED NAME with subtle tag */}
+                              <td className="border p-2 align-top">
+                                <div className="font-medium">
+                                  {item.updated_by
+                                    ? getUserName(item.updated_by)
+                                    : getUserName(item.created_by)}
+                                </div>
+
+                                <div className="text-[11px] text-gray-400">
+                                  {item.updated_by ? "Updated" : "Created"}
+                                </div>
+                              </td>
+
+                              {/* ACTION BUTTONS */}
+                              <td className="border p-2 text-center">
+                                <div className="flex justify-center gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleEdit(item)}
+                                    className="text-blue-600 hover:text-blue-800"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteHoliday(item.id)}
+                                    className="text-red-600 hover:text-red-800"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td
+                              colSpan={8}
+                              className="p-4 text-center text-gray-500"
+                            >
+                              No holidays found.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -541,26 +569,15 @@ export default function CalendarManagementPage() {
                 </div>
               </div>
 
-              <Button className="w-full" onClick={handleSaveHoliday}>
-                {editingHolidayId ? "Update Holiday" : "Add Holiday"}
-              </Button>
+              <div className="flex justify-end gap-2 mt-4">
+                <Button variant="secondary" onClick={() => setModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveHoliday}>Save</Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
-
-        {/* blink animation styles */}
-        <style>{`
-          @keyframes blinkPulse {
-            0% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.0); }
-            50% { box-shadow: 0 0 12px 6px rgba(250, 204, 21, 0.35); }
-            100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.0); }
-          }
-          /* The calendar library will add the class 'mod-blink' to the day cell via modifiersClassNames */
-          .mod-blink {
-            animation: blinkPulse 1s ease-in-out;
-            border-radius: 6px !important;
-          }
-        `}</style>
       </div>
     </DashboardLayout>
   );
