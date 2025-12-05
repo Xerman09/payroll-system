@@ -63,10 +63,12 @@ export default function WageManagementPage() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      fetch("http://100.126.246.124:8060/items/department").then((r) =>
+      fetch("http://100.126.246.124:8060/items/department?limit=-1").then((r) =>
         r.json()
       ),
-      fetch("http://100.126.246.124:8060/items/user").then((r) => r.json()),
+      fetch("http://100.126.246.124:8060/items/user?limit=-1").then((r) =>
+        r.json()
+      ),
     ])
       .then(([deptRes, empRes]) => {
         setDepartments(deptRes.data || []);
@@ -706,7 +708,7 @@ export default function WageManagementPage() {
             </div>
             <div className="flex gap-2">
               <Button
-                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-md px-6 py-2"
+                className="bg-persian-blue-800 hover:bg-persian-blue-700 text-white rounded-md px-6 py-2"
                 onClick={saveWageData}
               >
                 Save

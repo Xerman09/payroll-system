@@ -8,12 +8,13 @@ import {
   Menu,
   ChevronLeft,
   Home,
-  DollarSign,
   Users,
   Calculator,
   Calendar,
   HandCoins,
   PiggyBank,
+  BanknoteArrowDown,
+  PhilippinePeso,
 } from "lucide-react";
 
 import {
@@ -39,7 +40,7 @@ export default function Sidebar() {
         {
           title: "Wage Management",
           href: "/dashboard/wage",
-          icon: <DollarSign size={20} />,
+          icon: <PhilippinePeso size={20} />,
         },
         {
           title: "Payroll System",
@@ -61,6 +62,11 @@ export default function Sidebar() {
           title: "Benefit Settings",
           href: "/dashboard/benefit-settings",
           icon: <HandCoins size={20} />,
+        },
+        {
+          title: "Retro Pay",
+          href: "/dashboard/retro",
+          icon: <BanknoteArrowDown size={20} />,
         },
         {
           title: "Holiday Calendar",

@@ -157,13 +157,13 @@ export default function PayrollPage() {
           <TabsList className="grid grid-cols-2 w-full mb-4">
             <TabsTrigger
               value="employees"
-              className="data-[state=active]:bg-black data-[state=active]:text-white"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
               Employees
             </TabsTrigger>
             <TabsTrigger
               value="tap-sheet"
-              className="data-[state=active]:bg-black data-[state=active]:text-white"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
               Tap Sheet
             </TabsTrigger>

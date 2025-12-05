@@ -163,7 +163,7 @@ export default function BenefitSettingsPage() {
               return (
                 <div
                   key={benefit.code}
-                  className="border p-2 rounded-md space-y-2 bg-card"
+                  className="border p-4 rounded-md space-y-2 bg-card"
                 >
                   <div className="flex justify-between">
                     <h2 className="font-medium text-sm">{benefit.name}</h2>

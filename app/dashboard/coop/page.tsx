@@ -32,6 +32,31 @@ interface User {
   deleted?: boolean;
 }
 
+interface EmployeeLoan {
+  loan_id: number;
+  user_id: number;
+  loan_amount: number;
+  interest_rate: number;
+  interest_amount: number;
+  net_amount_released: number;
+  months_to_pay: number;
+  monthly_payment: number;
+  start_date: string;
+  end_date: string | null;
+  status: "ACTIVE" | "PAID" | "CANCELLED";
+  created_by?: number;
+  created_date?: string;
+  updated_by?: number | null;
+  updated_date?: string | null;
+}
+
+interface LoanPayment {
+  id?: number;
+  loan_id?: number;
+  amount?: string | number;
+  payment_date?: string;
+}
+
 interface MembershipRow {
   id: number;
   name: string;
@@ -43,49 +68,28 @@ interface MembershipRow {
   raw: Membership;
 }
 
-interface Loan {
-  id: number;
-  name: string;
-  totalLoan: number;
-  totalPaid: number;
-  balance: number;
-  cutoffPayment: number;
-}
-
 /* --------------------------
-   Helper functions
+   Helpers
 -------------------------- */
-function monthsBetweenInclusive(
-  startDateStr: string | null,
-  endDateStr: string | null
-): number {
-  if (!startDateStr) return 0;
-  const start = new Date(startDateStr);
-  const end = endDateStr ? new Date(endDateStr) : new Date();
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
-
-  const diffTime = end.getTime() - start.getTime();
-  const diffDays = diffTime / (1000 * 60 * 60 * 24);
-  const months = diffDays / 30.44; // Average days per month
-  return Math.max(0, months);
-}
-
-function formatMonths(months: number): string {
-  const totalDays = Math.round(months * 30.44);
-  const fullMonths = Math.floor(totalDays / 30.44);
-  const remainingDays = Math.round(totalDays % 30.44);
-  if (fullMonths === 0 && remainingDays === 0) return "0 months, 0 days";
-  return `${fullMonths} month${
-    fullMonths !== 1 ? "s" : ""
-  } and ${remainingDays} day${remainingDays !== 1 ? "s" : ""}`;
-}
-
 function formatPeso(n: number | string): string {
   const num = Number(n || 0);
   return `₱${num.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function monthsBetweenInclusive(
+  start: string | null,
+  end: string | null
+): number {
+  if (!start) return 0;
+  const startDate = new Date(start);
+  const endDate = end ? new Date(end) : new Date();
+  const yearDiff = endDate.getFullYear() - startDate.getFullYear();
+  const monthDiff = endDate.getMonth() - startDate.getMonth();
+  const totalMonths = yearDiff * 12 + monthDiff;
+  return totalMonths + 1; // inclusive
 }
 
 /* --------------------------
@@ -105,13 +109,13 @@ export default function CoopPage() {
           <TabsList className="grid grid-cols-2 w-full mb-4">
             <TabsTrigger
               value="savings"
-              className="data-[state=active]:bg-black data-[state=active]:text-white"
+              className="data-[state=active]:bg-persian-blue-800 data-[state=active]:text-white"
             >
               Savings
             </TabsTrigger>
             <TabsTrigger
               value="loans"
-              className="data-[state=active]:bg-black data-[state=active]:text-white"
+              className="data-[state=active]:bg-persian-blue-800 data-[state=active]:text-white"
             >
               Loans
             </TabsTrigger>
@@ -131,8 +135,230 @@ export default function CoopPage() {
 }
 
 /* --------------------------
-   Savings Tab (Dynamic)
+   Loans Tab
 -------------------------- */
+function LoansTab() {
+  const [loans, setLoans] = useState<EmployeeLoan[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [paymentsMap, setPaymentsMap] = useState<Record<number, number>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [openAdd, setOpenAdd] = useState(false);
+  const [editingLoan, setEditingLoan] = useState<EmployeeLoan | null>(null);
+
+  const LOANS_ENDPOINT = `${API_BASE}/items/employee_loan`;
+  const USERS_ENDPOINT = `${API_BASE}/items/user`;
+  const PAYMENTS_ENDPOINT = `${API_BASE}/items/employee_loan_payment`;
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    Promise.all([
+      fetch(LOANS_ENDPOINT).then((r) => r.json()),
+      fetch(USERS_ENDPOINT).then((r) => r.json()),
+      fetch(PAYMENTS_ENDPOINT)
+        .then((r) => (r.ok ? r.json() : { data: [] }))
+        .catch(() => ({ data: [] })),
+    ])
+      .then(([lres, ures, pres]) => {
+        if (!mounted) return;
+        const loanList: EmployeeLoan[] = Array.isArray(lres?.data)
+          ? lres.data
+          : [];
+        const userList: User[] = Array.isArray(ures?.data) ? ures.data : [];
+        const paymentsList: LoanPayment[] = Array.isArray(pres?.data)
+          ? pres.data
+          : [];
+
+        setLoans(loanList);
+        setUsers(userList);
+
+        const map: Record<number, number> = {};
+        for (const p of paymentsList) {
+          const lid = Number(p.loan_id);
+          const amt = Number(p.amount || 0);
+          if (!lid) continue;
+          map[lid] = (map[lid] || 0) + amt;
+        }
+        setPaymentsMap(map);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (!mounted) return;
+        setError("Failed to load loans/users/payments.");
+      })
+      .finally(() => mounted && setLoading(false));
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const getUserName = (userId: number) => {
+    const user = users.find((u) => Number(u.user_id) === Number(userId));
+    return user ? `${user.user_fname} ${user.user_lname}` : `User #${userId}`;
+  };
+
+  const handleDeleteLoan = async (loanId: number) => {
+    if (!confirm("Are you sure you want to delete this loan?")) return;
+    try {
+      const res = await fetch(`${LOANS_ENDPOINT}/${loanId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setLoans(loans.filter((l) => l.loan_id !== loanId));
+    } catch (err) {
+      console.error(err);
+      setError("Failed to delete loan.");
+    }
+  };
+
+  const rows = useMemo(() => {
+    return loans.map((ln) => {
+      const loanAmount = Number(ln.loan_amount || 0);
+      const totalPaid = paymentsMap[Number(ln.loan_id)] ?? 0;
+      const balance = Math.max(0, loanAmount - totalPaid);
+      return {
+        loan: ln,
+        loanAmount,
+        totalPaid,
+        balance,
+      };
+    });
+  }, [loans, paymentsMap]);
+
+  const usersWithoutActiveLoan = useMemo(() => {
+    const activeLoanUserIds = new Set(
+      loans.filter((l) => l.status === "ACTIVE").map((l) => Number(l.user_id))
+    );
+    return users.filter((u) => {
+      const isDeleted =
+        (u.is_deleted &&
+          typeof u.is_deleted === "object" &&
+          u.is_deleted.data?.[0] === 1) ||
+        u.isDeleted === true ||
+        u.deleted === true ||
+        u.is_deleted === true;
+      return !isDeleted && !activeLoanUserIds.has(Number(u.user_id));
+    });
+  }, [users, loans]);
+
+  return (
+    <Card className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+      <CardHeader>
+        <CardTitle>Employee Loan Report</CardTitle>
+        <div className="flex justify-end">
+          <Button onClick={() => setOpenAdd(true)}>+ Add Loan</Button>
+        </div>
+      </CardHeader>
+
+      <CardContent>
+        {loading && <div className="text-sm text-gray-600">Loading...</div>}
+        {error && <div className="text-sm text-red-600 mb-2">{error}</div>}
+
+        <div className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-4 mb-6 shadow-sm bg-white dark:bg-gray-900">
+          <div className="overflow-x-auto w-full border border-gray-300 dark:border-gray-700 shadow-sm bg-white dark:bg-gray-900">
+            <table className="w-full min-w-[600px] border-collapse border border-gray-300 dark:border-gray-700">
+              <thead className="bg-gray-100 dark:bg-gray-700">
+                <tr>
+                  <th className="border p-2 text-left">No.</th>
+                  <th className="border p-2 text-left">Name</th>
+                  <th className="border p-2 text-right">Total Loan</th>
+                  <th className="border p-2 text-right">Total Paid</th>
+                  <th className="border p-2 text-right">Total Balance</th>
+                  <th className="border p-2 text-right">Cutoff Payment</th>
+                  <th className="border p-2 text-center">Action</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {rows.length ? (
+                  rows.map((row, idx) => (
+                    <tr
+                      key={row.loan.loan_id}
+                      className="hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      <td className="border p-2">{idx + 1}</td>
+                      <td className="border p-2">
+                        {getUserName(row.loan.user_id)}
+                      </td>
+                      <td className="border p-2 text-right">
+                        {formatPeso(row.loanAmount)}
+                      </td>
+                      <td className="border p-2 text-right">
+                        {formatPeso(row.totalPaid)}
+                      </td>
+                      <td className="border p-2 text-right">
+                        {formatPeso(row.balance)}
+                      </td>
+                      <td className="border p-2 text-right">
+                        {formatPeso(row.loan.monthly_payment)}
+                      </td>
+                      <td className="border p-2 flex justify-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => setEditingLoan(row.loan)}
+                        >
+                          <Edit size={14} />
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleDeleteLoan(row.loan.loan_id)}
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="text-center py-6 text-gray-500">
+                      No records found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {openAdd && (
+          <AddLoanModal
+            apiBase={API_BASE}
+            availableUsers={usersWithoutActiveLoan}
+            onClose={() => setOpenAdd(false)}
+            onCreate={(loan) => {
+              setLoans([loan, ...loans]);
+              setOpenAdd(false);
+            }}
+            loansEndpoint={LOANS_ENDPOINT}
+          />
+        )}
+
+        {editingLoan && (
+          <EditLoanModal
+            apiBase={API_BASE}
+            loan={editingLoan}
+            onClose={() => setEditingLoan(null)}
+            onUpdated={(updated) => {
+              setLoans(
+                loans.map((l) => (l.loan_id === updated.loan_id ? updated : l))
+              );
+              setEditingLoan(null);
+            }}
+            loansEndpoint={LOANS_ENDPOINT}
+          />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* --------------------------
+   AddLoanModal & EditLoanModal
+   (keep your existing implementations, no changes needed)
+-------------------------- */
+
 function SavingsTab() {
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -256,78 +482,70 @@ function SavingsTab() {
         {loading && <div className="text-sm text-gray-600">Loading...</div>}
         {error && <div className="text-sm text-red-600 mb-2">{error}</div>}
 
-        <div className="overflow-auto border rounded">
-          <table className="w-full border-collapse table-fixed text-gray-900 dark:text-gray-100">
-            <thead>
-              <tr className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white">
-                <th className="border p-2 w-1/4">No.</th>
-                <th className="border p-2 w-1/4">Name</th>
-                <th className="border p-2 w-1/4">Collection Per month</th>
-                <th className="border p-2 w-1/4">Total Collection</th>
-                <th className="border p-2 w-1/4">Total Months</th>
-                <th className="border p-2 w-1/4">Status</th>
-                <th className="border p-2 w-1/4">Action</th>
-                <th className="border p-2 w-1/4">Start Date</th>
-                <th className="border p-2 w-1/4">End Date</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {rows.length === 0 && !loading && (
+        <div className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-4 mb-6 shadow-sm bg-white dark:bg-gray-900">
+          <div className="overflow-x-auto w-full border border-gray-300 dark:border-gray-700 shadow-sm bg-white dark:bg-gray-900">
+            <table className="w-full min-w-[600px] border-collapse border border-gray-300 dark:border-gray-700">
+              <thead className="bg-gray-100 dark:bg-gray-700">
                 <tr>
-                  <td colSpan={9} className="p-4 text-sm text-gray-500">
-                    No savings members found.
-                  </td>
+                  <th className="border p-2 text-left">No.</th>
+                  <th className="border p-2 text-left">Name</th>
+                  <th className="border p-2 text-left">Collection Per month</th>
+                  <th className="border p-2 text-left">Total Collection</th>
+                  <th className="border p-2 text-left">Total Months</th>
+                  <th className="border p-2 text-center">Status</th>
+                  <th className="border p-2 text-center">Action</th>
+                  <th className="border p-2 text-left">Start Date</th>
+                  <th className="border p-2 text-left">End Date</th>
                 </tr>
-              )}
+              </thead>
 
-              {rows.map((r, idx) => (
-                <tr
-                  key={r.id ?? idx}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-800"
-                >
-                  <td className="border p-2">{idx + 1}</td>
-                  <td className="border p-2">{r.name}</td>
-                  <td className="border p-2">{formatPeso(r.monthly)}</td>
-                  <td className="border p-2">
-                    {formatPeso(r.totalCollection)}
-                  </td>
-                  <td className="border p-2">{formatMonths(r.months)}</td>
-                  <td className="border p-2 text-center">
-                    <span
-                      className={`px-2 py-1 rounded text-xs ${
-                        r.raw.is_active === 1
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {r.raw.is_active === 1 ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td className="border p-2">
-                    <div className="flex gap-2 justify-center">
-                      <button
-                        onClick={() => handleEdit(r)}
-                        className="p-2 text-blue-600 hover:text-blue-800 bg-blue-100 hover:bg-blue-200 rounded-full flex items-center justify-center"
-                        title="Edit"
+              <tbody>
+                {rows.length === 0 && !loading && (
+                  <tr>
+                    <td colSpan={9} className="p-4 text-sm text-gray-500">
+                      No savings members found.
+                    </td>
+                  </tr>
+                )}
+
+                {rows.map((r, idx) => (
+                  <tr
+                    key={r.id ?? idx}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    <td className="border p-2">{idx + 1}</td>
+                    <td className="border p-2">{r.name}</td>
+                    <td className="border p-2">{formatPeso(r.monthly)}</td>
+                    <td className="border p-2">
+                      {formatPeso(r.totalCollection)}
+                    </td>
+                    <td className="border p-2">{r.months}</td>
+                    <td className="border p-2 text-center">
+                      <span
+                        className={`px-2 py-1 rounded text-xs ${
+                          r.raw.is_active === 1
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
+                        }`}
                       >
-                        <Edit size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(r.id)}
-                        className="p-2 text-red-600 hover:text-red-800 bg-red-100 hover:bg-red-200 rounded-full flex items-center justify-center"
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                  <td className="border p-2">{r.start ?? "-"}</td>
-                  <td className="border p-2">{r.end ?? "-"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        {r.raw.is_active === 1 ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="border p-2 flex justify-center gap-2">
+                      <Button size="sm" onClick={() => handleEdit(r)}>
+                        <Edit size={14} />
+                      </Button>
+                      <Button size="sm" onClick={() => handleDelete(r.id)}>
+                        <Trash2 size={14} />
+                      </Button>
+                    </td>
+                    <td className="border p-2">{r.start ?? "-"}</td>
+                    <td className="border p-2">{r.end ?? "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {showAddModal && (
@@ -358,6 +576,7 @@ function SavingsTab() {
 
 /* --------------------------
    AddEmployeeModal (Savings)
+   (unchanged)
 -------------------------- */
 function AddEmployeeModal({
   apiBase,
@@ -537,7 +756,7 @@ function AddEmployeeModal({
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded bg-blue-600 text-white"
+              className="px-4 py-2 rounded bg-persian-blue-800 text-white"
               disabled={submitting}
             >
               {submitting ? "Adding..." : "Add Employee"}
@@ -551,6 +770,7 @@ function AddEmployeeModal({
 
 /* --------------------------
    EditEmployeeModal (Savings)
+   (unchanged)
 -------------------------- */
 function EditEmployeeModal({
   apiBase,
@@ -712,7 +932,7 @@ function EditEmployeeModal({
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded bg-blue-600 text-white"
+              className="px-4 py-2 rounded bg-persian-blue-800 text-white"
               disabled={submitting}
             >
               {submitting ? "Updating..." : "Update Employee"}
@@ -725,132 +945,115 @@ function EditEmployeeModal({
 }
 
 /* --------------------------
-   Loans Tab (Static for now)
--------------------------- */
-function LoansTab() {
-  const [loans, setLoans] = useState([
-    {
-      id: 1,
-      name: "Erman Ace M. Cerujano",
-      totalLoan: 10000,
-      totalPaid: 5000,
-      balance: 5000,
-      cutoffPayment: 1000,
-    },
-  ]);
-  const [openAdd, setOpenAdd] = useState(false);
-
-  return (
-    <Card className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-      <CardHeader>
-        <CardTitle>Employee Loan Report</CardTitle>
-        <div className="flex justify-end">
-          <Button onClick={() => setOpenAdd(true)}>+ Add Loan</Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-auto border rounded">
-          <table className="w-full border-collapse table-fixed text-gray-900 dark:text-gray-100">
-            <thead>
-              <tr className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white">
-                <th className="border p-2 w-1/6">No.</th>
-                <th className="border p-2 w-1/6">Name</th>
-                <th className="border p-2 w-1/6">Total Loan</th>
-                <th className="border p-2 w-1/6">Total Paid</th>
-                <th className="border p-2 w-1/6">Total Balance</th>
-                <th className="border p-2 w-1/6">Cutoff Payment</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {loans.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="p-4 text-sm text-gray-500">
-                    No loan records.
-                  </td>
-                </tr>
-              )}
-
-              {loans.map((l, i) => (
-                <tr
-                  key={l.id}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-800"
-                >
-                  <td className="border p-2">{i + 1}</td>
-                  <td className="border p-2">{l.name}</td>
-                  <td className="border p-2">{formatPeso(l.totalLoan)}</td>
-                  <td className="border p-2">{formatPeso(l.totalPaid)}</td>
-                  <td className="border p-2">{formatPeso(l.balance)}</td>
-                  <td className="border p-2">{formatPeso(l.cutoffPayment)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {openAdd && (
-          <AddLoanModal
-            onClose={() => setOpenAdd(false)}
-            onCreate={(newLoan) => {
-              setLoans((prev) => [newLoan, ...prev]);
-              setOpenAdd(false);
-            }}
-          />
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-/* --------------------------
-   AddLoanModal (Static)
+   AddLoanModal (Dynamic)
+   - Select Employee (search)
+   - Show net received (loan_amount - 3%)
+   - Compute monthly_payment = loan_amount / months_to_pay
 -------------------------- */
 function AddLoanModal({
+  apiBase,
+  availableUsers = [],
   onClose,
   onCreate,
+  loansEndpoint,
 }: {
+  apiBase: string;
+  availableUsers: User[];
   onClose: () => void;
-  onCreate: (newLoan: Loan) => void;
+  onCreate: (newLoan: EmployeeLoan) => void;
+  loansEndpoint: string;
 }) {
-  const [employeeName, setEmployeeName] = useState("");
-  const [amount, setAmount] = useState("");
-  const [months, setMonths] = useState<number>(1);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [userId, setUserId] = useState<string>("");
+  const [loanAmount, setLoanAmount] = useState<string>("");
+  const [monthsToPay, setMonthsToPay] = useState<number>(1);
+  const [startDate, setStartDate] = useState<string>(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const netReceived = useMemo(
-    () => Math.max(0, Number(amount || 0) * 0.97),
-    [amount]
-  );
-  const totalCutoffs = Math.max(1, Number(months || 1) * 2);
-  const cutoffPayment = totalCutoffs
-    ? Math.round((netReceived / totalCutoffs) * 100) / 100
-    : 0;
+  const filteredUsers = useMemo(() => {
+    if (!searchTerm.trim()) return availableUsers;
+    const s = searchTerm.toLowerCase();
+    return availableUsers.filter((u) => {
+      const full = `${u.user_fname} ${u.user_lname}`.toLowerCase();
+      return full.includes(s) || String(u.user_id).includes(s);
+    });
+  }, [searchTerm, availableUsers]);
 
-  const handleConfirm = (e: React.FormEvent<HTMLFormElement>) => {
+  // Auto-select if exactly one match and the user typed something
+  useEffect(() => {
+    if (filteredUsers.length === 1 && searchTerm.trim()) {
+      setUserId(String(filteredUsers[0].user_id));
+    } else if (filteredUsers.length === 0 || !searchTerm.trim()) {
+      setUserId("");
+    }
+  }, [filteredUsers, searchTerm]);
+
+  const numericLoanAmount = Number(loanAmount || 0);
+  const interestRate = 0.03; // default 3% as per DDL
+  const interestAmount =
+    Math.round(numericLoanAmount * interestRate * 100) / 100;
+  const netReceived =
+    Math.round((numericLoanAmount - interestAmount) * 100) / 100;
+  const monthlyPayment =
+    monthsToPay > 0
+      ? Math.round((numericLoanAmount / monthsToPay) * 100) / 100
+      : 0;
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
-    if (!employeeName) return setError("Please enter employee name.");
-    if (!amount || Number(amount) <= 0)
-      return setError("Please enter loan amount.");
-    if (!months || Number(months) <= 0)
-      return setError("Please enter valid months.");
 
-    const newLoan = {
-      id: Date.now(),
-      name: employeeName,
-      totalLoan: Number(amount),
-      totalPaid: 0,
-      balance: Number(amount),
-      cutoffPayment,
+    if (!userId) return setError("Please select an employee.");
+    if (!loanAmount || Number(loanAmount) <= 0)
+      return setError("Please enter loan amount.");
+    if (!monthsToPay || monthsToPay <= 0)
+      return setError("Please enter months to pay.");
+    if (!startDate) return setError("Please select a start date.");
+
+    const loggedUser = sessionStorage.getItem("user");
+    const createdBy = loggedUser ? JSON.parse(loggedUser).user_id : 1;
+
+    const payload = {
+      user_id: Number(userId),
+      loan_amount: Number(Number(loanAmount).toFixed(2)),
+      interest_rate: 3.0,
+      interest_amount: Number(interestAmount.toFixed(2)),
+      net_amount_released: Number(netReceived.toFixed(2)),
+      months_to_pay: Number(monthsToPay),
+      monthly_payment: Number(monthlyPayment.toFixed(2)),
+      start_date: startDate,
+      end_date: null,
+      status: "ACTIVE",
+      created_by: Number(createdBy),
     };
-    onCreate(newLoan);
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(loansEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const created = data?.data || data;
+      onCreate(created);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to create loan.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/40">
       <div className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-md p-6 shadow-lg">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Add Loan (static)</h3>
+          <h3 className="text-lg font-semibold">Add Loan</h3>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700"
@@ -859,46 +1062,83 @@ function AddLoanModal({
           </button>
         </div>
 
-        <form className="space-y-4" onSubmit={handleConfirm}>
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">
-              Employee Name
+              Select Employee (you can search employee by id/name)
             </label>
             <input
-              type="text"
-              value={employeeName}
-              onChange={(e) => setEmployeeName(e.target.value)}
-              className="w-full px-3 py-2 border rounded"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Type name or id to filter"
+              className="w-full px-3 py-2 border rounded mb-2"
             />
+            <select
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              className="w-full px-3 py-2 border rounded"
+            >
+              <option value="">-- Select employee --</option>
+              {filteredUsers.map((u) => (
+                <option key={u.user_id} value={u.user_id}>
+                  {u.user_fname} {u.user_lname}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">
-              Loan Amount
+              Amount to loan
             </label>
             <input
               type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              step="0.01"
+              value={loanAmount}
+              onChange={(e) => setLoanAmount(e.target.value)}
               className="w-full px-3 py-2 border rounded"
+              placeholder="e.g. 1000.00"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              No. of Months
-            </label>
-            <input
-              type="number"
-              value={months}
-              onChange={(e) => setMonths(Number(e.target.value) || 1)}
-              className="w-full px-3 py-2 border rounded"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                How many months to pay
+              </label>
+              <input
+                type="number"
+                value={monthsToPay}
+                min={1}
+                onChange={(e) => setMonthsToPay(Number(e.target.value) || 1)}
+                className="w-full px-3 py-2 border rounded"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-3 py-2 border rounded"
+              />
+            </div>
           </div>
 
           <div>
-            <p>Net Received: {formatPeso(netReceived)}</p>
-            <p>Cutoff Payment: {formatPeso(cutoffPayment)}</p>
+            <p>
+              Note: employee receives (loan - 3%):{" "}
+              <strong>{formatPeso(netReceived)}</strong>
+            </p>
+            <p>
+              Interest (3%): <strong>{formatPeso(interestAmount)}</strong>
+            </p>
+            <p>
+              Cutoff Payment / Monthly Payment:{" "}
+              <strong>{formatPeso(monthlyPayment)}</strong>
+            </p>
           </div>
 
           {error && <div className="text-sm text-red-600">{error}</div>}
@@ -908,14 +1148,153 @@ function AddLoanModal({
               type="button"
               onClick={onClose}
               className="px-4 py-2 rounded bg-gray-200 text-gray-700"
+              disabled={submitting}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded bg-blue-600 text-white"
+              className="px-4 py-2 rounded bg-persian-blue-800 text-white"
+              disabled={submitting}
             >
-              Add Loan
+              {submitting ? "Adding..." : "Confirm"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* --------------------------
+   EditLoanModal
+   - Basic: allow updating status or end_date
+-------------------------- */
+function EditLoanModal({
+  apiBase,
+  loan,
+  onClose,
+  onUpdated,
+  loansEndpoint,
+}: {
+  apiBase: string;
+  loan: EmployeeLoan;
+  onClose: () => void;
+  onUpdated: (updated: EmployeeLoan) => void;
+  loansEndpoint: string;
+}) {
+  const [status, setStatus] = useState<EmployeeLoan["status"]>(loan.status);
+  const [monthlyPay, setMonthlyPay] = useState<number>(
+    Number(loan.monthly_payment || 0)
+  );
+  const [endDate, setEndDate] = useState<string | "">(loan.end_date || "");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError(null);
+
+    const payload: Partial<EmployeeLoan> = {
+      status,
+      monthly_payment: monthlyPay,
+      end_date: endDate || null,
+      updated_by: (() => {
+        const s = sessionStorage.getItem("user");
+        return s ? JSON.parse(s).user_id : 1;
+      })(),
+    };
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${loansEndpoint}/${loan.loan_id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const updated = data?.data || data;
+      onUpdated(updated);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to update loan.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/40">
+      <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-md p-6 shadow-lg">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Edit Loan — {loan.loan_id}</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div>
+            <label className="block text-sm font-medium mb-1">Status</label>
+            <select
+              value={status}
+              onChange={(e) =>
+                setStatus(e.target.value as EmployeeLoan["status"])
+              }
+              className="w-full px-3 py-2 border rounded"
+            >
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="PAID">PAID</option>
+              <option value="CANCELLED">CANCELLED</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Cutoff Payment / Monthly Payment
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={monthlyPay}
+              onChange={(e) => setMonthlyPay(Number(e.target.value) || 0)}
+              className="w-full px-3 py-2 border rounded"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              End Date (optional)
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full px-3 py-2 border rounded"
+            />
+          </div>
+
+          {error && <div className="text-sm text-red-600">{error}</div>}
+
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded bg-gray-200 text-gray-700"
+              disabled={submitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 rounded bg-persian-blue-800 text-white"
+              disabled={submitting}
+            >
+              {submitting ? "Updating..." : "Update"}
             </button>
           </div>
         </form>
