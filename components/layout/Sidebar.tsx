@@ -2,6 +2,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/providers/SidebarProvider";
 import {
@@ -26,6 +27,7 @@ import {
 
 export default function Sidebar() {
   const { collapsed, toggle } = useSidebar();
+  const pathname = usePathname();
 
   const menuItems = [
     {
@@ -134,7 +136,9 @@ export default function Sidebar() {
                       href={item.href}
                       className={cn(
                         "flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ease-out text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 hover:shadow-lg",
-                        collapsed ? "justify-center" : "justify-start"
+                        collapsed ? "justify-center" : "justify-start",
+                        pathname === item.href &&
+                          "bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
                       )}
                     >
                       {item.icon}
