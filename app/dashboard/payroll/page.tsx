@@ -12,6 +12,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
 type Employee = {
@@ -23,6 +31,7 @@ type Employee = {
   user_position: string;
   user_dateOfHire: string;
   user_contact: string;
+  is_deleted?: { data?: (number | null)[] };
 };
 
 type Department = {
@@ -56,7 +65,7 @@ export default function PayrollPage() {
         const res = await fetch("http://100.126.246.124:8060/items/user");
         const data = await res.json();
         const activeEmployees = data.data.filter(
-          (emp: any) => !emp.is_deleted?.data?.[0]
+          (emp: Employee) => !emp.is_deleted?.data?.[0]
         );
         setEmployees(activeEmployees);
       } catch (error) {
@@ -131,7 +140,7 @@ export default function PayrollPage() {
   const getPageButtons = () => {
     const buttons: (number | string)[] = [];
     let start = Math.max(1, currentPage - 2);
-    let end = Math.min(totalPages, start + 4);
+    const end = Math.min(totalPages, start + 4);
     if (end - start < 4) start = Math.max(1, end - 4);
 
     if (start > 1) {
@@ -165,7 +174,7 @@ export default function PayrollPage() {
               value="tap-sheet"
               className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
-              Tap Sheet
+              Top Sheet
             </TabsTrigger>
           </TabsList>
 
@@ -219,43 +228,40 @@ export default function PayrollPage() {
                   </div>
                 </div>
 
-                <div className="  ">
-                  <table className="w-full border-collapse table-fixed text-gray-900 dark:text-gray-100">
-                    <thead>
-                      <tr className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white">
-                        <th className="border p-2 w-1/4">Employee ID</th>
-                        <th className="border p-2 w-1/4">Name</th>
-                        <th className="border p-2 w-1/4">Department</th>
-                        <th className="border p-2 w-1/4">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee ID</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Department</TableHead>
+                        <TableHead>Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {paginatedEmployees.map((emp) => {
                         const deptName =
                           departments.find(
                             (d) => d.department_id === emp.user_department
                           )?.department_name ?? "N/A";
                         return (
-                          <tr
-                            key={emp.user_id}
-                            className="hover:bg-gray-50 dark:hover:bg-gray-800"
-                          >
-                            <td className="border p-2">{emp.user_id}</td>
-                            <td className="border p-2">{`${emp.user_fname} ${
+                          <TableRow key={emp.user_id}>
+                            <TableCell>{emp.user_id}</TableCell>
+                            <TableCell>{`${emp.user_fname} ${
                               emp.user_mname ?? ""
-                            } ${emp.user_lname}`}</td>
-                            <td className="border p-2">{deptName}</td>
-                            <td className="border p-2 flex gap-2">
+                            } ${emp.user_lname}`}</TableCell>
+                            <TableCell>{deptName}</TableCell>
+                            <TableCell className="flex gap-2">
                               <Button size="sm" onClick={() => openDialog(emp)}>
                                 Edit Cut-off
                               </Button>
                               <Button size="sm">Generate Summary</Button>
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         );
                       })}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 </div>
 
                 <div className="flex justify-between items-center mt-4 text-gray-900 dark:text-gray-100">

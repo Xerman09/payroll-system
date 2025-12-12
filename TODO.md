@@ -1,13 +1,12 @@
-# Retro Pay Module Implementation
+# TODO: Add Edit and Delete Functions to Retro Pay Module
 
-## Tasks
-
-- [x] Fetch retro pay data from API (http://100.126.246.124:8060/items/retro_pay)
-- [x] Fetch employees data for names and dropdown
-- [x] Create table with columns: No., Name, Amount, Description, Cut Off
-- [x] Add "Add Retro" button
-- [x] Create dialog for adding retro pay with employee select, amount, description, cutoff start/end
-- [x] Implement add functionality with POST to API
-- [x] Handle loading states and errors
-- [x] Use DashboardLayout and consistent theming
-- [x] Add search functionality for employees in the "Add Retro Pay" dialog
+- [x] Add necessary imports (Edit, Trash2 icons, AlertDialog components)
+- [x] Add state variables: isEditing, editingRetro, deleteRetro
+- [x] Add "Actions" column to table header
+- [x] Add Edit and Delete buttons in table rows
+- [x] Modify dialog to handle add/edit modes (title, prefill form)
+- [x] Implement handleEditRetro function
+- [x] Implement handleUpdateRetro function
+- [x] Add delete confirmation dialog using AlertDialog
+- [x] Implement handleDeleteRetro function
+- [x] Implement confirmDelete function

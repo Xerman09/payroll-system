@@ -6,6 +6,8 @@ import { createContext, useContext, useState, ReactNode } from "react";
 interface SidebarContextProps {
   collapsed: boolean;
   toggle: () => void;
+  mobileOpen: boolean;
+  setMobileOpen: (open: boolean) => void;
 }
 
 const SidebarContext = createContext<SidebarContextProps | undefined>(
@@ -15,11 +17,14 @@ const SidebarContext = createContext<SidebarContextProps | undefined>(
 export function SidebarProvider({ children }: { children: ReactNode }) {
   // set collapsed: true initially
   const [collapsed, setCollapsed] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const toggle = () => setCollapsed(!collapsed);
 
   return (
-    <SidebarContext.Provider value={{ collapsed, toggle }}>
+    <SidebarContext.Provider
+      value={{ collapsed, toggle, mobileOpen, setMobileOpen }}
+    >
       {children}
     </SidebarContext.Provider>
   );
