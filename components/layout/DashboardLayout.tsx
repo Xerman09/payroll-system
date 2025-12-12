@@ -25,6 +25,7 @@ export default function DashboardLayout({
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
     if (savedTheme) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTheme(savedTheme);
       document.documentElement.classList.toggle("dark", savedTheme === "dark");
     }
@@ -40,7 +41,7 @@ export default function DashboardLayout({
       document.cookie = `theme=${newTheme}; path=/; max-age=${
         60 * 60 * 24 * 365
       }; samesite=lax`;
-    } catch (e) {}
+    } catch {}
     document.documentElement.classList.toggle("dark", newTheme === "dark");
   };
 
@@ -53,7 +54,9 @@ export default function DashboardLayout({
       <div
         className={cn(
           "flex-1 transition-all duration-200 ease-out bg-gray-50 dark:bg-gray-900",
-          collapsed ? "ml-20" : "ml-[250px]"
+          // On mobile, no margin, on md+, margin based on collapsed
+          "md:ml-20",
+          !collapsed && "md:ml-[250px]"
         )}
       >
         <Navbar toggleTheme={toggleTheme} currentTheme={theme} />

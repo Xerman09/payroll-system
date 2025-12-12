@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Menu } from "lucide-react";
 import ThemeToggle from "@/components/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -10,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useSidebar } from "@/providers/SidebarProvider";
 
 // Define props interface
 interface NavbarProps {
@@ -20,6 +22,7 @@ interface NavbarProps {
 export default function Navbar({ toggleTheme, currentTheme }: NavbarProps) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const { setMobileOpen } = useSidebar();
 
   const handleLogout = () => {
     setLoggingOut(true);
@@ -37,9 +40,17 @@ export default function Navbar({ toggleTheme, currentTheme }: NavbarProps) {
         loggingOut ? "opacity-50 blur-sm" : "opacity-100"
       }`}
     >
-      <h1 className="font-semibold text-lg transition-transform duration-300">
-        Vertex Technology Corps.
-      </h1>
+      <div className="flex items-center gap-4">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="md:hidden p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700"
+        >
+          <Menu size={20} />
+        </button>
+        <h1 className="font-semibold text-lg transition-transform duration-300">
+          Vertex Technology Corps.
+        </h1>
+      </div>
 
       <div className="flex items-center gap-4">
         <ThemeToggle toggleTheme={toggleTheme} currentTheme={currentTheme} />

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Switch } from "@/components/ui/switch";
 import { Moon, Sun } from "lucide-react";
 
 type ThemeToggleProps = {
@@ -10,33 +9,28 @@ type ThemeToggleProps = {
 };
 
 export function ThemeToggle({ toggleTheme, currentTheme }: ThemeToggleProps) {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-
-  // Initialize theme on mount from props or localStorage or prefers-color-scheme
-  useEffect(() => {
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
     try {
-      // If parent passed a currentTheme prop prefer it so SSR/RSC matches
       const saved = currentTheme ?? localStorage.getItem("theme");
-      if (saved === "dark") {
-        setTheme("dark");
-        document.documentElement.classList.add("dark");
-      } else if (saved === "light") {
-        setTheme("light");
-        document.documentElement.classList.remove("dark");
-      } else if (
+      if (saved === "dark") return "dark";
+      else if (saved === "light") return "light";
+      else if (
         window.matchMedia &&
         window.matchMedia("(prefers-color-scheme: dark)").matches
-      ) {
-        setTheme("dark");
-        document.documentElement.classList.add("dark");
-      } else {
-        setTheme("light");
-        document.documentElement.classList.remove("dark");
-      }
-    } catch (e) {
-      // ignore
+      )
+        return "dark";
+      else return "light";
+    } catch {
+      return "light";
     }
-  }, [currentTheme]);
+  });
+
+  // Update DOM classList based on current theme
+  useEffect(() => {
+    const current = currentTheme ?? theme;
+    if (current === "dark") document.documentElement.classList.add("dark");
+    else document.documentElement.classList.remove("dark");
+  }, [currentTheme, theme]);
 
   const handleClick = () => {
     // If parent provided a toggle handler, call it so higher-level layout stays in sync
@@ -53,8 +47,8 @@ export function ThemeToggle({ toggleTheme, currentTheme }: ThemeToggleProps) {
         document.cookie = `theme=${newTheme}; path=/; max-age=${
           60 * 60 * 24 * 365
         }; samesite=lax`;
-      } catch (e) {}
-    } catch (e) {}
+      } catch {}
+    } catch {}
     if (newTheme === "dark") document.documentElement.classList.add("dark");
     else document.documentElement.classList.remove("dark");
   }

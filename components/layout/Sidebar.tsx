@@ -16,6 +16,8 @@ import {
   PiggyBank,
   BanknoteArrowDown,
   PhilippinePeso,
+  Wallet,
+  Diff,
 } from "lucide-react";
 
 import {
@@ -26,7 +28,7 @@ import {
 } from "@/components/ui/tooltip";
 
 export default function Sidebar() {
-  const { collapsed, toggle } = useSidebar();
+  const { collapsed, toggle, mobileOpen, setMobileOpen } = useSidebar();
   const pathname = usePathname();
 
   const menuItems = [
@@ -45,21 +47,10 @@ export default function Sidebar() {
           icon: <PhilippinePeso size={20} />,
         },
         {
-          title: "Payroll System",
-          href: "/dashboard/payroll",
-          icon: <Calculator size={20} />,
-        },
-
-        // ==================================================
-        // ✅ NEW COOP MODULE TAB (PiggyBank icon)
-        // ==================================================
-        {
           title: "COOP",
           href: "/dashboard/coop",
           icon: <PiggyBank size={20} />,
         },
-        // ==================================================
-
         {
           title: "Benefit Settings",
           href: "/dashboard/benefit-settings",
@@ -71,6 +62,16 @@ export default function Sidebar() {
           icon: <BanknoteArrowDown size={20} />,
         },
         {
+          title: "Additions & Deductions",
+          href: "/dashboard/additions-deductions",
+          icon: <Diff size={20} />,
+        },
+        {
+          title: "Allowance Management",
+          href: "/dashboard/allowance-management",
+          icon: <Wallet size={20} />,
+        },
+        {
           title: "Holiday Calendar",
           href: "/dashboard/calendar-management",
           icon: <Calendar size={20} />,
@@ -78,12 +79,12 @@ export default function Sidebar() {
       ],
     },
     {
-      panel: "Employees",
+      panel: "Processing",
       items: [
         {
-          title: "Employee List",
-          href: "/dashboard/employees",
-          icon: <Users size={20} />,
+          title: "Payroll System",
+          href: "/dashboard/payroll",
+          icon: <Calculator size={20} />,
         },
       ],
     },
@@ -94,9 +95,13 @@ export default function Sidebar() {
       <aside
         className={cn(
           "fixed top-0 left-0 h-screen flex flex-col z-50 transition-all duration-200 ease-out shadow-xl",
+          // Hidden on mobile, show on md+
+          "hidden md:flex",
           collapsed
             ? "w-20 bg-gray-200 dark:bg-gray-800"
-            : "w-[250px] bg-gray-100 dark:bg-gray-900"
+            : "w-[250px] bg-gray-100 dark:bg-gray-900",
+          // On mobile, when open, show as overlay
+          mobileOpen && "flex w-full md:hidden"
         )}
       >
         {/* Top Section */}
@@ -113,7 +118,10 @@ export default function Sidebar() {
 
         {/* Toggle Button */}
         <button
-          onClick={toggle}
+          onClick={() => {
+            toggle();
+            if (mobileOpen) setMobileOpen(false);
+          }}
           className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 text-black dark:text-white shadow-lg transition-transform"
         >
           {collapsed ? <Menu size={22} /> : <ChevronLeft size={22} />}

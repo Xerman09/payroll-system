@@ -11,6 +11,15 @@ import SuccessAlert from "@/components/SuccessAlert";
 import ErrorAlert from "@/components/ErrorAlert";
 import PasswordAlert from "@/components/PasswordAlert";
 
+interface User {
+  user_id: number;
+  user_email: string;
+  user_password: string;
+  user_department: number;
+  user_fname: string;
+  user_lname: string;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -33,7 +42,7 @@ export default function LoginPage() {
 
       // Find user with matching email and department
       const user = users.find(
-        (u: any) => u.user_email === email && Number(u.user_department) === 2
+        (u: User) => u.user_email === email && Number(u.user_department) === 2
       );
 
       if (!user) {
@@ -49,6 +58,7 @@ export default function LoginPage() {
       }
 
       // Successful login
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { user_password, ...userSafe } = user; // remove password
       sessionStorage.setItem("user", JSON.stringify(userSafe));
       setAlert("success");

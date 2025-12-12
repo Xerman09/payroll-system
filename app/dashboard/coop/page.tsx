@@ -4,8 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { cn } from "@/lib/utils";
 import { Edit, Trash2 } from "lucide-react";
 
 const API_BASE = "http://100.126.246.124:8060";
@@ -192,7 +199,7 @@ function LoansTab() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [LOANS_ENDPOINT, PAYMENTS_ENDPOINT, USERS_ENDPOINT]);
 
   const getUserName = (userId: number) => {
     const user = users.find((u) => Number(u.user_id) === Number(userId));
@@ -256,75 +263,71 @@ function LoansTab() {
         {loading && <div className="text-sm text-gray-600">Loading...</div>}
         {error && <div className="text-sm text-red-600 mb-2">{error}</div>}
 
-        <div className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-4 mb-6 shadow-sm bg-white dark:bg-gray-900">
-          <div className="overflow-x-auto w-full border border-gray-300 dark:border-gray-700 shadow-sm bg-white dark:bg-gray-900">
-            <table className="w-full min-w-[600px] border-collapse border border-gray-300 dark:border-gray-700">
-              <thead className="bg-gray-100 dark:bg-gray-700">
-                <tr>
-                  <th className="border p-2 text-left">No.</th>
-                  <th className="border p-2 text-left">Name</th>
-                  <th className="border p-2 text-right">Total Loan</th>
-                  <th className="border p-2 text-right">Total Paid</th>
-                  <th className="border p-2 text-right">Total Balance</th>
-                  <th className="border p-2 text-right">Cutoff Payment</th>
-                  <th className="border p-2 text-center">Action</th>
-                </tr>
-              </thead>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>No.</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead className="text-right">Total Loan</TableHead>
+                <TableHead className="text-right">Total Paid</TableHead>
+                <TableHead className="text-right">Total Balance</TableHead>
+                <TableHead className="text-right">Cutoff Payment</TableHead>
+                <TableHead className="text-center">Action</TableHead>
+              </TableRow>
+            </TableHeader>
 
-              <tbody>
-                {rows.length ? (
-                  rows.map((row, idx) => (
-                    <tr
-                      key={row.loan.loan_id}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-700"
-                    >
-                      <td className="border p-2">{idx + 1}</td>
-                      <td className="border p-2">
-                        {getUserName(row.loan.user_id)}
-                      </td>
-                      <td className="border p-2 text-right">
-                        {formatPeso(row.loanAmount)}
-                      </td>
-                      <td className="border p-2 text-right">
-                        {formatPeso(row.totalPaid)}
-                      </td>
-                      <td className="border p-2 text-right">
-                        {formatPeso(row.balance)}
-                      </td>
-                      <td className="border p-2 text-right">
-                        {formatPeso(row.loan.monthly_payment)}
-                      </td>
-                      <td className="border p-2 flex justify-center gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => setEditingLoan(row.loan)}
-                        >
-                          <Edit size={14} />
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleDeleteLoan(row.loan.loan_id)}
-                        >
-                          <Trash2 size={14} />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={7} className="text-center py-6 text-gray-500">
-                      No records found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+            <TableBody>
+              {rows.length ? (
+                rows.map((row, idx) => (
+                  <TableRow key={row.loan.loan_id}>
+                    <TableCell>{idx + 1}</TableCell>
+                    <TableCell>{getUserName(row.loan.user_id)}</TableCell>
+                    <TableCell className="text-right">
+                      {formatPeso(row.loanAmount)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatPeso(row.totalPaid)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatPeso(row.balance)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatPeso(row.loan.monthly_payment)}
+                    </TableCell>
+                    <TableCell className="flex justify-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => setEditingLoan(row.loan)}
+                      >
+                        <Edit size={14} />
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-destructive"
+                        onClick={() => handleDeleteLoan(row.loan.loan_id)}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={7}
+                    className="text-center py-6 text-gray-500"
+                  >
+                    No records found
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
 
         {openAdd && (
           <AddLoanModal
-            apiBase={API_BASE}
             availableUsers={usersWithoutActiveLoan}
             onClose={() => setOpenAdd(false)}
             onCreate={(loan) => {
@@ -337,7 +340,6 @@ function LoansTab() {
 
         {editingLoan && (
           <EditLoanModal
-            apiBase={API_BASE}
             loan={editingLoan}
             onClose={() => setEditingLoan(null)}
             onUpdated={(updated) => {
@@ -482,70 +484,66 @@ function SavingsTab() {
         {loading && <div className="text-sm text-gray-600">Loading...</div>}
         {error && <div className="text-sm text-red-600 mb-2">{error}</div>}
 
-        <div className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-4 mb-6 shadow-sm bg-white dark:bg-gray-900">
-          <div className="overflow-x-auto w-full border border-gray-300 dark:border-gray-700 shadow-sm bg-white dark:bg-gray-900">
-            <table className="w-full min-w-[600px] border-collapse border border-gray-300 dark:border-gray-700">
-              <thead className="bg-gray-100 dark:bg-gray-700">
-                <tr>
-                  <th className="border p-2 text-left">No.</th>
-                  <th className="border p-2 text-left">Name</th>
-                  <th className="border p-2 text-left">Collection Per month</th>
-                  <th className="border p-2 text-left">Total Collection</th>
-                  <th className="border p-2 text-left">Total Months</th>
-                  <th className="border p-2 text-center">Status</th>
-                  <th className="border p-2 text-center">Action</th>
-                  <th className="border p-2 text-left">Start Date</th>
-                  <th className="border p-2 text-left">End Date</th>
-                </tr>
-              </thead>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>No.</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Collection Per month</TableHead>
+                <TableHead>Total Collection</TableHead>
+                <TableHead>Total Months</TableHead>
+                <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-center">Action</TableHead>
+                <TableHead>Start Date</TableHead>
+                <TableHead>End Date</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 && !loading && (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center">
+                    No savings members found.
+                  </TableCell>
+                </TableRow>
+              )}
 
-              <tbody>
-                {rows.length === 0 && !loading && (
-                  <tr>
-                    <td colSpan={9} className="p-4 text-sm text-gray-500">
-                      No savings members found.
-                    </td>
-                  </tr>
-                )}
-
-                {rows.map((r, idx) => (
-                  <tr
-                    key={r.id ?? idx}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700"
-                  >
-                    <td className="border p-2">{idx + 1}</td>
-                    <td className="border p-2">{r.name}</td>
-                    <td className="border p-2">{formatPeso(r.monthly)}</td>
-                    <td className="border p-2">
-                      {formatPeso(r.totalCollection)}
-                    </td>
-                    <td className="border p-2">{r.months}</td>
-                    <td className="border p-2 text-center">
-                      <span
-                        className={`px-2 py-1 rounded text-xs ${
-                          r.raw.is_active === 1
-                            ? "bg-green-100 text-green-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {r.raw.is_active === 1 ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="border p-2 flex justify-center gap-2">
-                      <Button size="sm" onClick={() => handleEdit(r)}>
-                        <Edit size={14} />
-                      </Button>
-                      <Button size="sm" onClick={() => handleDelete(r.id)}>
-                        <Trash2 size={14} />
-                      </Button>
-                    </td>
-                    <td className="border p-2">{r.start ?? "-"}</td>
-                    <td className="border p-2">{r.end ?? "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              {rows.map((r, idx) => (
+                <TableRow key={r.id ?? idx}>
+                  <TableCell>{idx + 1}</TableCell>
+                  <TableCell>{r.name}</TableCell>
+                  <TableCell>{formatPeso(r.monthly)}</TableCell>
+                  <TableCell>{formatPeso(r.totalCollection)}</TableCell>
+                  <TableCell>{r.months}</TableCell>
+                  <TableCell className="text-center">
+                    <span
+                      className={`px-2 py-1 rounded text-xs ${
+                        r.raw.is_active === 1
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 0text-red-80"
+                      }`}
+                    >
+                      {r.raw.is_active === 1 ? "Active" : "Inactive"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="flex justify-center gap-2">
+                    <Button size="sm" onClick={() => handleEdit(r)}>
+                      <Edit size={14} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="bg-destructive"
+                      onClick={() => handleDelete(r.id)}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </TableCell>
+                  <TableCell>{r.start ?? "-"}</TableCell>
+                  <TableCell>{r.end ?? "-"}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
 
         {showAddModal && (
@@ -951,13 +949,11 @@ function EditEmployeeModal({
    - Compute monthly_payment = loan_amount / months_to_pay
 -------------------------- */
 function AddLoanModal({
-  apiBase,
   availableUsers = [],
   onClose,
   onCreate,
   loansEndpoint,
 }: {
-  apiBase: string;
   availableUsers: User[];
   onClose: () => void;
   onCreate: (newLoan: EmployeeLoan) => void;
@@ -1171,13 +1167,11 @@ function AddLoanModal({
    - Basic: allow updating status or end_date
 -------------------------- */
 function EditLoanModal({
-  apiBase,
   loan,
   onClose,
   onUpdated,
   loansEndpoint,
 }: {
-  apiBase: string;
   loan: EmployeeLoan;
   onClose: () => void;
   onUpdated: (updated: EmployeeLoan) => void;

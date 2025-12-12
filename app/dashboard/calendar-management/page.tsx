@@ -43,6 +43,17 @@ interface User {
   user_lname: string;
 }
 
+interface HolidayPayload {
+  holiday_date: string;
+  description: string;
+  holiday_type: string;
+  is_recurring: number;
+  is_paid: number;
+  created_by?: number;
+  updated_by?: number;
+  updated_date?: string;
+}
+
 export default function CalendarManagementPage() {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -91,7 +102,7 @@ export default function CalendarManagementPage() {
     loadUsers();
   }, []);
 
-  const isoDate = (d: Date) => d.toISOString().substring(0, 10);
+  // const isoDate = (d: Date) => d.toISOString().substring(0, 10);
 
   const holidayDateList = useMemo(() => {
     return [...new Set(holidays.map((h) => h.holiday_date))].map(
@@ -160,7 +171,7 @@ export default function CalendarManagementPage() {
       if (duplicate)
         return toast.error("Holiday with this date and type already exists.");
 
-      const payload: any = {
+      const payload: HolidayPayload = {
         holiday_date: holidayDate,
         description,
         holiday_type: holidayType,

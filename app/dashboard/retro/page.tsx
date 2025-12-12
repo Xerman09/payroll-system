@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +17,27 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { toast } from "sonner";
+import { Edit, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 /**
  * Types
@@ -50,8 +70,12 @@ export default function RetroPayPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // dialog and add form
+  // dialog and add/edit form
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingRetro, setEditingRetro] = useState<RetroPayFromApi | null>(
+    null
+  );
   const [employeeDropdownOpen, setEmployeeDropdownOpen] = useState(false);
   const [employeeSearchTerm, setEmployeeSearchTerm] = useState("");
   const [addForm, setAddForm] = useState({
@@ -61,6 +85,9 @@ export default function RetroPayPage() {
     cutoff_start: "",
     cutoff_end: "",
   });
+
+  // delete confirmation
+  const [deleteRetro, setDeleteRetro] = useState<RetroPayFromApi | null>(null);
 
   // table UI
   const [searchTerm, setSearchTerm] = useState("");
@@ -117,24 +144,29 @@ export default function RetroPayPage() {
   };
 
   // ---------- Helper: get employee name ----------
-  const getEmployeeFromId = (userId: number) =>
-    employees.find((e) => e.user_id === userId);
+  const getEmployeeFromId = useCallback(
+    (userId: number) => employees.find((e) => e.user_id === userId),
+    [employees]
+  );
 
-  const formatEmployeeName = (maybeUser: number | Employee | undefined) => {
-    if (!maybeUser && maybeUser !== 0) return "Unknown";
-    if (typeof maybeUser === "number") {
-      const emp = getEmployeeFromId(maybeUser);
-      if (!emp) return `ID ${maybeUser}`;
-      return `${emp.user_fname} ${emp.user_mname ? emp.user_mname + " " : ""}${
-        emp.user_lname
-      }`;
-    } else {
-      // Employee object
-      return `${maybeUser.user_fname} ${
-        maybeUser.user_mname ? maybeUser.user_mname + " " : ""
-      }${maybeUser.user_lname}`;
-    }
-  };
+  const formatEmployeeName = useCallback(
+    (maybeUser: number | Employee | undefined) => {
+      if (!maybeUser && maybeUser !== 0) return "Unknown";
+      if (typeof maybeUser === "number") {
+        const emp = getEmployeeFromId(maybeUser);
+        if (!emp) return `ID ${maybeUser}`;
+        return `${emp.user_fname} ${
+          emp.user_mname ? emp.user_mname + " " : ""
+        }${emp.user_lname}`;
+      } else {
+        // Employee object
+        return `${maybeUser.user_fname} ${
+          maybeUser.user_mname ? maybeUser.user_mname + " " : ""
+        }${maybeUser.user_lname}`;
+      }
+    },
+    [getEmployeeFromId]
+  );
 
   // ---------- Filtering / Sorting / Pagination ----------
   const filteredRetroPays = useMemo(() => {
@@ -148,15 +180,15 @@ export default function RetroPayPage() {
       const name = formatEmployeeName(r.user_id).toLowerCase();
       return idMatch || name.includes(q);
     });
-  }, [retroPays, searchTerm, employees]);
+  }, [retroPays, searchTerm, formatEmployeeName]);
 
   const sortedRetroPays = useMemo(() => {
     const arr = [...filteredRetroPays];
     if (!sortBy) return arr;
 
     arr.sort((a, b) => {
-      let aValue: any;
-      let bValue: any;
+      let aValue: string | number;
+      let bValue: string | number;
 
       switch (sortBy) {
         case "name":
@@ -181,7 +213,7 @@ export default function RetroPayPage() {
     });
 
     return arr;
-  }, [filteredRetroPays, sortBy, sortOrder]);
+  }, [filteredRetroPays, sortBy, sortOrder, formatEmployeeName]);
 
   const totalPages = Math.max(
     1,
@@ -253,6 +285,105 @@ export default function RetroPayPage() {
     } catch (err) {
       console.error("Add retro failed:", err);
       toast.error("Failed to add retro pay");
+    }
+  };
+
+  // ---------- Edit Retro ----------
+  const handleEditRetro = (retro: RetroPayFromApi) => {
+    setIsEditing(true);
+    setEditingRetro(retro);
+    setAddForm({
+      user_id: String(
+        typeof retro.user_id === "number"
+          ? retro.user_id
+          : retro.user_id.user_id
+      ),
+      amount: retro.amount,
+      description: retro.description || "",
+      cutoff_start: retro.cutoff_start,
+      cutoff_end: retro.cutoff_end,
+    });
+    setDialogOpen(true);
+  };
+
+  // ---------- Update Retro ----------
+  const handleUpdateRetro = async () => {
+    if (!editingRetro) return;
+
+    // validation
+    if (
+      !addForm.user_id ||
+      !addForm.amount ||
+      !addForm.cutoff_start ||
+      !addForm.cutoff_end
+    ) {
+      toast.error(
+        "Please fill required fields: employee, amount, cutoff dates"
+      );
+      return;
+    }
+
+    const session = sessionStorage.getItem("user");
+    if (!session) {
+      toast.error("User not logged in");
+      return;
+    }
+    const loggedUser = JSON.parse(session);
+
+    const payload = {
+      user_id: parseInt(addForm.user_id, 10),
+      amount: parseFloat(addForm.amount).toFixed(2),
+      description: addForm.description || null,
+      cutoff_start: addForm.cutoff_start,
+      cutoff_end: addForm.cutoff_end,
+      updated_by: loggedUser.user_id,
+    };
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/items/retro_pay/${editingRetro.retro_id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status} ${txt}`);
+      }
+
+      toast.success("Retro pay updated");
+      setDialogOpen(false);
+      await refreshRetroPays();
+    } catch (err) {
+      console.error("Update retro failed:", err);
+      toast.error("Failed to update retro pay");
+    }
+  };
+
+  // ---------- Delete Retro ----------
+  const confirmDelete = async () => {
+    if (!deleteRetro) return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/items/retro_pay/${deleteRetro.retro_id}`,
+        {
+          method: "DELETE",
+        }
+      );
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status} ${txt}`);
+      }
+
+      toast.success("Retro pay deleted");
+      setDeleteRetro(null);
+      await refreshRetroPays();
+    } catch (err) {
+      console.error("Delete retro failed:", err);
+      toast.error("Failed to delete retro pay");
     }
   };
 
@@ -347,13 +478,13 @@ export default function RetroPayPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto w-full">
-            <table className="w-full min-w-[800px] border-collapse border border-gray-300 dark:border-gray-700">
-              <thead className="bg-gray-100 dark:bg-gray-700">
-                <tr>
-                  <th className="border p-2 text-left w-16">No.</th>
-                  <th
-                    className="border p-2 text-left cursor-pointer"
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-16">No.</TableHead>
+                  <TableHead
+                    className="cursor-pointer"
                     onClick={() => {
                       setSortBy("name");
                       setSortOrder((s) => (s === "asc" ? "desc" : "asc"));
@@ -361,9 +492,9 @@ export default function RetroPayPage() {
                   >
                     Name{" "}
                     {sortBy === "name" ? (sortOrder === "asc" ? "▲" : "▼") : ""}
-                  </th>
-                  <th
-                    className="border p-2 text-left cursor-pointer"
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer"
                     onClick={() => {
                       setSortBy("amount");
                       setSortOrder((s) => (s === "asc" ? "desc" : "asc"));
@@ -375,10 +506,10 @@ export default function RetroPayPage() {
                         ? "▲"
                         : "▼"
                       : ""}
-                  </th>
-                  <th className="border p-2 text-left">Description</th>
-                  <th
-                    className="border p-2 text-left cursor-pointer"
+                  </TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead
+                    className="cursor-pointer"
                     onClick={() => {
                       setSortBy("cutoff_start");
                       setSortOrder((s) => (s === "asc" ? "desc" : "asc"));
@@ -390,69 +521,107 @@ export default function RetroPayPage() {
                         ? "▲"
                         : "▼"
                       : ""}
-                  </th>
-                </tr>
-              </thead>
+                  </TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
 
-              <tbody>
+              <TableBody>
                 {loading ? (
                   // skeleton rows
                   Array.from({ length: rowsPerPage }).map((_, i) => (
-                    <tr
-                      key={i}
-                      className="border-b border-gray-200 dark:border-gray-600"
-                    >
-                      <td className="border p-2">
+                    <TableRow key={i}>
+                      <TableCell>
                         <div className="h-4 w-8 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
-                      </td>
-                      <td className="border p-2">
+                      </TableCell>
+                      <TableCell>
                         <div className="h-4 w-32 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
-                      </td>
-                      <td className="border p-2">
+                      </TableCell>
+                      <TableCell>
                         <div className="h-4 w-20 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
-                      </td>
-                      <td className="border p-2">
+                      </TableCell>
+                      <TableCell>
                         <div className="h-4 w-40 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
-                      </td>
-                      <td className="border p-2">
+                      </TableCell>
+                      <TableCell>
                         <div className="h-4 w-32 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))
                 ) : paginatedRetroPays.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="border p-2 text-center py-8 text-gray-500"
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="text-center py-8 text-gray-500"
                     >
                       No retro pays found
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   paginatedRetroPays.map((retro, idx) => (
-                    <tr
-                      key={retro.retro_id}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-700"
-                    >
-                      <td className="border p-2">
+                    <TableRow key={retro.retro_id}>
+                      <TableCell>
                         {(currentPage - 1) * rowsPerPage + idx + 1}
-                      </td>
-                      <td className="border p-2">
-                        {formatEmployeeName(retro.user_id)}
-                      </td>
-                      <td className="border p-2">
-                        {formatCurrency(retro.amount)}
-                      </td>
-                      <td className="border p-2">{retro.description || "-"}</td>
-                      <td className="border p-2">
+                      </TableCell>
+                      <TableCell>{formatEmployeeName(retro.user_id)}</TableCell>
+                      <TableCell>{formatCurrency(retro.amount)}</TableCell>
+                      <TableCell>{retro.description || "-"}</TableCell>
+                      <TableCell>
                         {formatDate(retro.cutoff_start)} -{" "}
                         {formatDate(retro.cutoff_end)}
-                      </td>
-                    </tr>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => handleEditRetro(retro)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => setDeleteRetro(retro)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                  Delete Retro Pay
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete this retro pay
+                                  for {formatEmployeeName(deleteRetro?.user_id)}
+                                  ? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel
+                                  onClick={() => setDeleteRetro(null)}
+                                >
+                                  Cancel
+                                </AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive"
+                                  onClick={confirmDelete}
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                   ))
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
           {/* Pagination */}
@@ -526,11 +695,30 @@ export default function RetroPayPage() {
           </div>
         </div>
 
-        {/* Add Retro Dialog */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        {/* Add/Edit Retro Dialog */}
+        <Dialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            setDialogOpen(open);
+            if (!open) {
+              setIsEditing(false);
+              setEditingRetro(null);
+              setAddForm({
+                user_id: "",
+                amount: "",
+                description: "",
+                cutoff_start: "",
+                cutoff_end: "",
+              });
+              setEmployeeSearchTerm("");
+            }
+          }}
+        >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Add Retro Pay</DialogTitle>
+              <DialogTitle>
+                {isEditing ? "Edit Retro Pay" : "Add Retro Pay"}
+              </DialogTitle>
             </DialogHeader>
 
             <div className="space-y-4">
@@ -670,7 +858,9 @@ export default function RetroPayPage() {
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleAddRetro}>Add Retro Pay</Button>
+              <Button onClick={isEditing ? handleUpdateRetro : handleAddRetro}>
+                {isEditing ? "Update Retro Pay" : "Add Retro Pay"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

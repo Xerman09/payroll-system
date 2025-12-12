@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Users, DollarSign, Calendar, FileText } from "lucide-react";
 import {
@@ -20,16 +20,14 @@ import {
 } from "recharts";
 
 export default function DashboardPage() {
-  const [userName, setUserName] = useState("Admin");
-
-  // Fetch user from sessionStorage
-  useEffect(() => {
+  const [userName] = useState(() => {
     const session = sessionStorage.getItem("user");
     if (session) {
       const user = JSON.parse(session);
-      setUserName(user.user_fname || "Admin"); // replace 'user_name' with the actual field from your user object
+      return user.user_fname || "Admin";
     }
-  }, []);
+    return "Admin";
+  });
 
   // Sample static data
   const payrollTrend = [
@@ -65,7 +63,7 @@ export default function DashboardPage() {
       <div className="mb-6">
         <h2 className="text-2xl font-bold mb-1">Welcome, {userName}!</h2>
         <p className="text-gray-500 dark:text-gray-400">
-          Here's a summary of your HR & Payroll system.
+          Here&apos;s a summary of your HR &amp; Payroll system.
         </p>
       </div>
 
