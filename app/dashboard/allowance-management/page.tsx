@@ -1,7 +1,7 @@
 // /modules/allowance/AllowanceModule.tsx
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import useSWR, { mutate } from "swr";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -138,9 +138,56 @@ async function getUsers(): Promise<User[]> {
   return json?.data ?? json ?? [];
 }
 
-async function getAllowances(): Promise<Allowance[]> {
-  const json = await fetcher(`${API_BASE}/items/employee_allowance?limit=-1`);
-  return json?.data ?? json ?? [];
+// Server-side list with pagination and filters
+type AllowanceListParams = {
+  page: number;
+  pageSize: number;
+  searchName?: string;
+  searchDescription?: string;
+  processed?: "all" | "processed" | "unprocessed";
+};
+
+function buildQuery(params: Record<string, string | number | undefined>) {
+  const sp = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== "") sp.append(k, String(v));
+  });
+  return sp.toString();
+}
+
+async function getAllowancesList({
+  page,
+  pageSize,
+  searchName,
+  searchDescription,
+  processed,
+}: AllowanceListParams) {
+  const baseParams: Record<string, string | number | undefined> = {
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+    meta: "filter_count",
+    sort: "-created_date",
+  };
+  // processed filter
+  if (processed === "processed") baseParams["filter[is_processed][_eq]"] = 1;
+  if (processed === "unprocessed") baseParams["filter[is_processed][_eq]"] = 0;
+  // description search
+  if (searchDescription) {
+    baseParams["filter[description][_contains]"] = searchDescription.trim();
+  }
+  // try to search by denormalized user_full_name if present from API
+  if (searchName) {
+    baseParams["filter[user_full_name][_contains]"] = searchName.trim();
+  }
+
+  const qs = buildQuery(baseParams);
+  const url = `${API_BASE}/items/employee_allowance?${qs}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(await res.text());
+  const json = await res.json();
+  const rows: Allowance[] = json?.data ?? [];
+  const total: number = json?.meta?.filter_count ?? json?.meta?.total ?? rows.length;
+  return { rows, total };
 }
 
 async function createAllowance(payload: Partial<Allowance>) {
@@ -181,11 +228,26 @@ function useUsers() {
   return { users: data ?? [], loading: !data && !error, error };
 }
 
-function useAllowances() {
-  const { data, error } = useSWR("/allowances", getAllowances, {
-    revalidateOnFocus: false,
-  });
-  return { allowances: data ?? [], loading: !data && !error, error };
+function useAllowancesQuery(params: AllowanceListParams) {
+  const { data, error, isLoading, mutate: swrMutate } = useSWR(
+    [
+      "/allowances",
+      params.page,
+      params.pageSize,
+      params.searchName || "",
+      params.searchDescription || "",
+      params.processed || "all",
+    ],
+    () => getAllowancesList(params),
+    { keepPreviousData: true, revalidateOnFocus: false }
+  );
+  return {
+    rows: data?.rows ?? [],
+    total: data?.total ?? 0,
+    loading: isLoading,
+    error,
+    mutate: swrMutate,
+  };
 }
 
 /* ===========================
@@ -194,17 +256,24 @@ function useAllowances() {
 export default function AllowanceModule() {
   // global data via SWR wrapper hooks
   const { users, loading: usersLoading } = useUsers();
-  const { allowances, loading: allowancesLoading } = useAllowances();
-
-  /* Table controls: search/filter/pagination */
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
   const [searchName, setSearchName] = useState("");
   const [searchDescription, setSearchDescription] = useState("");
   const [filterProcessed, setFilterProcessed] = useState<
     "all" | "processed" | "unprocessed"
   >("all");
 
-  const [page, setPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const { rows: allowances, total, loading: allowancesLoading, mutate: reloadAllowances } =
+    useAllowancesQuery({
+      page,
+      pageSize: PAGE_SIZE,
+      searchName,
+      searchDescription,
+      processed: filterProcessed,
+    });
+
+  /* Table controls moved above (page, search, filters) */
 
   /* Dialog state */
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -222,30 +291,7 @@ export default function AllowanceModule() {
     { type: "Meals", other: "", amount: "" },
   ]);
 
-  // when editing single allowance, show single-row form and prefill
-  useEffect(() => {
-    if (editing) {
-      setFormEmployee(editing.user_id);
-      setFormDate(editing.cutoff_start || iso(new Date()));
-      setFormRows([
-        {
-          type: ALLOWANCE_TYPES.includes(editing.description as any)
-            ? (editing.description as AllowanceType)
-            : "Others",
-          other: ALLOWANCE_TYPES.includes(editing.description as any)
-            ? ""
-            : editing.description,
-          amount: String(editing.amount ?? ""),
-        },
-      ]);
-      setDialogOpen(true);
-    } else {
-      // create mode: ensure at least one row
-      setFormRows((r) =>
-        r.length === 0 ? [{ type: "Meals", other: "", amount: "" }] : r
-      );
-    }
-  }, [editing]);
+  // When editing, prefill happens in the Edit button handler to avoid setState in effects
 
   /* Derived cutoff preview */
   const cutoffPreview = useMemo(
@@ -253,51 +299,19 @@ export default function AllowanceModule() {
     [formDate]
   );
 
-  /* Filtered & paginated list for table */
-  const filtered = useMemo(() => {
-    const normalize = (s = "") => s.trim().toLowerCase();
-    const nameQ = normalize(searchName);
-    const descQ = normalize(searchDescription);
-
-    return allowances.filter((a) => {
-      // filter processed
-      if (filterProcessed === "processed" && Number(a.is_processed) !== 1)
-        return false;
-      if (filterProcessed === "unprocessed" && Number(a.is_processed) === 1)
-        return false;
-
-      // user name filter: find user by id
-      if (nameQ) {
-        const u = users.find((uu) => uu.user_id === a.user_id);
-        const name = u
-          ? fullnameFromUser(u).toLowerCase()
-          : (a.user_full_name ?? "").toLowerCase();
-        if (!name.includes(nameQ)) return false;
-      }
-
-      if (descQ) {
-        if (!String(a.description).toLowerCase().includes(descQ)) return false;
-      }
-
-      return true;
-    });
-  }, [allowances, users, searchName, searchDescription, filterProcessed]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  useEffect(() => {
-    if (page > totalPages) setPage(1);
-  }, [totalPages]);
-
-  const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Server-provided totals for pagination
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const effectivePage = Math.min(Math.max(page, 1), totalPages);
+  const pageData = allowances; // already paginated by server
 
   /* ===========================
      CRUD ACTIONS (wired to API & SWR mutate)
      =========================== */
   const reloadAll = useCallback(() => {
     // revalidate allowances and users
-    mutate("/allowances");
+    reloadAllowances();
     mutate("/users");
-  }, []);
+  }, [reloadAllowances]);
 
   const handleCreateOrUpdate = async () => {
     if (!formEmployee) return toast.error("Select employee.");
@@ -339,9 +353,10 @@ export default function AllowanceModule() {
       reloadAll();
       // reset create form
       setFormRows([{ type: "Meals", other: "", amount: "" }]);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      toast.error("Failed: " + (err.message ?? err));
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Failed: " + msg);
     }
   };
 
@@ -352,9 +367,10 @@ export default function AllowanceModule() {
       // immediate UI update by revalidating
       reloadAll();
       toast.success("Deleted successfully.");
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      toast.error("Delete failed: " + (err.message ?? err));
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Delete failed: " + msg);
     }
   };
 
@@ -424,7 +440,9 @@ export default function AllowanceModule() {
                 <Label>Processed</Label>
                 <Select
                   onValueChange={(v) => {
-                    setFilterProcessed(v as any);
+                    setFilterProcessed(
+                      v as "all" | "processed" | "unprocessed"
+                    );
                     setPage(1);
                   }}
                   defaultValue="all"
@@ -490,7 +508,7 @@ export default function AllowanceModule() {
                     </TableRow>
                   ) : (
                     pageData.map((a, idx) => {
-                      const idxGlobal = (page - 1) * PAGE_SIZE + idx + 1;
+                      const idxGlobal = (effectivePage - 1) * PAGE_SIZE + idx + 1;
                       const user = users.find((u) => u.user_id === a.user_id);
                       const fullname = user
                         ? fullnameFromUser(user)
@@ -520,7 +538,22 @@ export default function AllowanceModule() {
                             <Button
                               size="sm"
                               onClick={() => {
+                                const isPreset = (
+                                  ALLOWANCE_TYPES as readonly string[]
+                                ).includes(a.description);
+                                setFormEmployee(a.user_id);
+                                setFormDate(a.cutoff_start || iso(new Date()));
+                                setFormRows([
+                                  {
+                                    type: (isPreset
+                                      ? a.description
+                                      : "Others") as AllowanceType,
+                                    other: isPreset ? "" : a.description,
+                                    amount: String(a.amount ?? ""),
+                                  },
+                                ]);
                                 setEditing(a);
+                                setDialogOpen(true);
                               }}
                             >
                               <Edit2 className="w-4 h-4" />
@@ -546,24 +579,24 @@ export default function AllowanceModule() {
             {/* PAGINATION */}
             <div className="flex items-center justify-between mt-4">
               <div className="text-sm">
-                Showing <b>{(page - 1) * PAGE_SIZE + 1}</b> -{" "}
-                <b>{Math.min(page * PAGE_SIZE, filtered.length)}</b> of{" "}
-                <b>{filtered.length}</b>
+                Showing <b>{(effectivePage - 1) * PAGE_SIZE + 1}</b> -{" "}
+                <b>{Math.min(effectivePage * PAGE_SIZE, total)}</b> of{" "}
+                <b>{total}</b>
               </div>
 
               <div className="flex items-center gap-2">
                 <Button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
+                  disabled={effectivePage === 1}
                 >
                   Prev
                 </Button>
                 <div>
-                  Page {page} / {totalPages}
+                  Page {effectivePage} / {totalPages}
                 </div>
                 <Button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
+                  disabled={effectivePage === totalPages}
                 >
                   Next
                 </Button>

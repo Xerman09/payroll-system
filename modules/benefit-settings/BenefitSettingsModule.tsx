@@ -55,7 +55,7 @@ export default function BenefitSettingsModule() {
       toast.success("Benefit settings saved successfully.");
       setTimeout(() => setStatus("idle"), 800);
       loadSettings();
-    } catch (e) {
+    } catch {
       setStatus("error");
       toast.error("Failed to save benefit settings.");
       setTimeout(() => setStatus("idle"), 1200);
@@ -69,7 +69,9 @@ export default function BenefitSettingsModule() {
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Benefit Settings</CardTitle>
+            <CardTitle>
+              <h2 className="text-xl font-semibold ps-3">Benefit Settings</h2>
+            </CardTitle>
           </CardHeader>
 
           <CardContent>

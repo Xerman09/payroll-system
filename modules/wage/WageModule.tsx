@@ -18,6 +18,7 @@ export function WageModule() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedDept, setSelectedDept] = useState<number | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [totalEmployees, setTotalEmployees] = useState<number>(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
     null
@@ -46,68 +47,46 @@ export function WageModule() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
 
+  // initial departments
   useEffect(() => {
     setLoading(true);
-    Promise.all([wageApi.fetchDepartments(), wageApi.fetchEmployees()])
-      .then(([depts, emps]) => {
-        setDepartments(depts);
-        setEmployees(emps);
-      })
+    wageApi
+      .fetchDepartments()
+      .then((depts) => setDepartments(depts))
       .catch((err) => {
         console.error(err);
-        toast.error("Failed to load initial data.");
+        toast.error("Failed to load departments.");
       })
       .finally(() => setLoading(false));
   }, []);
 
+  // server-side employees list loader (page/search/filter/sort)
+  useEffect(() => {
+    setLoading(true);
+    wageApi
+      .fetchEmployeesPaged({
+        page: currentPage,
+        pageSize: rowsPerPage,
+        search: searchTerm,
+        deptId: selectedDept,
+        sortField,
+        sortOrder,
+      })
+      .then(({ rows, total }) => {
+        setEmployees(rows);
+        setTotalEmployees(total);
+      })
+      .catch((err) => {
+        console.error(err);
+        toast.error("Failed to load employees.");
+      })
+      .finally(() => setLoading(false));
+  }, [currentPage, rowsPerPage, searchTerm, selectedDept, sortField, sortOrder]);
+
   // Filtering + sorting
-  const filteredEmployees = useMemo(() => {
-    const term = searchTerm.toLowerCase();
-    const filtered = employees.filter((emp) => {
-      const deptMatch = selectedDept
-        ? emp.user_department === selectedDept
-        : true;
-      const searchMatch =
-        emp.user_id.toString().includes(term) ||
-        emp.user_fname.toLowerCase().includes(term) ||
-        emp.user_lname.toLowerCase().includes(term);
-      return deptMatch && searchMatch;
-    });
-
-    const sorted = [...filtered].sort((a, b) => {
-      const aValue = a[sortField] as any;
-      const bValue = b[sortField] as any;
-
-      if (aValue === null || bValue === null) {
-        if (aValue === bValue) return 0;
-        return sortOrder === "asc"
-          ? aValue === null
-            ? -1
-            : 1
-          : aValue === null
-          ? 1
-          : -1;
-      }
-
-      if (typeof aValue === "string" && typeof bValue === "string") {
-        return sortOrder === "asc"
-          ? aValue.localeCompare(bValue)
-          : bValue.localeCompare(aValue);
-      } else if (typeof aValue === "number" && typeof bValue === "number") {
-        return sortOrder === "asc" ? aValue - bValue : bValue - aValue;
-      }
-      return 0;
-    });
-
-    return sorted;
-  }, [employees, selectedDept, searchTerm, sortField, sortOrder]);
-
-  // Pagination helpers
-  const totalPages = Math.ceil(filteredEmployees.length / rowsPerPage) || 1;
-  const paginatedEmployees = filteredEmployees.slice(
-    (currentPage - 1) * rowsPerPage,
-    currentPage * rowsPerPage
-  );
+  // Server-driven totals and page data
+  const totalPages = Math.ceil(totalEmployees / rowsPerPage) || 1;
+  const paginatedEmployees = employees; // already paginated by server
 
   // page buttons: max 5 shown
   const getPageButtons = () => {

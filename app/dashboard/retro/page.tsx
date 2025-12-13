@@ -445,12 +445,6 @@ export default function RetroPayPage() {
   return (
     <DashboardLayout>
       <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Retro Pay
-          </h1>
-        </div>
-
         <div className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-4 mb-6 shadow-sm bg-white dark:bg-gray-900">
           <h2 className="text-xl font-semibold mb-3">Retro Pay Records</h2>
 

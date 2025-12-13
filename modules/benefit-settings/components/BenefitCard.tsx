@@ -27,7 +27,7 @@ export default function BenefitCard({
 
   return (
     <div className="p-4 space-y-3">
-      <h2 className="font-medium text-sm">{name}</h2>
+      <h2 className="font-medium text-lg">{name}</h2>
 
       {s && s.updated_by && (
         <p className="text-[10px] text-muted-foreground italic">

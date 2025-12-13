@@ -1,6 +1,7 @@
 // app/components/Sidebar.jsx
 "use client";
 
+import React, { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -27,11 +28,12 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 
-export default function Sidebar() {
+function Sidebar() {
   const { collapsed, toggle, mobileOpen, setMobileOpen } = useSidebar();
   const pathname = usePathname();
 
-  const menuItems = [
+  const menuItems = useMemo(
+    () => [
     {
       panel: "Dashboard",
       items: [
@@ -88,27 +90,29 @@ export default function Sidebar() {
         },
       ],
     },
-  ];
+  ], []);
 
   return (
     <TooltipProvider disableHoverableContent>
       <aside
         className={cn(
-          "fixed top-0 left-0 h-screen flex flex-col z-50 transition-all duration-200 ease-out shadow-xl",
+          "fixed top-0 left-0 h-screen flex flex-col z-50 shadow-xl",
           "hidden md:flex",
           collapsed
             ? "w-20 bg-gray-200 dark:bg-gray-800"
             : "w-[250px] bg-gray-100 dark:bg-gray-900",
           mobileOpen && "flex w-full md:hidden"
         )}
+        style={{ contain: "layout paint", willChange: "width", backfaceVisibility: "hidden" }}
       >
         {/* Header */}
         <div className="flex items-center justify-between h-[65px] px-4 border-b border-gray-300 dark:border-gray-700">
           <div
             className={cn(
-              "font-bold text-lg transition-all duration-200 ease-out",
-              collapsed ? "opacity-0 w-0" : "opacity-100"
+              "font-bold text-lg transition-opacity duration-150 ease-out",
+              collapsed ? "opacity-0" : "opacity-100"
             )}
+            style={{ willChange: "opacity" }}
           >
             HR Payroll
           </div>
@@ -121,6 +125,7 @@ export default function Sidebar() {
             if (mobileOpen) setMobileOpen(false);
           }}
           className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 text-black dark:text-white shadow-lg transition-transform"
+          style={{ willChange: "transform" }}
         >
           {collapsed ? <Menu size={22} /> : <ChevronLeft size={22} />}
         </button>
@@ -171,3 +176,5 @@ export default function Sidebar() {
     </TooltipProvider>
   );
 }
+
+export default React.memo(Sidebar);

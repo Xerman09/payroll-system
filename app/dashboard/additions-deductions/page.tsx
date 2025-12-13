@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import useSWR, { mutate } from "swr";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -22,16 +22,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { Edit2, Trash2, Plus } from "lucide-react";
+import { Edit2, Trash2 } from "lucide-react";
 
 type User = {
   user_id: number;
@@ -102,61 +95,11 @@ async function getDeductions(): Promise<PayrollRecord[]> {
   return json?.data ?? json ?? [];
 }
 
-async function createAddition(payload: Partial<PayrollRecord>) {
-  const res = await fetch(`${API_BASE}/items/payroll_other_additions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
 
-async function createDeduction(payload: Partial<PayrollRecord>) {
-  const res = await fetch(`${API_BASE}/items/payroll_other_deductions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
 
-async function updateAddition(id: number, payload: Partial<PayrollRecord>) {
-  const res = await fetch(`${API_BASE}/items/payroll_other_additions/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
 
-async function updateDeduction(id: number, payload: Partial<PayrollRecord>) {
-  const res = await fetch(`${API_BASE}/items/payroll_other_deductions/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
 
-async function deleteAddition(id: number) {
-  const res = await fetch(`${API_BASE}/items/payroll_other_additions/${id}`, {
-    method: "DELETE",
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res;
-}
 
-async function deleteDeduction(id: number) {
-  const res = await fetch(`${API_BASE}/items/payroll_other_deductions/${id}`, {
-    method: "DELETE",
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res;
-}
 
 /* ===========================
    Hook-like helpers (wrapped in file)
@@ -209,20 +152,7 @@ function computeCutoffForDate(dateIso: string) {
   }
 }
 
-/** Simple debounce hook */
-function useDebounce<T>(value: T, delay = 300) {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
-  return v;
-}
 
-/** Use global sonner toaster */
-function useAlerts() {
-  return { msg: null as string | null, show: (m: string) => toast(m) };
-}
 
 function filterUsers(query: string, list: User[]): User[] {
   const q = (query || "").trim().toLowerCase();
@@ -244,8 +174,8 @@ export default function AdditionsDeductionsPage() {
   );
 
   // data lists from SWR
-  const { additions, loading: additionsLoading } = useAdditions();
-  const { deductions, loading: deductionsLoading } = useDeductions();
+  const { additions } = useAdditions();
+  const { deductions } = useDeductions();
   const { users } = useUsers();
 
   // pagination & page size
@@ -296,8 +226,7 @@ export default function AdditionsDeductionsPage() {
 
   // loading / alerts
   const [loading, setLoading] = useState(false);
-  const alerts = useAlerts();
-
+  
   // SWR handles fetching automatically
 
   // fetch user by id (for created_by)
@@ -458,9 +387,10 @@ export default function AdditionsDeductionsPage() {
           },
         ];
       });
-    } catch (e: any) {
+    } catch (e) {
       console.error("submit new rows", e);
-      toast.error(String(e.message ?? e));
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -499,9 +429,10 @@ export default function AdditionsDeductionsPage() {
       setEditingRecord({ record: null, mode: null });
       mutate("/additions");
       mutate("/deductions");
-    } catch (e: any) {
+    } catch (e) {
       console.error("save edit", e);
-      toast.error(String(e.message ?? e));
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(msg);
     }
   }
 
@@ -549,9 +480,8 @@ export default function AdditionsDeductionsPage() {
     <DashboardLayout>
       <div className="space-y-4 p-4">
         <Card>
-          <CardHeader>
-            <CardTitle>Additions & Deductions</CardTitle>
-          </CardHeader>
+          <h2 className="text-xl font-semibold ps-7">Additions & Deductions</h2>
+
           <CardContent>
             <Tabs
               defaultValue="additions"
@@ -828,32 +758,38 @@ export default function AdditionsDeductionsPage() {
                           id={`employee-${idx}`}
                           type="text"
                           value={r.searchText}
-                          onFocus={() => updateNewRow(idx, { showDropdown: true })}
+                          onFocus={() =>
+                            updateNewRow(idx, { showDropdown: true })
+                          }
                           onChange={(e) => {
-                            updateNewRow(idx, { searchText: e.target.value, showDropdown: true });
+                            updateNewRow(idx, {
+                              searchText: e.target.value,
+                              showDropdown: true,
+                            });
                           }}
                           placeholder="Search by name or ID..."
                         />
-                        {(r.showDropdown ?? false) && filterUsers(r.searchText, users).length > 0 && (
-                          <div className="absolute z-10 w-full border bg-white max-h-36 overflow-auto mt-1 rounded-md shadow-lg">
-                            {filterUsers(r.searchText, users).map((u) => (
-                              <div
-                                key={u.user_id}
-                                className="p-2 hover:bg-gray-100 cursor-pointer"
-                                onClick={() => {
-                                  updateNewRow(idx, {
-                                    user: u,
-                                    user_id: u.user_id,
-                                    searchText: fullname(u),
-                                    showDropdown: false,
-                                  });
-                                }}
-                              >
-                                {fullname(u)} (ID: {u.user_id})
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        {(r.showDropdown ?? false) &&
+                          filterUsers(r.searchText, users).length > 0 && (
+                            <div className="absolute z-10 w-full border bg-white max-h-36 overflow-auto mt-1 rounded-md shadow-lg">
+                              {filterUsers(r.searchText, users).map((u) => (
+                                <div
+                                  key={u.user_id}
+                                  className="p-2 hover:bg-gray-100 cursor-pointer"
+                                  onClick={() => {
+                                    updateNewRow(idx, {
+                                      user: u,
+                                      user_id: u.user_id,
+                                      searchText: fullname(u),
+                                      showDropdown: false,
+                                    });
+                                  }}
+                                >
+                                  {fullname(u)} (ID: {u.user_id})
+                                </div>
+                              ))}
+                            </div>
+                          )}
                       </div>
                     </div>
                     <div className="md:col-span-1">
@@ -883,13 +819,17 @@ export default function AdditionsDeductionsPage() {
                     <div className="md:col-span-1">
                       <Label htmlFor={`amount-${idx}`}>Amount</Label>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₱</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                          ₱
+                        </span>
                         <Input
                           id={`amount-${idx}`}
                           type="text"
                           className="pl-7"
                           value={r.amountText ?? ""}
-                          onChange={(e) => updateNewRow(idx, { amountText: e.target.value })}
+                          onChange={(e) =>
+                            updateNewRow(idx, { amountText: e.target.value })
+                          }
                           placeholder="0.00"
                         />
                       </div>
@@ -954,7 +894,7 @@ function EmployeeName({ userId }: { userId: number }) {
         const json = await res.json();
         const u = json.data ?? json;
         if (!cancelled) setUser(u);
-      } catch (e) {
+      } catch {
         // ignore
       }
     })();
@@ -971,11 +911,6 @@ function EmployeeName({ userId }: { userId: number }) {
   );
 }
 
-/* Helper that returns a string fallback when there's only a user_id but not a user object */
-function tstringFromUserId(id?: number | null) {
-  if (!id) return "";
-  return `User #${id}`;
-}
 
 /* ----------------- Edit Modal Component ----------------- */
 function EditModal({
@@ -996,14 +931,7 @@ function EditModal({
   const [cutoffStart, setCutoffStart] = useState(record?.cutoff_start ?? "");
   const [cutoffEnd, setCutoffEnd] = useState(record?.cutoff_end ?? "");
 
-  useEffect(() => {
-    if (record) {
-      setDescription(record.description ?? "");
-      setAmountText(record.amount != null ? String(record.amount) : "");
-      setCutoffStart(record.cutoff_start ?? "");
-      setCutoffEnd(record.cutoff_end ?? "");
-    }
-  }, [record]);
+  // initialize from record on mount; EditModal is keyed by parent when record changes
 
   const handleSave = () => {
     if (!record) return;
@@ -1043,7 +971,9 @@ function EditModal({
           <div>
             <Label htmlFor="edit-amount">Amount</Label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₱</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                ₱
+              </span>
               <Input
                 id="edit-amount"
                 type="text"

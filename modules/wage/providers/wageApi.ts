@@ -22,6 +22,66 @@ export async function fetchEmployees(): Promise<Employee[]> {
   return list;
 }
 
+// Server-side pagination + search + filters for employees
+export type EmployeeListParams = {
+  page: number;
+  pageSize: number;
+  search?: string;
+  deptId?: number | null;
+  sortField?: keyof Employee;
+  sortOrder?: "asc" | "desc";
+};
+
+function buildQuery(params: Record<string, string | number | undefined>) {
+  const sp = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== "") sp.append(k, String(v));
+  });
+  return sp.toString();
+}
+
+export async function fetchEmployeesPaged({
+  page,
+  pageSize,
+  search,
+  deptId,
+  sortField = "user_id",
+  sortOrder = "asc",
+}: EmployeeListParams): Promise<{ rows: Employee[]; total: number }> {
+  const base: Record<string, string | number | undefined> = {
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+    meta: "filter_count",
+  };
+
+  // sort
+  const sortPrefix = sortOrder === "desc" ? "-" : "";
+  base.sort = `${sortPrefix}${String(sortField)}`;
+
+  // department filter
+  if (deptId) base["filter[user_department][_eq]"] = Number(deptId);
+
+  // search across id, fname, lname
+  if (search && search.trim()) {
+    const s = search.trim();
+    // Directus-style OR filter encoding
+    base["filter[_or][0][user_id][_contains]"] = s;
+    base["filter[_or][1][user_fname][_contains]"] = s;
+    base["filter[_or][2][user_lname][_contains]"] = s;
+  }
+
+  const qs = buildQuery(base);
+  const url = `${BASE}/items/user?${qs}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
+  const json = await res.json();
+  const data: Employee[] = (json.data || []).filter(
+    (emp: Employee) => !emp.is_deleted || emp.is_deleted.data?.[0] === 0
+  );
+  const total: number = json?.meta?.filter_count ?? json?.meta?.total ?? data.length;
+  return { rows: data, total };
+}
+
 export async function fetchUserById(userId: number) {
   const json = await fetchJson(`${BASE}/items/user/${userId}`);
   return json.data;

@@ -35,15 +35,21 @@ export default function LoginPage() {
     setAlert(null);
 
     try {
-      // Fetch users
-      const res = await fetch("http://100.126.246.124:8060/items/user");
-      const json = await res.json();
-      const users = json.data;
+      // Query only the matching user (email + department=2)
+      const deptId = 2;
+      const emailNorm = email.trim();
+      const qs = new URLSearchParams();
+      qs.append("limit", "1");
+      qs.append("filter[user_email][_eq]", emailNorm);
+      qs.append("filter[user_department][_eq]", String(deptId));
+      const url = `http://100.126.246.124:8060/items/user?${qs.toString()}`;
 
-      // Find user with matching email and department
-      const user = users.find(
-        (u: User) => u.user_email === email && Number(u.user_department) === 2
-      );
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json();
+      const user: User | undefined = Array.isArray(json?.data)
+        ? json.data[0]
+        : undefined;
 
       if (!user) {
         setAlert("error");
@@ -51,15 +57,14 @@ export default function LoginPage() {
         return;
       }
 
-      if (user.user_password !== password) {
+      if (String(user.user_password) !== password) {
         setAlert("password");
         setLoading(false);
         return;
       }
 
-      // Successful login
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { user_password, ...userSafe } = user; // remove password
+      // Successful login: remove password before storing
+      const { user_password, ...userSafe } = user;
       sessionStorage.setItem("user", JSON.stringify(userSafe));
       setAlert("success");
 

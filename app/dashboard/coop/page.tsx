@@ -111,10 +111,14 @@ export default function CoopPage() {
       <div className="p-6">
         <Card className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
           <CardHeader>
-            <CardTitle>COOP</CardTitle>
+            <CardTitle>COOP Management</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <Tabs
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="w-full"
+            >
               <TabsList className="grid grid-cols-2 w-full mb-4">
                 <TabsTrigger
                   value="savings"
@@ -156,6 +160,10 @@ function LoansTab() {
   const [error, setError] = useState<string | null>(null);
   const [openAdd, setOpenAdd] = useState(false);
   const [editingLoan, setEditingLoan] = useState<EmployeeLoan | null>(null);
+  // pagination state (Loans)
+  const [rowsPerPage, setRowsPerPage] = useState<number>(10);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalLoans, setTotalLoans] = useState<number>(0);
 
   const LOANS_ENDPOINT = `${API_BASE}/items/employee_loan`;
   const USERS_ENDPOINT = `${API_BASE}/items/user`;
@@ -164,47 +172,90 @@ function LoansTab() {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    Promise.all([
-      fetch(LOANS_ENDPOINT).then((r) => r.json()),
-      fetch(USERS_ENDPOINT).then((r) => r.json()),
-      fetch(PAYMENTS_ENDPOINT)
-        .then((r) => (r.ok ? r.json() : { data: [] }))
-        .catch(() => ({ data: [] })),
-    ])
-      .then(([lres, ures, pres]) => {
-        if (!mounted) return;
-        const loanList: EmployeeLoan[] = Array.isArray(lres?.data)
-          ? lres.data
-          : [];
-        const userList: User[] = Array.isArray(ures?.data) ? ures.data : [];
-        const paymentsList: LoanPayment[] = Array.isArray(pres?.data)
-          ? pres.data
-          : [];
 
+    const load = async () => {
+      try {
+        // fetch paged loans with meta count
+        const loansUrl = `${LOANS_ENDPOINT}?limit=${rowsPerPage}&offset=${
+          (currentPage - 1) * rowsPerPage
+        }&meta=filter_count`;
+        const lr = await fetch(loansUrl);
+        if (!lr.ok) throw new Error(await lr.text());
+        const ljson = await lr.json();
+        const loanList: EmployeeLoan[] = Array.isArray(ljson?.data)
+          ? ljson.data
+          : [];
+        const total: number =
+          ljson?.meta?.filter_count ?? ljson?.meta?.total ?? loanList.length;
+        if (!mounted) return;
         setLoans(loanList);
+        setTotalLoans(total);
+
+        // build ids for related fetches
+        const userIds = Array.from(
+          new Set(loanList.map((ln) => Number(ln.user_id)).filter(Boolean))
+        );
+        const loanIds = loanList
+          .map((ln) => Number(ln.loan_id))
+          .filter(Boolean);
+
+        // fetch only needed users
+        let userList: User[] = [];
+        if (userIds.length > 0) {
+          const usersUrl = `${USERS_ENDPOINT}?limit=${
+            userIds.length
+          }&filter[user_id][_in]=${userIds.join(",")}`;
+          const ur = await fetch(usersUrl);
+          if (ur.ok) {
+            const ujson = await ur.json();
+            userList = Array.isArray(ujson?.data) ? ujson.data : [];
+          }
+        }
+        if (!mounted) return;
         setUsers(userList);
 
+        // fetch payments only for current page loans and aggregate
         const map: Record<number, number> = {};
-        for (const p of paymentsList) {
-          const lid = Number(p.loan_id);
-          const amt = Number(p.amount || 0);
-          if (!lid) continue;
-          map[lid] = (map[lid] || 0) + amt;
+        if (loanIds.length > 0) {
+          const payUrl = `${PAYMENTS_ENDPOINT}?limit=-1&filter[loan_id][_in]=${loanIds.join(
+            ","
+          )}`;
+          const pr = await fetch(payUrl);
+          const pjson = pr.ok ? await pr.json() : { data: [] };
+          const paymentsList: LoanPayment[] = Array.isArray(pjson?.data)
+            ? pjson.data
+            : [];
+          for (const p of paymentsList) {
+            const lid = Number(p.loan_id);
+            const amt = Number(p.amount || 0);
+            if (!lid) continue;
+            map[lid] = (map[lid] || 0) + amt;
+          }
         }
+        if (!mounted) return;
         setPaymentsMap(map);
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error(err);
         if (!mounted) return;
         setError("Failed to load loans/users/payments.");
         toast.error("Failed to load loans/users/payments.");
-      })
-      .finally(() => mounted && setLoading(false));
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
 
     return () => {
       mounted = false;
     };
-  }, [LOANS_ENDPOINT, PAYMENTS_ENDPOINT, USERS_ENDPOINT]);
+  }, [
+    LOANS_ENDPOINT,
+    PAYMENTS_ENDPOINT,
+    USERS_ENDPOINT,
+    rowsPerPage,
+    currentPage,
+  ]);
 
   const getUserName = (userId: number) => {
     const user = users.find((u) => Number(u.user_id) === Number(userId));
@@ -241,6 +292,29 @@ function LoansTab() {
     });
   }, [loans, paymentsMap]);
 
+  // derived pagination (Loans) from server total
+  const totalPages = Math.max(1, Math.ceil(totalLoans / rowsPerPage));
+
+  const getPageButtons = (): (number | "...")[] => {
+    const pages: (number | "...")[] = [];
+    const maxToShow = 5;
+    if (totalPages <= maxToShow) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      return pages;
+    }
+    const addRange = (s: number, e: number) => {
+      for (let i = s; i <= e; i++) pages.push(i);
+    };
+    const left = Math.max(1, currentPage - 1);
+    const right = Math.min(totalPages, currentPage + 1);
+    addRange(1, 1);
+    if (left > 2) pages.push("...");
+    addRange(left, right);
+    if (right < totalPages - 1) pages.push("...");
+    addRange(totalPages, totalPages);
+    return pages;
+  };
+
   const usersWithoutActiveLoan = useMemo(() => {
     const activeLoanUserIds = new Set(
       loans.filter((l) => l.status === "ACTIVE").map((l) => Number(l.user_id))
@@ -267,7 +341,6 @@ function LoansTab() {
       </CardHeader>
 
       <CardContent>
-        {loading && <div className="text-sm text-gray-600">Loading...</div>}
         {error && <div className="text-sm text-red-600 mb-2">{error}</div>}
 
         <div className="overflow-x-auto">
@@ -285,10 +358,38 @@ function LoansTab() {
             </TableHeader>
 
             <TableBody>
-              {rows.length ? (
+              {loading ? (
+                Array.from({ length: rowsPerPage }).map((_, i) => (
+                  <TableRow key={`loan-skel-${i}`}>
+                    <TableCell>
+                      <div className="h-4 w-1/2 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-2/3 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-1/2 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-1/2 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-1/2 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-1/2 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-1/3 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : rows.length ? (
                 rows.map((row, idx) => (
                   <TableRow key={row.loan.loan_id}>
-                    <TableCell>{idx + 1}</TableCell>
+                    <TableCell>
+                      {(currentPage - 1) * rowsPerPage + idx + 1}
+                    </TableCell>
                     <TableCell>{getUserName(row.loan.user_id)}</TableCell>
                     <TableCell className="text-right">
                       {formatPeso(row.loanAmount)}
@@ -428,34 +529,66 @@ function SavingsTab() {
   const [editingMembership, setEditingMembership] = useState<Membership | null>(
     null
   );
+  // pagination state (Savings)
+  const [rowsPerPage, setRowsPerPage] = useState<number>(10);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalMemberships, setTotalMemberships] = useState<number>(0);
 
   useEffect(() => {
     let mounted = true;
+    setLoading(true);
 
-    Promise.all([
-      fetch(`${API_BASE}/items/coop_savings_membership`).then((r) => r.json()),
-      fetch(`${API_BASE}/items/user`).then((r) => r.json()),
-    ])
-      .then(([mres, ures]) => {
+    const load = async () => {
+      try {
+        const msUrl = `${API_BASE}/items/coop_savings_membership?limit=${rowsPerPage}&offset=${
+          (currentPage - 1) * rowsPerPage
+        }&meta=filter_count`;
+        const mr = await fetch(msUrl);
+        if (!mr.ok) throw new Error(await mr.text());
+        const mjson = await mr.json();
+        const membershipList: Membership[] = Array.isArray(mjson?.data)
+          ? mjson.data
+          : [];
+        const total: number =
+          mjson?.meta?.filter_count ??
+          mjson?.meta?.total ??
+          membershipList.length;
         if (!mounted) return;
-        const membershipList = Array.isArray(mres?.data)
-          ? mres.data
-          : mres ?? [];
-        const userList = Array.isArray(ures?.data) ? ures.data : ures ?? [];
         setMemberships(membershipList);
+        setTotalMemberships(total);
+
+        const userIds = Array.from(
+          new Set(membershipList.map((m) => Number(m.user_id)).filter(Boolean))
+        );
+        let userList: User[] = [];
+        if (userIds.length > 0) {
+          const uUrl = `${API_BASE}/items/user?limit=${
+            userIds.length
+          }&filter[user_id][_in]=${userIds.join(",")}`;
+          const ur = await fetch(uUrl);
+          if (ur.ok) {
+            const ujson = await ur.json();
+            userList = Array.isArray(ujson?.data) ? ujson.data : [];
+          }
+        }
+        if (!mounted) return;
         setUsers(userList);
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error(err);
+        if (!mounted) return;
         setError("Failed to load savings or users.");
         toast.error("Failed to load savings or users.");
-      })
-      .finally(() => mounted && setLoading(false));
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [rowsPerPage, currentPage]);
 
   const rows = useMemo(() => {
     return memberships.map((m) => {
@@ -532,6 +665,29 @@ function SavingsTab() {
     setEditingMembership(null);
   };
 
+  // derived pagination (Savings) from server total
+  const totalPages = Math.max(1, Math.ceil(totalMemberships / rowsPerPage));
+
+  const getPageButtons = (): (number | "...")[] => {
+    const pages: (number | "...")[] = [];
+    const maxToShow = 5;
+    if (totalPages <= maxToShow) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      return pages;
+    }
+    const addRange = (s: number, e: number) => {
+      for (let i = s; i <= e; i++) pages.push(i);
+    };
+    const left = Math.max(1, currentPage - 1);
+    const right = Math.min(totalPages, currentPage + 1);
+    addRange(1, 1);
+    if (left > 2) pages.push("...");
+    addRange(left, right);
+    if (right < totalPages - 1) pages.push("...");
+    addRange(totalPages, totalPages);
+    return pages;
+  };
+
   return (
     <Card className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <CardHeader>
@@ -541,7 +697,6 @@ function SavingsTab() {
         </div>
       </CardHeader>
       <CardContent>
-        {loading && <div className="text-sm text-gray-600">Loading...</div>}
         {error && <div className="text-sm text-red-600 mb-2">{error}</div>}
 
         <div className="overflow-x-auto">
@@ -560,48 +715,82 @@ function SavingsTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.length === 0 && !loading && (
+              {loading ? (
+                Array.from({ length: rowsPerPage }).map((_, i) => (
+                  <TableRow key={`sav-skel-${i}`}>
+                    <TableCell>
+                      <div className="h-4 w-1/2 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-2/3 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-1/2 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-1/2 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-1/3 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-1/3 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-1/3 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-1/2 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="h-4 w-1/2 animate-pulse rounded bg-gray-200 dark:bg-gray-600" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : rows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center">
                     No savings members found.
                   </TableCell>
                 </TableRow>
+              ) : (
+                rows.map((r, idx) => (
+                  <TableRow key={r.id ?? idx}>
+                    <TableCell>
+                      {(currentPage - 1) * rowsPerPage + idx + 1}
+                    </TableCell>
+                    <TableCell>{r.name}</TableCell>
+                    <TableCell>{formatPeso(r.monthly)}</TableCell>
+                    <TableCell>{formatPeso(r.totalCollection)}</TableCell>
+                    <TableCell>{r.months}</TableCell>
+                    <TableCell className="text-center">
+                      <span
+                        className={`px-2 py-1 rounded text-xs ${
+                          r.raw.is_active === 1
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 0text-red-80"
+                        }`}
+                      >
+                        {r.raw.is_active === 1 ? "Active" : "Inactive"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="flex justify-center gap-2">
+                      <Button size="sm" onClick={() => handleEdit(r)}>
+                        <Edit size={14} />
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-destructive"
+                        onClick={() => handleDelete(r.id)}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </TableCell>
+                    <TableCell>{r.start ?? "-"}</TableCell>
+                    <TableCell>{r.end ?? "-"}</TableCell>
+                  </TableRow>
+                ))
               )}
-
-              {rows.map((r, idx) => (
-                <TableRow key={r.id ?? idx}>
-                  <TableCell>{idx + 1}</TableCell>
-                  <TableCell>{r.name}</TableCell>
-                  <TableCell>{formatPeso(r.monthly)}</TableCell>
-                  <TableCell>{formatPeso(r.totalCollection)}</TableCell>
-                  <TableCell>{r.months}</TableCell>
-                  <TableCell className="text-center">
-                    <span
-                      className={`px-2 py-1 rounded text-xs ${
-                        r.raw.is_active === 1
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 0text-red-80"
-                      }`}
-                    >
-                      {r.raw.is_active === 1 ? "Active" : "Inactive"}
-                    </span>
-                  </TableCell>
-                  <TableCell className="flex justify-center gap-2">
-                    <Button size="sm" onClick={() => handleEdit(r)}>
-                      <Edit size={14} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="bg-destructive"
-                      onClick={() => handleDelete(r.id)}
-                    >
-                      <Trash2 size={14} />
-                    </Button>
-                  </TableCell>
-                  <TableCell>{r.start ?? "-"}</TableCell>
-                  <TableCell>{r.end ?? "-"}</TableCell>
-                </TableRow>
-              ))}
             </TableBody>
           </Table>
         </div>
