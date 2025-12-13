@@ -32,6 +32,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Edit2, Plus } from "lucide-react";
+import { toast } from "sonner";
 
 /* ===========================
    Config & Constants
@@ -299,17 +300,17 @@ export default function AllowanceModule() {
   }, []);
 
   const handleCreateOrUpdate = async () => {
-    if (!formEmployee) return alert("Select employee.");
-    if (!formDate) return alert("Select a date for cutoff preview.");
+    if (!formEmployee) return toast.error("Select employee.");
+    if (!formDate) return toast.error("Select a date for cutoff preview.");
 
     // validation
     for (let i = 0; i < formRows.length; i++) {
       const r = formRows[i];
-      if (!r.type) return alert(`Row ${i + 1}: choose description`);
+      if (!r.type) return toast.error(`Row ${i + 1}: choose description`);
       if (r.type === "Others" && !r.other?.trim())
-        return alert(`Row ${i + 1}: specify 'Others' description`);
+        return toast.error(`Row ${i + 1}: specify 'Others' description`);
       if (!r.amount || isNaN(Number(r.amount)) || Number(r.amount) <= 0)
-        return alert(`Row ${i + 1}: provide valid amount`);
+        return toast.error(`Row ${i + 1}: provide valid amount`);
     }
 
     const payloads = formRows.map((r) => ({
@@ -325,13 +326,13 @@ export default function AllowanceModule() {
       if (editing) {
         // update single allowance (first row represents edited item)
         await updateAllowance(editing.allowance_id, payloads[0]);
-        alert("Allowance updated.");
+        toast.success("Allowance updated successfully.");
       } else {
         // create many allowances (one POST per row)
         for (const p of payloads) {
           await createAllowance(p);
         }
-        alert("Allowance(s) created.");
+        toast.success("Allowance(s) created successfully.");
       }
       setDialogOpen(false);
       setEditing(null);
@@ -340,7 +341,7 @@ export default function AllowanceModule() {
       setFormRows([{ type: "Meals", other: "", amount: "" }]);
     } catch (err: any) {
       console.error(err);
-      alert("Failed: " + (err.message ?? err));
+      toast.error("Failed: " + (err.message ?? err));
     }
   };
 
@@ -350,10 +351,10 @@ export default function AllowanceModule() {
       await deleteAllowance(id);
       // immediate UI update by revalidating
       reloadAll();
-      alert("Deleted");
+      toast.success("Deleted successfully.");
     } catch (err: any) {
       console.error(err);
-      alert("Delete failed: " + (err.message ?? err));
+      toast.error("Delete failed: " + (err.message ?? err));
     }
   };
 

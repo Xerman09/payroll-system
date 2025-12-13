@@ -91,24 +91,22 @@ export default function Sidebar() {
   ];
 
   return (
-    <TooltipProvider>
+    <TooltipProvider disableHoverableContent>
       <aside
         className={cn(
           "fixed top-0 left-0 h-screen flex flex-col z-50 transition-all duration-200 ease-out shadow-xl",
-          // Hidden on mobile, show on md+
           "hidden md:flex",
           collapsed
             ? "w-20 bg-gray-200 dark:bg-gray-800"
             : "w-[250px] bg-gray-100 dark:bg-gray-900",
-          // On mobile, when open, show as overlay
           mobileOpen && "flex w-full md:hidden"
         )}
       >
-        {/* Top Section */}
+        {/* Header */}
         <div className="flex items-center justify-between h-[65px] px-4 border-b border-gray-300 dark:border-gray-700">
           <div
             className={cn(
-              "font-bold text-lg transition-all duration-200 ease-out whitespace-nowrap",
+              "font-bold text-lg transition-all duration-200 ease-out",
               collapsed ? "opacity-0 w-0" : "opacity-100"
             )}
           >
@@ -116,7 +114,7 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Toggle Button */}
+        {/* Collapse Button */}
         <button
           onClick={() => {
             toggle();
@@ -127,23 +125,26 @@ export default function Sidebar() {
           {collapsed ? <Menu size={22} /> : <ChevronLeft size={22} />}
         </button>
 
-        {/* Menu */}
+        {/* Navigation */}
         <div className="flex flex-col mt-6 px-2">
           {menuItems.map((panel, pIdx) => (
             <div key={pIdx} className="mb-4">
+              {/* Panel Title */}
               {!collapsed && (
                 <div className="px-3 mb-1 text-xs text-gray-500 uppercase font-medium">
                   {panel.panel}
                 </div>
               )}
 
+              {/* Items */}
               {panel.items.map((item, idx) => (
                 <Tooltip key={idx} delayDuration={0}>
                   <TooltipTrigger asChild>
                     <Link
                       href={item.href}
                       className={cn(
-                        "flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ease-out text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 hover:shadow-lg",
+                        "flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ease-out",
+                        "text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 hover:shadow-lg",
                         collapsed ? "justify-center" : "justify-start",
                         pathname === item.href &&
                           "bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
@@ -154,9 +155,13 @@ export default function Sidebar() {
                     </Link>
                   </TooltipTrigger>
 
-                  {collapsed && (
-                    <TooltipContent side="right">{item.title}</TooltipContent>
-                  )}
+                  {/* ✔ Always render TooltipContent (prevents infinite loop) */}
+                  <TooltipContent
+                    side="right"
+                    className={cn(!collapsed ? "hidden" : "")}
+                  >
+                    {item.title}
+                  </TooltipContent>
                 </Tooltip>
               ))}
             </div>

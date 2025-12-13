@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -70,6 +71,7 @@ export default function PayrollPage() {
         setEmployees(activeEmployees);
       } catch (error) {
         console.error("Error fetching employees:", error);
+        toast.error("Failed to load employees.");
       }
     };
     fetchEmployees();
@@ -83,6 +85,7 @@ export default function PayrollPage() {
         setDepartments(data.data);
       } catch (error) {
         console.error("Error fetching departments:", error);
+        toast.error("Failed to load departments.");
       }
     };
     fetchDepartments();

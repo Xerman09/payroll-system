@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -108,34 +109,37 @@ export default function CoopPage() {
   return (
     <DashboardLayout>
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">
-          COOP
-        </h1>
+        <Card className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+          <CardHeader>
+            <CardTitle>COOP</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid grid-cols-2 w-full mb-4">
+                <TabsTrigger
+                  value="savings"
+                  className="data-[state=active]:bg-persian-blue-800 data-[state=active]:text-white"
+                >
+                  Savings
+                </TabsTrigger>
+                <TabsTrigger
+                  value="loans"
+                  className="data-[state=active]:bg-persian-blue-800 data-[state=active]:text-white"
+                >
+                  Loans
+                </TabsTrigger>
+              </TabsList>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-2 w-full mb-4">
-            <TabsTrigger
-              value="savings"
-              className="data-[state=active]:bg-persian-blue-800 data-[state=active]:text-white"
-            >
-              Savings
-            </TabsTrigger>
-            <TabsTrigger
-              value="loans"
-              className="data-[state=active]:bg-persian-blue-800 data-[state=active]:text-white"
-            >
-              Loans
-            </TabsTrigger>
-          </TabsList>
+              <TabsContent value="savings">
+                <SavingsTab />
+              </TabsContent>
 
-          <TabsContent value="savings">
-            <SavingsTab />
-          </TabsContent>
-
-          <TabsContent value="loans">
-            <LoansTab />
-          </TabsContent>
-        </Tabs>
+              <TabsContent value="loans">
+                <LoansTab />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
@@ -193,6 +197,7 @@ function LoansTab() {
         console.error(err);
         if (!mounted) return;
         setError("Failed to load loans/users/payments.");
+        toast.error("Failed to load loans/users/payments.");
       })
       .finally(() => mounted && setLoading(false));
 
@@ -214,9 +219,11 @@ function LoansTab() {
       });
       if (!res.ok) throw new Error(await res.text());
       setLoans(loans.filter((l) => l.loan_id !== loanId));
+      toast.success("Deleted successfully.");
     } catch (err) {
       console.error(err);
       setError("Failed to delete loan.");
+      toast.error("Failed to delete loan.");
     }
   };
 
@@ -351,6 +358,56 @@ function LoansTab() {
             loansEndpoint={LOANS_ENDPOINT}
           />
         )}
+
+        <div className="flex justify-between items-center mt-3">
+          <div>
+            Rows per page:{" "}
+            <select
+              className="border px-2 py-1 rounded"
+              value={rowsPerPage}
+              onChange={(e) => {
+                setRowsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            >
+              Prev
+            </Button>
+            {getPageButtons().map((p, i) =>
+              p === "..." ? (
+                <span key={`el-${i}`} className="px-2">
+                  ...
+                </span>
+              ) : (
+                <Button
+                  key={`pg-${i}`}
+                  size="sm"
+                  variant={currentPage === p ? "default" : "outline"}
+                  onClick={() => setCurrentPage(Number(p))}
+                >
+                  {p}
+                </Button>
+              )
+            )}
+            <Button
+              size="sm"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -391,6 +448,7 @@ function SavingsTab() {
       .catch((err) => {
         console.error(err);
         setError("Failed to load savings or users.");
+        toast.error("Failed to load savings or users.");
       })
       .finally(() => mounted && setLoading(false));
 
@@ -458,9 +516,11 @@ function SavingsTab() {
       );
       if (!res.ok) throw new Error(await res.text());
       setMemberships((prev) => prev.filter((m) => m.id !== id));
+      toast.success("Deleted successfully.");
     } catch (err) {
       console.error(err);
       setError("Failed to delete membership.");
+      toast.error("Failed to delete membership.");
     }
   };
 
@@ -567,6 +627,56 @@ function SavingsTab() {
             onEdited={handleEdited}
           />
         )}
+
+        <div className="flex justify-between items-center mt-3">
+          <div>
+            Rows per page:{" "}
+            <select
+              className="border px-2 py-1 rounded"
+              value={rowsPerPage}
+              onChange={(e) => {
+                setRowsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            >
+              Prev
+            </Button>
+            {getPageButtons().map((p, i) =>
+              p === "..." ? (
+                <span key={`el-${i}`} className="px-2">
+                  ...
+                </span>
+              ) : (
+                <Button
+                  key={`pg-${i}`}
+                  size="sm"
+                  variant={currentPage === p ? "default" : "outline"}
+                  onClick={() => setCurrentPage(Number(p))}
+                >
+                  {p}
+                </Button>
+              )
+            )}
+            <Button
+              size="sm"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -648,9 +758,11 @@ function AddEmployeeModal({
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       onAdded(data?.data || data);
+      toast.success("Member added successfully.");
     } catch (err) {
       console.error(err);
       setError("Failed to add member.");
+      toast.error("Failed to add member.");
     } finally {
       setSubmitting(false);
     }
@@ -829,9 +941,11 @@ function EditEmployeeModal({
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       onEdited(data?.data || data);
+      toast.success("Updated successfully.");
     } catch (err) {
       console.error(err);
       setError("Failed to update membership.");
+      toast.error("Failed to update membership.");
     } finally {
       setSubmitting(false);
     }
@@ -1037,9 +1151,11 @@ function AddLoanModal({
       const data = await res.json();
       const created = data?.data || data;
       onCreate(created);
+      toast.success("Loan created successfully.");
     } catch (err) {
       console.error(err);
       setError("Failed to create loan.");
+      toast.error("Failed to create loan.");
     } finally {
       setSubmitting(false);
     }
@@ -1210,9 +1326,11 @@ function EditLoanModal({
       const data = await res.json();
       const updated = data?.data || data;
       onUpdated(updated);
+      toast.success("Updated successfully.");
     } catch (err) {
       console.error(err);
       setError("Failed to update loan.");
+      toast.error("Failed to update loan.");
     } finally {
       setSubmitting(false);
     }

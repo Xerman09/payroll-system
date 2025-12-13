@@ -3,6 +3,7 @@
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { toast } from "sonner";
 
 import { BENEFITS } from "./index";
 import type { BenefitCode, CutoffType } from "./types";
@@ -51,10 +52,12 @@ export default function BenefitSettingsModule() {
       await save(settings);
 
       setStatus("success");
+      toast.success("Benefit settings saved successfully.");
       setTimeout(() => setStatus("idle"), 800);
       loadSettings();
-    } catch {
+    } catch (e) {
       setStatus("error");
+      toast.error("Failed to save benefit settings.");
       setTimeout(() => setStatus("idle"), 1200);
     } finally {
       setSaving(false);
