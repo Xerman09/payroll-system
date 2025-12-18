@@ -81,7 +81,14 @@ export function WageModule() {
         toast.error("Failed to load employees.");
       })
       .finally(() => setLoading(false));
-  }, [currentPage, rowsPerPage, searchTerm, selectedDept, sortField, sortOrder]);
+  }, [
+    currentPage,
+    rowsPerPage,
+    searchTerm,
+    selectedDept,
+    sortField,
+    sortOrder,
+  ]);
 
   // Filtering + sorting
   // Server-driven totals and page data

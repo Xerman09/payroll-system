@@ -76,7 +76,7 @@ export default function CalendarManagementPage() {
   const loadHolidays = async () => {
     try {
       const res = await fetch(
-        "http://100.126.246.124:8060/items/holiday_calendar"
+        "http://100.110.197.61:8056/items/holiday_calendar"
       );
       const json = await res.json();
       setHolidays(json.data || []);
@@ -88,7 +88,7 @@ export default function CalendarManagementPage() {
 
   const loadUsers = async () => {
     try {
-      const res = await fetch("http://100.126.246.124:8060/items/user");
+      const res = await fetch("http://100.110.197.61:8056/items/user");
       const json = await res.json();
       setUsers(json.data || []);
     } catch (e) {
@@ -184,7 +184,7 @@ export default function CalendarManagementPage() {
         payload.updated_date = new Date().toISOString();
 
         const res = await fetch(
-          `http://100.126.246.124:8060/items/holiday_calendar/${editingHolidayId}`,
+          `http://100.110.197.61:8056/items/holiday_calendar/${editingHolidayId}`,
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -207,7 +207,7 @@ export default function CalendarManagementPage() {
         payload.created_by = logged.user_id;
 
         const res = await fetch(
-          "http://100.126.246.124:8060/items/holiday_calendar",
+          "http://100.110.197.61:8056/items/holiday_calendar",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -242,7 +242,7 @@ export default function CalendarManagementPage() {
     if (!confirm("Delete this holiday?")) return;
     try {
       const res = await fetch(
-        `http://100.126.246.124:8060/items/holiday_calendar/${id}`,
+        `http://100.110.197.61:8056/items/holiday_calendar/${id}`,
         { method: "DELETE" }
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

@@ -96,7 +96,7 @@ export default function RetroPayPage() {
   const [sortBy, setSortBy] = useState<string>(""); // "name" | "amount" | "cutoff_start"
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-  const API_BASE = "http://100.126.246.124:8060";
+  const API_BASE = "http://100.110.197.61:8056";
 
   // ---------- Fetching ----------
   useEffect(() => {

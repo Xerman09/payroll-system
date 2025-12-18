@@ -16,7 +16,7 @@ import {
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Edit, Trash2 } from "lucide-react";
 
-const API_BASE = "http://100.126.246.124:8060";
+const API_BASE = "http://100.110.197.61:8056";
 
 /* --------------------------
    Type Definitions

@@ -1,12 +1,8 @@
 "use client";
 
 import { useCallback, useState, useEffect } from "react";
-import {
-  BenefitCode,
-  BenefitSetting,
-  BenefitSettingRaw,
-  UserData,
-} from "../types";
+import { BenefitCode, BenefitSetting, UserData } from "../types";
+import * as benefitApi from "./benefitApi";
 
 const BENEFITS: BenefitCode[] = ["SSS", "PAGIBIG", "PHILHEALTH"];
 
@@ -22,32 +18,33 @@ export function useBenefitData() {
   const [users, setUsers] = useState<UserData[]>([]);
 
   const loadSettings = useCallback(async () => {
-    const res = await fetch(
-      "http://100.126.246.124:8060/items/benefit_cutoff_settings"
-    );
-    const json = await res.json();
-    const data = json.data ?? json;
+    try {
+      const data = await benefitApi.fetchBenefitSettings();
+      const mapped: Record<BenefitCode, BenefitSetting | null> = {
+        SSS: null,
+        PAGIBIG: null,
+        PHILHEALTH: null,
+      };
 
-    const mapped: Record<BenefitCode, BenefitSetting | null> = {
-      SSS: null,
-      PAGIBIG: null,
-      PHILHEALTH: null,
-    };
+      if (Array.isArray(data)) {
+        data.forEach((item: BenefitSetting) => {
+          mapped[item.benefit_code] = { ...item };
+        });
+      }
 
-    if (Array.isArray(data)) {
-      data.forEach((item: BenefitSettingRaw) => {
-        mapped[item.benefit_code] = { ...item };
-      });
+      setSettings(mapped);
+    } catch (e) {
+      console.error("Failed to load benefit settings", e);
     }
-
-    setSettings(mapped);
   }, []);
 
   const loadUsers = useCallback(async () => {
-    const res = await fetch("http://100.126.246.124:8060/items/user");
-    const json = await res.json();
-    const data = json.data ?? json;
-    setUsers(Array.isArray(data) ? data : []);
+    try {
+      const data = await benefitApi.fetchUsers();
+      setUsers(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error("Failed to load users", e);
+    }
   }, []);
 
   useEffect(() => {

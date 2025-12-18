@@ -46,7 +46,7 @@ type PayrollRecord = {
   created_date?: string | null; // datetime
 };
 
-const API_BASE = "http://100.126.246.124:8060";
+const API_BASE = "http://100.110.197.61:8056";
 
 /* ===========================
    UTILITIES
@@ -94,12 +94,6 @@ async function getDeductions(): Promise<PayrollRecord[]> {
   );
   return json?.data ?? json ?? [];
 }
-
-
-
-
-
-
 
 /* ===========================
    Hook-like helpers (wrapped in file)
@@ -151,8 +145,6 @@ function computeCutoffForDate(dateIso: string) {
     };
   }
 }
-
-
 
 function filterUsers(query: string, list: User[]): User[] {
   const q = (query || "").trim().toLowerCase();
@@ -226,7 +218,7 @@ export default function AdditionsDeductionsPage() {
 
   // loading / alerts
   const [loading, setLoading] = useState(false);
-  
+
   // SWR handles fetching automatically
 
   // fetch user by id (for created_by)
@@ -910,7 +902,6 @@ function EmployeeName({ userId }: { userId: number }) {
     }`}</span>
   );
 }
-
 
 /* ----------------- Edit Modal Component ----------------- */
 function EditModal({

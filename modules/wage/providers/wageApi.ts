@@ -1,25 +1,23 @@
-// @modules/wage/providers/wageApi.ts
-import type { Department, Employee, WageRecord, WagePayload } from "../types";
+// modules/wage/providers/wageApi.ts
+import type { Department, Employee, WagePayload, WageRecord } from "../types";
 
-const BASE = "http://100.126.246.124:8060";
+const BASE_API = "/api/wage";
 
-async function fetchJson(url: string) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
+// Generic server-side fetch through Next.js API route
+async function apiFetch(path: string, options?: RequestInit) {
+  const res = await fetch(`${BASE_API}?path=${encodeURIComponent(path)}`, options);
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${path}`);
   return res.json();
 }
 
 export async function fetchDepartments(): Promise<Department[]> {
-  const json = await fetchJson(`${BASE}/items/department?limit=-1`);
+  const json = await apiFetch("/items/department?limit=-1");
   return json.data || [];
 }
 
 export async function fetchEmployees(): Promise<Employee[]> {
-  const json = await fetchJson(`${BASE}/items/user?limit=-1`);
-  const list: Employee[] = (json.data || []).filter(
-    (emp: Employee) => !emp.is_deleted || emp.is_deleted.data?.[0] === 0
-  );
-  return list;
+  const json = await apiFetch("/items/user?limit=-1");
+  return (json.data || []).filter(emp => !emp.is_deleted || emp.is_deleted.data?.[0] === 0);
 }
 
 // Server-side pagination + search + filters for employees
@@ -32,14 +30,6 @@ export type EmployeeListParams = {
   sortOrder?: "asc" | "desc";
 };
 
-function buildQuery(params: Record<string, string | number | undefined>) {
-  const sp = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== "") sp.append(k, String(v));
-  });
-  return sp.toString();
-}
-
 export async function fetchEmployeesPaged({
   page,
   pageSize,
@@ -48,81 +38,55 @@ export async function fetchEmployeesPaged({
   sortField = "user_id",
   sortOrder = "asc",
 }: EmployeeListParams): Promise<{ rows: Employee[]; total: number }> {
-  const base: Record<string, string | number | undefined> = {
+  const params: Record<string, string | number> = {
     limit: pageSize,
     offset: (page - 1) * pageSize,
+    sort: sortOrder === "desc" ? `-${sortField}` : sortField,
     meta: "filter_count",
   };
 
-  // sort
-  const sortPrefix = sortOrder === "desc" ? "-" : "";
-  base.sort = `${sortPrefix}${String(sortField)}`;
-
-  // department filter
-  if (deptId) base["filter[user_department][_eq]"] = Number(deptId);
-
-  // search across id, fname, lname
-  if (search && search.trim()) {
-    const s = search.trim();
-    // Directus-style OR filter encoding
-    base["filter[_or][0][user_id][_contains]"] = s;
-    base["filter[_or][1][user_fname][_contains]"] = s;
-    base["filter[_or][2][user_lname][_contains]"] = s;
-  }
-
-  const qs = buildQuery(base);
-  const url = `${BASE}/items/user?${qs}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
-  const json = await res.json();
-  const data: Employee[] = (json.data || []).filter(
-    (emp: Employee) => !emp.is_deleted || emp.is_deleted.data?.[0] === 0
-  );
+  const query = new URLSearchParams(params as any).toString();
+  const json = await apiFetch(`/items/user?${query}`);
+  const data: Employee[] = (json.data || []).filter(emp => !emp.is_deleted || emp.is_deleted.data?.[0] === 0);
   const total: number = json?.meta?.filter_count ?? json?.meta?.total ?? data.length;
+
   return { rows: data, total };
 }
 
 export async function fetchUserById(userId: number) {
-  const json = await fetchJson(`${BASE}/items/user/${userId}`);
+  const json = await apiFetch(`/items/user/${userId}`);
   return json.data;
 }
 
 export async function fetchWageByUser(userId: number): Promise<WageRecord | null> {
-  const json = await fetchJson(
-    `${BASE}/items/user_wage_management?filter[user_id][_eq]=${userId}`
-  );
+  const json = await apiFetch(`/items/user_wage_management?filter[user_id][_eq]=${userId}`);
   return (json.data && json.data[0]) || null;
 }
 
 export async function createWage(payload: WagePayload) {
-  const res = await fetch(`${BASE}/items/user_wage_management`, {
+  return apiFetch("/items/user_wage_management", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ path: "/items/user_wage_management", payload }),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }
 
 export async function patchWage(id: number, payload: WagePayload) {
-  const res = await fetch(`${BASE}/items/user_wage_management/${id}`, {
+  return apiFetch(`/items/user_wage_management/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ path: `/items/user_wage_management/${id}`, payload }),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }
 
 export async function logWageAccess(openedById: number, userId: number, remarks: string) {
   try {
-    await fetch(`${BASE}/items/user_wage_access_log`, {
+    return apiFetch("/items/user_wage_access_log", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId, opened_by: openedById, remarks }),
+      body: JSON.stringify({ path: "/items/user_wage_access_log", payload: { user_id: userId, opened_by: openedById, remarks } }),
     });
   } catch (e) {
-    // swallow, caller can log if needed
-    console.error("logWageAccess failed - WageAPI.ts:66", e);
+    console.error("logWageAccess failed - wageApi.ts:90", e);
   }
 }

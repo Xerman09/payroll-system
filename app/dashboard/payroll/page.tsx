@@ -63,7 +63,7 @@ export default function PayrollPage() {
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
-        const res = await fetch("http://100.126.246.124:8060/items/user");
+        const res = await fetch("http://100.110.197.61:8056/items/user");
         const data = await res.json();
         const activeEmployees = data.data.filter(
           (emp: Employee) => !emp.is_deleted?.data?.[0]
@@ -80,7 +80,7 @@ export default function PayrollPage() {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const res = await fetch("http://100.126.246.124:8060/items/department");
+        const res = await fetch("http://100.110.197.61:8056/items/department");
         const data = await res.json();
         setDepartments(data.data);
       } catch (error) {
