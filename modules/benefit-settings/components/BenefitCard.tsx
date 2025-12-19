@@ -3,6 +3,16 @@
 import { BenefitCode, BenefitSetting } from "../types";
 import BenefitCutoff from "./BenefitCutoff";
 import BenefitDates from "./BenefitDates";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { User } from "lucide-react";
 
 export default function BenefitCard({
   name,
@@ -26,28 +36,59 @@ export default function BenefitCard({
   const s = setting;
 
   return (
-    <div className="p-4 space-y-3">
-      <h2 className="font-medium text-lg">{name}</h2>
+    <Card className="flex flex-col h-full shadow-sm hover:shadow-md transition-shadow duration-200">
+      <CardHeader className="pb-3 bg-muted/30">
+        <div className="flex justify-between items-start">
+          <CardTitle className="text-base font-semibold leading-tight">
+            {name}
+          </CardTitle>
+          <Badge
+            variant="outline"
+            className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground"
+          >
+            {code}
+          </Badge>
+        </div>
+      </CardHeader>
 
-      {s && s.updated_by && (
-        <p className="text-[10px] text-muted-foreground italic">
-          Updated by {getUserName(s.updated_by)} on{" "}
-          {s.updated_date ? new Date(s.updated_date).toLocaleDateString() : "—"}
-        </p>
-      )}
-
-      <BenefitCutoff
-        code={code}
-        current={s?.cutoff || null}
-        onChange={(v) => onCutoff(code, v)}
-      />
-
-      {s && (
-        <BenefitDates
-          value={s}
-          onChange={(field, val) => onDateChange(code, field, val)}
+      <CardContent className="flex-1 space-y-6 py-5">
+        <BenefitCutoff
+          code={code}
+          current={s?.cutoff || null}
+          onChange={(v) => onCutoff(code, v)}
         />
-      )}
-    </div>
+
+        {s && (
+          <BenefitDates
+            value={s}
+            onChange={(field, val) => onDateChange(code, field, val)}
+          />
+        )}
+      </CardContent>
+
+      {/* Footer for Metadata */}
+      <CardFooter className="pt-3 pb-3 bg-muted/10 border-t min-h-[3rem]">
+        {s && s.updated_by ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground w-full">
+            <User className="h-3 w-3" />
+            <span className="truncate">
+              Updated by{" "}
+              <span className="font-medium text-foreground">
+                {getUserName(s.updated_by)}
+              </span>
+            </span>
+            <span className="ml-auto opacity-70">
+              {s.updated_date
+                ? new Date(s.updated_date).toLocaleDateString()
+                : ""}
+            </span>
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground italic">
+            No update history
+          </span>
+        )}
+      </CardFooter>
+    </Card>
   );
 }

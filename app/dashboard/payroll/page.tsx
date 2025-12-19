@@ -60,15 +60,24 @@ export default function PayrollPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
 
+  // Fetch Employees via Internal API Route
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
-        const res = await fetch("http://100.110.197.61:8056/items/user");
+        // Updated: Call internal API proxy
+        const res = await fetch("/api/payroll?type=employees");
+
+        if (!res.ok) throw new Error("Failed to fetch");
+
         const data = await res.json();
-        const activeEmployees = data.data.filter(
-          (emp: Employee) => !emp.is_deleted?.data?.[0]
-        );
-        setEmployees(activeEmployees);
+
+        // Ensure data.data exists before filtering
+        if (data.data) {
+          const activeEmployees = data.data.filter(
+            (emp: Employee) => !emp.is_deleted?.data?.[0]
+          );
+          setEmployees(activeEmployees);
+        }
       } catch (error) {
         console.error("Error fetching employees:", error);
         toast.error("Failed to load employees.");
@@ -77,12 +86,19 @@ export default function PayrollPage() {
     fetchEmployees();
   }, []);
 
+  // Fetch Departments via Internal API Route
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const res = await fetch("http://100.110.197.61:8056/items/department");
+        // Updated: Call internal API proxy
+        const res = await fetch("/api/payroll?type=departments");
+
+        if (!res.ok) throw new Error("Failed to fetch");
+
         const data = await res.json();
-        setDepartments(data.data);
+        if (data.data) {
+          setDepartments(data.data);
+        }
       } catch (error) {
         console.error("Error fetching departments:", error);
         toast.error("Failed to load departments.");

@@ -1,7 +1,9 @@
 "use client";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { BenefitCode, CutoffType } from "../types";
+import { CalendarDays } from "lucide-react";
 
 export default function BenefitCutoff({
   code,
@@ -13,24 +15,63 @@ export default function BenefitCutoff({
   onChange: (newValue: CutoffType) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 text-xs">
-      <label className="flex items-center space-x-1">
-        <Checkbox
-          checked={current === "FIRST"}
-          onCheckedChange={() => onChange(current === "FIRST" ? null : "FIRST")}
-        />
-        <span>First Cutoff</span>
-      </label>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-sm font-medium text-foreground/80">
+        <CalendarDays className="h-4 w-4 text-primary" />
+        <span>Payroll Cutoff</span>
+      </div>
 
-      <label className="flex items-center space-x-1">
-        <Checkbox
-          checked={current === "SECOND"}
-          onCheckedChange={() =>
-            onChange(current === "SECOND" ? null : "SECOND")
-          }
-        />
-        <span>Second Cutoff</span>
-      </label>
+      <div className="grid grid-cols-2 gap-3">
+        <div
+          className={`
+            flex items-center space-x-2 border rounded-md p-3 transition-colors
+            ${
+              current === "FIRST"
+                ? "bg-primary/5 border-primary"
+                : "hover:bg-muted/50"
+            }
+          `}
+        >
+          <Checkbox
+            id={`${code}-first`}
+            checked={current === "FIRST"}
+            onCheckedChange={() =>
+              onChange(current === "FIRST" ? null : "FIRST")
+            }
+          />
+          <Label
+            htmlFor={`${code}-first`}
+            className="text-xs font-normal cursor-pointer flex-1"
+          >
+            1st Cutoff
+          </Label>
+        </div>
+
+        <div
+          className={`
+            flex items-center space-x-2 border rounded-md p-3 transition-colors
+            ${
+              current === "SECOND"
+                ? "bg-primary/5 border-primary"
+                : "hover:bg-muted/50"
+            }
+          `}
+        >
+          <Checkbox
+            id={`${code}-second`}
+            checked={current === "SECOND"}
+            onCheckedChange={() =>
+              onChange(current === "SECOND" ? null : "SECOND")
+            }
+          />
+          <Label
+            htmlFor={`${code}-second`}
+            className="text-xs font-normal cursor-pointer flex-1"
+          >
+            2nd Cutoff
+          </Label>
+        </div>
+      </div>
     </div>
   );
 }

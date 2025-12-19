@@ -75,9 +75,8 @@ export default function CalendarManagementPage() {
   // ---------------------- load data ----------------------
   const loadHolidays = async () => {
     try {
-      const res = await fetch(
-        "http://100.110.197.61:8056/items/holiday_calendar"
-      );
+      // Calls internal API proxy for holidays
+      const res = await fetch("/api/calendar-management?type=holidays");
       const json = await res.json();
       setHolidays(json.data || []);
     } catch (e) {
@@ -88,7 +87,8 @@ export default function CalendarManagementPage() {
 
   const loadUsers = async () => {
     try {
-      const res = await fetch("http://100.110.197.61:8056/items/user");
+      // Calls internal API proxy for users
+      const res = await fetch("/api/calendar-management?type=users");
       const json = await res.json();
       setUsers(json.data || []);
     } catch (e) {
@@ -101,8 +101,6 @@ export default function CalendarManagementPage() {
     loadHolidays();
     loadUsers();
   }, []);
-
-  // const isoDate = (d: Date) => d.toISOString().substring(0, 10);
 
   const holidayDateList = useMemo(() => {
     return [...new Set(holidays.map((h) => h.holiday_date))].map(
@@ -183,8 +181,9 @@ export default function CalendarManagementPage() {
         payload.updated_by = logged.user_id;
         payload.updated_date = new Date().toISOString();
 
+        // Pass ID in query param for the Proxy to handle URL construction
         const res = await fetch(
-          `http://100.110.197.61:8056/items/holiday_calendar/${editingHolidayId}`,
+          `/api/calendar-management?id=${editingHolidayId}`,
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -206,14 +205,11 @@ export default function CalendarManagementPage() {
       } else {
         payload.created_by = logged.user_id;
 
-        const res = await fetch(
-          "http://100.110.197.61:8056/items/holiday_calendar",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          }
-        );
+        const res = await fetch("/api/calendar-management", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
 
         if (!res.ok) {
           const err = await res.json();
@@ -241,10 +237,10 @@ export default function CalendarManagementPage() {
   const handleDeleteHoliday = async (id: number) => {
     if (!confirm("Delete this holiday?")) return;
     try {
-      const res = await fetch(
-        `http://100.110.197.61:8056/items/holiday_calendar/${id}`,
-        { method: "DELETE" }
-      );
+      // Pass ID in query param
+      const res = await fetch(`/api/calendar-management?id=${id}`, {
+        method: "DELETE",
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       toast.success("Holiday deleted successfully!");
       await loadHolidays();

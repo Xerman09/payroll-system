@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Save, Loader2, Check } from "lucide-react";
 
 export default function SaveButton({
   status,
@@ -14,22 +15,29 @@ export default function SaveButton({
   return (
     <Button
       onClick={onClick}
+      disabled={saving || status === "success"}
+      size="default" // Use standard size
       className={`
-        w-full py-1.5 text-xs font-medium transition-all
-        ${status === "success" ? "bg-green-600" : ""}
-        ${status === "error" ? "bg-red-600" : ""}
+        min-w-[140px] font-medium transition-all duration-300 shadow-sm
+        ${status === "success" ? "bg-green-600 hover:bg-green-700" : ""}
+        ${status === "error" ? "bg-destructive hover:bg-destructive/90" : ""}
       `}
-      disabled={saving}
     >
       {saving ? (
-        <div className="flex items-center space-x-1 justify-center">
-          <span className="animate-spin border-2 border-t-transparent border-current rounded-full w-3 h-3" />
-          <span>Saving...</span>
-        </div>
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Saving...
+        </>
       ) : status === "success" ? (
-        "Saved!"
+        <>
+          <Check className="mr-2 h-4 w-4" />
+          Saved!
+        </>
       ) : (
-        "Save Settings"
+        <>
+          <Save className="mr-2 h-4 w-4" />
+          Save Changes
+        </>
       )}
     </Button>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Users, DollarSign, Calendar, FileText } from "lucide-react";
 import {
@@ -20,14 +20,30 @@ import {
 } from "recharts";
 
 export default function DashboardPage() {
-  const [userName] = useState(() => {
-    const session = sessionStorage.getItem("user");
-    if (session) {
-      const user = JSON.parse(session);
-      return user.user_fname || "Admin";
-    }
-    return "Admin";
-  });
+  // 1. Initialize with a safe default value that works during SSR
+  const [userName, setUserName] = useState("Admin");
+
+  // 2. Move browser-specific logic to useEffect
+  useEffect(() => {
+    // We wrap this in a timeout to avoid the "synchronous setState" lint error
+    // and ensure this runs strictly after the initial paint.
+    const timer = setTimeout(() => {
+      try {
+        const session = sessionStorage.getItem("user");
+        if (session) {
+          const user = JSON.parse(session);
+          if (user && user.user_fname) {
+            setUserName(user.user_fname);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to parse user session:", error);
+      }
+    }, 0);
+
+    // Cleanup the timer if the component unmounts immediately
+    return () => clearTimeout(timer);
+  }, []);
 
   // Sample static data
   const payrollTrend = [

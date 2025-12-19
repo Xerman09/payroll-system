@@ -1,4 +1,11 @@
-export const ALLOWANCE_TYPES = ["Meals", "Load", "Motor Allowance", "Gas", "Others"] as const;
+export const ALLOWANCE_TYPES = [
+  "Meals",
+  "Load",
+  "Motor Allowance",
+  "Gas",
+  "Others",
+] as const;
+
 export type AllowanceType = (typeof ALLOWANCE_TYPES)[number];
 
 export type User = {
@@ -13,14 +20,12 @@ export type Allowance = {
   user_id: number;
   amount: string | number;
   description: string;
-  cutoff_start: string;
-  cutoff_end: string;
+  cutoff_start: string; // YYYY-MM-DD
+  cutoff_end: string; // YYYY-MM-DD
   is_processed?: 0 | 1;
   created_date?: string | null;
   user_full_name?: string;
 };
-
-export type FormRow = { type: AllowanceType | ""; other?: string; amount: string };
 
 export type AllowanceListParams = {
   page: number;
@@ -28,4 +33,10 @@ export type AllowanceListParams = {
   searchName?: string;
   searchDescription?: string;
   processed?: "all" | "processed" | "unprocessed";
+};
+
+export type FormRow = {
+  type: AllowanceType | "";
+  other?: string;
+  amount: string
 };

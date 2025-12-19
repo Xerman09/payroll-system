@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useCallback, useState, useMemo } from "react";
+import { mutate } from "swr";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -13,47 +12,34 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus } from "lucide-react";
-import { toast } from "sonner";
+import { Separator } from "@/components/ui/separator";
 import {
-  ALLOWANCE_TYPES,
-  Allowance,
-  FormRow,
-  User,
-  AllowanceType,
-  AllowanceListParams,
-} from "./types";
-import { useUsers, useAllowancesQuery } from "./providers/allowanceApi";
+  Plus,
+  Search,
+  Filter,
+  RotateCcw,
+  FileText,
+  SlidersHorizontal,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { Allowance, FormRow } from "./types";
+import {
+  useAllowancesQuery,
+  useUsers,
+  createAllowance,
+  updateAllowance,
+  deleteAllowance,
+  fullnameFromUser, // <--- 1. Added import here
+} from "./providers/allowanceApi";
+
 import AllowanceTable from "./components/AllowanceTable";
-import AllowanceDialog from "./components/AllowanceDialog";
-
-function iso(date: Date) {
-  return date.toISOString().split("T")[0];
-}
-
-function computeCutoffFromDate(dStr: string) {
-  if (!dStr) return { start: "", end: "" };
-  const d = new Date(dStr);
-  if (Number.isNaN(d.getTime())) return { start: "", end: "" };
-  const day = d.getDate(),
-    y = d.getFullYear(),
-    m = d.getMonth();
-  let start: Date, end: Date;
-  if (day >= 11 && day <= 25) {
-    start = new Date(y, m, 11);
-    end = new Date(y, m, 25);
-  } else if (day >= 26) {
-    start = new Date(y, m, 26);
-    end = new Date(y, m + 1, 10);
-  } else {
-    start = new Date(y, m - 1, 26);
-    end = new Date(y, m, 10);
-  }
-  return { start: iso(start), end: iso(end) };
-}
+import AllowanceModal from "./components/AllowanceModal";
 
 export default function AllowanceModule() {
   const { users, loading: usersLoading } = useUsers();
+
+  // -- State --
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
   const [searchName, setSearchName] = useState("");
@@ -62,6 +48,27 @@ export default function AllowanceModule() {
     "all" | "processed" | "unprocessed"
   >("all");
 
+  // -- Dialog State --
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Allowance | null>(null);
+
+  // -- Logic: Convert Name Search to User IDs --
+  // We use the already loaded 'users' list to find IDs that match the typed name.
+  const filterUserIds = useMemo(() => {
+    if (!searchName.trim()) return null; // No filter if search is empty
+
+    const lowerSearch = searchName.toLowerCase();
+
+    // Find all users whose name contains the search string
+    return users
+      .filter((u) => {
+        const fullName = fullnameFromUser(u).toLowerCase();
+        return fullName.includes(lowerSearch);
+      })
+      .map((u) => u.user_id);
+  }, [searchName, users]);
+
+  // -- Data --
   const {
     rows: allowances,
     total,
@@ -73,246 +80,214 @@ export default function AllowanceModule() {
     searchName,
     searchDescription,
     processed: filterProcessed,
+    filterUserIds, // <--- 2. Pass the calculated IDs here
   });
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const effectivePage = Math.min(Math.max(page, 1), totalPages);
-
-  // Dialog state
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<Allowance | null>(null);
-  const [formEmployee, setFormEmployee] = useState<number | null>(null);
-  const [formDate, setFormDate] = useState(() => iso(new Date()));
-  const [formRows, setFormRows] = useState<FormRow[]>([
-    { type: "Meals", other: "", amount: "" },
-  ]);
-
-  const cutoffPreview = useMemo(
-    () => computeCutoffFromDate(formDate),
-    [formDate]
-  );
-
+  // -- Handlers --
   const reloadAll = useCallback(() => {
     reloadAllowances();
+    mutate("/api/allowance?mode=users");
   }, [reloadAllowances]);
 
-  const handleCreateOrUpdate = async () => {
-    if (!formEmployee) return toast.error("Select employee.");
-    if (!formDate) return toast.error("Select a date for cutoff preview.");
-    for (let i = 0; i < formRows.length; i++) {
-      const r = formRows[i];
-      if (!r.type) return toast.error(`Row ${i + 1}: choose description`);
-      if (r.type === "Others" && !r.other?.trim())
-        return toast.error(`Row ${i + 1}: specify 'Others' description`);
-      if (!r.amount || isNaN(Number(r.amount)) || Number(r.amount) <= 0)
-        return toast.error(`Row ${i + 1}: provide valid amount`);
-    }
-    const payloads = formRows.map((r) => ({
-      user_id: formEmployee,
+  const handleSave = async (
+    rows: FormRow[],
+    employeeId: number,
+    dates: { start: string; end: string }
+  ) => {
+    const payloads = rows.map((r) => ({
+      user_id: employeeId,
       amount: Number(r.amount).toFixed(2),
       description: r.type === "Others" ? r.other : r.type,
-      cutoff_start: cutoffPreview.start,
-      cutoff_end: cutoffPreview.end,
+      cutoff_start: dates.start,
+      cutoff_end: dates.end,
       is_processed: editing?.is_processed ?? 0,
     }));
+
     try {
       if (editing) {
-        await fetch(`/api/allowance?id=${editing.allowance_id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payloads[0]),
-          headers: { "Content-Type": "application/json" },
-        });
+        await updateAllowance(editing.allowance_id, payloads[0]);
         toast.success("Allowance updated successfully.");
       } else {
-        for (const p of payloads)
-          await fetch(`/api/allowance`, {
-            method: "POST",
-            body: JSON.stringify(p),
-            headers: { "Content-Type": "application/json" },
-          });
+        for (const p of payloads) {
+          await createAllowance(p);
+        }
         toast.success("Allowance(s) created successfully.");
       }
       setDialogOpen(false);
       setEditing(null);
-      setFormRows([{ type: "Meals", other: "", amount: "" }]);
       reloadAll();
     } catch (err) {
       console.error(err);
-      toast.error(
-        "Failed: " + (err instanceof Error ? err.message : String(err))
-      );
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Failed: " + msg);
     }
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this allowance? This cannot be undone.")) return;
     try {
-      await fetch(`/api/allowance?id=${id}`, { method: "DELETE" });
-      toast.success("Deleted successfully.");
+      await deleteAllowance(id);
       reloadAll();
+      toast.success("Deleted successfully.");
     } catch (err) {
       console.error(err);
-      toast.error(
-        "Delete failed: " + (err instanceof Error ? err.message : String(err))
-      );
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Delete failed: " + msg);
     }
+  };
+
+  // Reset Filters
+  const handleReset = () => {
+    setSearchName("");
+    setSearchDescription("");
+    setFilterProcessed("all");
+    setPage(1); // Good practice to reset page on reset
   };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <Card>
-          <CardHeader className="flex items-center justify-between">
-            <CardTitle>Allowance Management</CardTitle>
+      <div className="flex-1 space-y-4 p-8 pt-6">
+        {/* HEADER SECTION */}
+        <div className="flex items-center justify-between space-y-2">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">
+              Allowance Management
+            </h2>
+            <p className="text-muted-foreground mt-1">
+              Manage employee allowances, cutoffs, and processing status.
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
             <Button
               onClick={() => {
                 setEditing(null);
-                setFormEmployee(null);
-                setFormDate(iso(new Date()));
-                setFormRows([{ type: "Meals", other: "", amount: "" }]);
                 setDialogOpen(true);
               }}
+              className="bg-primary text-primary-foreground shadow hover:bg-primary/90"
+              size="lg"
             >
               <Plus className="w-4 h-4 mr-2" /> Add Allowance
             </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-4 gap-3 mb-4">
-              <div>
-                <Label>Search employee</Label>
-                <Input
-                  placeholder="Type name..."
-                  value={searchName}
-                  onChange={(e) => {
-                    setSearchName(e.target.value);
-                    setPage(1);
-                  }}
-                />
+          </div>
+        </div>
+        <Separator />
+
+        {/* MAIN CONTENT CARD */}
+        <div className="rounded-xl border bg-card text-card-foreground shadow-sm mt-6">
+          <div className="p-6 space-y-6">
+            {/* TOOLBAR / FILTERS */}
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+              {/* Left Side: Search Inputs */}
+              <div className="flex flex-1 flex-col sm:flex-row gap-4 w-full lg:w-auto">
+                <div className="relative w-full sm:w-[280px]">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search employee..."
+                    value={searchName}
+                    onChange={(e) => {
+                      setSearchName(e.target.value);
+                      setPage(1);
+                    }}
+                    className="pl-9 bg-background"
+                  />
+                </div>
+
+                <div className="relative w-full sm:w-[280px]">
+                  <FileText className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search description..."
+                    value={searchDescription}
+                    onChange={(e) => {
+                      setSearchDescription(e.target.value);
+                      setPage(1);
+                    }}
+                    className="pl-9 bg-background"
+                  />
+                </div>
               </div>
-              <div>
-                <Label>Search description</Label>
-                <Input
-                  placeholder="e.g. Load, Motor, Others"
-                  value={searchDescription}
-                  onChange={(e) => {
-                    setSearchDescription(e.target.value);
-                    setPage(1);
-                  }}
-                />
-              </div>
-              <div>
-                <Label>Processed</Label>
-                <Select
-                  defaultValue="all"
-                  onValueChange={(v) => {
-                    setFilterProcessed(
-                      v as "all" | "processed" | "unprocessed"
-                    );
-                    setPage(1);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="processed">Processed</SelectItem>
-                    <SelectItem value="unprocessed">Unprocessed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Quick Actions</Label>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSearchName("");
-                      setSearchDescription("");
-                      setFilterProcessed("all");
+
+              {/* Right Side: Filters & Actions */}
+              <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
+                <div className="w-full sm:w-[180px]">
+                  <Select
+                    value={filterProcessed}
+                    onValueChange={(v) => {
+                      setFilterProcessed(v as any);
+                      setPage(1);
                     }}
                   >
-                    Reset
+                    <SelectTrigger className="bg-background">
+                      <div className="flex items-center gap-2">
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+                        <SelectValue placeholder="Filter status" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="processed">Processed</SelectItem>
+                      <SelectItem value="unprocessed">Pending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleReset}
+                    title="Reset Filters"
+                    className="h-10 w-10 shrink-0"
+                  >
+                    <Filter className="h-4 w-4" />
                   </Button>
-                  <Button onClick={reloadAll}>Refresh</Button>
+
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={reloadAll}
+                    title="Refresh Data"
+                    className="h-10 w-10 shrink-0"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </div>
 
-            <AllowanceTable
-              allowances={allowances}
-              users={users}
-              page={page}
-              pageSize={PAGE_SIZE}
-              total={total}
-              loading={allowancesLoading}
-              onEdit={(a) => {
-                const isPreset = ALLOWANCE_TYPES.includes(
-                  a.description as AllowanceType
-                );
-                setFormEmployee(a.user_id);
-                setFormDate(a.cutoff_start || iso(new Date()));
-                setFormRows([
-                  {
-                    type: isPreset
-                      ? (a.description as AllowanceType)
-                      : "Others",
-                    other: isPreset ? "" : a.description,
-                    amount: String(a.amount ?? ""),
-                  },
-                ]);
-                setEditing(a);
-                setDialogOpen(true);
-              }}
-              onDelete={handleDelete}
-            />
-
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm">
-                Showing <b>{(effectivePage - 1) * PAGE_SIZE + 1}</b> -{" "}
-                <b>{Math.min(effectivePage * PAGE_SIZE, total)}</b> of{" "}
-                <b>{total}</b>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={effectivePage === 1}
-                >
-                  Prev
-                </Button>
-                <div>
-                  Page {effectivePage} / {totalPages}
-                </div>
-                <Button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={effectivePage === totalPages}
-                >
-                  Next
-                </Button>
-              </div>
+            {/* TABLE SECTION */}
+            <div className="rounded-md border">
+              <AllowanceTable
+                data={allowances}
+                loading={allowancesLoading}
+                total={total}
+                page={page}
+                pageSize={PAGE_SIZE}
+                users={users}
+                onPageChange={setPage}
+                onEdit={(item) => {
+                  setEditing(item);
+                  setDialogOpen(true);
+                }}
+                onDelete={handleDelete}
+              />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        {/* MODAL */}
+        <AllowanceModal
+          key={editing ? editing.allowance_id : "new"}
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            if (!open) setEditing(null);
+            setDialogOpen(open);
+          }}
+          editing={editing}
+          users={users}
+          usersLoading={usersLoading}
+          onSave={handleSave}
+        />
       </div>
-
-      <AllowanceDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        users={users}
-        formEmployee={formEmployee}
-        setFormEmployee={setFormEmployee}
-        formDate={formDate}
-        setFormDate={setFormDate}
-        formRows={formRows}
-        setFormRows={setFormRows}
-        cutoffPreview={cutoffPreview}
-        editing={editing}
-        onSubmit={handleCreateOrUpdate}
-        onCancel={() => {
-          setDialogOpen(false);
-          setEditing(null);
-        }}
-      />
     </DashboardLayout>
   );
 }
