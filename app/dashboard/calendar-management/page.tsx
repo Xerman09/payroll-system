@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 // Assumes you have a DashboardLayout component.
 // If not, standard path is usually @/components/layout/dashboard-layout or similar.
 import DashboardLayout from "@/components/layout/DashboardLayout";
+import { Separator } from "@/components/ui/separator";
 
 // --- Types ---
 interface Holiday {
@@ -574,6 +575,7 @@ export default function CalendarManagementPage() {
             <Plus className="h-4 w-4" /> Add Event
           </button>
         </div>
+        <Separator />
 
         {/* --- TOP ROW --- */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 h-[500px]">
