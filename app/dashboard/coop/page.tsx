@@ -6,7 +6,27 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Table,
   TableBody,
@@ -24,6 +44,9 @@ import {
   RotateCcw,
   Plus,
   Search,
+  Check,
+  ChevronsUpDown,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
@@ -34,6 +57,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 // Internal API Route
 const INTERNAL_API = "/api/coop";
@@ -190,7 +214,7 @@ export default function CoopPage() {
   return (
     <DashboardLayout>
       <div className="p-6 max-w-7xl mx-auto space-y-6">
-        {/* 1. Header Row - MOVED OUTSIDE CARD */}
+        {/* 1. Header Row */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
@@ -370,6 +394,7 @@ function LoansTab({
         setLoans(loanList);
         setTotalLoans(total);
 
+        // Fetch user details ONLY for the loans displayed
         const userIds = Array.from(
           new Set(loanList.map((ln) => Number(ln.user_id)).filter(Boolean))
         );
@@ -665,29 +690,26 @@ function LoansTab({
         </div>
       </div>
 
-      {isAddModalOpen && (
-        <AddLoanModal
-          availableUsers={users}
-          onClose={onCloseAddModal}
-          onCreate={(loan) => {
-            setLoans([loan, ...loans]);
-            onCloseAddModal();
-          }}
-        />
-      )}
+      <AddLoanModal
+        isOpen={isAddModalOpen}
+        onClose={onCloseAddModal}
+        onCreate={(loan) => {
+          setLoans([loan, ...loans]);
+          onCloseAddModal();
+        }}
+      />
 
-      {editingLoan && (
-        <EditLoanModal
-          loan={editingLoan}
-          onClose={() => setEditingLoan(null)}
-          onUpdated={(updated) => {
-            setLoans(
-              loans.map((l) => (l.loan_id === updated.loan_id ? updated : l))
-            );
-            setEditingLoan(null);
-          }}
-        />
-      )}
+      <EditLoanModal
+        isOpen={!!editingLoan}
+        loan={editingLoan}
+        onClose={() => setEditingLoan(null)}
+        onUpdated={(updated) => {
+          setLoans(
+            loans.map((l) => (l.loan_id === updated.loan_id ? updated : l))
+          );
+          setEditingLoan(null);
+        }}
+      />
     </>
   );
 }
@@ -740,6 +762,7 @@ function SavingsTab({
         setMemberships(membershipList);
         setTotalMemberships(total);
 
+        // Fetch user details ONLY for the savings displayed
         const userIds = Array.from(
           new Set(membershipList.map((m) => Number(m.user_id)).filter(Boolean))
         );
@@ -1033,42 +1056,35 @@ function SavingsTab({
         </div>
       </div>
 
-      {isAddModalOpen && (
-        <AddEmployeeModal
-          availableUsers={users}
-          onClose={onCloseAddModal}
-          onAdded={(newMem) => {
-            setMemberships([newMem, ...memberships]);
-            onCloseAddModal();
-          }}
-        />
-      )}
+      <AddEmployeeModal
+        isOpen={isAddModalOpen}
+        onClose={onCloseAddModal}
+        onAdded={(newMem) => {
+          setMemberships([newMem, ...memberships]);
+          onCloseAddModal();
+        }}
+      />
 
-      {editingMembership && (
-        <EditEmployeeModal
-          membership={editingMembership}
-          users={users}
-          onClose={() => setEditingMembership(null)}
-          onEdited={handleEdited}
-        />
-      )}
+      <EditEmployeeModal
+        isOpen={!!editingMembership}
+        membership={editingMembership}
+        users={users}
+        onClose={() => setEditingMembership(null)}
+        onEdited={handleEdited}
+      />
     </>
   );
 }
-
-// ... AddEmployeeModal, EditEmployeeModal, AddLoanModal, EditLoanModal remain strictly unchanged ...
-// NOTE: Please ensure the rest of your file (the Modal components) is pasted here as is,
-// as I have not modified them but they are required for the module to work.
 
 /* --------------------------
    AddEmployeeModal (Savings)
 -------------------------- */
 function AddEmployeeModal({
-  availableUsers = [],
+  isOpen,
   onClose,
   onAdded,
 }: {
-  availableUsers: User[];
+  isOpen: boolean;
   onClose: () => void;
   onAdded: (newMembership: Membership) => void;
 }) {
@@ -1079,37 +1095,46 @@ function AddEmployeeModal({
   );
   const [endDate, setEndDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [openCombobox, setOpenCombobox] = useState(false);
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const filteredUsers = useMemo(() => {
-    if (!searchTerm.trim()) return availableUsers;
-    const s = searchTerm.toLowerCase();
-    return availableUsers.filter((u) => {
-      const full = `${u.user_fname} ${u.user_lname}`.toLowerCase();
-      return full.includes(s) || String(u.user_id).includes(s);
-    });
-  }, [searchTerm, availableUsers]);
+  // Users state for this modal only
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
-  // Auto-select if there's exactly one match
+  // Fetch all users when modal opens
   useEffect(() => {
-    if (filteredUsers.length === 1 && searchTerm.trim()) {
-      setUserId(String(filteredUsers[0].user_id));
-    } else if (filteredUsers.length === 0 || !searchTerm.trim()) {
+    if (isOpen) {
       setUserId("");
+      setMonthlyAmount("");
+      setStartDate(new Date().toISOString().slice(0, 10));
+      setEndDate("");
+
+      const fetchUsers = async () => {
+        setLoadingUsers(true);
+        try {
+          // Limit=-1 ensures we get all employees for the select dropdown
+          const res = await fetch(`${INTERNAL_API}?collection=user&limit=-1`);
+          if (res.ok) {
+            const data = await res.json();
+            setAvailableUsers(Array.isArray(data.data) ? data.data : []);
+          }
+        } catch (error) {
+          console.error("Failed to fetch employees", error);
+        } finally {
+          setLoadingUsers(false);
+        }
+      };
+      fetchUsers();
     }
-  }, [filteredUsers, searchTerm]);
+  }, [isOpen]);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!userId) return setError("Please select an employee.");
+  const handleSubmit = async () => {
+    if (!userId) return toast.error("Please select an employee.");
     if (!monthlyAmount || Number(monthlyAmount) <= 0)
-      return setError("Please enter a valid monthly amount.");
-    if (!startDate) return setError("Please select a start date.");
+      return toast.error("Please enter a valid monthly amount.");
+    if (!startDate) return toast.error("Please select a start date.");
     if (endDate && new Date(endDate) < new Date(startDate))
-      return setError("End date cannot be before start date.");
+      return toast.error("End date cannot be before start date.");
 
     const loggedUser = sessionStorage.getItem("user");
     const loggedUserId = loggedUser ? JSON.parse(loggedUser).user_id : 1;
@@ -1125,7 +1150,6 @@ function AddEmployeeModal({
 
     setSubmitting(true);
     try {
-      // REFACTOR: Use internal API
       const res = await fetch(
         `${INTERNAL_API}?collection=coop_savings_membership`,
         {
@@ -1140,7 +1164,6 @@ function AddEmployeeModal({
       toast.success("Member added successfully.");
     } catch (err) {
       console.error(err);
-      setError("Failed to add member.");
       toast.error("Failed to add member.");
     } finally {
       setSubmitting(false);
@@ -1148,112 +1171,132 @@ function AddEmployeeModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/40">
-      <div className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-md p-6 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">
-            Add Employee to COOP Savings
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            ✕
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Add Employee to COOP Savings</DialogTitle>
+          <DialogDescription>
+            Search and select an employee to start their savings plan.
+          </DialogDescription>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Search employee
-            </label>
-            <input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Type name or id to filter"
-              className="w-full px-3 py-2 border rounded"
-            />
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="employee">Search Employee</Label>
+            <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openCombobox}
+                  className="w-full justify-between"
+                >
+                  {loadingUsers ? (
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading
+                      employees...
+                    </span>
+                  ) : userId ? (
+                    availableUsers.find(
+                      (u) => String(u.user_id) === String(userId)
+                    ) ? (
+                      `${
+                        availableUsers.find(
+                          (u) => String(u.user_id) === String(userId)
+                        )?.user_fname
+                      } ${
+                        availableUsers.find(
+                          (u) => String(u.user_id) === String(userId)
+                        )?.user_lname
+                      }`
+                    ) : (
+                      "Select employee..."
+                    )
+                  ) : (
+                    "Select employee..."
+                  )}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[450px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search employee by name..." />
+                  <CommandList>
+                    <CommandEmpty>No employee found.</CommandEmpty>
+                    <CommandGroup>
+                      {availableUsers.map((user) => (
+                        <CommandItem
+                          key={user.user_id}
+                          value={`${user.user_fname} ${user.user_lname}`}
+                          onSelect={() => {
+                            setUserId(String(user.user_id));
+                            setOpenCombobox(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              String(userId) === String(user.user_id)
+                                ? "opacity-100"
+                                : "opacity-0"
+                            )}
+                          />
+                          {user.user_fname} {user.user_lname}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Select Employee
-            </label>
-            <select
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              className="w-full px-3 py-2 border rounded"
-            >
-              <option value="">-- Select employee --</option>
-              {filteredUsers.map((u) => (
-                <option key={u.user_id} value={u.user_id}>
-                  {u.user_fname} {u.user_lname}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Amount to be paid per month
-            </label>
-            <input
+          <div className="grid gap-2">
+            <Label htmlFor="amount">Monthly Deduction Amount</Label>
+            <Input
+              id="amount"
               type="number"
               step="0.01"
               value={monthlyAmount}
               onChange={(e) => setMonthlyAmount(e.target.value)}
-              className="w-full px-3 py-2 border rounded"
               placeholder="e.g. 1000.00"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Start Date
-              </label>
-              <input
+            <div className="grid gap-2">
+              <Label>Start Date</Label>
+              <Input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 border rounded"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                End Date (optional)
-              </label>
-              <input
+            <div className="grid gap-2">
+              <Label>End Date (Optional)</Label>
+              <Input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2 border rounded"
               />
             </div>
           </div>
+        </div>
 
-          {error && <div className="text-sm text-red-600">{error}</div>}
-
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded bg-gray-200 text-gray-700"
-              disabled={submitting}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded bg-persian-blue-800 text-white"
-              disabled={submitting}
-            >
-              {submitting ? "Adding..." : "Add Employee"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={submitting}
+          >
+            {submitting ? "Adding..." : "Add Employee"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1261,42 +1304,42 @@ function AddEmployeeModal({
    EditEmployeeModal (Savings)
 -------------------------- */
 function EditEmployeeModal({
+  isOpen,
   membership,
   users,
   onClose,
   onEdited,
 }: {
-  membership: Membership;
+  isOpen: boolean;
+  membership: Membership | null;
   users: User[];
   onClose: () => void;
   onEdited: (updatedMembership: Membership) => void;
 }) {
-  const [userId, setUserId] = useState(String(membership.user_id));
-  const [monthlyAmount, setMonthlyAmount] = useState(
-    String(membership.monthly_amount)
-  );
-  const [startDate, setStartDate] = useState(membership.start_date || "");
-  const [endDate, setEndDate] = useState(membership.end_date || "");
-  const [isActive, setIsActive] = useState(membership.is_active);
+  const [userId, setUserId] = useState("");
+  const [monthlyAmount, setMonthlyAmount] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [isActive, setIsActive] = useState(1);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError(null);
+  useEffect(() => {
+    if (membership && isOpen) {
+      setUserId(String(membership.user_id));
+      setMonthlyAmount(String(membership.monthly_amount));
+      setStartDate(membership.start_date || "");
+      setEndDate(membership.end_date || "");
+      setIsActive(membership.is_active);
+    }
+  }, [membership, isOpen]);
 
-    if (!userId) return setError("Please select an employee.");
-    if (!monthlyAmount || Number(monthlyAmount) <= 0)
-      return setError("Please enter a valid monthly amount.");
-    if (!startDate) return setError("Please select a start date.");
-    if (endDate && new Date(endDate) < new Date(startDate))
-      return setError("End date cannot be before start date.");
+  if (!membership) return null;
 
+  const handleSubmit = async () => {
     const loggedUser = sessionStorage.getItem("user");
     const loggedUserId = loggedUser ? JSON.parse(loggedUser).user_id : 1;
 
     const payload = {
-      user_id: Number(userId),
       monthly_amount: Number(monthlyAmount),
       start_date: startDate,
       end_date: endDate || null,
@@ -1306,7 +1349,6 @@ function EditEmployeeModal({
 
     setSubmitting(true);
     try {
-      // REFACTOR: Use id param
       const res = await fetch(
         `${INTERNAL_API}?collection=coop_savings_membership&id=${membership.id}`,
         {
@@ -1321,7 +1363,6 @@ function EditEmployeeModal({
       toast.success("Updated successfully.");
     } catch (err) {
       console.error(err);
-      setError("Failed to update membership.");
       toast.error("Failed to update membership.");
     } finally {
       setSubmitting(false);
@@ -1329,107 +1370,92 @@ function EditEmployeeModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/40">
-      <div className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-md p-6 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Edit Employee COOP Savings</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            ✕
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Edit Employee COOP Savings</DialogTitle>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Employee</label>
-            <select
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label>Employee</Label>
+            <Select
               value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              className="w-full px-3 py-2 border rounded"
+              disabled={true} // Employee cannot be changed in edit mode
             >
-              {users.map((u) => (
-                <option key={u.user_id} value={u.user_id}>
-                  {u.user_fname} {u.user_lname}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger>
+                <SelectValue placeholder="Select employee" />
+              </SelectTrigger>
+              <SelectContent>
+                {users.map((u) => (
+                  <SelectItem key={u.user_id} value={String(u.user_id)}>
+                    {u.user_fname} {u.user_lname}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Amount to be paid per month
-            </label>
-            <input
+          <div className="grid gap-2">
+            <Label>Monthly Deduction</Label>
+            <Input
               type="number"
               step="0.01"
               value={monthlyAmount}
               onChange={(e) => setMonthlyAmount(e.target.value)}
-              className="w-full px-3 py-2 border rounded"
-              placeholder="e.g. 1000.00"
             />
           </div>
 
+          <div className="grid gap-2">
+            <Label>Status</Label>
+            <Select
+              value={String(isActive)}
+              onValueChange={(val) => setIsActive(Number(val))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Active</SelectItem>
+                <SelectItem value="0">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Start Date
-              </label>
-              <input
+            <div className="grid gap-2">
+              <Label>Start Date</Label>
+              <Input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 border rounded"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                End Date (optional)
-              </label>
-              <input
+            <div className="grid gap-2">
+              <Label>End Date</Label>
+              <Input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2 border rounded"
               />
             </div>
           </div>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Status</label>
-            <select
-              value={isActive}
-              onChange={(e) => setIsActive(Number(e.target.value))}
-              className="w-full px-3 py-2 border rounded"
-            >
-              <option value={1}>Active</option>
-              <option value={0}>Inactive</option>
-            </select>
-          </div>
-
-          {error && <div className="text-sm text-red-600">{error}</div>}
-
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded bg-gray-200 text-gray-700"
-              disabled={submitting}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded bg-persian-blue-800 text-white"
-              disabled={submitting}
-            >
-              {submitting ? "Updating..." : "Update Employee"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={submitting}
+          >
+            {submitting ? "Updating..." : "Update Employee"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1437,15 +1463,14 @@ function EditEmployeeModal({
    AddLoanModal (Dynamic)
 -------------------------- */
 function AddLoanModal({
-  availableUsers = [],
+  isOpen,
   onClose,
   onCreate,
 }: {
-  availableUsers: User[];
+  isOpen: boolean;
   onClose: () => void;
   onCreate: (newLoan: EmployeeLoan) => void;
 }) {
-  const [searchTerm, setSearchTerm] = useState("");
   const [userId, setUserId] = useState<string>("");
   const [loanAmount, setLoanAmount] = useState<string>("");
   const [monthsToPay, setMonthsToPay] = useState<number>(1);
@@ -1453,28 +1478,40 @@ function AddLoanModal({
     new Date().toISOString().slice(0, 10)
   );
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [openCombobox, setOpenCombobox] = useState(false);
 
-  const filteredUsers = useMemo(() => {
-    if (!searchTerm.trim()) return availableUsers;
-    const s = searchTerm.toLowerCase();
-    return availableUsers.filter((u) => {
-      const full = `${u.user_fname} ${u.user_lname}`.toLowerCase();
-      return full.includes(s) || String(u.user_id).includes(s);
-    });
-  }, [searchTerm, availableUsers]);
+  // Local state for fetching users inside modal
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
-  // Auto-select if exactly one match and the user typed something
   useEffect(() => {
-    if (filteredUsers.length === 1 && searchTerm.trim()) {
-      setUserId(String(filteredUsers[0].user_id));
-    } else if (filteredUsers.length === 0 || !searchTerm.trim()) {
+    if (isOpen) {
       setUserId("");
+      setLoanAmount("");
+      setMonthsToPay(1);
+      setStartDate(new Date().toISOString().slice(0, 10));
+
+      // Fetch all users on open
+      const fetchUsers = async () => {
+        setLoadingUsers(true);
+        try {
+          const res = await fetch(`${INTERNAL_API}?collection=user&limit=-1`);
+          if (res.ok) {
+            const data = await res.json();
+            setAvailableUsers(Array.isArray(data.data) ? data.data : []);
+          }
+        } catch (error) {
+          console.error("Failed to fetch employees", error);
+        } finally {
+          setLoadingUsers(false);
+        }
+      };
+      fetchUsers();
     }
-  }, [filteredUsers, searchTerm]);
+  }, [isOpen]);
 
   const numericLoanAmount = Number(loanAmount || 0);
-  const interestRate = 0.03; // default 3% as per DDL
+  const interestRate = 0.03; // default 3%
   const interestAmount =
     Math.round(numericLoanAmount * interestRate * 100) / 100;
   const netReceived =
@@ -1484,16 +1521,13 @@ function AddLoanModal({
       ? Math.round((numericLoanAmount / monthsToPay) * 100) / 100
       : 0;
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!userId) return setError("Please select an employee.");
+  const handleSubmit = async () => {
+    if (!userId) return toast.error("Please select an employee.");
     if (!loanAmount || Number(loanAmount) <= 0)
-      return setError("Please enter loan amount.");
+      return toast.error("Please enter loan amount.");
     if (!monthsToPay || monthsToPay <= 0)
-      return setError("Please enter months to pay.");
-    if (!startDate) return setError("Please select a start date.");
+      return toast.error("Please enter months to pay.");
+    if (!startDate) return toast.error("Please select a start date.");
 
     const loggedUser = sessionStorage.getItem("user");
     const createdBy = loggedUser ? JSON.parse(loggedUser).user_id : 1;
@@ -1514,7 +1548,6 @@ function AddLoanModal({
 
     setSubmitting(true);
     try {
-      // REFACTOR: Use collection param
       const res = await fetch(`${INTERNAL_API}?collection=employee_loan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1527,7 +1560,6 @@ function AddLoanModal({
       toast.success("Loan created successfully.");
     } catch (err) {
       console.error(err);
-      setError("Failed to create loan.");
       toast.error("Failed to create loan.");
     } finally {
       setSubmitting(false);
@@ -1535,119 +1567,157 @@ function AddLoanModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/40">
-      <div className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-md p-6 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Add Loan</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            ✕
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>Add New Loan</DialogTitle>
+          <DialogDescription>
+            Search and select an employee to create a new loan record.
+          </DialogDescription>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Select Employee (you can search employee by id/name)
-            </label>
-            <input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Type name or id to filter"
-              className="w-full px-3 py-2 border rounded mb-2"
-            />
-            <select
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              className="w-full px-3 py-2 border rounded"
-            >
-              <option value="">-- Select employee --</option>
-              {filteredUsers.map((u) => (
-                <option key={u.user_id} value={u.user_id}>
-                  {u.user_fname} {u.user_lname}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Amount to loan
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={loanAmount}
-              onChange={(e) => setLoanAmount(e.target.value)}
-              className="w-full px-3 py-2 border rounded"
-              placeholder="e.g. 1000.00"
-            />
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label>Search Employee</Label>
+            <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openCombobox}
+                  className="w-full justify-between"
+                >
+                  {loadingUsers ? (
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading
+                      employees...
+                    </span>
+                  ) : userId ? (
+                    availableUsers.find(
+                      (u) => String(u.user_id) === String(userId)
+                    ) ? (
+                      `${
+                        availableUsers.find(
+                          (u) => String(u.user_id) === String(userId)
+                        )?.user_fname
+                      } ${
+                        availableUsers.find(
+                          (u) => String(u.user_id) === String(userId)
+                        )?.user_lname
+                      }`
+                    ) : (
+                      "Select employee..."
+                    )
+                  ) : (
+                    "Select employee..."
+                  )}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[550px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search employee by name..." />
+                  <CommandList>
+                    <CommandEmpty>No employee found.</CommandEmpty>
+                    <CommandGroup>
+                      {availableUsers.map((user) => (
+                        <CommandItem
+                          key={user.user_id}
+                          value={`${user.user_fname} ${user.user_lname}`}
+                          onSelect={() => {
+                            setUserId(String(user.user_id));
+                            setOpenCombobox(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              String(userId) === String(user.user_id)
+                                ? "opacity-100"
+                                : "opacity-0"
+                            )}
+                          />
+                          {user.user_fname} {user.user_lname}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                How many months to pay
-              </label>
-              <input
+            <div className="grid gap-2">
+              <Label>Loan Amount</Label>
+              <Input
                 type="number"
-                value={monthsToPay}
+                step="0.01"
+                value={loanAmount}
+                onChange={(e) => setLoanAmount(e.target.value)}
+                placeholder="e.g. 1000.00"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Months to Pay</Label>
+              <Input
+                type="number"
                 min={1}
+                value={monthsToPay}
                 onChange={(e) => setMonthsToPay(Number(e.target.value) || 1)}
-                className="w-full px-3 py-2 border rounded"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Start Date
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 border rounded"
               />
             </div>
           </div>
 
-          <div>
-            <p>
-              Note: employee receives (loan - 3%):{" "}
-              <strong>{formatPeso(netReceived)}</strong>
-            </p>
-            <p>
-              Interest (3%): <strong>{formatPeso(interestAmount)}</strong>
-            </p>
-            <p>
-              Cutoff Payment / Monthly Payment:{" "}
-              <strong>{formatPeso(monthlyPayment)}</strong>
-            </p>
+          <div className="grid gap-2">
+            <Label>Start Date</Label>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
           </div>
 
-          {error && <div className="text-sm text-red-600">{error}</div>}
-
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded bg-gray-200 text-gray-700"
-              disabled={submitting}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded bg-persian-blue-800 text-white"
-              disabled={submitting}
-            >
-              {submitting ? "Adding..." : "Confirm"}
-            </button>
+          {/* Calculation Summary Card */}
+          <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm border border-border">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Interest Rate (3%):</span>
+              <span className="font-medium text-red-600">
+                {formatPeso(interestAmount)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Net Proceeds:</span>
+              <span className="font-medium text-emerald-600">
+                {formatPeso(netReceived)}
+              </span>
+            </div>
+            <Separator className="my-2" />
+            <div className="flex justify-between items-center">
+              <span className="font-semibold text-gray-900 dark:text-gray-100">
+                Monthly Amortization:
+              </span>
+              <span className="text-lg font-bold text-blue-600">
+                {formatPeso(monthlyPayment)}
+              </span>
+            </div>
           </div>
-        </form>
-      </div>
-    </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={submitting}
+          >
+            {submitting ? "Processing..." : "Confirm Loan"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1655,26 +1725,32 @@ function AddLoanModal({
    EditLoanModal
 -------------------------- */
 function EditLoanModal({
+  isOpen,
   loan,
   onClose,
   onUpdated,
 }: {
-  loan: EmployeeLoan;
+  isOpen: boolean;
+  loan: EmployeeLoan | null;
   onClose: () => void;
   onUpdated: (updated: EmployeeLoan) => void;
 }) {
-  const [status, setStatus] = useState<EmployeeLoan["status"]>(loan.status);
-  const [monthlyPay, setMonthlyPay] = useState<number>(
-    Number(loan.monthly_payment || 0)
-  );
-  const [endDate, setEndDate] = useState<string | "">(loan.end_date || "");
+  const [status, setStatus] = useState<EmployeeLoan["status"]>("ACTIVE");
+  const [monthlyPay, setMonthlyPay] = useState<number>(0);
+  const [endDate, setEndDate] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError(null);
+  useEffect(() => {
+    if (loan && isOpen) {
+      setStatus(loan.status);
+      setMonthlyPay(Number(loan.monthly_payment || 0));
+      setEndDate(loan.end_date || "");
+    }
+  }, [loan, isOpen]);
 
+  if (!loan) return null;
+
+  const handleSubmit = async () => {
     const payload: Partial<EmployeeLoan> = {
       status,
       monthly_payment: monthlyPay,
@@ -1687,7 +1763,6 @@ function EditLoanModal({
 
     setSubmitting(true);
     try {
-      // REFACTOR: Use id param
       const res = await fetch(
         `${INTERNAL_API}?collection=employee_loan&id=${loan.loan_id}`,
         {
@@ -1703,7 +1778,6 @@ function EditLoanModal({
       toast.success("Updated successfully.");
     } catch (err) {
       console.error(err);
-      setError("Failed to update loan.");
       toast.error("Failed to update loan.");
     } finally {
       setSubmitting(false);
@@ -1711,80 +1785,63 @@ function EditLoanModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/40">
-      <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-md p-6 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Edit Loan — {loan.loan_id}</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            ✕
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[450px]">
+        <DialogHeader>
+          <DialogTitle>Edit Loan #{loan.loan_id}</DialogTitle>
+        </DialogHeader>
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div>
-            <label className="block text-sm font-medium mb-1">Status</label>
-            <select
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label>Status</Label>
+            <Select
               value={status}
-              onChange={(e) =>
-                setStatus(e.target.value as EmployeeLoan["status"])
-              }
-              className="w-full px-3 py-2 border rounded"
+              onValueChange={(val) => setStatus(val as EmployeeLoan["status"])}
             >
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="PAID">PAID</option>
-              <option value="CANCELLED">CANCELLED</option>
-            </select>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ACTIVE">ACTIVE</SelectItem>
+                <SelectItem value="PAID">PAID</SelectItem>
+                <SelectItem value="CANCELLED">CANCELLED</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Cutoff Payment / Monthly Payment
-            </label>
-            <input
+          <div className="grid gap-2">
+            <Label>Monthly Amortization</Label>
+            <Input
               type="number"
               step="0.01"
               value={monthlyPay}
               onChange={(e) => setMonthlyPay(Number(e.target.value) || 0)}
-              className="w-full px-3 py-2 border rounded"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              End Date (optional)
-            </label>
-            <input
+          <div className="grid gap-2">
+            <Label>End Date (Optional)</Label>
+            <Input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full px-3 py-2 border rounded"
             />
           </div>
+        </div>
 
-          {error && <div className="text-sm text-red-600">{error}</div>}
-
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded bg-gray-200 text-gray-700"
-              disabled={submitting}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded bg-persian-blue-800 text-white"
-              disabled={submitting}
-            >
-              {submitting ? "Updating..." : "Update"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={submitting}
+          >
+            {submitting ? "Updating..." : "Update Loan"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,9 +1,10 @@
 // @modules/wage/WageModule.tsx
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
+import { Separator } from "@/components/ui/separator";
 
 import type { Department, Employee, WagePayload, WageDataState } from "./types";
 import * as wageApi from "./providers/wageApi";
@@ -11,21 +12,29 @@ import EmployeeTable from "./components/EmployeeTable";
 import PasswordDialog from "./components/PasswordDialog";
 import WageModal from "./components/WageModal";
 
-/**
- * Named export (so you can import { WageModule } from '@modules/wage/WageModule')
- */
 export function WageModule() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedDept, setSelectedDept] = useState<number | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [totalEmployees, setTotalEmployees] = useState<number>(0);
+
+  // Modals
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
     null
   );
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+
+  // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Sort & Pagination
+  const [sortField, setSortField] = useState<keyof Employee>("user_id");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
 
   const [wageData, setWageData] = useState<WageDataState>({
     id: null,
@@ -41,26 +50,10 @@ export function WageModule() {
     lastUpdateDate: "",
   });
 
-  // sorting & pagination state
-  const [sortField, setSortField] = useState<keyof Employee>("user_id");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
-
-  // initial departments
   useEffect(() => {
-    setLoading(true);
-    wageApi
-      .fetchDepartments()
-      .then((depts) => setDepartments(depts))
-      .catch((err) => {
-        console.error(err);
-        toast.error("Failed to load departments.");
-      })
-      .finally(() => setLoading(false));
+    wageApi.fetchDepartments().then(setDepartments).catch(console.error);
   }, []);
 
-  // server-side employees list loader (page/search/filter/sort)
   useEffect(() => {
     setLoading(true);
     wageApi
@@ -88,30 +81,18 @@ export function WageModule() {
     selectedDept,
     sortField,
     sortOrder,
+    refreshKey,
   ]);
 
-  // Filtering + sorting
-  // Server-driven totals and page data
-  const totalPages = Math.ceil(totalEmployees / rowsPerPage) || 1;
-  const paginatedEmployees = employees; // already paginated by server
+  const handleRefresh = () => setRefreshKey((prev) => prev + 1);
 
-  // page buttons: max 5 shown
-  const getPageButtons = () => {
-    const pages: (number | string)[] = [];
-    if (totalPages <= 5) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      let start = Math.max(currentPage - 2, 1);
-      let end = start + 4;
-      if (end > totalPages) {
-        end = totalPages;
-        start = end - 4;
-      }
-      for (let i = start; i <= end; i++) pages.push(i);
-      if (start > 1) pages.unshift("...");
-      if (end < totalPages) pages.push("...");
-    }
-    return pages;
+  const handleReset = () => {
+    setSearchTerm("");
+    setSelectedDept(null);
+    setSortField("user_id");
+    setSortOrder("asc");
+    setCurrentPage(1);
+    handleRefresh();
   };
 
   const handleSort = (field: keyof Employee) => {
@@ -128,7 +109,6 @@ export function WageModule() {
     setPasswordDialogOpen(true);
   };
 
-  // verify password -> then open modal
   const handlePasswordSubmit = async (passwordInput: string) => {
     try {
       const session = sessionStorage.getItem("user");
@@ -136,12 +116,10 @@ export function WageModule() {
       const logged = JSON.parse(session);
       const apiUser = await wageApi.fetchUserById(logged.user_id);
       if (!apiUser) return alert("User record not found.");
-      // NOTE: your original code used user_password string compare
       if (passwordInput !== apiUser.user_password)
         return alert("Incorrect password.");
       if (!selectedEmployee) return alert("No employee selected.");
 
-      // log access
       const ts = new Date().toISOString();
       const remarks = `Opened wage modal for ${selectedEmployee.user_fname} ${selectedEmployee.user_lname} at ${ts}`;
       await wageApi.logWageAccess(
@@ -150,7 +128,6 @@ export function WageModule() {
         remarks
       );
 
-      // load wage data
       await loadWageData(selectedEmployee.user_id);
       setPasswordDialogOpen(false);
       setModalOpen(true);
@@ -164,10 +141,8 @@ export function WageModule() {
     if (!userId && userId !== 0) return "Unknown";
     try {
       const u = await wageApi.fetchUserById(Number(userId));
-      if (!u) return "Unknown";
-      return `${u.user_fname} ${u.user_lname}`;
-    } catch (e) {
-      console.error("getUserFullName error:", e);
+      return u ? `${u.user_fname} ${u.user_lname}` : "Unknown";
+    } catch {
       return "Unknown";
     }
   };
@@ -197,10 +172,10 @@ export function WageModule() {
         ? await getUserFullName(responsibleUserId)
         : "";
       const lastDate = (
-        record.updated_date?.substring(0, 10) ||
-        record.created_date?.substring(0, 10) ||
+        record.updated_date ||
+        record.created_date ||
         ""
-      ).toString();
+      ).substring(0, 10);
 
       setWageData({
         id: record.id ?? null,
@@ -216,7 +191,7 @@ export function WageModule() {
         lastUpdateDate: lastDate,
       });
     } catch (e) {
-      console.error("loadWageData error:", e);
+      console.error(e);
       toast.error("Failed to load wage data.");
     }
   };
@@ -226,11 +201,7 @@ export function WageModule() {
     if (!session) return alert("User session missing.");
     const logged = JSON.parse(session);
     if (!selectedEmployee) return alert("No employee selected.");
-    if (
-      !window.confirm(
-        `Save wage settings for ${selectedEmployee.user_fname} ${selectedEmployee.user_lname}?`
-      )
-    )
+    if (!window.confirm(`Save settings for ${selectedEmployee.user_fname}?`))
       return;
 
     const payload: WagePayload = {
@@ -246,38 +217,39 @@ export function WageModule() {
     };
 
     try {
-      if (wageData.id) {
-        await wageApi.patchWage(wageData.id, payload);
-      } else {
-        await wageApi.createWage(payload);
-      }
-      toast.success("Wage information saved successfully.");
-      // reload
+      if (wageData.id) await wageApi.patchWage(wageData.id, payload);
+      else await wageApi.createWage(payload);
+
+      toast.success("Wage information saved.");
       await loadWageData(selectedEmployee.user_id);
       setModalOpen(false);
     } catch (e) {
-      console.error("saveWageData error:", e);
+      console.error(e);
       toast.error("Failed to save wage data.");
     }
   };
 
-  // small helper to update partial wageData
-  const updateWageData = (upd: Partial<WageDataState>) => {
-    setWageData((prev) => ({ ...prev, ...upd }));
-  };
-
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Wage Management</CardTitle>
-          </CardHeader>
+      <div className="space-y-6 font-sans">
+        {/* Page Header (Restricted width to match card below) */}
+        <div className="flex flex-col gap-1 px-1 max-w-7xl mx-auto w-full">
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+            Wage Management
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Manage employee wage configurations and records.
+          </p>
+          <Separator />
+        </div>
 
-          <CardContent>
+        {/* Main Content Card (Restricted Width) */}
+        {/* Added 'py-0' to explicitly remove vertical padding from the card wrapper */}
+        <Card className="border shadow-sm bg-white dark:bg-gray-900 max-w-7xl mx-auto w-full py-0">
+          <CardContent className="p-6">
             <EmployeeTable
+              employees={employees}
               departments={departments}
-              employees={paginatedEmployees}
               loading={loading}
               selectedDept={selectedDept}
               setSelectedDept={setSelectedDept}
@@ -289,8 +261,9 @@ export function WageModule() {
               setRowsPerPage={setRowsPerPage}
               currentPage={currentPage}
               setCurrentPage={setCurrentPage}
-              totalPages={totalPages}
-              pageButtons={getPageButtons()}
+              totalEmployees={totalEmployees}
+              onRefresh={handleRefresh}
+              onReset={handleReset}
             />
           </CardContent>
         </Card>
@@ -307,7 +280,7 @@ export function WageModule() {
         onOpenChange={setModalOpen}
         selectedEmployee={selectedEmployee}
         wageData={wageData}
-        setWageData={updateWageData}
+        setWageData={(upd) => setWageData((prev) => ({ ...prev, ...upd }))}
         onSave={saveWageData}
       />
     </DashboardLayout>
