@@ -2,16 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { LoginAlert } from "../types";
+import { toast } from "sonner";
 
 export function useLogin() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState<LoginAlert | null>(null);
 
   async function login(email: string, password: string) {
     setLoading(true);
-    setAlert(null);
 
     try {
       const res = await fetch("/api/auth/login", {
@@ -24,30 +22,30 @@ export function useLogin() {
 
       if (!res.ok) {
         if (json.status === "password") {
-          setAlert("password");
+          toast.error("Password expired. Please reset your password.");
         } else {
-          setAlert("error");
+          toast.error("Login failed. Please check your credentials.");
         }
         return;
       }
 
       if (json.status !== "success" || !json.user) {
-        setAlert("error");
+        toast.error("Login failed. Please check your credentials.");
         return;
       }
 
       sessionStorage.setItem("user", JSON.stringify(json.user));
-      setAlert("success");
+      toast.success("Login successful!");
 
       setTimeout(() => {
         router.replace("/dashboard");
       }, 300);
     } catch {
-      setAlert("error");
+      toast.error("An error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
   }
 
-  return { login, loading, alert };
+  return { login, loading };
 }

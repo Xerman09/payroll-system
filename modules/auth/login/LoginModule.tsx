@@ -2,16 +2,13 @@
 
 import { motion } from "framer-motion";
 import LoginForm from "./components/LoginForm";
-import LoginAlerts from "./components/LoginAlerts";
 import { useLogin } from "./providers/useLogin";
 
 export default function LoginModule() {
-  const { login, loading, alert } = useLogin();
+  const { login, loading } = useLogin();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900 px-4">
-      <LoginAlerts alert={alert} />
-
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}

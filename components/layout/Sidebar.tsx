@@ -10,15 +10,16 @@ import {
   Menu,
   ChevronLeft,
   Home,
-  Users,
   Calculator,
   Calendar,
   HandCoins,
+  Calendars,
   PiggyBank,
   BanknoteArrowDown,
   PhilippinePeso,
   Wallet,
   Diff,
+  Folders,
 } from "lucide-react";
 
 import {
@@ -34,63 +35,80 @@ function Sidebar() {
 
   const menuItems = useMemo(
     () => [
-    {
-      panel: "Dashboard",
-      items: [
-        { title: "Dashboard", href: "/dashboard", icon: <Home size={20} /> },
-      ],
-    },
-    {
-      panel: "File Management",
-      items: [
-        {
-          title: "Wage Management",
-          href: "/dashboard/wage",
-          icon: <PhilippinePeso size={20} />,
-        },
-        {
-          title: "COOP",
-          href: "/dashboard/coop",
-          icon: <PiggyBank size={20} />,
-        },
-        {
-          title: "Benefit Settings",
-          href: "/dashboard/benefit-settings",
-          icon: <HandCoins size={20} />,
-        },
-        {
-          title: "Retro Pay",
-          href: "/dashboard/retro",
-          icon: <BanknoteArrowDown size={20} />,
-        },
-        {
-          title: "Additions & Deductions",
-          href: "/dashboard/additions-deductions",
-          icon: <Diff size={20} />,
-        },
-        {
-          title: "Allowance Management",
-          href: "/dashboard/allowance-management",
-          icon: <Wallet size={20} />,
-        },
-        {
-          title: "Holiday Calendar",
-          href: "/dashboard/calendar-management",
-          icon: <Calendar size={20} />,
-        },
-      ],
-    },
-    {
-      panel: "Processing",
-      items: [
-        {
-          title: "Payroll System",
-          href: "/dashboard/payroll",
-          icon: <Calculator size={20} />,
-        },
-      ],
-    },
-  ], []);
+      {
+        panel: "Dashboard",
+        items: [
+          { title: "Dashboard", href: "/dashboard", icon: <Home size={20} /> },
+        ],
+      },
+      {
+        panel: "File Management",
+        items: [
+          {
+            title: "Wage Management",
+            href: "/dashboard/wage",
+            icon: <PhilippinePeso size={20} />,
+          },
+          {
+            title: "COOP",
+            href: "/dashboard/coop",
+            icon: <PiggyBank size={20} />,
+          },
+          {
+            title: "Retro Pay",
+            href: "/dashboard/retro",
+            icon: <BanknoteArrowDown size={20} />,
+          },
+          {
+            title: "Additions & Deductions",
+            href: "/dashboard/additions-deductions",
+            icon: <Diff size={20} />,
+          },
+          {
+            title: "Allowance Management",
+            href: "/dashboard/allowance-management",
+            icon: <Wallet size={20} />,
+          },
+          {
+            title: "Holiday Calendar",
+            href: "/dashboard/calendar-management",
+            icon: <Calendar size={20} />,
+          },
+          {
+            title: "Benefit Settings",
+            href: "/dashboard/benefit-settings",
+            icon: <HandCoins size={20} />,
+          },
+          {
+            title: "Cutoff Settings",
+            href: "/dashboard/cutoff-settings",
+            icon: <Calendars size={20} />,
+          },
+        ],
+      },
+      {
+        panel: "Processing",
+        items: [
+          {
+            title: "Payroll Run",
+            href: "/dashboard/payroll-run",
+            icon: <Calculator size={20} />,
+          },
+        ],
+      },
+      {
+        panel: "Records",
+        items: [
+          {
+            title: "Payroll Records",
+            href: "/dashboard/payroll-records",
+            icon: <Folders size={20} />,
+          },
+        ],
+      },
+    ],
+    []
+  );
 
   return (
     <TooltipProvider disableHoverableContent>
@@ -103,7 +121,11 @@ function Sidebar() {
             : "w-[250px] bg-gray-100 dark:bg-gray-900",
           mobileOpen && "flex w-full md:hidden"
         )}
-        style={{ contain: "layout paint", willChange: "width", backfaceVisibility: "hidden" }}
+        style={{
+          contain: "layout paint",
+          willChange: "width",
+          backfaceVisibility: "hidden",
+        }}
       >
         {/* Header */}
         <div className="flex items-center justify-between h-[65px] px-4 border-b border-gray-300 dark:border-gray-700">

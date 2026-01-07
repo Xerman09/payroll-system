@@ -12,8 +12,6 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Clock,
-  ArrowLeft,
   User,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -69,10 +67,6 @@ export default function CalendarManagementPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 5;
-
-  // Timeline State
-  const [expandedMonth, setExpandedMonth] = useState<number | null>(null);
-  const [hoveredEvent, setHoveredEvent] = useState<number | null>(null);
 
   // ---------------------- Mock Data ----------------------
   useEffect(() => {
@@ -209,13 +203,6 @@ export default function CalendarManagementPage() {
   }, [searchTerm]);
 
   // ---------------------- Derived Data ----------------------
-  const timelineEvents = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    return holidays
-      .map((h) => ({ ...h, dateObj: new Date(h.holiday_date) }))
-      .filter((h) => h.dateObj.getFullYear() === currentYear)
-      .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
-  }, [holidays]);
 
   const filteredHolidays = useMemo(() => {
     return holidays.filter(
@@ -236,78 +223,6 @@ export default function CalendarManagementPage() {
     if (!id && id !== 0) return "Unknown";
     const u = users.find((x) => x.user_id === id);
     return u ? `${u.user_fname} ${u.user_lname}` : `User ${id}`;
-  };
-
-  // ---------------------- Styling Helpers ----------------------
-  const getMonthColor = (index: number, type: "bg" | "border" | "text") => {
-    const colors = [
-      { bg: "bg-blue-500", border: "border-blue-500", text: "text-blue-500" },
-      { bg: "bg-sky-500", border: "border-sky-500", text: "text-sky-500" },
-      { bg: "bg-cyan-500", border: "border-cyan-500", text: "text-cyan-500" },
-      { bg: "bg-teal-500", border: "border-teal-500", text: "text-teal-500" },
-      {
-        bg: "bg-emerald-500",
-        border: "border-emerald-500",
-        text: "text-emerald-500",
-      },
-      {
-        bg: "bg-green-500",
-        border: "border-green-500",
-        text: "text-green-500",
-      },
-      { bg: "bg-lime-500", border: "border-lime-500", text: "text-lime-500" },
-      {
-        bg: "bg-yellow-500",
-        border: "border-yellow-500",
-        text: "text-yellow-500",
-      },
-      {
-        bg: "bg-amber-500",
-        border: "border-amber-500",
-        text: "text-amber-500",
-      },
-      {
-        bg: "bg-orange-500",
-        border: "border-orange-500",
-        text: "text-orange-500",
-      },
-      { bg: "bg-red-500", border: "border-red-500", text: "text-red-500" },
-      { bg: "bg-rose-500", border: "border-rose-500", text: "text-rose-500" },
-    ];
-    return colors[index % colors.length][type];
-  };
-
-  const getEventColor = (type: string) => {
-    switch (type) {
-      case "company":
-        return {
-          bg: "bg-blue-500",
-          border: "border-blue-500",
-          text: "text-blue-700",
-        };
-      case "special":
-        return {
-          bg: "bg-amber-500",
-          border: "border-amber-500",
-          text: "text-amber-700",
-        };
-      default:
-        return {
-          bg: "bg-slate-500",
-          border: "border-slate-500",
-          text: "text-slate-700",
-        };
-    }
-  };
-
-  const getDayPositionInMonth = (date: Date) => {
-    const day = date.getDate();
-    const daysInMonth = new Date(
-      date.getFullYear(),
-      date.getMonth() + 1,
-      0
-    ).getDate();
-    return 5 + ((day - 1) / (daysInMonth - 1)) * 90;
   };
 
   // ---------------------- Handlers ----------------------
@@ -418,7 +333,7 @@ export default function CalendarManagementPage() {
         year,
         month,
       };
-    }, [currentMonth]);
+    }, []);
 
     const days = [];
     for (let i = 0; i < startingDayOfWeek; i++) {
@@ -908,197 +823,6 @@ export default function CalendarManagementPage() {
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* --- ANNUAL TIMELINE --- */}
-        <div className="h-80 shrink-0">
-          <div className="h-full border rounded-lg shadow-sm flex flex-col overflow-hidden bg-white">
-            <div className="py-2 px-5 border-b bg-gray-50 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-blue-600" />
-                <h3 className="text-sm font-semibold">
-                  {new Date().getFullYear()} Annual Timeline
-                </h3>
-                {expandedMonth !== null && (
-                  <button
-                    onClick={() => setExpandedMonth(null)}
-                    className="ml-2 text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium bg-blue-50 px-2 py-0.5 rounded-full"
-                  >
-                    <ArrowLeft className="w-3 h-3" /> Back to Year
-                  </button>
-                )}
-              </div>
-              {/* Legend */}
-              <div className="flex gap-3 text-xs">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
-                  <span className="text-gray-600">Company</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
-                  <span className="text-gray-600">Special</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-slate-500"></div>
-                  <span className="text-gray-600">Regular</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-hidden relative bg-gradient-to-b from-white to-gray-50">
-              {expandedMonth === null ? (
-                /* YEAR VIEW */
-                <div className="h-full flex">
-                  {Array.from({ length: 12 }).map((_, monthIndex) => {
-                    const monthEvents = timelineEvents.filter(
-                      (e) => e.dateObj.getMonth() === monthIndex
-                    );
-                    const monthName = new Date(2025, monthIndex).toLocaleString(
-                      "default",
-                      { month: "short" }
-                    );
-
-                    return (
-                      <div
-                        key={monthIndex}
-                        className="flex-1 relative border-r border-gray-200 last:border-r-0 hover:bg-blue-50/50 transition-colors cursor-pointer group"
-                        onClick={() => setExpandedMonth(monthIndex)}
-                      >
-                        {/* Month Label Bar */}
-                        <div
-                          className={`absolute bottom-0 left-0 right-0 h-8 ${getMonthColor(
-                            monthIndex,
-                            "bg"
-                          )} flex items-center justify-center text-white font-semibold text-xs uppercase tracking-wide group-hover:h-10 transition-all`}
-                        >
-                          {monthName}
-                        </div>
-
-                        {/* Event Dots */}
-                        <div className="absolute inset-0 bottom-8 flex flex-col items-center justify-end pb-2 gap-1">
-                          {monthEvents.slice(0, 4).map((event) => {
-                            const colors = getEventColor(event.holiday_type);
-                            return (
-                              <div
-                                key={event.id}
-                                className={`w-2 h-2 rounded-full ${colors.bg} opacity-80 group-hover:opacity-100 transition-opacity`}
-                                title={event.description}
-                              />
-                            );
-                          })}
-                          {monthEvents.length > 4 && (
-                            <span className="text-[10px] text-gray-500 font-medium">
-                              +{monthEvents.length - 4}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                /* MONTH VIEW (Detailed) */
-                <div className="h-full w-full overflow-x-auto overflow-y-hidden">
-                  <div className="relative h-full min-w-[800px] px-8 py-4 pt-20">
-                    {/* Background Month Name */}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none">
-                      <span className="text-8xl font-black uppercase tracking-tighter text-gray-400">
-                        {new Date(2025, expandedMonth).toLocaleString(
-                          "default",
-                          { month: "long" }
-                        )}
-                      </span>
-                    </div>
-
-                    {/* Timeline Base */}
-                    <div className="absolute left-8 right-8 bottom-12 h-1 bg-gray-200 rounded-full"></div>
-
-                    {/* Events on Timeline */}
-                    {timelineEvents
-                      .filter((e) => e.dateObj.getMonth() === expandedMonth)
-                      .map((event, idx) => {
-                        const leftPosition = getDayPositionInMonth(
-                          event.dateObj
-                        );
-                        const colors = getEventColor(event.holiday_type);
-                        const isHovered = hoveredEvent === event.id;
-                        const heightClass =
-                          idx % 3 === 0
-                            ? "h-12"
-                            : idx % 3 === 1
-                            ? "h-16"
-                            : "h-20";
-
-                        return (
-                          <div
-                            key={event.id}
-                            className="absolute bottom-12"
-                            style={{ left: `${leftPosition}%` }}
-                            onMouseEnter={() => setHoveredEvent(event.id)}
-                            onMouseLeave={() => setHoveredEvent(null)}
-                          >
-                            {/* Event Pin */}
-                            <div className="flex flex-col items-center cursor-pointer group">
-                              {/* Tooltip */}
-                              <div
-                                className={`absolute bottom-full mb-2 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl transition-all duration-200 whitespace-nowrap z-20 ${
-                                  isHovered
-                                    ? "opacity-100 scale-100"
-                                    : "opacity-0 scale-95 pointer-events-none"
-                                }`}
-                              >
-                                <div className="font-semibold mb-1">
-                                  {event.description}
-                                </div>
-                                <div className="text-[10px] text-gray-300">
-                                  {new Date(
-                                    event.holiday_date
-                                  ).toLocaleDateString("en-US", {
-                                    month: "long",
-                                    day: "numeric",
-                                    year: "numeric",
-                                  })}
-                                </div>
-                              </div>
-                              {/* Connecting Line */}
-                              <div
-                                className={`w-0.5 ${heightClass} ${colors.bg} opacity-40 group-hover:opacity-100 transition-opacity`}
-                              ></div>
-                              {/* Pin Head */}
-                              <div
-                                className={`w-3 h-3 rounded-full ${colors.bg} border-2 border-white shadow-md group-hover:scale-150 transition-transform`}
-                              ></div>
-                              {/* Date Label */}
-                              <div
-                                className={`mt-1 text-[10px] font-bold ${colors.text} bg-white px-1.5 py-0.5 rounded shadow-sm border ${colors.border} border-opacity-30`}
-                              >
-                                {event.dateObj.getDate()}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                    {/* Month Label at Bottom */}
-                    <div
-                      className={`absolute bottom-0 left-0 right-0 h-8 ${getMonthColor(
-                        expandedMonth,
-                        "bg"
-                      )} flex items-center justify-center rounded-b-lg`}
-                    >
-                      <span className="text-white font-semibold text-sm uppercase tracking-wider">
-                        {new Date(2025, expandedMonth).toLocaleString(
-                          "default",
-                          { month: "long" }
-                        )}{" "}
-                        2025
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>

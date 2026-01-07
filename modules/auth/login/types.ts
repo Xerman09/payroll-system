@@ -6,5 +6,3 @@ export interface User {
   user_fname: string;
   user_lname: string;
 }
-
-export type LoginAlert = "success" | "error" | "password" | null;
