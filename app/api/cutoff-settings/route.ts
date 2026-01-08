@@ -147,18 +147,15 @@ function buildCutoffSettingsQuery(month?: string | null, year?: string | null) {
  */
 function buildUsersQuery(ids: string[]) {
   const qs = new URLSearchParams();
-  qs.set("fields", "id,user_id,user_fname,user_mname,user_lname,user_email");
-  qs.set("limit", "200");
+  qs.set("fields", "user_id,user_fname,user_mname,user_lname,user_email");
+  qs.set("limit", "500");
 
   // If you want stable ordering. Some roles block sort; remove if needed.
-  qs.set("sort", "user_lname");
+  // qs.set("sort", "user_lname");
 
   if (ids.length) {
-    // Directus filter OR:
-    // filter[_or][0][id][_in]=1,2
-    // filter[_or][1][user_id][_in]=1,2
-    qs.set("filter[_or][0][id][_in]", ids.join(","));
-    qs.set("filter[_or][1][user_id][_in]", ids.join(","));
+    // Filter by user_id in ids
+    qs.set("filter[user_id][_in]", ids.join(","));
   }
 
   return qs.toString();
@@ -185,7 +182,7 @@ export async function GET(req: NextRequest) {
     const ids = parseIdsParam(url.searchParams.get("ids"));
     const qs = buildUsersQuery(ids);
 
-    // IMPORTANT: no-auth request to mirror your login behavior
+    // Use no-auth for users, like login
     const result = await directusFetchNoAuth("GET", `/items/user?${qs}`);
 
     if (!result.ok) {

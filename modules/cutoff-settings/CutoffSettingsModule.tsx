@@ -4,7 +4,7 @@
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Layers, Save, CheckCircle2, XCircle } from "lucide-react";
+import { Layers } from "lucide-react";
 
 import type { CutoffSettingRow, PeriodKey } from "./types";
 import {
@@ -24,34 +24,6 @@ import { Separator } from "@/components/ui/separator";
 
 import CutoffSettingsTable from "./components/CutoffSettingsTable";
 import CutoffSettingsModal from "./components/CutoffSettingsModal";
-
-type SaveState = "idle" | "success" | "error";
-
-function SaveButton({
-  saving,
-  status,
-  onClick,
-}: {
-  saving: boolean;
-  status: SaveState;
-  onClick: () => void;
-}) {
-  const icon =
-    status === "success" ? (
-      <CheckCircle2 className="h-4 w-4" />
-    ) : status === "error" ? (
-      <XCircle className="h-4 w-4" />
-    ) : (
-      <Save className="h-4 w-4" />
-    );
-
-  return (
-    <Button onClick={onClick} disabled={saving} className="gap-2">
-      {icon}
-      {saving ? "Saving..." : "Save Changes"}
-    </Button>
-  );
-}
 
 function samePeriod(a: PeriodKey, b: PeriodKey) {
   return a.month === b.month && a.year === b.year;
@@ -80,7 +52,6 @@ export default function CutoffSettingsModule() {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<SaveState>("idle");
 
   const [first, setFirst] = useState<CutoffSettingRow | null>(null);
   const [second, setSecond] = useState<CutoffSettingRow | null>(null);
@@ -97,9 +68,9 @@ export default function CutoffSettingsModule() {
       getUserDisplayName(userNameMap, id);
   }, [userNameMap]);
 
-  async function loadUsers() {
+  async function loadUsers(ids?: Array<string | number>) {
     try {
-      const users = await listUsers();
+      const users = await listUsers(ids);
       setUserNameMap(makeUserNameMap(users));
     } catch {
       // Non-blocking: module still works, but will show ids.
@@ -117,17 +88,23 @@ export default function CutoffSettingsModule() {
 
       setFirst(f);
       setSecond(s);
+
+      // Collect unique user ids from the rows
+      const userIds = new Set<string | number>();
+      rows.forEach((row) => {
+        if (row.created_by) userIds.add(row.created_by);
+        if (row.updated_by) userIds.add(row.updated_by);
+      });
+      const ids = Array.from(userIds);
+
+      // Load users for these ids
+      await loadUsers(ids);
     } catch (e: any) {
       toast.error(e?.message || "Failed to load cutoff settings.");
     } finally {
       setLoading(false);
     }
   }
-
-  useEffect(() => {
-    loadUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     loadCutoffs();
@@ -149,18 +126,8 @@ export default function CutoffSettingsModule() {
     setModalOpen(true);
   }
 
-  function applyRow(updated: CutoffSettingRow) {
-    if (updated.cutoff_type === "FIRST") setFirst(updated);
-    if (updated.cutoff_type === "SECOND") setSecond(updated);
-  }
-
-  async function handleSave() {
+  async function applyAndSaveRow(updated: CutoffSettingRow) {
     try {
-      if (!first || !second) {
-        toast.error("Cutoff rows are not loaded yet.");
-        return;
-      }
-
       const userId = getSessionUserId();
       if (!userId) {
         toast.error("No session user found in sessionStorage.");
@@ -168,25 +135,24 @@ export default function CutoffSettingsModule() {
       }
 
       setSaving(true);
-      setSaveStatus("idle");
 
-      const payload = [
-        toEditablePayload(stampAuditFields(first, userId)),
-        toEditablePayload(stampAuditFields(second, userId)),
-      ];
+      const payload = [toEditablePayload(stampAuditFields(updated, userId))];
 
       await upsertCutoffSettings(payload);
 
-      setSaveStatus("success");
-      toast.success("Cutoff settings saved successfully.");
-      setTimeout(() => setSaveStatus("idle"), 800);
+      toast.success("Cutoff settings updated successfully.");
 
+      // Update local state
+      if (updated.cutoff_type === "FIRST") setFirst(updated);
+      if (updated.cutoff_type === "SECOND") setSecond(updated);
+
+      // Close modal after successful save
+      setModalOpen(false);
+
+      // Reload to get fresh data
       await loadCutoffs();
-      await loadUsers(); // reload names in case user table changed (optional)
     } catch (e: any) {
-      setSaveStatus("error");
-      toast.error(e?.message || "Failed to save cutoff settings.");
-      setTimeout(() => setSaveStatus("idle"), 1200);
+      toast.error(e?.message || "Failed to update cutoff settings.");
     } finally {
       setSaving(false);
     }
@@ -212,14 +178,6 @@ export default function CutoffSettingsModule() {
               Current Payroll Month:{" "}
               <span className="font-semibold">{periodLabel(period)}</span>
             </div>
-
-            <div className="hidden md:block">
-              <SaveButton
-                saving={saving}
-                status={saveStatus}
-                onClick={handleSave}
-              />
-            </div>
           </div>
         </div>
 
@@ -238,20 +196,13 @@ export default function CutoffSettingsModule() {
           />
         )}
 
-        <div className="md:hidden sticky bottom-4">
-          <SaveButton
-            saving={saving}
-            status={saveStatus}
-            onClick={handleSave}
-          />
-        </div>
-
         <CutoffSettingsModal
           open={modalOpen}
           onOpenChange={setModalOpen}
           row={editing}
           period={period}
-          onConfirm={applyRow}
+          onConfirm={applyAndSaveRow}
+          saving={saving}
         />
       </div>
     </DashboardLayout>

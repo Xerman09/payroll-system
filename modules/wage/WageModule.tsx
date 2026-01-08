@@ -36,19 +36,27 @@ export function WageModule() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
 
-  const [wageData, setWageData] = useState<WageDataState>({
+  // Optional cache (not relied on for logging anymore)
+  const [previousDailyWage, setPreviousDailyWage] = useState<number | null>(
+    null
+  );
+
+  const emptyWageData: WageDataState = {
     id: null,
     dailyWage: 0,
-    dailyWageInput: "",
+    dailyWageInput: "0.00",
     vacationLeave: 0,
     sickLeave: 0,
     isPaidHoliday: false,
+    isCard: false,
     sss: "0.00",
     pagibig: "0.00",
     philhealth: "0.00",
     lastUpdatedBy: "",
     lastUpdateDate: "",
-  });
+  };
+
+  const [wageData, setWageData] = useState<WageDataState>(emptyWageData);
 
   useEffect(() => {
     wageApi.fetchDepartments().then(setDepartments).catch(console.error);
@@ -114,6 +122,7 @@ export function WageModule() {
       const session = sessionStorage.getItem("user");
       if (!session) return alert("User not logged in.");
       const logged = JSON.parse(session);
+
       const apiUser = await wageApi.fetchUserById(logged.user_id);
       if (!apiUser) return alert("User record not found.");
       if (passwordInput !== apiUser.user_password)
@@ -150,20 +159,10 @@ export function WageModule() {
   const loadWageData = async (userId: number) => {
     try {
       const record = await wageApi.fetchWageByUser(userId);
+
       if (!record) {
-        setWageData({
-          id: null,
-          dailyWage: 0,
-          dailyWageInput: "0.00",
-          vacationLeave: 0,
-          sickLeave: 0,
-          isPaidHoliday: false,
-          sss: "0.00",
-          pagibig: "0.00",
-          philhealth: "0.00",
-          lastUpdatedBy: "",
-          lastUpdateDate: "",
-        });
+        setWageData({ ...emptyWageData });
+        setPreviousDailyWage(null);
         return;
       }
 
@@ -177,16 +176,22 @@ export function WageModule() {
         ""
       ).substring(0, 10);
 
+      const dailyWageNum = Number(record.daily_wage) || 0;
+
+      // cache only (save will refetch anyway)
+      setPreviousDailyWage(dailyWageNum);
+
       setWageData({
         id: record.id ?? null,
-        dailyWage: Number(record.daily_wage) || 0,
-        dailyWageInput: (Number(record.daily_wage) || 0).toString(),
+        dailyWage: dailyWageNum,
+        dailyWageInput: dailyWageNum.toFixed(2),
         vacationLeave: Number(record.vacation_leave_per_year) || 0,
         sickLeave: Number(record.sick_leave_per_year) || 0,
-        isPaidHoliday: record.paid_holiday === 1,
-        sss: record.sss_contribution_monthly ?? "0.00",
-        pagibig: record.pagibig_contribution_monthly ?? "0.00",
-        philhealth: record.philhealth_contribution_monthly ?? "0.00",
+        isPaidHoliday: Number(record.paid_holiday) === 1,
+        isCard: Number(record.isCard) === 1,
+        sss: String(record.sss_contribution_monthly ?? "0.00"),
+        pagibig: String(record.pagibig_contribution_monthly ?? "0.00"),
+        philhealth: String(record.philhealth_contribution_monthly ?? "0.00"),
         lastUpdatedBy: fullName || "",
         lastUpdateDate: lastDate,
       });
@@ -200,25 +205,123 @@ export function WageModule() {
     const session = sessionStorage.getItem("user");
     if (!session) return alert("User session missing.");
     const logged = JSON.parse(session);
+
     if (!selectedEmployee) return alert("No employee selected.");
     if (!window.confirm(`Save settings for ${selectedEmployee.user_fname}?`))
       return;
 
+    // ✅ Local date (browser time) -> YYYY-MM-DD
+    const now = new Date();
+    const todayYmd = `${now.getFullYear()}-${String(
+      now.getMonth() + 1
+    ).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+    // ✅ Authoritative previous wage: re-fetch current record now
+    let currentRecord = null;
+    try {
+      currentRecord = await wageApi.fetchWageByUser(selectedEmployee.user_id);
+    } catch (e) {
+      console.error("[Wage] Failed to refetch current wage record", e);
+      // fallback to cached state
+      currentRecord = null;
+    }
+
+    const existingId =
+      (currentRecord?.id ?? null) !== null
+        ? Number(currentRecord?.id)
+        : wageData.id;
+
+    const prevWageNum =
+      currentRecord?.daily_wage !== undefined &&
+      currentRecord?.daily_wage !== null
+        ? Number(currentRecord.daily_wage) || 0
+        : previousDailyWage !== null
+        ? previousDailyWage
+        : 0;
+
+    const nextWageNum = Number(wageData.dailyWage) || 0;
+
+    // Compare at 2 decimals to avoid 468 vs 468.00 issues
+    const prevWageFixed = prevWageNum.toFixed(2);
+    const nextWageFixed = nextWageNum.toFixed(2);
+
+    // ✅ Log rule:
+    // - If existing record: log only when daily wage changes
+    // - If new record: log creation as change from 0.00 -> new rate (if new rate > 0)
+    const wageChanged =
+      existingId !== null ? prevWageFixed !== nextWageFixed : nextWageNum > 0;
+
     const payload: WagePayload = {
       user_id: selectedEmployee.user_id,
-      daily_wage: Number(wageData.dailyWage) || 0,
+      daily_wage: nextWageNum,
       vacation_leave_per_year: Number(wageData.vacationLeave) || 0,
       sick_leave_per_year: Number(wageData.sickLeave) || 0,
       paid_holiday: wageData.isPaidHoliday ? 1 : 0,
+      isCard: wageData.isCard ? 1 : 0,
       updated_by: logged.user_id,
       sss_contribution_monthly: wageData.sss,
       pagibig_contribution_monthly: wageData.pagibig,
       philhealth_contribution_monthly: wageData.philhealth,
+
+      // ✅ store date only when wage changes (or when creating)
+      ...(wageChanged ? { cutoff_wage_date_update: todayYmd } : {}),
     };
 
     try {
-      if (wageData.id) await wageApi.patchWage(wageData.id, payload);
-      else await wageApi.createWage(payload);
+      if (existingId) {
+        await wageApi.patchWage(existingId, payload);
+      } else {
+        // On create, we also store the update date for traceability
+        payload.cutoff_wage_date_update = todayYmd;
+        await wageApi.createWage(payload);
+      }
+
+      // ✅ Write proration log (separate error handling so wage save won't be blocked)
+      if (wageChanged) {
+        try {
+          const cutoff = await wageApi.findCutoffSettingByDate(todayYmd);
+
+          const cutoffId =
+            cutoff?.id !== undefined && cutoff?.id !== null
+              ? Number(cutoff.id)
+              : null;
+
+          if (!cutoffId) {
+            console.warn(
+              "[Wage] No cutoff_settings row matched date",
+              todayYmd,
+              "— proration log not created."
+            );
+            toast.warning(
+              "Wage saved, but no active cutoff was found for today (proration log skipped)."
+            );
+          } else {
+            await wageApi.createWageProrationLog({
+              user_id: selectedEmployee.user_id,
+              previous_daily_wage: existingId ? Number(prevWageFixed) : 0,
+              new_daily_wage: Number(nextWageFixed),
+              effective_date: todayYmd,
+              cutoff_id: cutoffId,
+              updated_by: logged.user_id,
+            });
+
+            // Optional: quick dev confirmation
+            console.info("[Wage] Proration log created", {
+              user_id: selectedEmployee.user_id,
+              previous_daily_wage: existingId ? Number(prevWageFixed) : 0,
+              new_daily_wage: Number(nextWageFixed),
+              effective_date: todayYmd,
+              cutoff_id: cutoffId,
+              updated_by: logged.user_id,
+            });
+          }
+        } catch (e) {
+          console.error("[Wage] Proration log failed to create", e);
+          toast.warning(
+            "Wage saved, but proration log failed to create. Check console/server logs."
+          );
+        }
+      }
 
       toast.success("Wage information saved.");
       await loadWageData(selectedEmployee.user_id);
@@ -232,7 +335,6 @@ export function WageModule() {
   return (
     <DashboardLayout>
       <div className="space-y-6 font-sans">
-        {/* Page Header (Restricted width to match card below) */}
         <div className="flex flex-col gap-1 px-1 max-w-7xl mx-auto w-full">
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
             Wage Management
@@ -243,8 +345,6 @@ export function WageModule() {
           <Separator />
         </div>
 
-        {/* Main Content Card (Restricted Width) */}
-        {/* Added 'py-0' to explicitly remove vertical padding from the card wrapper */}
         <Card className="border shadow-sm bg-white dark:bg-gray-900 max-w-7xl mx-auto w-full py-0">
           <CardContent className="p-6">
             <EmployeeTable
@@ -256,7 +356,7 @@ export function WageModule() {
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               onOpenPassword={openPasswordDialog}
-              handleSort={handleSort}
+              handleSort={handleSort as any}
               rowsPerPage={rowsPerPage}
               setRowsPerPage={setRowsPerPage}
               currentPage={currentPage}

@@ -1,22 +1,55 @@
 // @modules/wage/providers/wageApi.ts
-import type { Department, Employee, WagePayload, WageRecord } from "../types";
+import type {
+  Department,
+  Employee,
+  WagePayload,
+  WageRecord,
+  WageProrationLogPayload,
+  CutoffSetting,
+} from "../types";
 
 const BASE_API = "/api/wage";
-const BATCH_SIZE = 100; // Chunk size for fetching "all" records
+const BATCH_SIZE = 100;
+
+function extractDirectusErrorMessage(json: any): string | null {
+  if (!json) return null;
+
+  // Directus common pattern
+  if (Array.isArray(json.errors) && json.errors.length > 0) {
+    const e0 = json.errors[0];
+    return e0?.message || e0?.extensions?.code || "Directus error";
+  }
+
+  // Your proxy error pattern
+  if (typeof json.error === "string") return json.error;
+
+  return null;
+}
 
 // Generic server-side fetch through Next.js API route
 async function apiFetch(path: string, options?: RequestInit) {
-  const res = await fetch(
-    `${BASE_API}?path=${encodeURIComponent(path)}`,
-    options
-  );
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${path}`);
-  return res.json();
+  const res = await fetch(`${BASE_API}?path=${encodeURIComponent(path)}`, {
+    cache: "no-store",
+    ...options,
+  });
+
+  const json = await res.json().catch(() => null);
+
+  // ✅ if proxy forwarded 4xx/5xx, throw
+  if (!res.ok) {
+    const msg = extractDirectusErrorMessage(json) || `HTTP ${res.status} ${path}`;
+    throw new Error(msg);
+  }
+
+  // ✅ even if HTTP 200, Directus may still return { errors: [...] }
+  const directusMsg = extractDirectusErrorMessage(json);
+  if (directusMsg) throw new Error(directusMsg);
+
+  return json;
 }
 
 /**
  * HELPER: Fetches all data by looping through pages
- * This replaces limit=-1 to prevent server/browser crashes on large datasets.
  */
 async function fetchAllInBatches<T>(endpoint: string): Promise<T[]> {
   let allItems: T[] = [];
@@ -24,10 +57,7 @@ async function fetchAllInBatches<T>(endpoint: string): Promise<T[]> {
   let hasMore = true;
 
   while (hasMore) {
-    // Determine delimiter (? or &) based on if endpoint already has params
     const delimiter = endpoint.includes("?") ? "&" : "?";
-
-    // Directus uses 'page' and 'limit' for offset-based pagination
     const url = `${endpoint}${delimiter}limit=${BATCH_SIZE}&page=${page}`;
 
     const json = await apiFetch(url);
@@ -35,12 +65,8 @@ async function fetchAllInBatches<T>(endpoint: string): Promise<T[]> {
 
     allItems = [...allItems, ...rows];
 
-    // If we got fewer rows than the batch size, we are on the last page
-    if (rows.length < BATCH_SIZE) {
-      hasMore = false;
-    } else {
-      page++;
-    }
+    if (rows.length < BATCH_SIZE) hasMore = false;
+    else page++;
   }
 
   return allItems;
@@ -51,21 +77,16 @@ async function fetchAllInBatches<T>(endpoint: string): Promise<T[]> {
 // ----------------------------------------------------------------------
 
 export async function fetchDepartments(): Promise<Department[]> {
-  // Uses batching to safely get all departments
   return fetchAllInBatches<Department>("/items/department");
 }
 
 export async function fetchEmployees(): Promise<Employee[]> {
-  // 1. Fetch ALL users in batches
   const allUsers = await fetchAllInBatches<Employee>("/items/user");
-
-  // 2. Filter locally (for when you need a raw list of all active users)
   return allUsers.filter(
     (emp) => !emp.is_deleted || emp.is_deleted.data?.[0] === 0
   );
 }
 
-// Server-side pagination + search + filters for employees
 export type EmployeeListParams = {
   page: number;
   pageSize: number;
@@ -83,54 +104,40 @@ export async function fetchEmployeesPaged({
   sortField = "user_id",
   sortOrder = "asc",
 }: EmployeeListParams): Promise<{ rows: Employee[]; total: number }> {
-
-  // 1. Build complex Server-Side Filter (Directus JSON Syntax)
   const filterParams: any = {
     _and: [
-      // Condition 1: Must not be deleted (is_deleted IS NULL OR is_deleted = 0)
       {
-        _or: [
-          { is_deleted: { _null: true } },
-          { is_deleted: { _eq: 0 } },
-        ],
+        _or: [{ is_deleted: { _null: true } }, { is_deleted: { _eq: 0 } }],
       },
     ],
   };
 
-  // Condition 2: Search term (if exists)
   if (search) {
     filterParams._and.push({
       _or: [
         { user_fname: { _icontains: search } },
         { user_lname: { _icontains: search } },
-        // Allow searching by string ID if needed
         { user_id: { _eq: search } },
       ],
     });
   }
 
-  // Condition 3: Department (if selected)
   if (deptId) {
     filterParams._and.push({ user_department: { _eq: deptId } });
   }
 
-  // 2. Prepare Query Parameters
   const params: Record<string, string | number> = {
     limit: pageSize,
     offset: (page - 1) * pageSize,
-    sort: sortOrder === "desc" ? `-${sortField}` : sortField,
-    meta: "filter_count", // Ask server for total count after filtering
-    filter: JSON.stringify(filterParams), // Pass complex filter
+    sort: sortOrder === "desc" ? `-${String(sortField)}` : String(sortField),
+    meta: "filter_count",
+    filter: JSON.stringify(filterParams),
   };
 
   const query = new URLSearchParams(params as any).toString();
   const json = await apiFetch(`/items/user?${query}`);
 
-  // Data is already filtered by server, but we keep safety check
-  const data: Employee[] = (json.data || []);
-
-  // 'filter_count' is the total matching records (e.g., 50), 
-  // while data.length is just the current page (e.g., 5)
+  const data: Employee[] = json.data || [];
   const total: number = json?.meta?.filter_count ?? data.length;
 
   return { rows: data, total };
@@ -141,7 +148,9 @@ export async function fetchUserById(userId: number) {
   return json.data;
 }
 
-export async function fetchWageByUser(userId: number): Promise<WageRecord | null> {
+export async function fetchWageByUser(
+  userId: number
+): Promise<WageRecord | null> {
   const json = await apiFetch(
     `/items/user_wage_management?filter[user_id][_eq]=${userId}`
   );
@@ -182,6 +191,41 @@ export async function logWageAccess(
       }),
     });
   } catch (e) {
-    console.error("logWageAccess failed - wageApi.ts:185", e);
+    console.error("logWageAccess failed - wageApi.ts:194", e);
   }
-}   
+}
+
+// ----------------------------------------------------------------------
+// CUTOFF SETTINGS
+// ----------------------------------------------------------------------
+
+export async function findCutoffSettingByDate(
+  dateYmd: string
+): Promise<CutoffSetting | null> {
+  const qs = new URLSearchParams({
+    limit: "1",
+    sort: "-start_date",
+    [`filter[start_date][_lte]`]: dateYmd,
+    [`filter[end_date][_gte]`]: dateYmd,
+  }).toString();
+
+  const json = await apiFetch(`/items/cutoff_settings?${qs}`);
+  return (json?.data?.[0] as CutoffSetting) || null;
+}
+
+// ----------------------------------------------------------------------
+// PRORATION LOG
+// ----------------------------------------------------------------------
+
+export async function createWageProrationLog(
+  payload: WageProrationLogPayload
+) {
+  return apiFetch("/items/user_wage_proration_log", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: "/items/user_wage_proration_log",
+      payload,
+    }),
+  });
+}

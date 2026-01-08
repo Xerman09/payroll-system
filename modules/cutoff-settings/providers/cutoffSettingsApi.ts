@@ -173,13 +173,6 @@ export async function listUsers(ids?: Array<string | number>): Promise<UserRow[]
   const qs = new URLSearchParams();
   qs.set("resource", "users");
 
-  if (ids?.length) {
-    const cleaned = ids
-      .map((v) => String(v).trim())
-      .filter(Boolean);
-    if (cleaned.length) qs.set("ids", cleaned.join(","));
-  }
-
   const res = await fetch(`/api/cutoff-settings?${qs.toString()}`, {
     cache: "no-store",
   });
@@ -190,7 +183,11 @@ export async function listUsers(ids?: Array<string | number>): Promise<UserRow[]
   }
 
   const json = await res.json();
-  return (json?.data ?? []) as UserRow[];
+  const data = (json?.data ?? []) as UserRow[];
+
+  // Note: filtering is now done server-side if ids provided
+
+  return data;
 }
 
 

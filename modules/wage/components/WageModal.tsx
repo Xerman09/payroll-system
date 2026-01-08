@@ -44,8 +44,7 @@ export default function WageModal({
         <div className="grid grid-cols-2 gap-4 mt-6">
           <div className="flex flex-col">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
-              {" "}
-              Employee ID{" "}
+              Employee ID
             </label>
             <Input
               type="text"
@@ -57,13 +56,11 @@ export default function WageModal({
 
           <div className="flex flex-col relative">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
-              {" "}
-              Daily Wage{" "}
+              Daily Wage
             </label>
             <div className="relative">
               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">
-                {" "}
-                ₱{" "}
+                ₱
               </span>
               <Input
                 type="text"
@@ -79,7 +76,9 @@ export default function WageModal({
                 }}
                 onBlur={() => {
                   setWageData({
-                    dailyWageInput: wageData.dailyWage.toFixed(2),
+                    dailyWageInput: (Number(wageData.dailyWage) || 0).toFixed(
+                      2
+                    ),
                   });
                 }}
                 className="w-full rounded-md pl-6 focus:outline-none focus:ring-0"
@@ -89,8 +88,7 @@ export default function WageModal({
 
           <div className="flex flex-col">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
-              {" "}
-              Vacation Leave{" "}
+              Vacation Leave
             </label>
             <Input
               type="number"
@@ -104,8 +102,7 @@ export default function WageModal({
 
           <div className="flex flex-col">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
-              {" "}
-              Sick Leave{" "}
+              Sick Leave
             </label>
             <Input
               type="number"
@@ -117,25 +114,40 @@ export default function WageModal({
             />
           </div>
 
-          <div className="flex items-center gap-2 col-span-2">
-            <Checkbox
-              checked={wageData.isPaidHoliday}
-              onCheckedChange={(checked) =>
-                setWageData({ isPaidHoliday: !!checked })
-              }
-            />
-            <label className="text-sm text-gray-700 dark:text-gray-200">
-              {" "}
-              Paid Holiday{" "}
-            </label>
+          {/* Flags (balanced row) */}
+          <div className="col-span-2">
+            <div className="grid grid-cols-2 items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={wageData.isPaidHoliday}
+                  onCheckedChange={(checked) =>
+                    setWageData({ isPaidHoliday: !!checked })
+                  }
+                />
+                <label className="text-sm text-gray-700 dark:text-gray-200">
+                  Paid Holiday
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2">
+                <Checkbox
+                  checked={wageData.isCard}
+                  onCheckedChange={(checked) =>
+                    setWageData({ isCard: !!checked })
+                  }
+                />
+                <label className="text-sm text-gray-700 dark:text-gray-200">
+                  Bank Card
+                </label>
+              </div>
+            </div>
           </div>
 
           <div className="col-span-2 border-t border-gray-300 dark:border-gray-600 mt-2 mb-1"></div>
 
           <div className="col-span-2">
             <div className="text-m font-medium text-gray-700 dark:text-gray-200 mb-2">
-              {" "}
-              Benefits{" "}
+              Benefits
             </div>
             <div className="grid grid-cols-3 gap-4">
               {(["SSS", "Pagibig", "Philhealth"] as const).map((field) => {
@@ -146,13 +158,11 @@ export default function WageModal({
                 return (
                   <div key={field} className="flex flex-col">
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                      {" "}
-                      {field}{" "}
+                      {field}
                     </label>
                     <div className="relative">
                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">
-                        {" "}
-                        ₱{" "}
+                        ₱
                       </span>
                       <Input
                         type="text"
@@ -160,9 +170,9 @@ export default function WageModal({
                         onChange={(e) => {
                           const value = e.target.value;
                           if (/^\d*\.?\d*$/.test(value)) {
-                            setWageData({ [key]: value } as Partial<
-                              typeof wageData
-                            >);
+                            setWageData({
+                              [key]: value,
+                            } as Partial<WageDataState>);
                           }
                         }}
                         onBlur={() => {
@@ -170,7 +180,7 @@ export default function WageModal({
                             wageData[key] === ""
                               ? "0.00"
                               : parseFloat(wageData[key]).toFixed(2);
-                          setWageData({ [key]: v } as Partial<typeof wageData>);
+                          setWageData({ [key]: v } as Partial<WageDataState>);
                         }}
                         className="w-full rounded-md pl-6 py-2 focus:outline-none focus:ring-0"
                       />
@@ -184,25 +194,22 @@ export default function WageModal({
 
         <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
           <div className="text-xs text-gray-500 dark:text-gray-400">
-            {" "}
             Last Updated By: {wageData.lastUpdatedBy} on{" "}
-            {wageData.lastUpdateDate}{" "}
+            {wageData.lastUpdateDate}
           </div>
           <div className="flex gap-2">
             <Button
               className="bg-persian-blue-800 hover:bg-persian-blue-700 text-white rounded-md px-6 py-2"
               onClick={onSave}
             >
-              {" "}
-              Save{" "}
+              Save
             </Button>
             <Button
               variant="outline"
               className="rounded-md px-6 py-2"
               onClick={() => onOpenChange(false)}
             >
-              {" "}
-              Cancel{" "}
+              Cancel
             </Button>
           </div>
         </div>

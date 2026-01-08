@@ -23,6 +23,7 @@ type Props = {
   row: CutoffSettingRow | null;
   period: PeriodKey;
   onConfirm: (updated: CutoffSettingRow) => void;
+  saving?: boolean;
 };
 
 export default function CutoffSettingsModal({
@@ -31,6 +32,7 @@ export default function CutoffSettingsModal({
   row,
   period,
   onConfirm,
+  saving = false,
 }: Props) {
   const defaults = useMemo(
     () => computeDefaultCutoffsForPeriod(period),
@@ -152,10 +154,12 @@ export default function CutoffSettingsModal({
             </Button>
 
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 Cancel
               </Button>
-              <Button onClick={handleSave}>Apply</Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? "Applying..." : "Apply"}
+              </Button>
             </div>
           </div>
         </div>
