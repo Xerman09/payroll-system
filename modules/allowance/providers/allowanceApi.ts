@@ -1,16 +1,21 @@
-import useSWR from "swr";
-import { Allowance, AllowanceListParams, User } from "../types";
+// modules/allowance/providers/allowanceApi.ts
 
-// Helper interface for the API call to support ID filtering
+import useSWR from "swr";
+import type {
+  Allowance,
+  AllowanceListParams,
+  PayCycle,
+  User,
+} from "../types";
+
+/** Helper interface for the API call to support ID filtering */
 export interface ExtendedParams extends AllowanceListParams {
   filterUserIds?: number[] | null;
 }
 
 const API_ROUTE = "/api/allowance";
 
-/* ===========================
-   UTILITIES
-   =========================== */
+/* =========================== UTILITIES =========================== */
 
 export function iso(date: Date) {
   return date.toISOString().split("T")[0];
@@ -18,7 +23,7 @@ export function iso(date: Date) {
 
 export function formatCurrency(v: string | number) {
   const num = typeof v === "string" ? Number(v) : v;
-  if (isNaN(num)) return v;
+  if (Number.isNaN(num)) return String(v);
   return new Intl.NumberFormat("en-PH", {
     style: "currency",
     currency: "PHP",
@@ -31,32 +36,53 @@ export function fullnameFromUser(u: User) {
   return `${u.user_fname}${u.user_mname ? " " + u.user_mname : ""} ${u.user_lname}`;
 }
 
+/**
+ * Normalizes Directus/DB-ish truthy values.
+ * Supports: boolean, 0/1, "0"/"1", { type:"Buffer", data:[0|1] }
+ */
+export function flagToBool(v: unknown): boolean {
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v === 1;
+  if (typeof v === "string") return v === "1" || v.toLowerCase() === "true";
+  if (v && typeof v === "object") {
+    const maybe = v as { data?: unknown };
+    if (Array.isArray(maybe.data) && maybe.data.length > 0) {
+      return maybe.data[0] === 1;
+    }
+  }
+  return false;
+}
+
 export function computeCutoffFromDate(dStr: string) {
   if (!dStr) return { start: "", end: "" };
   const d = new Date(dStr);
   if (Number.isNaN(d.getTime())) return { start: "", end: "" };
+
   const day = d.getDate();
   const y = d.getFullYear();
   const m = d.getMonth();
 
-  let start: Date, end: Date;
+  let start: Date;
+  let end: Date;
+
+  // 11–25
   if (day >= 11 && day <= 25) {
     start = new Date(y, m, 11);
     end = new Date(y, m, 25);
   } else if (day >= 26) {
+    // 26–10 (cross month)
     start = new Date(y, m, 26);
     end = new Date(y, m + 1, 10);
   } else {
-    // days 1..10
+    // 1–10 -> previous month 26–current month 10
     start = new Date(y, m - 1, 26);
     end = new Date(y, m, 10);
   }
+
   return { start: iso(start), end: iso(end) };
 }
 
-/* ===========================
-   FETCHERS & API CALLS
-   =========================== */
+/* =========================== FETCHERS & API CALLS =========================== */
 
 const fetcher = (url: string) =>
   fetch(url).then(async (r) => {
@@ -77,39 +103,57 @@ async function getUsers(): Promise<User[]> {
   return json?.data ?? json ?? [];
 }
 
+function appendInFilter(sp: URLSearchParams, key: string, values: number[]) {
+  // Directus expects comma-separated list
+  sp.append(key, values.join(","));
+}
+
 async function getAllowancesList(params: ExtendedParams) {
   const sp = new URLSearchParams();
+
   sp.append("limit", String(params.pageSize));
   sp.append("offset", String((params.page - 1) * params.pageSize));
   sp.append("meta", "filter_count");
   sp.append("sort", "-created_date");
 
-  // 1. Filter: Processed Status
-  if (params.processed === "processed") sp.append("filter[is_processed][_eq]", "1");
-  if (params.processed === "unprocessed") sp.append("filter[is_processed][_eq]", "0");
+  // Always filter by mode
+  if (params.mode === "one_time") {
+    sp.append("filter[is_recurring][_eq]", "0");
 
-  // 2. Filter: Description
-  if (params.searchDescription) {
+    if (params.status === "processed") sp.append("filter[is_processed][_eq]", "1");
+    if (params.status === "unprocessed") sp.append("filter[is_processed][_eq]", "0");
+  } else {
+    sp.append("filter[is_recurring][_eq]", "1");
+
+    if (params.status === "active") sp.append("filter[is_active][_eq]", "1");
+    if (params.status === "inactive") sp.append("filter[is_active][_eq]", "0");
+
+    // Pay cycle filter (recurring only)
+    if (params.payCycle && params.payCycle !== "all") {
+      sp.append("filter[pay_cycle][_eq]", params.payCycle);
+    }
+  }
+
+  // Description filter
+  if (params.searchDescription?.trim()) {
     sp.append("filter[description][_icontains]", params.searchDescription.trim());
   }
 
-  // 3. Filter: Employee by IDs (Robust Method)
-  // Instead of filtering by a virtual name string, we filter by the actual User IDs 
-  // that matched the search on the client side.
+  // Employee filter by IDs (client-side match)
   if (params.filterUserIds !== undefined && params.filterUserIds !== null) {
     if (params.filterUserIds.length > 0) {
-      // We found users matching the name, search for their specific IDs
-      sp.append("filter[user_id][_in]", params.filterUserIds.join(","));
+      appendInFilter(sp, "filter[user_id][_in]", params.filterUserIds);
     } else {
-      // User typed a name (e.g. "Xyza") but no user exists with that name.
-      // We send a dummy ID (-1) to force the API to return 0 results.
+      // Force 0 results
       sp.append("filter[user_id][_in]", "-1");
     }
   }
 
   const json = await fetcher(`${API_ROUTE}?${sp.toString()}`);
+
   const rows: Allowance[] = json?.data ?? [];
   const total: number = json?.meta?.filter_count ?? json?.meta?.total ?? rows.length;
+
   return { rows, total };
 }
 
@@ -119,10 +163,12 @@ export async function createAllowance(payload: Partial<Allowance>) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+
   if (!res.ok) {
-    const err = await res.json();
+    const err = await res.json().catch(() => ({}));
     throw new Error(err.error || "Create failed");
   }
+
   return res.json();
 }
 
@@ -132,10 +178,12 @@ export async function updateAllowance(id: number, payload: Partial<Allowance>) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+
   if (!res.ok) {
-    const err = await res.json();
+    const err = await res.json().catch(() => ({}));
     throw new Error(err.error || "Update failed");
   }
+
   return res.json();
 }
 
@@ -143,37 +191,41 @@ export async function deleteAllowance(id: number) {
   const res = await fetch(`${API_ROUTE}?id=${id}`, {
     method: "DELETE",
   });
+
   if (!res.ok) {
-    const err = await res.json();
+    const err = await res.json().catch(() => ({}));
     throw new Error(err.error || "Delete failed");
   }
+
   return res;
 }
 
-/* ===========================
-   HOOKS
-   =========================== */
+/* =========================== HOOKS =========================== */
 
 export function useUsers() {
   const { data, error } = useSWR(`${API_ROUTE}?mode=users`, getUsers, {
     revalidateOnFocus: false,
   });
+
   return { users: data ?? [], loading: !data && !error, error };
 }
 
 export function useAllowancesQuery(params: ExtendedParams) {
-  // We include filterUserIds in the key so SWR refetches when the list of IDs changes
-  const userIdsKey = params.filterUserIds
-    ? params.filterUserIds.join(",")
-    : "all";
+  // include filterUserIds in key so SWR refetches when IDs change
+  const userIdsKey =
+    params.filterUserIds === null || params.filterUserIds === undefined
+      ? "all"
+      : params.filterUserIds.join(",");
 
   const key = [
     API_ROUTE,
     params.page,
     params.pageSize,
-    userIdsKey, // This triggers the refetch when search matching IDs change
-    params.searchDescription,
-    params.processed,
+    params.mode,
+    params.status ?? "all",
+    params.payCycle ?? "all",
+    userIdsKey,
+    params.searchDescription ?? "",
   ];
 
   const { data, error, isLoading, mutate } = useSWR(

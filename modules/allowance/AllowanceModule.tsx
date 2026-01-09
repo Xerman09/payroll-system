@@ -1,10 +1,14 @@
+// modules/allowance/AllowanceModule.tsx
 "use client";
 
-import React, { useCallback, useState, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { mutate } from "swr";
+
 import DashboardLayout from "@/components/layout/DashboardLayout";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -13,62 +17,78 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import {
   Plus,
   Search,
-  Filter,
-  RotateCcw,
   FileText,
+  RotateCcw,
+  Repeat,
+  CalendarClock,
   SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Allowance, FormRow } from "./types";
+import type {
+  Allowance,
+  AllowanceMode,
+  AllowanceSaveMeta,
+  AllowanceStatusFilter,
+  PayCycle,
+  FormRow,
+} from "./types";
+
 import {
   useAllowancesQuery,
   useUsers,
   createAllowance,
   updateAllowance,
   deleteAllowance,
-  fullnameFromUser, // <--- 1. Added import here
+  fullnameFromUser,
 } from "./providers/allowanceApi";
 
 import AllowanceTable from "./components/AllowanceTable";
 import AllowanceModal from "./components/AllowanceModal";
 
+const PAGE_SIZE = 10;
+
+const PAY_CYCLE_FILTERS: Array<{ value: "all" | PayCycle; label: string }> = [
+  { value: "all", label: "All Pay Cycles" },
+  { value: "PER_CUTOFF", label: "PER_CUTOFF" },
+  { value: "PER_MONTH", label: "PER_MONTH" },
+];
+
 export default function AllowanceModule() {
   const { users, loading: usersLoading } = useUsers();
 
-  // -- State --
+  // Tabs
+  const [mode, setMode] = useState<AllowanceMode>("one_time");
+
+  // Paging & filters
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 10;
   const [searchName, setSearchName] = useState("");
   const [searchDescription, setSearchDescription] = useState("");
-  const [filterProcessed, setFilterProcessed] = useState<
-    "all" | "processed" | "unprocessed"
-  >("all");
+  const [statusFilter, setStatusFilter] =
+    useState<AllowanceStatusFilter>("all");
 
-  // -- Dialog State --
+  // Recurring-only filter
+  const [payCycleFilter, setPayCycleFilter] = useState<"all" | PayCycle>("all");
+
+  // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Allowance | null>(null);
 
-  // -- Logic: Convert Name Search to User IDs --
-  // We use the already loaded 'users' list to find IDs that match the typed name.
+  // Convert typed name -> user IDs
   const filterUserIds = useMemo(() => {
-    if (!searchName.trim()) return null; // No filter if search is empty
+    if (!searchName.trim()) return null;
+    const lower = searchName.toLowerCase();
 
-    const lowerSearch = searchName.toLowerCase();
-
-    // Find all users whose name contains the search string
     return users
-      .filter((u) => {
-        const fullName = fullnameFromUser(u).toLowerCase();
-        return fullName.includes(lowerSearch);
-      })
+      .filter((u) => fullnameFromUser(u).toLowerCase().includes(lower))
       .map((u) => u.user_id);
   }, [searchName, users]);
 
-  // -- Data --
   const {
     rows: allowances,
     total,
@@ -79,11 +99,12 @@ export default function AllowanceModule() {
     pageSize: PAGE_SIZE,
     searchName,
     searchDescription,
-    processed: filterProcessed,
-    filterUserIds, // <--- 2. Pass the calculated IDs here
+    mode,
+    status: statusFilter,
+    payCycle: mode === "recurring" ? payCycleFilter : "all",
+    filterUserIds,
   });
 
-  // -- Handlers --
   const reloadAll = useCallback(() => {
     reloadAllowances();
     mutate("/api/allowance?mode=users");
@@ -92,16 +113,47 @@ export default function AllowanceModule() {
   const handleSave = async (
     rows: FormRow[],
     employeeId: number,
-    dates: { start: string; end: string }
+    meta: AllowanceSaveMeta
   ) => {
-    const payloads = rows.map((r) => ({
-      user_id: employeeId,
-      amount: Number(r.amount).toFixed(2),
-      description: r.type === "Others" ? r.other : r.type,
-      cutoff_start: dates.start,
-      cutoff_end: dates.end,
-      is_processed: editing?.is_processed ?? 0,
-    }));
+    const payloads = rows.map((r) => {
+      const description = r.type === "Others" ? (r.other ?? "").trim() : r.type;
+
+      const base = {
+        user_id: employeeId,
+        amount: Number(r.amount).toFixed(2),
+        description,
+      };
+
+      if (meta.mode === "one_time") {
+        return {
+          ...base,
+          is_recurring: 0,
+          pay_cycle: "N/A" as const,
+          start_date: null,
+          end_date: null,
+          is_active: true,
+
+          cutoff_start: meta.cutoff_start,
+          cutoff_end: meta.cutoff_end,
+
+          is_processed: editing?.is_processed ?? 0,
+        };
+      }
+
+      return {
+        ...base,
+        is_recurring: 1,
+        pay_cycle: meta.pay_cycle,
+        start_date: meta.start_date,
+        end_date: meta.end_date,
+        is_active: meta.is_active,
+
+        cutoff_start: null,
+        cutoff_end: null,
+
+        is_processed: editing?.is_processed ?? 0,
+      };
+    });
 
     try {
       if (editing) {
@@ -113,11 +165,12 @@ export default function AllowanceModule() {
         }
         toast.success("Allowance(s) created successfully.");
       }
+
       setDialogOpen(false);
       setEditing(null);
       reloadAll();
     } catch (err) {
-      console.error(err);
+      console.error("[allowance] save error:", err);
       const msg = err instanceof Error ? err.message : String(err);
       toast.error("Failed: " + msg);
     }
@@ -130,153 +183,241 @@ export default function AllowanceModule() {
       reloadAll();
       toast.success("Deleted successfully.");
     } catch (err) {
-      console.error(err);
+      console.error("[allowance] delete error:", err);
       const msg = err instanceof Error ? err.message : String(err);
       toast.error("Delete failed: " + msg);
     }
   };
 
-  // Reset Filters
   const handleReset = () => {
     setSearchName("");
     setSearchDescription("");
-    setFilterProcessed("all");
-    setPage(1); // Good practice to reset page on reset
+    setStatusFilter("all");
+    setPayCycleFilter("all");
+    setPage(1);
+    toast.info("Filters reset");
   };
+
+  const statusOptions =
+    mode === "one_time"
+      ? [
+          { value: "all" as const, label: "All Status" },
+          { value: "processed" as const, label: "Processed" },
+          { value: "unprocessed" as const, label: "Pending" },
+        ]
+      : [
+          { value: "all" as const, label: "All Status" },
+          { value: "active" as const, label: "Active" },
+          { value: "inactive" as const, label: "Inactive" },
+        ];
 
   return (
     <DashboardLayout>
-      <div className="flex-1 space-y-4 p-8 pt-6">
-        {/* HEADER SECTION */}
-        <div className="flex items-center justify-between space-y-2">
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        {/* Header Row (COOP-style) */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
               Allowance Management
-            </h2>
-            <p className="text-muted-foreground mt-1">
-              Manage employee allowances, cutoffs, and processing status.
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage one-time (cutoff) and recurring allowances (monthly / per
+              cutoff).
             </p>
           </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setDialogOpen(true);
-              }}
-              className="bg-primary text-primary-foreground shadow hover:bg-primary/90"
-              size="lg"
-            >
-              <Plus className="w-4 h-4 mr-2" /> Add Allowance
-            </Button>
-          </div>
+
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setDialogOpen(true);
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            {mode === "one_time" ? "Add One-time" : "Add Recurring"}
+          </Button>
         </div>
+
         <Separator />
 
-        {/* MAIN CONTENT CARD */}
-        <div className="rounded-xl border bg-card text-card-foreground shadow-sm mt-6">
-          <div className="p-6 space-y-6">
-            {/* TOOLBAR / FILTERS */}
-            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-              {/* Left Side: Search Inputs */}
-              <div className="flex flex-1 flex-col sm:flex-row gap-4 w-full lg:w-auto">
-                <div className="relative w-full sm:w-[280px]">
+        {/* Main Content Card (COOP-style) */}
+        <Card className="shadow-sm border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+          <CardContent className="p-6 space-y-6">
+            {/* Filters Row (COOP-style grid) */}
+            {/* Filters Row (inline Pay Cycle when recurring) */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+              {/* Search employee */}
+              <div
+                className={`space-y-2 ${
+                  mode === "recurring" ? "md:col-span-3" : "md:col-span-4"
+                }`}
+              >
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Search employee
+                </Label>
+                <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search employee..."
+                    placeholder="Type name..."
                     value={searchName}
                     onChange={(e) => {
                       setSearchName(e.target.value);
                       setPage(1);
                     }}
-                    className="pl-9 bg-background"
+                    className="pl-9"
                   />
                 </div>
+              </div>
 
-                <div className="relative w-full sm:w-[280px]">
+              {/* Search description */}
+              <div
+                className={`space-y-2 ${
+                  mode === "recurring" ? "md:col-span-3" : "md:col-span-4"
+                }`}
+              >
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Search description
+                </Label>
+                <div className="relative">
                   <FileText className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search description..."
+                    placeholder="Type description..."
                     value={searchDescription}
                     onChange={(e) => {
                       setSearchDescription(e.target.value);
                       setPage(1);
                     }}
-                    className="pl-9 bg-background"
+                    className="pl-9"
                   />
                 </div>
               </div>
 
-              {/* Right Side: Filters & Actions */}
-              <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
-                <div className="w-full sm:w-[180px]">
+              {/* Status filter */}
+              <div className="md:col-span-2 space-y-2">
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Status
+                </Label>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => {
+                    setStatusFilter(v as AllowanceStatusFilter);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <div className="flex items-center gap-2">
+                      <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+                      <SelectValue placeholder="Select status" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Pay cycle filter (recurring only) */}
+              {mode === "recurring" && (
+                <div className="md:col-span-2 space-y-2">
+                  <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Pay Cycle
+                  </Label>
                   <Select
-                    value={filterProcessed}
+                    value={payCycleFilter}
                     onValueChange={(v) => {
-                      setFilterProcessed(v as any);
+                      setPayCycleFilter(v as "all" | PayCycle);
                       setPage(1);
                     }}
                   >
-                    <SelectTrigger className="bg-background">
-                      <div className="flex items-center gap-2">
-                        <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
-                        <SelectValue placeholder="Filter status" />
-                      </div>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select pay cycle" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="processed">Processed</SelectItem>
-                      <SelectItem value="unprocessed">Pending</SelectItem>
+                      {PAY_CYCLE_FILTERS.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
+              )}
 
-                <div className="flex items-center gap-1">
+              {/* Quick Actions */}
+              <div className="md:col-span-2 space-y-2">
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Quick Actions
+                </Label>
+                <div className="flex gap-2">
                   <Button
                     variant="outline"
-                    size="icon"
+                    className="flex-1"
                     onClick={handleReset}
-                    title="Reset Filters"
-                    className="h-10 w-10 shrink-0"
                   >
-                    <Filter className="h-4 w-4" />
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={reloadAll}
-                    title="Refresh Data"
-                    className="h-10 w-10 shrink-0"
-                  >
-                    <RotateCcw className="h-4 w-4" />
+                    <RotateCcw className="h-3.5 w-3.5 mr-2" /> Reset
                   </Button>
                 </div>
               </div>
             </div>
 
-            {/* TABLE SECTION */}
-            <div className="rounded-md border">
-              <AllowanceTable
-                data={allowances}
-                loading={allowancesLoading}
-                total={total}
-                page={page}
-                pageSize={PAGE_SIZE}
-                users={users}
-                onPageChange={setPage}
-                onEdit={(item) => {
-                  setEditing(item);
-                  setDialogOpen(true);
-                }}
-                onDelete={handleDelete}
-              />
-            </div>
-          </div>
-        </div>
+            {/* Tabs BELOW fields (your request) */}
+            <Tabs
+              value={mode}
+              onValueChange={(v) => {
+                const next = v as AllowanceMode;
+                setMode(next);
+                setPage(1);
+                setStatusFilter("all");
+                if (next === "one_time") setPayCycleFilter("all");
+              }}
+              className="w-full"
+            >
+              <TabsList className="grid w-full grid-cols-2 mb-2">
+                <TabsTrigger value="one_time">
+                  <span className="inline-flex items-center gap-2">
+                    <CalendarClock className="h-4 w-4" />
+                    One-time Allowances
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="recurring">
+                  <span className="inline-flex items-center gap-2">
+                    <Repeat className="h-4 w-4" />
+                    Recurring Allowances
+                  </span>
+                </TabsTrigger>
+              </TabsList>
 
-        {/* MODAL */}
+              {/* Table (shared) */}
+              <TabsContent value={mode} className="mt-0 space-y-4">
+                <div className="rounded-md border bg-white dark:bg-gray-800 overflow-hidden shadow-sm">
+                  <AllowanceTable
+                    mode={mode}
+                    data={allowances}
+                    loading={allowancesLoading}
+                    total={total}
+                    page={page}
+                    pageSize={PAGE_SIZE}
+                    users={users}
+                    onPageChange={setPage}
+                    onEdit={(item) => {
+                      setEditing(item);
+                      setDialogOpen(true);
+                    }}
+                    onDelete={handleDelete}
+                  />
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* Modal */}
         <AllowanceModal
-          key={editing ? editing.allowance_id : "new"}
+          key={editing ? editing.allowance_id : `new-${mode}`}
           open={dialogOpen}
           onOpenChange={(open) => {
             if (!open) setEditing(null);
@@ -285,6 +426,7 @@ export default function AllowanceModule() {
           editing={editing}
           users={users}
           usersLoading={usersLoading}
+          defaultMode={mode}
           onSave={handleSave}
         />
       </div>

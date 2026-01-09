@@ -1,0 +1,1 @@
+export { CoopManagementModule } from "./CoopManagementModule";

@@ -1,3 +1,5 @@
+// modules/allowance/components/AllowanceTable.tsx
+
 import React from "react";
 import {
   Table,
@@ -9,23 +11,33 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Edit2, CalendarClock } from "lucide-react";
-import { Allowance, User } from "../types";
-import { formatCurrency, fullnameFromUser } from "../providers/allowanceApi";
+import { Trash2, Edit2, CalendarClock, Repeat, Calendar } from "lucide-react";
+
+import type { Allowance, AllowanceMode, User } from "../types";
+import {
+  flagToBool,
+  formatCurrency,
+  fullnameFromUser,
+} from "../providers/allowanceApi";
 
 interface Props {
+  mode: AllowanceMode;
+
   data: Allowance[];
   loading: boolean;
   total: number;
   page: number;
   pageSize: number;
+
   users: User[];
+
   onPageChange: (newPage: number) => void;
   onEdit: (item: Allowance) => void;
   onDelete: (id: number) => void;
 }
 
 export default function AllowanceTable({
+  mode,
   data,
   loading,
   total,
@@ -48,23 +60,39 @@ export default function AllowanceTable({
             <TableHead>Employee</TableHead>
             <TableHead className="text-right">Amount</TableHead>
             <TableHead>Description</TableHead>
-            <TableHead>Cutoff Period</TableHead>
-            <TableHead>Status</TableHead>
-            {/* Added pr-6 to give space from the right edge */}
+
+            {mode === "one_time" ? (
+              <>
+                <TableHead>Cutoff Period</TableHead>
+                <TableHead>Status</TableHead>
+              </>
+            ) : (
+              <>
+                <TableHead>Pay Cycle</TableHead>
+                <TableHead>Start</TableHead>
+                <TableHead>End</TableHead>
+                <TableHead>Status</TableHead>
+              </>
+            )}
+
             <TableHead className="text-right w-[120px] pr-6">Actions</TableHead>
           </TableRow>
         </TableHeader>
+
         <TableBody>
           {loading ? (
             <TableRow>
-              <TableCell colSpan={7} className="h-24 text-center">
+              <TableCell
+                colSpan={mode === "one_time" ? 7 : 9}
+                className="h-24 text-center"
+              >
                 Loading records...
               </TableCell>
             </TableRow>
           ) : data.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={7}
+                colSpan={mode === "one_time" ? 7 : 9}
                 className="h-24 text-center text-muted-foreground"
               >
                 No records found.
@@ -73,10 +101,14 @@ export default function AllowanceTable({
           ) : (
             data.map((a, idx) => {
               const idxGlobal = (effectivePage - 1) * pageSize + idx + 1;
+
               const user = users.find((u) => u.user_id === a.user_id);
               const displayName = user
                 ? fullnameFromUser(user)
                 : a.user_full_name || `User #${a.user_id}`;
+
+              const isRecurring = flagToBool(a.is_recurring);
+              const isActive = flagToBool(a.is_active);
 
               return (
                 <TableRow
@@ -88,7 +120,12 @@ export default function AllowanceTable({
                   </TableCell>
 
                   <TableCell>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      {isRecurring ? (
+                        <Repeat className="w-4 h-4 text-muted-foreground" />
+                      ) : (
+                        <CalendarClock className="w-4 h-4 text-muted-foreground" />
+                      )}
                       <span className="font-medium text-sm">{displayName}</span>
                     </div>
                   </TableCell>
@@ -103,35 +140,78 @@ export default function AllowanceTable({
                     </Badge>
                   </TableCell>
 
-                  <TableCell>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <CalendarClock className="w-3.5 h-3.5" />
-                      <div className="flex flex-col text-xs">
-                        <span>{a.cutoff_start}</span>
-                        <span>{a.cutoff_end}</span>
-                      </div>
-                    </div>
-                  </TableCell>
+                  {mode === "one_time" ? (
+                    <>
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <CalendarClock className="w-3.5 h-3.5" />
+                          <div className="flex flex-col text-xs">
+                            <span>{a.cutoff_start ?? "-"}</span>
+                            <span>{a.cutoff_end ?? "-"}</span>
+                          </div>
+                        </div>
+                      </TableCell>
 
-                  <TableCell>
-                    {Number(a.is_processed) === 1 ? (
-                      <Badge
-                        variant="default"
-                        className="bg-green-600/15 text-green-700 hover:bg-green-600/25 border-green-200 shadow-none font-medium"
-                      >
-                        Processed
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="secondary"
-                        className="font-medium text-muted-foreground bg-muted"
-                      >
-                        Pending
-                      </Badge>
-                    )}
-                  </TableCell>
+                      <TableCell>
+                        {Number(a.is_processed) === 1 ? (
+                          <Badge
+                            variant="default"
+                            className="bg-green-600/15 text-green-700 hover:bg-green-600/25 border-green-200 shadow-none font-medium"
+                          >
+                            Processed
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="secondary"
+                            className="font-medium text-muted-foreground bg-muted"
+                          >
+                            Pending
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </>
+                  ) : (
+                    <>
+                      <TableCell>
+                        <Badge variant="secondary" className="text-xs">
+                          {a.pay_cycle}
+                        </Badge>
+                      </TableCell>
 
-                  {/* Added pr-6 here as well to match header */}
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Calendar className="w-3.5 h-3.5" />
+                          <span>{a.start_date ?? "-"}</span>
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Calendar className="w-3.5 h-3.5" />
+                          <span>{a.end_date ?? "-"}</span>
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        {isActive ? (
+                          <Badge
+                            variant="default"
+                            className="bg-green-600/15 text-green-700 hover:bg-green-600/25 border-green-200 shadow-none font-medium"
+                          >
+                            Active
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="secondary"
+                            className="font-medium text-muted-foreground bg-muted"
+                          >
+                            Inactive
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </>
+                  )}
+
                   <TableCell className="text-right pr-6">
                     <div className="flex items-center justify-end gap-1">
                       <Button
@@ -143,6 +223,7 @@ export default function AllowanceTable({
                       >
                         <Edit2 className="h-4 w-4" />
                       </Button>
+
                       <Button
                         variant="ghost"
                         size="icon"
@@ -168,6 +249,7 @@ export default function AllowanceTable({
           <b>{data.length > 0 ? (effectivePage - 1) * pageSize + 1 : 0}</b> -{" "}
           <b>{Math.min(effectivePage * pageSize, total)}</b> of <b>{total}</b>
         </div>
+
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -178,9 +260,11 @@ export default function AllowanceTable({
           >
             Previous
           </Button>
+
           <div className="text-xs font-medium px-2">
             Page {effectivePage} of {totalPages}
           </div>
+
           <Button
             variant="outline"
             size="sm"
