@@ -54,26 +54,32 @@ export function LoansTab({
       try {
         const offset = (currentPage - 1) * rowsPerPage;
 
+        // ✅ IMPORTANT: Filter to COOP only (server-side)
         const { data: loanList, meta } = await listItems<EmployeeLoan>(
           "employee_loan",
           {
             limit: String(rowsPerPage),
             offset: String(offset),
             meta: "filter_count",
+            ["filter[loan_type][_eq]"]: "COOP",
           },
           signal
         );
 
         if (signal?.aborted) return;
 
-        const total: number = meta?.filter_count ?? meta?.total ?? loanList.length;
+        const total: number =
+          meta?.filter_count ?? meta?.total ?? loanList.length;
+
         setLoans(loanList);
         setTotalLoans(total);
 
         const userIds = Array.from(
           new Set(loanList.map((ln) => Number(ln.user_id)).filter(Boolean))
         );
-        const loanIds = loanList.map((ln) => Number(ln.loan_id)).filter(Boolean);
+        const loanIds = loanList
+          .map((ln) => Number(ln.loan_id))
+          .filter(Boolean);
 
         let userList: User[] = [];
         if (userIds.length > 0) {
@@ -140,7 +146,11 @@ export function LoansTab({
 
   const handleSort = (key: string) => {
     let direction: "asc" | "desc" = "asc";
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
+    if (
+      sortConfig &&
+      sortConfig.key === key &&
+      sortConfig.direction === "asc"
+    ) {
       direction = "desc";
     }
     setSortConfig({ key, direction });
@@ -151,6 +161,7 @@ export function LoansTab({
     try {
       await deleteItem("employee_loan", loanId);
       setLoans((prev) => prev.filter((l) => l.loan_id !== loanId));
+      setTotalLoans((prev) => Math.max(0, prev - 1)); // keep paging label consistent
       toast.success("Deleted successfully.");
     } catch (err) {
       console.error(err);
@@ -196,7 +207,9 @@ export function LoansTab({
   return (
     <>
       <div className="rounded-md border bg-white dark:bg-gray-800 overflow-hidden shadow-sm">
-        {error && <div className="p-4 text-sm text-red-600 bg-red-50">{error}</div>}
+        {error && (
+          <div className="p-4 text-sm text-red-600 bg-red-50">{error}</div>
+        )}
 
         <Table>
           <TableHeader className="bg-gray-50 dark:bg-gray-900/50">
@@ -255,14 +268,20 @@ export function LoansTab({
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={8} className="h-12 text-center text-gray-400">
+                  <TableCell
+                    colSpan={8}
+                    className="h-12 text-center text-gray-400"
+                  >
                     Loading...
                   </TableCell>
                 </TableRow>
               ))
             ) : processedRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={8}
+                  className="h-24 text-center text-muted-foreground"
+                >
                   No records found
                 </TableCell>
               </TableRow>
@@ -272,7 +291,9 @@ export function LoansTab({
                   key={row.loan.loan_id}
                   className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
                 >
-                  <TableCell className="font-medium text-gray-500">{startRow + idx}</TableCell>
+                  <TableCell className="font-medium text-gray-500">
+                    {startRow + idx}
+                  </TableCell>
 
                   <TableCell className="font-medium text-gray-900 dark:text-gray-100">
                     {row.name}
@@ -338,8 +359,9 @@ export function LoansTab({
 
       <div className="flex items-center justify-between mt-4">
         <div className="text-sm text-gray-500">
-          Showing <span className="font-medium">{totalLoans > 0 ? startRow : 0}</span> to{" "}
-          <span className="font-medium">{endRow}</span> of{" "}
+          Showing{" "}
+          <span className="font-medium">{totalLoans > 0 ? startRow : 0}</span>{" "}
+          to <span className="font-medium">{endRow}</span> of{" "}
           <span className="font-medium">{totalLoans}</span>
         </div>
 
@@ -372,7 +394,15 @@ export function LoansTab({
         isOpen={isAddModalOpen}
         onClose={onCloseAddModal}
         onCreate={(loan) => {
+          // Optional guard: only show COOP loans in this tab
+          if ((loan as any)?.loan_type && (loan as any).loan_type !== "COOP") {
+            toast.message("Loan created, but not shown here (not COOP).");
+            onCloseAddModal();
+            return;
+          }
+
           setLoans((prev) => [loan, ...prev]);
+          setTotalLoans((prev) => prev + 1);
           onCloseAddModal();
         }}
       />
@@ -382,7 +412,22 @@ export function LoansTab({
         loan={editingLoan}
         onClose={() => setEditingLoan(null)}
         onUpdated={(updated) => {
-          setLoans((prev) => prev.map((l) => (l.loan_id === updated.loan_id ? updated : l)));
+          // Optional guard: if edited away from COOP, remove from list
+          if (
+            (updated as any)?.loan_type &&
+            (updated as any).loan_type !== "COOP"
+          ) {
+            setLoans((prev) =>
+              prev.filter((l) => l.loan_id !== updated.loan_id)
+            );
+            setTotalLoans((prev) => Math.max(0, prev - 1));
+            setEditingLoan(null);
+            return;
+          }
+
+          setLoans((prev) =>
+            prev.map((l) => (l.loan_id === updated.loan_id ? updated : l))
+          );
           setEditingLoan(null);
         }}
       />

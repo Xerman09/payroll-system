@@ -550,7 +550,7 @@ export default function AdditionsDeductionsModule() {
                     </TableHead>
 
                     <TableHead
-                      className="cursor-pointer hover:bg-gray-100 select-none w-[160px]"
+                      className="cursor-pointer hover:bg-gray-100 select-none w-40"
                       onClick={() => handleSort("amount")}
                     >
                       <div className="flex items-center gap-1">

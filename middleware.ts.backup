@@ -1,0 +1,36 @@
+import { auth } from "@/auth"
+
+export default auth((req: any) => {
+  const { pathname } = req.nextUrl
+
+  // Allow auth-related routes to pass through
+  if (pathname.startsWith("/api/auth/") || pathname === "/auth/login") {
+    return
+  }
+
+  // Protect API routes (except auth routes)
+  if (pathname.startsWith("/api/")) {
+    if (!req.auth) {
+      return Response.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      )
+    }
+  }
+
+  // Protect dashboard routes
+  if (pathname.startsWith("/dashboard")) {
+    if (!req.auth) {
+      return Response.redirect(new URL("/auth/login", req.url))
+    }
+  }
+
+  return
+})
+
+export const config = {
+  matcher: [
+    "/api/:path*",
+    "/dashboard/:path*",
+  ],
+}

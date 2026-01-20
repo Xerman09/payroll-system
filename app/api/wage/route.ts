@@ -5,7 +5,6 @@ import { NextResponse } from "next/server";
 const BASE = process.env.API_BASE || process.env.NEXT_PUBLIC_API_BASE;
 
 // Optional service token (recommended for server-to-Directus calls)
-// If set, it will be used when the browser request has no Authorization header.
 const SERVICE_TOKEN =
   process.env.DIRECTUS_TOKEN ||
   process.env.DIRECTUS_SERVICE_TOKEN ||
@@ -23,15 +22,12 @@ function buildForwardHeaders(req: NextRequest, contentType?: string) {
 
   if (contentType) headers["Content-Type"] = contentType;
 
-  // Forward incoming Authorization if present (browser may not have this)
   const auth = req.headers.get("authorization");
   if (auth) headers["Authorization"] = auth;
 
-  // Forward cookies (if your Directus auth uses cookies)
   const cookie = req.headers.get("cookie");
   if (cookie) headers["Cookie"] = cookie;
 
-  // If no incoming Authorization, use service token if available
   if (!headers["Authorization"] && SERVICE_TOKEN) {
     headers["Authorization"] = `Bearer ${SERVICE_TOKEN}`;
   }
@@ -76,12 +72,13 @@ export async function GET(req: NextRequest) {
     });
 
     const data = await parseJsonSafe(res);
-
-    // ✅ propagate status code from Directus
     return NextResponse.json(data, { status: res.status });
   } catch (e: any) {
-    console.error("API wage GET error: - route.ts:83", e);
-    return NextResponse.json({ error: e?.message || "GET failed" }, { status: 500 });
+    console.error("API wage GET error: - route.ts:77", e);
+    return NextResponse.json(
+      { error: e?.message || "GET failed" },
+      { status: 500 }
+    );
   }
 }
 
@@ -109,12 +106,13 @@ export async function POST(req: NextRequest) {
     });
 
     const data = await parseJsonSafe(res);
-
-    // ✅ propagate Directus status code
     return NextResponse.json(data, { status: res.status });
   } catch (e: any) {
-    console.error("API wage POST error: - route.ts:116", e);
-    return NextResponse.json({ error: e?.message || "POST failed" }, { status: 500 });
+    console.error("API wage POST error: - route.ts:111", e);
+    return NextResponse.json(
+      { error: e?.message || "POST failed" },
+      { status: 500 }
+    );
   }
 }
 
@@ -142,11 +140,57 @@ export async function PATCH(req: NextRequest) {
     });
 
     const data = await parseJsonSafe(res);
-
-    // ✅ propagate Directus status code
     return NextResponse.json(data, { status: res.status });
   } catch (e: any) {
-    console.error("API wage PATCH error: - route.ts:149", e);
-    return NextResponse.json({ error: e?.message || "PATCH failed" }, { status: 500 });
+    console.error("API wage PATCH error: - route.ts:145", e);
+    return NextResponse.json(
+      { error: e?.message || "PATCH failed" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    if (!BASE) {
+      return NextResponse.json(
+        { error: "Missing API base URL (API_BASE / NEXT_PUBLIC_API_BASE)" },
+        { status: 500 }
+      );
+    }
+
+    // Support both body.path and ?path=... for flexibility
+    const url = new URL(req.url);
+    const queryPath = url.searchParams.get("path") || "";
+
+    const body = await req.json().catch(() => null);
+    const bodyPath = body?.path as string | undefined;
+
+    const path = bodyPath || queryPath;
+    if (!path) {
+      return NextResponse.json(
+        { error: "Missing body.path or query ?path=" },
+        { status: 400 }
+      );
+    }
+
+    const res = await fetch(joinUrl(BASE, path), {
+      method: "DELETE",
+      headers: buildForwardHeaders(req),
+    });
+
+    // Directus may return 204 No Content
+    if (res.status === 204) {
+      return NextResponse.json({ ok: true }, { status: 200 });
+    }
+
+    const data = await parseJsonSafe(res);
+    return NextResponse.json(data, { status: res.status });
+  } catch (e: any) {
+    console.error("API wage DELETE error: - route.ts:190", e);
+    return NextResponse.json(
+      { error: e?.message || "DELETE failed" },
+      { status: 500 }
+    );
   }
 }

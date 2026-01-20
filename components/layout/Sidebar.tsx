@@ -75,7 +75,7 @@ function Sidebar() {
             icon: <Calendar size={20} />,
           },
           {
-            title: "Benefit Settings",
+            title: "Benefits Management",
             href: "/dashboard/benefit-settings",
             icon: <HandCoins size={20} />,
           },

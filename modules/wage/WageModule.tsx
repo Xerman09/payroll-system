@@ -7,7 +7,8 @@ import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 
 import type { Department, Employee, WagePayload, WageDataState } from "./types";
-import * as wageApi from "./providers/wageApi";
+import * as wageApi from "./providers/wageApi"; // ✅ correct path
+
 import EmployeeTable from "./components/EmployeeTable";
 import PasswordDialog from "./components/PasswordDialog";
 import WageModal from "./components/WageModal";
@@ -36,7 +37,7 @@ export function WageModule() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
 
-  // Optional cache (not relied on for logging anymore)
+  // Optional cache
   const [previousDailyWage, setPreviousDailyWage] = useState<number | null>(
     null
   );
@@ -177,8 +178,6 @@ export function WageModule() {
       ).substring(0, 10);
 
       const dailyWageNum = Number(record.daily_wage) || 0;
-
-      // cache only (save will refetch anyway)
       setPreviousDailyWage(dailyWageNum);
 
       setWageData({
@@ -210,19 +209,16 @@ export function WageModule() {
     if (!window.confirm(`Save settings for ${selectedEmployee.user_fname}?`))
       return;
 
-    // ✅ Local date (browser time) -> YYYY-MM-DD
     const now = new Date();
     const todayYmd = `${now.getFullYear()}-${String(
       now.getMonth() + 1
     ).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
-    // ✅ Authoritative previous wage: re-fetch current record now
     let currentRecord = null;
     try {
       currentRecord = await wageApi.fetchWageByUser(selectedEmployee.user_id);
     } catch (e) {
       console.error("[Wage] Failed to refetch current wage record", e);
-      // fallback to cached state
       currentRecord = null;
     }
 
@@ -241,13 +237,9 @@ export function WageModule() {
 
     const nextWageNum = Number(wageData.dailyWage) || 0;
 
-    // Compare at 2 decimals to avoid 468 vs 468.00 issues
     const prevWageFixed = prevWageNum.toFixed(2);
     const nextWageFixed = nextWageNum.toFixed(2);
 
-    // ✅ Log rule:
-    // - If existing record: log only when daily wage changes
-    // - If new record: log creation as change from 0.00 -> new rate (if new rate > 0)
     const wageChanged =
       existingId !== null ? prevWageFixed !== nextWageFixed : nextWageNum > 0;
 
@@ -262,8 +254,6 @@ export function WageModule() {
       sss_contribution_monthly: wageData.sss,
       pagibig_contribution_monthly: wageData.pagibig,
       philhealth_contribution_monthly: wageData.philhealth,
-
-      // ✅ store date only when wage changes (or when creating)
       ...(wageChanged ? { cutoff_wage_date_update: todayYmd } : {}),
     };
 
@@ -271,16 +261,13 @@ export function WageModule() {
       if (existingId) {
         await wageApi.patchWage(existingId, payload);
       } else {
-        // On create, we also store the update date for traceability
         payload.cutoff_wage_date_update = todayYmd;
         await wageApi.createWage(payload);
       }
 
-      // ✅ Write proration log (separate error handling so wage save won't be blocked)
       if (wageChanged) {
         try {
           const cutoff = await wageApi.findCutoffSettingByDate(todayYmd);
-
           const cutoffId =
             cutoff?.id !== undefined && cutoff?.id !== null
               ? Number(cutoff.id)
@@ -289,24 +276,13 @@ export function WageModule() {
           if (!cutoffId) {
             console.warn(
               "[Wage] No cutoff_settings row matched date",
-              todayYmd,
-              "— proration log not created."
+              todayYmd
             );
             toast.warning(
               "Wage saved, but no active cutoff was found for today (proration log skipped)."
             );
           } else {
             await wageApi.createWageProrationLog({
-              user_id: selectedEmployee.user_id,
-              previous_daily_wage: existingId ? Number(prevWageFixed) : 0,
-              new_daily_wage: Number(nextWageFixed),
-              effective_date: todayYmd,
-              cutoff_id: cutoffId,
-              updated_by: logged.user_id,
-            });
-
-            // Optional: quick dev confirmation
-            console.info("[Wage] Proration log created", {
               user_id: selectedEmployee.user_id,
               previous_daily_wage: existingId ? Number(prevWageFixed) : 0,
               new_daily_wage: Number(nextWageFixed),

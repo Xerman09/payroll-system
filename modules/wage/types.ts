@@ -1,4 +1,7 @@
 // @modules/wage/types.ts
+
+export type LoanType = "VALE" | "CAR LOAN" | "COOP";
+
 export type Department = {
   department_id: number;
   department_name: string;
@@ -8,66 +11,71 @@ export type Employee = {
   user_id: number;
   user_fname: string;
   user_lname: string;
-  user_department: number | null;
-  is_deleted?: { data?: (number | null)[] } | null;
-};
+  user_department?: number | null;
 
-export type WagePayload = {
-  user_id: number;
-  daily_wage: number;
-  vacation_leave_per_year: number;
-  sick_leave_per_year: number;
-  paid_holiday: number | 0 | 1;
-
-  // ✅ Bank Card flag (DB: isCard)
-  isCard: number | 0 | 1;
-
-  // ✅ In your schema; we set this when daily_wage changes
-  cutoff_wage_date_update?: string | null; // YYYY-MM-DD
-
-  updated_by: number;
-  sss_contribution_monthly: string;
-  pagibig_contribution_monthly: string;
-  philhealth_contribution_monthly: string;
-};
-
-export type WageRecord = {
-  id?: number | null;
-  user_id: number;
-  daily_wage?: string | number;
-  cutoff_wage_date_update?: string | null;
-
-  vacation_leave_per_year?: string | number;
-  sick_leave_per_year?: string | number;
-  paid_holiday?: number | 0 | 1;
-
-  isCard?: number | 0 | 1 | null;
-
-  sss_contribution_monthly?: string;
-  pagibig_contribution_monthly?: string;
-  philhealth_contribution_monthly?: string;
-  updated_by?: number | null;
-  updated_date?: string | null;
-  created_by?: number | null;
-  created_date?: string | null;
+  // Some Directus setups store deleted flag as nullable or as relation wrapper.
+  // Keep it permissive to avoid runtime/TS friction.
+  is_deleted?: any;
 };
 
 export type WageDataState = {
-  id: number | null;
-  dailyWage: number;
+  id?: number | null;
+
   dailyWageInput: string;
+  dailyWage: number;
   vacationLeave: number;
   sickLeave: number;
   isPaidHoliday: boolean;
-
-  // ✅ UI state
   isCard: boolean;
 
   sss: string;
   pagibig: string;
   philhealth: string;
+
   lastUpdatedBy: string;
   lastUpdateDate: string;
+};
+
+export type WageRecord = {
+  id: number;
+  user_id: number;
+
+  daily_wage: string | number;
+  vacation_leave_per_year: string | number;
+  sick_leave_per_year: string | number;
+
+  paid_holiday: 0 | 1 | number;
+  isCard: 0 | 1 | number;
+
+  sss_contribution_monthly: string | number | null;
+  pagibig_contribution_monthly: string | number | null;
+  philhealth_contribution_monthly: string | number | null;
+
+  cutoff_wage_date_update?: string | null;
+
+  created_by: number | null;
+  created_date: string;
+  updated_by: number | null;
+  updated_date: string | null;
+};
+
+export type WagePayload = {
+  user_id: number;
+
+  daily_wage: number;
+  vacation_leave_per_year: number;
+  sick_leave_per_year: number;
+
+  paid_holiday: 0 | 1;
+  isCard: 0 | 1;
+
+  updated_by: number;
+
+  sss_contribution_monthly: string;
+  pagibig_contribution_monthly: string;
+  philhealth_contribution_monthly: string;
+
+  cutoff_wage_date_update?: string;
 };
 
 export type WageProrationLogPayload = {
@@ -75,17 +83,450 @@ export type WageProrationLogPayload = {
   previous_daily_wage: number;
   new_daily_wage: number;
   effective_date: string; // YYYY-MM-DD
-  cutoff_id: number; // cutoff_settings.id
+  cutoff_id: number;
   updated_by: number;
 };
 
+export type EmployeeLoanRecord = {
+  loan_id: number;
+  user_id: number;
+
+  loan_type: LoanType;
+  loan_amount: string | number;
+  months_to_pay: number;
+  monthly_payment: string | number;
+
+  start_date: string;
+  end_date: string | null;
+
+  interest_rate: string | number;
+  interest_amount: string | number;
+  net_amount_released: string | number;
+
+  status: string;
+
+  created_by: number | null;
+  created_date: string;
+  updated_by: number | null;
+  updated_date: string | null;
+};
+
+export type EmployeeLoanCreatePayload = {
+  user_id: number;
+
+  loan_type: LoanType;
+  loan_amount: number;
+  months_to_pay: number;
+  monthly_payment: number;
+
+  start_date: string;
+  end_date: string | null;
+
+  interest_rate: number;
+  interest_amount: number;
+  net_amount_released: number;
+
+  status: string;
+
+  created_by: number;
+  updated_by: number;
+};
+
+export type EmployeeLoanPatchPayload = Partial<{
+  loan_type: LoanType;
+  loan_amount: number;
+  months_to_pay: number;
+  monthly_payment: number;
+
+  start_date: string;
+  end_date: string | null;
+
+  interest_rate: number;
+  interest_amount: number;
+  net_amount_released: number;
+
+  status: string;
+
+  updated_by: number;
+}>;
+
+export type RetroPayRecord = {
+  retro_id: number;
+  user_id: number;
+
+  amount: string | number;
+  description: string | null;
+
+  cutoff_start: string;
+  cutoff_end: string;
+
+  is_processed: 0 | 1;
+
+  created_by: number | null;
+  created_date: string;
+  updated_by: number | null;
+  updated_date: string | null;
+};
+
+export type RetroPayDraft = {
+  amount: string;
+  description: string;
+
+  cutoff_setting_id: number | null;
+  cutoff_start: string;
+  cutoff_end: string;
+
+  is_processed: 0 | 1;
+};
+
+export type RetroPayCreatePayload = {
+  user_id: number;
+  amount: number;
+  description: string | null;
+  cutoff_start: string;
+  cutoff_end: string;
+  is_processed: 0 | 1;
+  created_by: number;
+  updated_by: number;
+};
+
+export type RetroPayPatchPayload = Partial<{
+  amount: number;
+  description: string | null;
+  cutoff_start: string;
+  cutoff_end: string;
+  is_processed: 0 | 1;
+  updated_by: number;
+}>;
+
 export type CutoffSetting = {
   id: number;
-  cutoff_type: string; // FIRST / SECOND
-  start_date: string; // YYYY-MM-DD
-  end_date: string; // YYYY-MM-DD
-  period_status?: string | null;
-  status?: string | null;
-  month?: number | null;
-  year?: number | null;
+  cutoff_type: "FIRST" | "SECOND";
+  year: number;
+  month: number;
+  start_date: string;
+  end_date: string;
+  payout_date: string;
+  period_status: "OPEN" | "CLOSED" | string;
+  status: "published" | "draft" | string;
+  created_by: string | number | null;
+  updated_by: string | number | null;
+  date_created: string;
+  date_updated: string;
 };
+
+// =======================================================
+// PAYROLL OTHER ADDITIONS / DEDUCTIONS
+// =======================================================
+
+export type PayrollOtherAdditionRecord = {
+  id: number;
+  user_id: number;
+
+  amount: string | number;
+  description: string | null;
+
+  cutoff_start: string; // YYYY-MM-DD
+  cutoff_end: string; // YYYY-MM-DD
+
+  created_by: number | null;
+  created_date: string;
+};
+
+export type PayrollOtherDeductionRecord = {
+  id: number;
+  user_id: number;
+
+  amount: string | number;
+  description: string | null;
+
+  cutoff_start: string; // YYYY-MM-DD
+  cutoff_end: string; // YYYY-MM-DD
+
+  created_by: number | null;
+  created_date: string;
+};
+
+export type PayrollOtherADDraft = {
+  amount: string;
+  description: string;
+
+  // UI-only helper (not part of DDL); we use it to choose a cutoff then store dates.
+  cutoff_setting_id: number | null;
+
+  cutoff_start: string; // YYYY-MM-DD
+  cutoff_end: string; // YYYY-MM-DD
+};
+
+export type PayrollOtherAdditionCreatePayload = {
+  user_id: number;
+  amount: number;
+  description: string | null;
+  cutoff_start: string; // YYYY-MM-DD
+  cutoff_end: string; // YYYY-MM-DD
+  created_by: number | null;
+};
+
+export type PayrollOtherAdditionPatchPayload = Partial<
+  Omit<PayrollOtherAdditionCreatePayload, "user_id" | "created_by">
+>;
+
+export type PayrollOtherDeductionCreatePayload = {
+  user_id: number;
+  amount: number;
+  description: string | null;
+  cutoff_start: string; // YYYY-MM-DD
+  cutoff_end: string; // YYYY-MM-DD
+  created_by: number | null;
+};
+
+export type PayrollOtherDeductionPatchPayload = Partial<
+  Omit<PayrollOtherDeductionCreatePayload, "user_id" | "created_by">
+>;
+
+// =======================================================
+// EMPLOYEE ALLOWANCE (employee_allowance)
+// =======================================================
+
+export type AllowancePayCycle = "N/A" | "PER_CUTOFF" | "PER_MONTH";
+
+export type EmployeeAllowanceRecord = {
+  allowance_id: number;
+  user_id: number;
+
+  amount: string | number;
+  description: string | null;
+
+  cutoff_start: string | null;
+  cutoff_end: string | null;
+
+  is_recurring: 0 | 1;
+  is_active: 0 | 1;
+  pay_cycle: AllowancePayCycle;
+
+  start_date: string | null;
+  end_date: string | null;
+
+  is_processed: 0 | 1;
+
+  created_by: number | null;
+  created_date: string;
+  updated_by: number | null;
+  updated_date: string | null;
+};
+
+export type EmployeeAllowanceDraft = {
+  amount: string;
+  description: string;
+
+  is_recurring: 0 | 1;
+  pay_cycle: AllowancePayCycle;
+
+  // One-time: select cutoff -> stored as dates
+  cutoff_setting_id: number | null;
+  cutoff_start: string;
+  cutoff_end: string;
+
+  // Recurring window:
+  start_date: string;
+  end_date: string;
+
+  is_active: 0 | 1;
+};
+
+export type EmployeeAllowanceCreatePayload = {
+  user_id: number;
+  amount: number;
+  description: string | null;
+
+  cutoff_start: string | null;
+  cutoff_end: string | null;
+
+  is_recurring: 0 | 1;
+  is_active: 0 | 1;
+  pay_cycle: AllowancePayCycle;
+
+  start_date: string | null;
+  end_date: string | null;
+
+  is_processed: 0 | 1;
+
+  created_by: number | null;
+  updated_by: number | null;
+};
+
+export type EmployeeAllowancePatchPayload = Partial<
+  Omit<EmployeeAllowanceCreatePayload, "user_id" | "created_by">
+>;
+
+// =======================================================
+// BENEFIT LOANS (benefit_loans)
+// =======================================================
+
+export type BenefitCode = "SSS" | "PAGIBIG";
+export type BenefitLoanDeductOn = "FIRST" | "SECOND" | "BOTH";
+export type BenefitLoanStatus = "ACTIVE" | "CLOSED" | "CANCELLED" | string;
+
+export type BenefitLoanRecord = {
+  loan_id: number;
+  user_id: number;
+
+  benefit_code: BenefitCode;
+  loan_name: string | null;
+  reference_no: string | null;
+
+  principal_amount: string | number;
+  interest_amount: string | number;
+  total_payable: string | number;
+
+  amortization_amount: string | number;
+  terms_installments: number;
+
+  deduct_on: BenefitLoanDeductOn;
+  start_cutoff_id: number;
+
+  paid_installments: number;
+  remaining_balance: string | number;
+
+  last_paid_cutoff_id: number | null;
+
+  status: BenefitLoanStatus;
+  remarks: string | null;
+
+  created_by: number | null;
+  created_date: string;
+  updated_by: number | null;
+  updated_date: string | null;
+};
+
+export type BenefitLoanDraft = {
+  benefit_code: BenefitCode;
+  loan_name: string;
+  reference_no: string;
+
+  principal_amount: string;
+  interest_amount: string;
+
+  // computed
+  total_payable: string;
+  amortization_amount: string;
+
+  terms_installments: string;
+  deduct_on: BenefitLoanDeductOn;
+
+  start_cutoff_id: number | null;
+
+  // tracked by payroll, but keep in draft for correct remaining calc
+  paid_installments: number;
+
+  // computed
+  remaining_balance: string;
+
+  status: BenefitLoanStatus;
+  remarks: string;
+};
+
+export type BenefitLoanCreatePayload = {
+  user_id: number;
+  benefit_code: BenefitCode;
+  loan_name: string | null;
+  reference_no: string | null;
+
+  principal_amount: number;
+  interest_amount: number;
+  total_payable: number;
+
+  amortization_amount: number;
+  terms_installments: number;
+
+  deduct_on: BenefitLoanDeductOn;
+  start_cutoff_id: number;
+
+  paid_installments: number;
+  remaining_balance: number;
+  last_paid_cutoff_id: number | null;
+
+  status: BenefitLoanStatus;
+  remarks: string | null;
+
+  created_by: number | null;
+  updated_by: number | null;
+};
+
+export type BenefitLoanPatchPayload = Partial<
+  Omit<BenefitLoanCreatePayload, "user_id" | "created_by">
+>;
+// =======================================================
+// STOCK PURCHASE / DR PAYMENT (dr_payment)
+// =======================================================
+
+export type DRPaymentMethod =
+  | "PAYROLL_DEDUCTION"
+  | "CASH"
+  | "CHECK"
+  | "BANK_TRANSFER"
+  | "OTHERS";
+
+export type DRPaymentRecord = {
+  dr_payment_id: number;
+
+  delivery_receipt_number: string;
+  employee_id: number;
+
+  cutoff_from: string; // YYYY-MM-DD
+  cutoff_to: string; // YYYY-MM-DD
+
+  payroll_ref_no: string | null;
+  is_posted_to_payroll: 0 | 1 | number;
+
+  payment_date: string; // YYYY-MM-DD
+  amount_paid: string | number;
+
+  payment_method: DRPaymentMethod | null;
+  remarks: string | null;
+
+  created_at?: string; // if Directus exposes it
+  created_by?: number | null;
+};
+
+export type DRPaymentDraft = {
+  delivery_receipt_number: string;
+
+  // helper select (optional); if chosen, it will populate cutoff_from/to
+  cutoff_setting_id: number | null;
+
+  cutoff_from: string; // YYYY-MM-DD
+  cutoff_to: string; // YYYY-MM-DD
+
+  payment_date: string; // YYYY-MM-DD
+  amount_paid: string;
+
+  payment_method: DRPaymentMethod;
+  payroll_ref_no: string;
+  is_posted_to_payroll: 0 | 1;
+
+  remarks: string;
+};
+
+export type DRPaymentCreatePayload = {
+  delivery_receipt_number: string;
+  employee_id: number;
+
+  cutoff_from: string; // YYYY-MM-DD
+  cutoff_to: string; // YYYY-MM-DD
+
+  payroll_ref_no: string | null;
+  is_posted_to_payroll: 0 | 1;
+
+  payment_date: string; // YYYY-MM-DD
+  amount_paid: number;
+
+  payment_method: DRPaymentMethod;
+  remarks: string | null;
+
+  created_by: number | null;
+};
+
+export type DRPaymentPatchPayload = Partial<
+  Omit<DRPaymentCreatePayload, "employee_id" | "created_by">
+>;

@@ -14,7 +14,7 @@ import {
 import { Edit, Trash2 } from "lucide-react";
 
 import type { Membership, SortConfig, TabContentProps, User } from "../types";
-import { formatPeso, monthsBetweenInclusive } from "../helpers";
+import { formatPeso } from "../helpers";
 import { listItems, deleteItem } from "../providers/coopApi";
 import { SortableHeader } from "./SortableHeader";
 import { AddEmployeeModal } from "./modals/AddEmployeeModal";
@@ -31,7 +31,9 @@ export function SavingsTab({
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingMembership, setEditingMembership] = useState<Membership | null>(null);
+  const [editingMembership, setEditingMembership] = useState<Membership | null>(
+    null
+  );
 
   const rowsPerPage = 10;
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -58,7 +60,8 @@ export function SavingsTab({
 
         if (signal?.aborted) return;
 
-        const total: number = meta?.filter_count ?? meta?.total ?? membershipList.length;
+        const total: number =
+          meta?.filter_count ?? meta?.total ?? membershipList.length;
         setMemberships(membershipList);
         setTotalMemberships(total);
 
@@ -101,7 +104,11 @@ export function SavingsTab({
 
   const handleSort = (key: string) => {
     let direction: "asc" | "desc" = "asc";
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
+    if (
+      sortConfig &&
+      sortConfig.key === key &&
+      sortConfig.direction === "asc"
+    ) {
       direction = "desc";
     }
     setSortConfig({ key, direction });
@@ -110,19 +117,25 @@ export function SavingsTab({
   const processedRows = useMemo(() => {
     let data = memberships.map((m) => {
       const user = users.find((u) => Number(u.user_id) === Number(m.user_id));
-      const name = user ? `${user.user_fname} ${user.user_lname}` : `User #${m.user_id}`;
+      const name = user
+        ? `${user.user_fname} ${user.user_lname}`
+        : `User #${m.user_id}`;
 
-      const monthly = Number(m.monthly_amount ?? 0);
+      // ✅ Use stored DB values only. Payroll Run updates these.
+      const monthly = Number((m as any)?.monthly_amount ?? 0);
+      const totalMonths = Number((m as any)?.total_months ?? 0);
+      const totalCollection = Number((m as any)?.total_collection ?? 0);
+
       const start = m.start_date || null;
       const end = m.end_date || null;
-      const months = monthsBetweenInclusive(start, end);
-      const totalCollection = monthly * months;
+      const membershipId = (m as any)?.membership_id ?? "-";
 
       return {
         id: m.id,
+        membershipId,
         name,
         monthly,
-        months,
+        totalMonths,
         totalCollection,
         start,
         end,
@@ -132,7 +145,11 @@ export function SavingsTab({
 
     if (searchTerm) {
       const lower = searchTerm.toLowerCase();
-      data = data.filter((row) => row.name.toLowerCase().includes(lower));
+      data = data.filter(
+        (row) =>
+          row.name.toLowerCase().includes(lower) ||
+          String(row.membershipId).toLowerCase().includes(lower)
+      );
     }
 
     if (statusFilter !== "All") {
@@ -146,8 +163,8 @@ export function SavingsTab({
     if (sortConfig) {
       data.sort((a, b) => {
         const key = sortConfig.key as keyof typeof a;
-        const aVal = a[key] ?? "";
-        const bVal = b[key] ?? "";
+        const aVal = (a[key] ?? "") as any;
+        const bVal = (b[key] ?? "") as any;
         if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
         if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
         return 0;
@@ -162,6 +179,7 @@ export function SavingsTab({
     try {
       await deleteItem("coop_savings_membership", id);
       setMemberships((prev) => prev.filter((m) => m.id !== id));
+      setTotalMemberships((prev) => Math.max(0, prev - 1));
       toast.success("Deleted successfully.");
     } catch (err) {
       console.error(err);
@@ -183,7 +201,9 @@ export function SavingsTab({
   return (
     <>
       <div className="rounded-md border bg-white dark:bg-gray-800 overflow-hidden shadow-sm">
-        {error && <div className="p-4 text-sm text-red-600 bg-red-50">{error}</div>}
+        {error && (
+          <div className="p-4 text-sm text-red-600 bg-red-50">{error}</div>
+        )}
 
         <Table>
           <TableHeader className="bg-gray-50 dark:bg-gray-900/50">
@@ -191,6 +211,14 @@ export function SavingsTab({
               <TableHead className="w-[50px] text-xs font-semibold uppercase tracking-wider">
                 No.
               </TableHead>
+
+              <SortableHeader
+                label="Membership ID"
+                sortKey="membershipId"
+                currentSort={sortConfig}
+                onSort={handleSort}
+                className="text-xs font-semibold uppercase tracking-wider"
+              />
 
               <SortableHeader
                 label="Name"
@@ -218,7 +246,7 @@ export function SavingsTab({
 
               <SortableHeader
                 label="Total Months"
-                sortKey="months"
+                sortKey="totalMonths"
                 currentSort={sortConfig}
                 onSort={handleSort}
                 className="text-xs font-semibold uppercase tracking-wider"
@@ -246,14 +274,20 @@ export function SavingsTab({
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={9} className="h-12 text-center text-gray-400">
+                  <TableCell
+                    colSpan={10}
+                    className="h-12 text-center text-gray-400"
+                  >
                     Loading...
                   </TableCell>
                 </TableRow>
               ))
             ) : processedRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={10}
+                  className="h-24 text-center text-muted-foreground"
+                >
                   No savings members found.
                 </TableCell>
               </TableRow>
@@ -263,7 +297,13 @@ export function SavingsTab({
                   key={r.id ?? idx}
                   className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
                 >
-                  <TableCell className="font-medium text-gray-500">{startRow + idx}</TableCell>
+                  <TableCell className="font-medium text-gray-500">
+                    {startRow + idx}
+                  </TableCell>
+
+                  <TableCell className="font-mono text-gray-700 dark:text-gray-300">
+                    {r.membershipId}
+                  </TableCell>
 
                   <TableCell className="font-medium text-gray-900 dark:text-gray-100">
                     {r.name}
@@ -277,7 +317,7 @@ export function SavingsTab({
                     {formatPeso(r.totalCollection)}
                   </TableCell>
 
-                  <TableCell>{r.months}</TableCell>
+                  <TableCell>{r.totalMonths}</TableCell>
 
                   <TableCell className="text-center">
                     <span
@@ -313,8 +353,12 @@ export function SavingsTab({
                     </div>
                   </TableCell>
 
-                  <TableCell className="text-gray-500 text-sm">{r.start ?? "-"}</TableCell>
-                  <TableCell className="text-gray-500 text-sm">{r.end ?? "-"}</TableCell>
+                  <TableCell className="text-gray-500 text-sm">
+                    {r.start ?? "-"}
+                  </TableCell>
+                  <TableCell className="text-gray-500 text-sm">
+                    {r.end ?? "-"}
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -324,8 +368,11 @@ export function SavingsTab({
 
       <div className="flex items-center justify-between mt-4">
         <div className="text-sm text-gray-500">
-          Showing <span className="font-medium">{totalMemberships > 0 ? startRow : 0}</span> to{" "}
-          <span className="font-medium">{endRow}</span> of{" "}
+          Showing{" "}
+          <span className="font-medium">
+            {totalMemberships > 0 ? startRow : 0}
+          </span>{" "}
+          to <span className="font-medium">{endRow}</span> of{" "}
           <span className="font-medium">{totalMemberships}</span>
         </div>
 
@@ -359,6 +406,7 @@ export function SavingsTab({
         onClose={onCloseAddModal}
         onAdded={(newMem) => {
           setMemberships((prev) => [newMem, ...prev]);
+          setTotalMemberships((prev) => prev + 1);
           onCloseAddModal();
         }}
       />

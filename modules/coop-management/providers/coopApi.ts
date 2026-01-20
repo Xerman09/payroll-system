@@ -4,7 +4,8 @@ export type CoopCollection =
   | "employee_loan"
   | "user"
   | "employee_loan_payment"
-  | "coop_savings_membership";
+  | "coop_savings_membership"
+  | "cutoff_settings";
 
 type JsonValue = unknown;
 
