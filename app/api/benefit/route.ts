@@ -1,4 +1,4 @@
-// app/api/benefit/route.ts
+// app/api/payroll-run/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -17,15 +17,36 @@ const SERVICE_TOKEN =
   process.env.DIRECTUS_ACCESS_TOKEN ||
   "";
 
-function joinUrl(base: string, path: string) {
-  const p = path.startsWith("/") ? path : `/${path}`;
-  return `${base}${p}`;
-}
+const ALLOWED_RESOURCES = new Set<string>([
+  // payroll run
+  "payroll_run",
+  "payroll_run_employee",
+
+  // masters
+  "cutoff_settings",
+  "department",
+  "user",
+  "user_wage_management",
+
+  // attendance/calendar
+  "attendance_approval",
+  "holiday_calendar",
+
+  // manual entries
+  "payroll_other_additions",
+  "payroll_other_deductions",
+
+  // benefits
+  "benefit_cutoff_settings",
+  "benefit_loans",
+
+  // loans
+  "employee_loan",
+]);
 
 function buildForwardHeaders(req: NextRequest, contentType?: string) {
   const h: Record<string, string> = {};
 
-  // pass through Authorization if present
   const auth = req.headers.get("authorization");
   if (auth) h["Authorization"] = auth;
   else if (SERVICE_TOKEN) h["Authorization"] = `Bearer ${SERVICE_TOKEN}`;
@@ -36,7 +57,6 @@ function buildForwardHeaders(req: NextRequest, contentType?: string) {
 }
 
 async function readBodyIfAny(req: NextRequest) {
-  // Some methods have no body; avoid crashing on empty
   const text = await req.text().catch(() => "");
   if (!text) return null;
   try {
@@ -46,47 +66,94 @@ async function readBodyIfAny(req: NextRequest) {
   }
 }
 
+function joinUrl(base: string, path: string) {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${p}`;
+}
+
+function buildDirectusItemsUrl(args: {
+  resource: string;
+  id?: string | null;
+  passthroughSearch: URLSearchParams;
+}) {
+  const { resource, id, passthroughSearch } = args;
+
+  // Directus items endpoint
+  const path = id ? `/items/${resource}/${id}` : `/items/${resource}`;
+  const u = new URL(joinUrl(DIRECTUS_BASE, path));
+
+  // pass through all other query params (filters, sort, limit, etc.)
+  passthroughSearch.forEach((value, key) => {
+    u.searchParams.set(key, value);
+  });
+
+  return u.toString();
+}
+
 async function forward(req: NextRequest) {
   const url = new URL(req.url);
-  const path = url.searchParams.get("path");
 
-  if (!path) {
-    return NextResponse.json({ error: "Missing ?path=" }, { status: 400 });
+  const resource = url.searchParams.get("resource") || "";
+  const id = url.searchParams.get("id");
+
+  if (!resource) {
+    return NextResponse.json({ error: "Missing ?resource=" }, { status: 400 });
   }
 
-  const targetUrl = joinUrl(DIRECTUS_BASE, path);
+  // ✅ allowlist guard (THIS is the usual cause of 403 in your case)
+  if (!ALLOWED_RESOURCES.has(resource)) {
+    return NextResponse.json(
+      {
+        error: "Invalid or missing resource",
+        resource,
+        allowed: Array.from(ALLOWED_RESOURCES),
+      },
+      { status: 403 }
+    );
+  }
+
+  // Pass through all query params EXCEPT resource/id (those are our router params)
+  const passthrough = new URLSearchParams(url.searchParams);
+  passthrough.delete("resource");
+  passthrough.delete("id");
+
+  const targetUrl = buildDirectusItemsUrl({
+    resource,
+    id,
+    passthroughSearch: passthrough,
+  });
 
   const method = req.method.toUpperCase();
 
-  // Read client body (your client sends { path, payload } for POST/PATCH)
+  // Client sends { payload } sometimes; support payload/data/body
   const bodyJson = await readBodyIfAny(req);
   const payload = bodyJson?.payload ?? bodyJson?.data ?? bodyJson ?? null;
 
   const init: RequestInit = {
     method,
     headers: buildForwardHeaders(req, payload ? "application/json" : undefined),
-    // Only attach body for methods that normally carry body
     body:
       payload && (method === "POST" || method === "PATCH" || method === "PUT")
         ? JSON.stringify(payload)
         : undefined,
+    cache: "no-store",
   };
 
   const upstream = await fetch(targetUrl, init);
 
-  // ✅ Directus DELETE commonly returns 204 No Content
-  if (upstream.status === 204) {
-    return new NextResponse(null, { status: 204 });
-  }
+  // Directus DELETE often returns 204
+  if (upstream.status === 204) return new NextResponse(null, { status: 204 });
 
   const text = await upstream.text().catch(() => "");
 
   if (!upstream.ok) {
+    // ✅ If this triggers for employee_loan, the response will show if it's Directus permission
     return NextResponse.json(
       {
         error: "Upstream error",
         status: upstream.status,
-        path,
+        resource,
+        id: id ?? null,
         targetUrl,
         details: text || null,
       },
@@ -94,10 +161,8 @@ async function forward(req: NextRequest) {
     );
   }
 
-  // ✅ If upstream returned empty body but not 204, still respond safely
   if (!text) return NextResponse.json({ ok: true });
 
-  // Try JSON; fallback to raw
   try {
     return NextResponse.json(JSON.parse(text));
   } catch {

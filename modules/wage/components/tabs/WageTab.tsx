@@ -8,6 +8,7 @@ import {
   CreditCard,
   Building2,
   Info,
+  BadgeCheck,
 } from "lucide-react";
 
 import type { Employee, WageDataState } from "../../types";
@@ -41,9 +42,6 @@ export function WageTab({
       maximumFractionDigits: 2,
     });
   }, [wageData.dailyWage]);
-
-  const ACCENT_ICON_BG =
-    "bg-persian-blue-50 border-persian-blue-200 dark:bg-persian-blue-900/30 dark:border-persian-blue-800";
 
   return (
     <div className="space-y-5">
@@ -141,7 +139,6 @@ export function WageTab({
                   />
                 </div>
 
-                {/* subtle helper */}
                 <div className="flex items-center justify-between text-[11px] text-slate-500">
                   <span>
                     Current:{" "}
@@ -160,7 +157,9 @@ export function WageTab({
 
               {/* Flags */}
               <div className="sm:col-span-2 rounded-lg border bg-slate-50/60 dark:bg-slate-900/20 dark:border-slate-700 p-3">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {/* ✅ changed to 3 columns on md to fit 3 flags nicely */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-2 pb-3">
+                  {/* Paid Holiday */}
                   <div className="flex items-center justify-between gap-3 rounded-md bg-white dark:bg-transparent border dark:border-slate-700 px-3 py-2">
                     <div className="flex items-center gap-2">
                       <CalendarDays className="h-4 w-4 text-slate-600 dark:text-slate-200" />
@@ -182,6 +181,7 @@ export function WageTab({
                     />
                   </div>
 
+                  {/* Bank Card */}
                   <div className="flex items-center justify-between gap-3 rounded-md bg-white dark:bg-transparent border dark:border-slate-700 px-3 py-2">
                     <div className="flex items-center gap-2">
                       <CreditCard className="h-4 w-4 text-slate-600 dark:text-slate-200" />
@@ -202,7 +202,29 @@ export function WageTab({
                       }
                     />
                   </div>
-                </div>
+
+                  {/* ✅ NEW: Regular Employee */}
+                
+                </div>  <div className="flex items-center justify-between gap-3 rounded-md bg-white dark:bg-transparent border dark:border-slate-700 px-3 py-2 ">
+                    <div className="flex items-center gap-2">
+                      <BadgeCheck className="h-4 w-4 text-slate-600 dark:text-slate-200" />
+                      <div>
+                        <div className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                          Regular Employee
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Mark employee as regular status.
+                        </div>
+                      </div>
+                    </div>
+
+                    <Checkbox
+                      checked={wageData.isRegularEmployee}
+                      onCheckedChange={(checked) =>
+                        setWageData({ isRegularEmployee: !!checked })
+                      }
+                    />
+                  </div>
               </div>
             </div>
           </div>

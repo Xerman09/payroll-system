@@ -3,7 +3,15 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { Plus, RefreshCcw, Pencil, Trash2, Search, X } from "lucide-react";
+import {
+  Plus,
+  RefreshCcw,
+  Pencil,
+  Trash2,
+  Search,
+  X,
+  MoreVertical,
+} from "lucide-react";
 
 import type {
   Employee,
@@ -15,6 +23,15 @@ import type {
   BenefitLoanStatus,
 } from "../../types";
 import * as wageApi from "../../providers/wageApi";
+
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -211,7 +228,7 @@ function buildLoanHaystack(r: BenefitLoanRecord) {
       r.remaining_balance,
       r.status,
       r.remarks,
-    ].join(" ")
+    ].join(" "),
   );
 }
 
@@ -289,7 +306,7 @@ export function BenefitsTab({
   const [formOpen, setFormOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<number | null>(null);
   const [editingRow, setEditingRow] = React.useState<BenefitLoanRecord | null>(
-    null
+    null,
   );
 
   // Confirm delete dialog
@@ -328,7 +345,7 @@ export function BenefitsTab({
     setLoading(true);
     try {
       const list = await wageApi.fetchBenefitLoansByUser(
-        selectedEmployee.user_id
+        selectedEmployee.user_id,
       );
       setRows(list);
     } catch (e: any) {
@@ -378,7 +395,7 @@ export function BenefitsTab({
       if (!c) return startCutoffId ? String(startCutoffId) : "—";
       return formatCutoffRange(c.start_date, c.end_date);
     },
-    [cutoffsById]
+    [cutoffsById],
   );
 
   // AUTO COMPUTE
@@ -388,7 +405,7 @@ export function BenefitsTab({
 
     const termsSafe = Math.max(
       1,
-      Math.trunc(toNum(draft.terms_installments) || 1)
+      Math.trunc(toNum(draft.terms_installments) || 1),
     );
 
     const interest = round2(principal * (ratePct / 100));
@@ -397,7 +414,7 @@ export function BenefitsTab({
 
     const paidInstallments = Math.max(
       0,
-      Math.trunc(toNum(editingRow?.paid_installments ?? 0))
+      Math.trunc(toNum(editingRow?.paid_installments ?? 0)),
     );
 
     const remaining =
@@ -498,7 +515,7 @@ export function BenefitsTab({
 
       if (changed) {
         toast.error(
-          "Cannot change principal/interest/terms after payments started."
+          "Cannot change principal/interest/terms after payments started.",
         );
         return;
       }
@@ -601,7 +618,7 @@ export function BenefitsTab({
         principal_amount: fmtMoneyPlain(r.principal_amount),
 
         terms_installments: String(
-          Math.max(1, Math.trunc(toNum(r.terms_installments) || 1))
+          Math.max(1, Math.trunc(toNum(r.terms_installments) || 1)),
         ),
         deduct_on: (r.deduct_on ?? "BOTH") as DeductOn,
         start_cutoff_id: String(r.start_cutoff_id ?? ""),
@@ -612,7 +629,7 @@ export function BenefitsTab({
 
       setFormOpen(true);
     },
-    [cutoffs.length, cutoffsLoading, ensureCutoffs]
+    [cutoffs.length, cutoffsLoading, ensureCutoffs],
   );
 
   const startCreate = React.useCallback(() => {
@@ -657,14 +674,14 @@ export function BenefitsTab({
         setSaving(false);
       }
     },
-    [editingId, loadLoans, resetDraft]
+    [editingId, loadLoans, resetDraft],
   );
 
   const totals = React.useMemo(() => {
     const active = rows.filter((x) => x.status === "ACTIVE");
     const totalBal = active.reduce(
       (sum, x) => sum + Number(x.remaining_balance || 0),
-      0
+      0,
     );
     return {
       count: rows.length,
@@ -1322,42 +1339,59 @@ export function BenefitsTab({
                     </TableCell>
 
                     <TableCell className="whitespace-nowrap px-4 py-3 text-right">
-                      <div className="inline-flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className={`${PAYROLL_ICON_BTN} ${PAYROLL_ICON_EDIT}`}
-                          onClick={() => startEdit(r)}
-                          disabled={saving}
-                          title="Edit"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            disabled={saving}
+                            title="Actions"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
 
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className={`${PAYROLL_ICON_BTN} ${PAYROLL_ICON_DELETE}`}
-                          onClick={() => {
-                            if (r.paid_installments > 0) {
-                              toast.error(
-                                "Cannot delete a loan that already has payments."
-                              );
-                              return;
-                            }
-                            setConfirmDeleteRow(r);
-                            setConfirmDeleteOpen(true);
-                          }}
-                          disabled={saving}
-                          title={
-                            r.paid_installments > 0
-                              ? "Cannot delete after payments"
-                              : "Delete"
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+
+                          <DropdownMenuItem
+                            onClick={() => startEdit(r)}
+                            disabled={saving}
+                          >
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            className="text-red-600 focus:text-red-600"
+                            onClick={() => {
+                              if (r.paid_installments > 0) {
+                                toast.error(
+                                  "Cannot delete a loan that already has payments.",
+                                );
+                                return;
+                              }
+                              setConfirmDeleteRow(r);
+                              setConfirmDeleteOpen(true);
+                            }}
+                            disabled={saving || r.paid_installments > 0}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+
+                          {r.paid_installments > 0 && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <div className="px-2 py-1 text-[11px] text-slate-500 dark:text-slate-400">
+                                Loans with payments are locked.
+                              </div>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))
@@ -1404,7 +1438,7 @@ export function BenefitsTab({
                       {it}
                     </PaginationLink>
                   </PaginationItem>
-                )
+                ),
               )}
 
               <PaginationItem>

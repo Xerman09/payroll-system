@@ -51,7 +51,7 @@ const SortableTableHead = ({
 }: {
   label: string;
   sortKey: string;
-  currentSort: {key: string, direction: 'asc' | 'desc'};
+  currentSort: { key: string; direction: "asc" | "desc" };
   onSort: (key: string) => void;
   className?: string;
 }) => (
@@ -67,9 +67,7 @@ const SortableTableHead = ({
       {label}
       <ArrowUpDown
         size={14}
-        className={
-          currentSort?.key === sortKey ? "opacity-100" : "opacity-30"
-        }
+        className={currentSort?.key === sortKey ? "opacity-100" : "opacity-30"}
       />
     </div>
   </TableHead>
@@ -82,13 +80,20 @@ export default function PayrollPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [filterDept, setFilterDept] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortConfig, setSortConfig] = useState<{key: "id" | "fname" | "lname" | "department", direction: 'asc' | 'desc'}>({
+  const [sortConfig, setSortConfig] = useState<{
+    key: "id" | "fname" | "lname" | "department";
+    direction: "asc" | "desc";
+  }>({
     key: "id",
-    direction: 'asc'
+    direction: "asc",
   });
 
   const handleSort = (key: "id" | "fname" | "lname" | "department") => {
-    setSortConfig(prev => prev.key === key && prev.direction === 'asc' ? {key, direction: 'desc'} : {key, direction: 'asc'});
+    setSortConfig((prev) =>
+      prev.key === key && prev.direction === "asc"
+        ? { key, direction: "desc" }
+        : { key, direction: "asc" },
+    );
   };
 
   // Pagination
@@ -109,7 +114,7 @@ export default function PayrollPage() {
         // Ensure data.data exists before filtering
         if (data.data) {
           const activeEmployees = data.data.filter(
-            (emp: Employee) => !emp.is_deleted?.data?.[0]
+            (emp: Employee) => !emp.is_deleted?.data?.[0],
           );
           setEmployees(activeEmployees);
         }
@@ -171,22 +176,26 @@ export default function PayrollPage() {
           bVal = b.user_lname;
           break;
         case "department":
-          aVal = departments.find((d) => d.department_id === a.user_department)?.department_name ?? "";
-          bVal = departments.find((d) => d.department_id === b.user_department)?.department_name ?? "";
+          aVal =
+            departments.find((d) => d.department_id === a.user_department)
+              ?.department_name ?? "";
+          bVal =
+            departments.find((d) => d.department_id === b.user_department)
+              ?.department_name ?? "";
           break;
       }
-      if (typeof aVal === 'string') {
+      if (typeof aVal === "string") {
         const cmp = aVal.localeCompare(bVal);
-        return sortConfig.direction === 'asc' ? cmp : -cmp;
+        return sortConfig.direction === "asc" ? cmp : -cmp;
       } else {
-        return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+        return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
       }
     });
 
   const totalPages = Math.ceil(filteredEmployees.length / rowsPerPage);
   const paginatedEmployees = filteredEmployees.slice(
     (currentPage - 1) * rowsPerPage,
-    currentPage * rowsPerPage
+    currentPage * rowsPerPage,
   );
 
   const handleRowsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -224,7 +233,7 @@ export default function PayrollPage() {
             <p className="text-sm text-muted-foreground mt-1">
               {activeTab === "employees"
                 ? "Manage employee records and payroll information."
-                : "View and manage tap sheet records."}
+                : "View and manage Top Sheet records."}
             </p>
           </div>
         </div>
@@ -245,7 +254,7 @@ export default function PayrollPage() {
                     value={filterDept ?? ""}
                     onChange={(e) =>
                       setFilterDept(
-                        e.target.value ? parseInt(e.target.value) : null
+                        e.target.value ? parseInt(e.target.value) : null,
                       )
                     }
                   >
@@ -278,7 +287,12 @@ export default function PayrollPage() {
                   <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Sort by
                   </Label>
-                  <Select value={sortConfig.key} onValueChange={(value: any) => setSortConfig({key: value, direction: 'asc'})}>
+                  <Select
+                    value={sortConfig.key}
+                    onValueChange={(value: any) =>
+                      setSortConfig({ key: value, direction: "asc" })
+                    }
+                  >
                     <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
@@ -293,14 +307,14 @@ export default function PayrollPage() {
               </div>
             )}
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <Tabs
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="w-full"
+            >
               <TabsList className="grid grid-cols-2 w-full mb-4">
-                <TabsTrigger value="employees">
-                  Employees
-                </TabsTrigger>
-                <TabsTrigger value="tap-sheet">
-                  Tap Sheet
-                </TabsTrigger>
+                <TabsTrigger value="employees">Employees</TabsTrigger>
+                <TabsTrigger value="tap-sheet">Top Sheet</TabsTrigger>
               </TabsList>
 
               {/* EMPLOYEES TABLE */}
@@ -313,9 +327,24 @@ export default function PayrollPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <SortableTableHead label="Employee ID" sortKey="id" currentSort={sortConfig} onSort={handleSort} />
-                        <SortableTableHead label="Name" sortKey="fname" currentSort={sortConfig} onSort={handleSort} />
-                        <SortableTableHead label="Department" sortKey="department" currentSort={sortConfig} onSort={handleSort} />
+                        <SortableTableHead
+                          label="Employee ID"
+                          sortKey="id"
+                          currentSort={sortConfig}
+                          onSort={handleSort}
+                        />
+                        <SortableTableHead
+                          label="Name"
+                          sortKey="fname"
+                          currentSort={sortConfig}
+                          onSort={handleSort}
+                        />
+                        <SortableTableHead
+                          label="Department"
+                          sortKey="department"
+                          currentSort={sortConfig}
+                          onSort={handleSort}
+                        />
                         <TableHead>Action</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -323,17 +352,25 @@ export default function PayrollPage() {
                       {paginatedEmployees.map((emp) => {
                         const deptName =
                           departments.find(
-                            (d) => d.department_id === emp.user_department
+                            (d) => d.department_id === emp.user_department,
                           )?.department_name ?? "N/A";
                         return (
-                          <TableRow key={emp.user_id} className="hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                          <TableRow
+                            key={emp.user_id}
+                            className="hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
+                          >
                             <TableCell>{emp.user_id}</TableCell>
                             <TableCell>{`${emp.user_fname} ${
                               emp.user_mname ?? ""
                             } ${emp.user_lname}`}</TableCell>
                             <TableCell>{deptName}</TableCell>
                             <TableCell className="flex gap-2">
-                              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">Generate Summary</Button>
+                              <Button
+                                size="sm"
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
+                              >
+                                Generate Summary
+                              </Button>
                             </TableCell>
                           </TableRow>
                         );
@@ -377,11 +414,15 @@ export default function PayrollPage() {
                           size="sm"
                           variant={currentPage === page ? "default" : "outline"}
                           onClick={() => setCurrentPage(Number(page))}
-                          className={currentPage === page ? "bg-blue-600 hover:bg-blue-700 text-white" : "border-blue-600 text-blue-600 hover:bg-blue-50"}
+                          className={
+                            currentPage === page
+                              ? "bg-blue-600 hover:bg-blue-700 text-white"
+                              : "border-blue-600 text-blue-600 hover:bg-blue-50"
+                          }
                         >
                           {page}
                         </Button>
-                      )
+                      ),
                     )}
 
                     <Button
@@ -398,7 +439,7 @@ export default function PayrollPage() {
 
               <TabsContent value="tap-sheet" className="mt-0 space-y-4">
                 <CardHeader className="px-0">
-                  <CardTitle>Tap Sheet</CardTitle>
+                  <CardTitle>Top Sheet</CardTitle>
                 </CardHeader>
                 {/* empty */}
               </TabsContent>

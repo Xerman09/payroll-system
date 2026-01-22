@@ -1,68 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
 
-type ResourceKey = "users" | "holidays";
-
-function getEnv(name: string) {
-  const v = process.env[name];
-  return v && v.trim().length ? v.trim() : undefined;
-}
+type ResourceKey = "users" | "holiday_calendar" | "cutoff_settings";
 
 /**
- * Upstream API proxy for Calendar Management
+ * Calendar Management API Proxy (Directus)
  *
- * Defaults to Directus-style:
- *   BASE_URL + /items/<collection>
+ * Base:
+ * - API_BASE (preferred)
+ * - NEXT_PUBLIC_API_BASE (fallback)
  *
- * Env vars:
- * - CALENDAR_API_BASE_URL (preferred)
- *   or DIRECTUS_URL / NEXT_PUBLIC_DIRECTUS_URL
- * - CALENDAR_API_STYLE = "directus" | "rest" (default: directus)
- * - CALENDAR_API_TOKEN (optional Bearer token)
- *
- * Collection overrides:
- * - CAL_USERS_COLLECTION (default: "users")
- * - CAL_HOLIDAYS_COLLECTION (default: "holidays")
+ * Optional auth:
+ * - CALENDAR_API_TOKEN
+ * - DIRECTUS_TOKEN
+ * - DIRECTUS_STATIC_TOKEN
  */
 const BASE_URL =
-  getEnv("CALENDAR_API_BASE_URL") ||
-  getEnv("DIRECTUS_URL") ||
-  getEnv("NEXT_PUBLIC_DIRECTUS_URL");
+  (process.env.API_BASE && process.env.API_BASE.trim()) ||
+  (process.env.NEXT_PUBLIC_API_BASE && process.env.NEXT_PUBLIC_API_BASE.trim()) ||
+  undefined;
 
-const STYLE = (getEnv("CALENDAR_API_STYLE") || "directus").toLowerCase();
 const TOKEN =
-  getEnv("CALENDAR_API_TOKEN") ||
-  getEnv("DIRECTUS_TOKEN") ||
-  getEnv("DIRECTUS_STATIC_TOKEN");
+  (process.env.CALENDAR_API_TOKEN && process.env.CALENDAR_API_TOKEN.trim()) ||
+  (process.env.DIRECTUS_TOKEN && process.env.DIRECTUS_TOKEN.trim()) ||
+  (process.env.DIRECTUS_STATIC_TOKEN && process.env.DIRECTUS_STATIC_TOKEN.trim()) ||
+  undefined;
 
 const COLLECTIONS: Record<ResourceKey, string> = {
-  users: getEnv("CAL_USERS_COLLECTION") || "users",
-  holidays: getEnv("CAL_HOLIDAYS_COLLECTION") || "holidays",
+  users: "users",
+  holiday_calendar: "holiday_calendar",
+  cutoff_settings: "cutoff_settings",
 };
 
 function assertConfig() {
   if (!BASE_URL) {
-    throw new Error(
-      "Missing upstream base URL. Set CALENDAR_API_BASE_URL (recommended) or DIRECTUS_URL / NEXT_PUBLIC_DIRECTUS_URL."
-    );
+    throw new Error("Missing API base URL. Set API_BASE or NEXT_PUBLIC_API_BASE.");
   }
 }
 
 function buildUpstreamUrl(resource: ResourceKey, id?: string, searchParams?: URLSearchParams) {
   assertConfig();
-  const collection = COLLECTIONS[resource];
 
   const base = BASE_URL!.replace(/\/+$/, "");
-  let path = "";
-
-  if (STYLE === "rest") {
-    path = `/${collection}${id ? `/${encodeURIComponent(id)}` : ""}`;
-  } else {
-    path = `/items/${collection}${id ? `/${encodeURIComponent(id)}` : ""}`;
-  }
-
+  const collection = COLLECTIONS[resource];
+  const path = `/items/${collection}${id ? `/${encodeURIComponent(id)}` : ""}`;
   const url = new URL(base + path);
 
-  if (STYLE !== "rest") {
+  // Directus list defaults
+  if (!id) {
     if (!searchParams?.has("limit")) url.searchParams.set("limit", "-1");
     if (!searchParams?.has("fields")) url.searchParams.set("fields", "*");
   }
@@ -74,8 +58,12 @@ function buildUpstreamUrl(resource: ResourceKey, id?: string, searchParams?: URL
 async function upstreamFetch(url: URL, init?: RequestInit) {
   const headers = new Headers(init?.headers || {});
   headers.set("Accept", "application/json");
+
   if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
-  if (init?.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+
+  if (init?.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
 
   const res = await fetch(url.toString(), { ...init, headers, cache: "no-store" });
   const text = await res.text();
@@ -92,6 +80,7 @@ async function upstreamFetch(url: URL, init?: RequestInit) {
       (json && (json.error?.message || json.error || json.message)) ||
       text ||
       `Upstream request failed (${res.status})`;
+
     return NextResponse.json({ error: errorMsg }, { status: res.status });
   }
 
@@ -99,10 +88,33 @@ async function upstreamFetch(url: URL, init?: RequestInit) {
   return NextResponse.json(normalized, { status: 200 });
 }
 
+function normalizeResource(raw: string): string {
+  return (raw || "").trim().toLowerCase();
+}
+
 function getResource(req: NextRequest): ResourceKey {
-  const resource = (req.nextUrl.searchParams.get("resource") || "").toLowerCase();
-  if (resource === "users" || resource === "holidays") return resource;
-  throw new Error("Invalid or missing resource");
+  const raw = normalizeResource(req.nextUrl.searchParams.get("resource") || "");
+
+  if (!raw) {
+    throw new Error("Invalid or missing resource. Provide ?resource=holiday_calendar|cutoff_settings|users");
+  }
+
+  // users
+  if (raw === "users") return "users";
+
+  // cutoffs
+  if (raw === "cutoff_settings" || raw === "cutoff-settings") return "cutoff_settings";
+
+  // holidays (accept both new and old naming)
+  if (
+    raw === "holiday_calendar" ||
+    raw === "holiday-calendar" ||
+    raw === "holidays"
+  ) {
+    return "holiday_calendar";
+  }
+
+  throw new Error(`Invalid or missing resource: "${raw}"`);
 }
 
 export async function GET(req: NextRequest) {
@@ -123,8 +135,19 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const resource = (String(body?.resource || "") as string).toLowerCase() as ResourceKey;
-    if (!["users", "holidays"].includes(resource)) throw new Error("Invalid resource");
+    const raw = normalizeResource(String(body?.resource || ""));
+
+    const resource: ResourceKey =
+      raw === "users"
+        ? "users"
+        : raw === "cutoff_settings" || raw === "cutoff-settings"
+          ? "cutoff_settings"
+          : raw === "holiday_calendar" || raw === "holiday-calendar" || raw === "holidays"
+            ? "holiday_calendar"
+            : (() => {
+              throw new Error(`Invalid resource: "${raw}"`);
+            })();
+
     const data = body?.data;
     if (!data || typeof data !== "object") throw new Error("Missing data");
 
@@ -138,10 +161,22 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const resource = (String(body?.resource || "") as string).toLowerCase() as ResourceKey;
-    if (!["users", "holidays"].includes(resource)) throw new Error("Invalid resource");
+    const raw = normalizeResource(String(body?.resource || ""));
+
+    const resource: ResourceKey =
+      raw === "users"
+        ? "users"
+        : raw === "cutoff_settings" || raw === "cutoff-settings"
+          ? "cutoff_settings"
+          : raw === "holiday_calendar" || raw === "holiday-calendar" || raw === "holidays"
+            ? "holiday_calendar"
+            : (() => {
+              throw new Error(`Invalid resource: "${raw}"`);
+            })();
+
     const id = body?.id;
     if (!id) throw new Error("Missing id");
+
     const data = body?.data;
     if (!data || typeof data !== "object") throw new Error("Missing data");
 

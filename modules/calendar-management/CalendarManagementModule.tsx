@@ -19,12 +19,83 @@ import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Separator } from "@/components/ui/separator";
 
-import type { Holiday, CalendarUser as UserType } from "./types";
+import type { Holiday, CalendarUser as UserType, CutoffSetting, HolidayType } from "./types";
+
+type ApiList<T> = { data: T[] };
+type ApiSingle<T> = { data: T };
+
+function toBool(v: boolean | number | null | undefined): boolean {
+  if (v === true) return true;
+  if (v === false) return false;
+  if (typeof v === "number") return v === 1;
+  return false;
+}
+
+function toTinyInt(v: boolean): 0 | 1 {
+  return v ? 1 : 0;
+}
+
+function isoDateOnly(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// inclusive range check: dateStr between start/end, all "YYYY-MM-DD"
+function isDateBetweenInclusive(dateStr: string, start: string, end: string): boolean {
+  return dateStr >= start && dateStr <= end;
+}
+
+function cutoffLabel(c: CutoffSetting): string {
+  // Example: "FIRST (Dec 26, 2025 - Jan 10, 2026)"
+  const fmt = (s: string) =>
+    new Date(s + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return `${c.cutoff_type} (${fmt(c.start_date)} - ${fmt(c.end_date)})`;
+}
+
+async function apiGet<T>(path: string): Promise<T> {
+  const res = await fetch(path, { cache: "no-store" });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(json?.error || "Request failed");
+  return json as T;
+}
+
+async function apiPost<T>(path: string, body: any): Promise<T> {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(json?.error || "Request failed");
+  return json as T;
+}
+
+async function apiPatch<T>(path: string, body: any): Promise<T> {
+  const res = await fetch(path, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(json?.error || "Request failed");
+  return json as T;
+}
+
+async function apiDelete<T>(path: string): Promise<T> {
+  const res = await fetch(path, { method: "DELETE" });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(json?.error || "Request failed");
+  return json as T;
+}
 
 export function CalendarManagementModule() {
-  // ---------------------- State & Logic ----------------------
+  // ---------------------- State ----------------------
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [users, setUsers] = useState<UserType[]>([]);
+  const [cutoffs, setCutoffs] = useState<CutoffSetting[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Calendar Navigation State
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -36,10 +107,12 @@ export function CalendarManagementModule() {
   // Modal States
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Form States
+  // Form States (aligned with holiday_calendar)
   const [holidayDate, setHolidayDate] = useState("");
+  const [cutoffSettingId, setCutoffSettingId] = useState<number | null>(null);
+  const [lastWorkingDay, setLastWorkingDay] = useState<string>(""); // empty = null
   const [description, setDescription] = useState("");
-  const [holidayType, setHolidayType] = useState("regular");
+  const [holidayType, setHolidayType] = useState<HolidayType>("regular");
   const [isRecurring, setIsRecurring] = useState(true);
   const [isPaid, setIsPaid] = useState(true);
   const [editingHolidayId, setEditingHolidayId] = useState<number | null>(null);
@@ -49,132 +122,38 @@ export function CalendarManagementModule() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 5;
 
-  // ---------------------- Mock Data ----------------------
+  // ---------------------- Data Load ----------------------
+  async function loadAll() {
+    setLoading(true);
+    try {
+      const [holidayRes, cutoffRes] = await Promise.all([
+        apiGet<ApiList<Holiday>>("/api/calendar-management?resource=holiday_calendar"),
+        apiGet<ApiList<CutoffSetting>>("/api/calendar-management?resource=cutoff_settings"),
+      ]);
+
+      // Users are optional; your holiday_calendar has created_by but you may not need names
+      // If you want it, uncomment and ensure your Directus permissions allow users read:
+      // const userRes = await apiGet<ApiList<any>>("/api/calendar-management?resource=users");
+      // setUsers((userRes.data || []).map(u => ...));
+
+      setHolidays((holidayRes.data || []).slice().sort((a, b) => a.holiday_date.localeCompare(b.holiday_date)));
+
+      // normalize cutoff date strings (already YYYY-MM-DD in your sample)
+      const sortedCutoffs = (cutoffRes.data || []).slice().sort((a, b) => a.start_date.localeCompare(b.start_date));
+      setCutoffs(sortedCutoffs);
+
+      // If you don’t have a reliable users endpoint, keep mock users empty.
+      setUsers([]);
+    } catch (e) {
+      console.error(e);
+      alert((e as any)?.message || "Failed to load calendar data");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
-    const mockHolidays: Holiday[] = [
-      {
-        id: 1,
-        holiday_date: "2025-01-01",
-        description: "New Year's Day",
-        holiday_type: "regular",
-        is_recurring: true,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 2,
-        holiday_date: "2025-02-14",
-        description: "Valentine's Day",
-        holiday_type: "special",
-        is_recurring: true,
-        is_paid: false,
-        created_by: 1,
-      },
-      {
-        id: 3,
-        holiday_date: "2025-03-17",
-        description: "Company Foundation Day",
-        holiday_type: "company",
-        is_recurring: true,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 4,
-        holiday_date: "2025-04-18",
-        description: "Good Friday",
-        holiday_type: "regular",
-        is_recurring: true,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 5,
-        holiday_date: "2025-05-01",
-        description: "Labor Day",
-        holiday_type: "regular",
-        is_recurring: true,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 6,
-        holiday_date: "2025-06-12",
-        description: "Independence Day",
-        holiday_type: "regular",
-        is_recurring: true,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 7,
-        holiday_date: "2025-07-04",
-        description: "Mid-Year Company Event",
-        holiday_type: "company",
-        is_recurring: false,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 8,
-        holiday_date: "2025-08-21",
-        description: "Summer Outing",
-        holiday_type: "special",
-        is_recurring: false,
-        is_paid: false,
-        created_by: 1,
-      },
-      {
-        id: 9,
-        holiday_date: "2025-09-15",
-        description: "Team Building Day",
-        holiday_type: "company",
-        is_recurring: false,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 10,
-        holiday_date: "2025-10-31",
-        description: "Halloween Party",
-        holiday_type: "special",
-        is_recurring: true,
-        is_paid: false,
-        created_by: 1,
-      },
-      {
-        id: 11,
-        holiday_date: "2025-11-01",
-        description: "All Saints' Day",
-        holiday_type: "regular",
-        is_recurring: true,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 12,
-        holiday_date: "2025-12-25",
-        description: "Christmas Day",
-        holiday_type: "regular",
-        is_recurring: true,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 13,
-        holiday_date: "2025-12-31",
-        description: "New Year's Eve",
-        holiday_type: "special",
-        is_recurring: true,
-        is_paid: false,
-        created_by: 1,
-      },
-    ];
-
-    const mockUsers: UserType[] = [{ user_id: 1, user_fname: "Zarina", user_lname: "Carcha" }];
-
-    setHolidays(mockHolidays);
-    setUsers(mockUsers);
+    loadAll();
   }, []);
 
   useEffect(() => {
@@ -182,38 +161,62 @@ export function CalendarManagementModule() {
   }, [searchTerm]);
 
   // ---------------------- Derived Data ----------------------
-
   const filteredHolidays = useMemo(() => {
-    return holidays.filter(
-      (h) =>
-        h.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        h.holiday_date.includes(searchTerm) ||
-        h.holiday_type.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return holidays;
+
+    return holidays.filter((h) => {
+      const t = String(h.holiday_type || "").toLowerCase();
+      const d = String(h.holiday_date || "");
+      const desc = String(h.description || "").toLowerCase();
+      const lwd = String(h.last_working_day || "");
+      const cutoffId = h.cutoff_setting_id ? String(h.cutoff_setting_id) : "";
+
+      return (
+        desc.includes(q) ||
+        d.includes(q) ||
+        t.includes(q) ||
+        lwd.includes(q) ||
+        cutoffId.includes(q)
+      );
+    });
   }, [holidays, searchTerm]);
 
   const totalPages = Math.ceil(filteredHolidays.length / ITEMS_PER_PAGE);
+
   const paginatedHolidays = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     return filteredHolidays.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredHolidays, currentPage]);
 
   const getUserName = (id: number | undefined | null) => {
-    if (!id && id !== 0) return "Unknown";
+    if (id === null || id === undefined) return "Unknown";
     const u = users.find((x) => x.user_id === id);
     return u ? `${u.user_fname} ${u.user_lname}` : `User ${id}`;
   };
 
+  const resolveCutoffForDate = (dateStr: string): CutoffSetting | null => {
+    if (!dateStr) return null;
+    const match = cutoffs.find((c) => isDateBetweenInclusive(dateStr, c.start_date, c.end_date));
+    return match || null;
+  };
+
+  const stats = useMemo(() => {
+    const total = holidays.length;
+    const special = holidays.filter((h) => h.holiday_type === "special").length;
+    const paid = holidays.filter((h) => toBool(h.is_paid)).length;
+    return { total, special, paid };
+  }, [holidays]);
+
   // ---------------------- Handlers ----------------------
   const resetForm = () => {
-    if (selectedDate) {
-      const y = selectedDate.getFullYear();
-      const m = String(selectedDate.getMonth() + 1).padStart(2, "0");
-      const d = String(selectedDate.getDate()).padStart(2, "0");
-      setHolidayDate(`${y}-${m}-${d}`);
-    } else {
-      setHolidayDate("");
-    }
+    const date = selectedDate ? isoDateOnly(selectedDate) : "";
+    setHolidayDate(date);
+
+    const autoCutoff = date ? resolveCutoffForDate(date) : null;
+    setCutoffSettingId(autoCutoff ? autoCutoff.id : null);
+
+    setLastWorkingDay(""); // empty => null
     setDescription("");
     setHolidayType("regular");
     setIsRecurring(true);
@@ -221,15 +224,38 @@ export function CalendarManagementModule() {
     setEditingHolidayId(null);
   };
 
+  const openCreate = () => {
+    resetForm();
+    setModalOpen(true);
+  };
+
   const handleEdit = (e: React.MouseEvent, h: Holiday) => {
-    e.stopPropagation(); // Prevent triggering the row click
+    e.stopPropagation();
+
     setHolidayDate(h.holiday_date);
+    const autoCutoff = resolveCutoffForDate(h.holiday_date);
+    // keep stored cutoff_setting_id if present; else auto
+    setCutoffSettingId(h.cutoff_setting_id ?? autoCutoff?.id ?? null);
+
+    setLastWorkingDay(h.last_working_day || "");
     setDescription(h.description);
-    setHolidayType(h.holiday_type);
-    setIsRecurring(h.is_recurring === 1 || h.is_recurring === true);
-    setIsPaid(h.is_paid === 1 || h.is_paid === true);
+    setHolidayType(h.holiday_type as HolidayType);
+    setIsRecurring(toBool(h.is_recurring));
+    setIsPaid(toBool(h.is_paid));
     setEditingHolidayId(h.id);
     setModalOpen(true);
+  };
+
+  const handleDeleteHoliday = async (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    if (!confirm("Delete this holiday?")) return;
+
+    try {
+      await apiDelete(`/api/calendar-management?resource=holiday_calendar&id=${encodeURIComponent(String(id))}`);
+      setHolidays((prev) => prev.filter((h) => h.id !== id));
+    } catch (err: any) {
+      alert(err?.message || "Failed to delete");
+    }
   };
 
   const handleSaveHoliday = async () => {
@@ -238,40 +264,54 @@ export function CalendarManagementModule() {
       return;
     }
 
-    const newHoliday: Holiday = {
-      id: editingHolidayId || Date.now(),
+    // Always auto-select cutoff based on holiday_date (your requirement)
+    const autoCutoff = resolveCutoffForDate(holidayDate);
+    const finalCutoffId = autoCutoff?.id ?? cutoffSettingId ?? null;
+
+    const payload = {
       holiday_date: holidayDate,
-      description,
+      cutoff_setting_id: finalCutoffId,
+      last_working_day: lastWorkingDay ? lastWorkingDay : null,
+      description: description.trim(),
       holiday_type: holidayType,
-      is_recurring: isRecurring,
-      is_paid: isPaid,
-      created_by: 1,
+      is_recurring: toTinyInt(isRecurring),
+      is_paid: toTinyInt(isPaid),
+      // created_by / updated_by are usually handled by Directus user context; omit unless required
     };
 
-    if (editingHolidayId) {
-      setHolidays(holidays.map((h) => (h.id === editingHolidayId ? newHoliday : h)));
-    } else {
-      setHolidays([...holidays, newHoliday]);
+    try {
+      if (editingHolidayId) {
+        const res = await apiPatch<ApiSingle<Holiday>>("/api/calendar-management", {
+          resource: "holiday_calendar",
+          id: editingHolidayId,
+          data: payload,
+        });
+        setHolidays((prev) =>
+          prev.map((h) => (h.id === editingHolidayId ? res.data : h)).sort((a, b) => a.holiday_date.localeCompare(b.holiday_date))
+        );
+      } else {
+        const res = await apiPost<ApiSingle<Holiday>>("/api/calendar-management", {
+          resource: "holiday_calendar",
+          data: payload,
+        });
+        setHolidays((prev) =>
+          [...prev, res.data].sort((a, b) => a.holiday_date.localeCompare(b.holiday_date))
+        );
+      }
+
+      setModalOpen(false);
+      resetForm();
+    } catch (err: any) {
+      // Common Directus error: unique constraint on (holiday_date, holiday_type)
+      alert(err?.message || "Failed to save");
     }
-
-    setModalOpen(false);
-    resetForm();
-  };
-
-  const handleDeleteHoliday = async (e: React.MouseEvent, id: number) => {
-    e.stopPropagation(); // Prevent triggering the row click
-    if (!confirm("Delete this holiday?")) return;
-    setHolidays(holidays.filter((h) => h.id !== id));
   };
 
   // --- Handle Event Click from Table ---
   const handleEventClick = (dateStr: string) => {
-    const targetDate = new Date(dateStr);
-
-    // 1. Select the date
+    const targetDate = new Date(dateStr + "T00:00:00");
     setSelectedDate(targetDate);
 
-    // 2. Switch calendar to that month if not already visible
     if (
       targetDate.getMonth() !== currentMonth.getMonth() ||
       targetDate.getFullYear() !== currentMonth.getFullYear()
@@ -279,21 +319,9 @@ export function CalendarManagementModule() {
       setCurrentMonth(new Date(targetDate.getFullYear(), targetDate.getMonth(), 1));
     }
 
-    // 3. Trigger Flash Animation
     setFlashingDate(dateStr);
-
-    // 4. Remove Flash after animation completes (1s)
-    setTimeout(() => {
-      setFlashingDate(null);
-    }, 1000);
+    setTimeout(() => setFlashingDate(null), 1000);
   };
-
-  const stats = useMemo(() => {
-    const total = holidays.length;
-    const special = holidays.filter((h) => h.holiday_type === "special").length;
-    const paid = holidays.filter((h) => h.is_paid).length;
-    return { total, special, paid };
-  }, [holidays]);
 
   // ---------------------- Calendar Component ----------------------
   const SimpleCalendar = () => {
@@ -308,9 +336,10 @@ export function CalendarManagementModule() {
         year,
         month,
       };
-    }, []);
+      // Must recompute when currentMonth changes
+    }, [currentMonth]);
 
-    const days = [];
+    const days: React.ReactNode[] = [];
     for (let i = 0; i < startingDayOfWeek; i++) {
       days.push(<div key={`empty-${i}`} className="h-10 w-10"></div>);
     }
@@ -335,11 +364,7 @@ export function CalendarManagementModule() {
           onClick={() => setSelectedDate(currentDayDate)}
           className={`
             relative h-10 w-10 p-0 rounded-full flex items-center justify-center transition-all duration-300 text-sm group
-            ${
-              isSelected
-                ? "bg-blue-600 text-white shadow-md scale-105"
-                : "hover:bg-gray-100 text-gray-700"
-            }
+            ${isSelected ? "bg-blue-600 text-white shadow-md scale-105" : "hover:bg-gray-100 text-gray-700"}
             ${isToday && !isSelected ? "text-blue-600 font-bold border border-blue-200" : ""}
             ${isFlashing ? "ring-4 ring-blue-300 scale-125 z-10" : ""} 
           `}
@@ -381,7 +406,7 @@ export function CalendarManagementModule() {
           <div className="flex gap-1">
             <button
               onClick={() =>
-                setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))
+                setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
               }
               className="h-8 w-8 bg-white border border-gray-200 text-gray-600 hover:text-blue-600 hover:border-blue-200 rounded-md flex items-center justify-center transition-all shadow-sm"
             >
@@ -389,7 +414,7 @@ export function CalendarManagementModule() {
             </button>
             <button
               onClick={() =>
-                setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))
+                setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
               }
               className="h-8 w-8 bg-white border border-gray-200 text-gray-600 hover:text-blue-600 hover:border-blue-200 rounded-md flex items-center justify-center transition-all shadow-sm"
             >
@@ -416,28 +441,32 @@ export function CalendarManagementModule() {
     );
   };
 
+  // ---------------------- Render ----------------------
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6 h-full p-6 bg-gray-50 font-sans">
         {/* HEADER */}
         <div className="flex items-center justify-between shrink-0">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-              Calendar Management
-            </h1>
-            <p className="text-sm text-gray-600">
-              Manage company holidays, non-working days, and events.
-            </p>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Calendar Management</h1>
+            <p className="text-sm text-gray-600">Manage company holidays, non-working days, and events.</p>
           </div>
-          <button
-            onClick={() => {
-              resetForm();
-              setModalOpen(true);
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2 shadow-sm transition-colors"
-          >
-            <Plus className="h-4 w-4" /> Add Event
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={loadAll}
+              className="px-3 py-2 bg-white border border-gray-200 text-gray-700 rounded-md hover:bg-gray-50 shadow-sm transition-colors text-sm"
+              disabled={loading}
+              title="Refresh"
+            >
+              Refresh
+            </button>
+            <button
+              onClick={openCreate}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2 shadow-sm transition-colors"
+            >
+              <Plus className="h-4 w-4" /> Add Event
+            </button>
+          </div>
         </div>
         <Separator />
 
@@ -455,7 +484,6 @@ export function CalendarManagementModule() {
               <div className="flex-1 flex flex-col p-6 overflow-y-auto">
                 <SimpleCalendar />
 
-                {/* Selected Date Context Info (UPDATED WITH DETAILS) */}
                 {selectedDate && (
                   <div className="mt-auto pt-6 animate-in fade-in slide-in-from-bottom-2">
                     <div className="w-full p-4 bg-gray-50 border border-gray-100 rounded-xl shadow-sm">
@@ -474,66 +502,84 @@ export function CalendarManagementModule() {
                       </p>
 
                       {(() => {
-                        // Find events for the selected date
-                        const dayEvents = holidays.filter(
-                          (h) =>
-                            new Date(h.holiday_date).toDateString() ===
-                            selectedDate.toDateString()
-                        );
+                        const dayStr = isoDateOnly(selectedDate);
+                        const dayEvents = holidays.filter((h) => h.holiday_date === dayStr);
 
                         if (dayEvents.length > 0) {
                           return (
                             <div className="space-y-3">
-                              {dayEvents.map((event) => (
-                                <div
-                                  key={event.id}
-                                  className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm transition-all hover:shadow-md"
-                                >
-                                  <div className="flex items-start justify-between gap-2 mb-1">
-                                    <span className="text-sm font-semibold text-gray-800 leading-tight">
-                                      {event.description}
-                                    </span>
-                                    <span
-                                      className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide shrink-0 ${
-                                        event.holiday_type === "special"
-                                          ? "bg-amber-100 text-amber-700"
-                                          : event.holiday_type === "company"
-                                          ? "bg-blue-100 text-blue-700"
-                                          : "bg-gray-100 text-gray-700"
-                                      }`}
-                                    >
-                                      {event.holiday_type}
-                                    </span>
-                                  </div>
-                                  <div className="flex flex-wrap gap-2 mt-2">
-                                    {event.is_recurring && (
-                                      <span className="inline-flex items-center gap-1 text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
-                                        <div className="w-1 h-1 rounded-full bg-purple-500"></div>{" "}
-                                        Recurring
+                              {dayEvents.map((event) => {
+                                const cutoff = event.cutoff_setting_id
+                                  ? cutoffs.find((c) => c.id === event.cutoff_setting_id) || null
+                                  : resolveCutoffForDate(event.holiday_date);
+
+                                return (
+                                  <div
+                                    key={event.id}
+                                    className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm transition-all hover:shadow-md"
+                                  >
+                                    <div className="flex items-start justify-between gap-2 mb-1">
+                                      <span className="text-sm font-semibold text-gray-800 leading-tight">
+                                        {event.description}
                                       </span>
-                                    )}
-                                    {event.is_paid && (
-                                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
-                                        <div className="w-1 h-1 rounded-full bg-emerald-500"></div>{" "}
-                                        Paid
+                                      <span
+                                        className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide shrink-0 ${
+                                          event.holiday_type === "special"
+                                            ? "bg-amber-100 text-amber-700"
+                                            : event.holiday_type === "company"
+                                            ? "bg-blue-100 text-blue-700"
+                                            : "bg-gray-100 text-gray-700"
+                                        }`}
+                                      >
+                                        {event.holiday_type}
                                       </span>
-                                    )}
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                      {toBool(event.is_recurring) && (
+                                        <span className="inline-flex items-center gap-1 text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
+                                          <div className="w-1 h-1 rounded-full bg-purple-500"></div>{" "}
+                                          Recurring
+                                        </span>
+                                      )}
+                                      {toBool(event.is_paid) && (
+                                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                                          <div className="w-1 h-1 rounded-full bg-emerald-500"></div>{" "}
+                                          Paid
+                                        </span>
+                                      )}
+                                      {event.last_working_day && (
+                                        <span className="inline-flex items-center gap-1 text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                                          <div className="w-1 h-1 rounded-full bg-blue-500"></div>{" "}
+                                          LWD: {event.last_working_day}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="mt-2 text-[10px] text-gray-400 flex flex-col gap-1 pt-2 border-t border-gray-50">
+                                      <div className="flex items-center gap-1.5">
+                                        <User className="w-3 h-3" />
+                                        <span>Added by {getUserName(event.created_by)}</span>
+                                      </div>
+                                      <div className="text-[10px] text-gray-400">
+                                        Cutoff:{" "}
+                                        <span className="text-gray-600">
+                                          {cutoff ? cutoffLabel(cutoff) : "—"}
+                                        </span>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div className="mt-2 text-[10px] text-gray-400 flex items-center gap-1.5 pt-2 border-t border-gray-50">
-                                    <User className="w-3 h-3" />
-                                    <span>Added by {getUserName(event.created_by)}</span>
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           );
-                        } else {
-                          return (
-                            <p className="text-xs text-gray-500 italic">
-                              No events scheduled for this day.
-                            </p>
-                          );
                         }
+
+                        return (
+                          <p className="text-xs text-gray-500 italic">
+                            No events scheduled for this day.
+                          </p>
+                        );
                       })()}
                     </div>
                   </div>
@@ -553,10 +599,10 @@ export function CalendarManagementModule() {
                     Overview of scheduled events for {new Date().getFullYear()}.
                   </p>
                 </div>
-                <div className="relative w-full sm:w-64">
+                <div className="relative w-full sm:w-72">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                   <input
-                    placeholder="Filter events..."
+                    placeholder="Filter by date, type, description, LWD, cutoff id..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-8 h-8 w-full text-xs bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -609,10 +655,13 @@ export function CalendarManagementModule() {
                         Description
                       </th>
                       <th className="text-left px-3 py-3 text-xs font-semibold uppercase">
-                        Attributes
+                        Cutoff
                       </th>
                       <th className="text-left px-3 py-3 text-xs font-semibold uppercase">
-                        Author
+                        Last Working Day
+                      </th>
+                      <th className="text-left px-3 py-3 text-xs font-semibold uppercase">
+                        Attributes
                       </th>
                       <th className="text-right px-5 py-3 text-xs font-semibold uppercase">
                         Action
@@ -620,85 +669,102 @@ export function CalendarManagementModule() {
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedHolidays.length > 0 ? (
-                      paginatedHolidays.map((item) => (
-                        <tr
-                          key={item.id}
-                          onClick={() => handleEventClick(item.holiday_date)}
-                          className="border-b hover:bg-blue-50/50 transition-colors cursor-pointer group"
-                        >
-                          <td className="px-5 py-3 text-xs font-medium group-hover:text-blue-700 transition-colors">
-                            {new Date(item.holiday_date).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
-                          </td>
-                          <td className="px-3 py-3">
-                            <span
-                              className={`px-2 py-1 text-[10px] rounded-full font-medium uppercase tracking-wide ${
-                                item.holiday_type === "company"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : item.holiday_type === "special"
-                                  ? "bg-amber-100 text-amber-700"
-                                  : "bg-gray-100 text-gray-700"
-                              }`}
-                            >
-                              {item.holiday_type}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3 text-xs font-medium text-gray-800">
-                            {item.description}
-                          </td>
-                          <td className="px-3 py-3">
-                            <div className="flex gap-2 text-xs">
-                              {item.is_recurring && (
-                                <span className="text-gray-600 flex items-center gap-1 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>{" "}
-                                  Recurring
-                                </span>
-                              )}
-                              {item.is_paid && (
-                                <span className="text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{" "}
-                                  Paid
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-3 py-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] text-gray-600">
-                                <User className="w-3 h-3" />
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="text-xs font-medium">{getUserName(item.created_by)}</span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-5 py-3 text-right">
-                            <div className="flex justify-end gap-1">
-                              <button
-                                onClick={(e) => handleEdit(e, item)}
-                                className="p-1.5 hover:bg-blue-100 rounded text-blue-600 transition-colors"
-                                title="Edit"
+                    {loading ? (
+                      <tr>
+                        <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500">
+                          Loading...
+                        </td>
+                      </tr>
+                    ) : paginatedHolidays.length > 0 ? (
+                      paginatedHolidays.map((item) => {
+                        const cutoff =
+                          item.cutoff_setting_id != null
+                            ? cutoffs.find((c) => c.id === item.cutoff_setting_id) || null
+                            : resolveCutoffForDate(item.holiday_date);
+
+                        return (
+                          <tr
+                            key={item.id}
+                            onClick={() => handleEventClick(item.holiday_date)}
+                            className="border-b hover:bg-blue-50/50 transition-colors cursor-pointer group"
+                          >
+                            <td className="px-5 py-3 text-xs font-medium group-hover:text-blue-700 transition-colors">
+                              {new Date(item.holiday_date + "T00:00:00").toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })}
+                            </td>
+                            <td className="px-3 py-3">
+                              <span
+                                className={`px-2 py-1 text-[10px] rounded-full font-medium uppercase tracking-wide ${
+                                  item.holiday_type === "company"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : item.holiday_type === "special"
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-gray-100 text-gray-700"
+                                }`}
                               >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                onClick={(e) => handleDeleteHoliday(e, item.id)}
-                                className="p-1.5 hover:bg-red-100 rounded text-red-600 transition-colors"
-                                title="Delete"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                                {item.holiday_type}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 text-xs font-medium text-gray-800">
+                              {item.description}
+                            </td>
+                            <td className="px-3 py-3 text-xs text-gray-700">
+                              {cutoff ? (
+                                <span className="text-xs text-gray-700">{cutoff.cutoff_type}</span>
+                              ) : (
+                                <span className="text-xs text-gray-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-xs text-gray-700">
+                              {item.last_working_day ? (
+                                <span className="font-medium text-blue-700">{item.last_working_day}</span>
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3">
+                              <div className="flex gap-2 text-xs flex-wrap">
+                                {toBool(item.is_recurring) && (
+                                  <span className="text-gray-600 flex items-center gap-1 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>{" "}
+                                    Recurring
+                                  </span>
+                                )}
+                                {toBool(item.is_paid) && (
+                                  <span className="text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{" "}
+                                    Paid
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-5 py-3 text-right">
+                              <div className="flex justify-end gap-1">
+                                <button
+                                  onClick={(e) => handleEdit(e, item)}
+                                  className="p-1.5 hover:bg-blue-100 rounded text-blue-600 transition-colors"
+                                  title="Edit"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={(e) => handleDeleteHoliday(e, item.id)}
+                                  className="p-1.5 hover:bg-red-100 rounded text-red-600 transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr>
-                        <td colSpan={6} className="px-5 py-12 text-center text-sm text-gray-500">
+                        <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500">
                           <div className="flex flex-col items-center gap-2">
                             <Search className="w-8 h-8 text-gray-300" />
                             <p>No events found matching your criteria.</p>
@@ -750,7 +816,7 @@ export function CalendarManagementModule() {
           </div>
         </div>
 
-        {/* Modal */}
+        {/* Modal (aligned to holiday_calendar columns) */}
         {modalOpen && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
@@ -758,28 +824,62 @@ export function CalendarManagementModule() {
                 <h2 className="text-lg font-bold text-gray-900">
                   {editingHolidayId ? "Edit Holiday" : "Add Holiday"}
                 </h2>
-                <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
                   <span className="sr-only">Close</span>
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
+
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1.5 text-gray-700">Date</label>
+                  <label className="block text-sm font-medium mb-1.5 text-gray-700">Holiday Date</label>
                   <input
                     type="date"
                     value={holidayDate}
-                    onChange={(e) => setHolidayDate(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setHolidayDate(v);
+                      const auto = resolveCutoffForDate(v);
+                      setCutoffSettingId(auto ? auto.id : null);
+                    }}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1.5 text-gray-700">Cutoff Period (Auto)</label>
+                  <input
+                    value={
+                      holidayDate
+                        ? (() => {
+                            const c = resolveCutoffForDate(holidayDate);
+                            return c ? cutoffLabel(c) : "No matching cutoff";
+                          })()
+                        : "Select a date"
+                    }
+                    readOnly
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1.5 text-gray-700">Last Working Day (Optional)</label>
+                  <input
+                    type="date"
+                    value={lastWorkingDay}
+                    onChange={(e) => setLastWorkingDay(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    If set, payroll can validate employees&apos; eligibility by checking attendance approvals on this date.
+                  </p>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium mb-1.5 text-gray-700">Description</label>
                   <input
@@ -789,11 +889,12 @@ export function CalendarManagementModule() {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium mb-1.5 text-gray-700">Type</label>
                   <select
                     value={holidayType}
-                    onChange={(e) => setHolidayType(e.target.value)}
+                    onChange={(e) => setHolidayType(e.target.value as HolidayType)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
                   >
                     <option value="regular">Regular</option>
@@ -801,26 +902,29 @@ export function CalendarManagementModule() {
                     <option value="company">Company</option>
                   </select>
                 </div>
+
                 <div className="flex gap-4 pt-2">
                   <label className="flex items-center gap-2 cursor-pointer p-2 border rounded-lg flex-1 hover:bg-gray-50 transition-colors">
                     <input
                       type="checkbox"
-                      checked={isRecurring as boolean}
+                      checked={isRecurring}
                       onChange={(e) => setIsRecurring(e.target.checked)}
                       className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
                     />
                     <span className="text-sm font-medium text-gray-700">Recurring</span>
                   </label>
+
                   <label className="flex items-center gap-2 cursor-pointer p-2 border rounded-lg flex-1 hover:bg-gray-50 transition-colors">
                     <input
                       type="checkbox"
-                      checked={isPaid as boolean}
+                      checked={isPaid}
                       onChange={(e) => setIsPaid(e.target.checked)}
                       className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
                     />
                     <span className="text-sm font-medium text-gray-700">Paid Holiday</span>
                   </label>
                 </div>
+
                 <div className="flex justify-end gap-3 mt-8 pt-4 border-t">
                   <button
                     onClick={() => setModalOpen(false)}
@@ -835,6 +939,9 @@ export function CalendarManagementModule() {
                     Save Event
                   </button>
                 </div>
+
+                {/* hidden state used only for saving (kept for completeness) */}
+                <input type="hidden" value={cutoffSettingId ?? ""} readOnly />
               </div>
             </div>
           </div>

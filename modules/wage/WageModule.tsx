@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 
 import type { Department, Employee, WagePayload, WageDataState } from "./types";
-import * as wageApi from "./providers/wageApi"; // ✅ correct path
+import * as wageApi from "./providers/wageApi";
 
 import EmployeeTable from "./components/EmployeeTable";
 import PasswordDialog from "./components/PasswordDialog";
@@ -50,6 +50,10 @@ export function WageModule() {
     sickLeave: 0,
     isPaidHoliday: false,
     isCard: false,
+
+    // ✅ NEW
+    isRegularEmployee: false,
+
     sss: "0.00",
     pagibig: "0.00",
     philhealth: "0.00",
@@ -188,6 +192,10 @@ export function WageModule() {
         sickLeave: Number(record.sick_leave_per_year) || 0,
         isPaidHoliday: Number(record.paid_holiday) === 1,
         isCard: Number(record.isCard) === 1,
+
+        // ✅ NEW
+        isRegularEmployee: Number((record as any).isRegularEmployee) === 1,
+
         sss: String(record.sss_contribution_monthly ?? "0.00"),
         pagibig: String(record.pagibig_contribution_monthly ?? "0.00"),
         philhealth: String(record.philhealth_contribution_monthly ?? "0.00"),
@@ -250,6 +258,10 @@ export function WageModule() {
       sick_leave_per_year: Number(wageData.sickLeave) || 0,
       paid_holiday: wageData.isPaidHoliday ? 1 : 0,
       isCard: wageData.isCard ? 1 : 0,
+
+      // ✅ NEW
+      isRegularEmployee: wageData.isRegularEmployee ? 1 : 0,
+
       updated_by: logged.user_id,
       sss_contribution_monthly: wageData.sss,
       pagibig_contribution_monthly: wageData.pagibig,
@@ -274,10 +286,7 @@ export function WageModule() {
               : null;
 
           if (!cutoffId) {
-            console.warn(
-              "[Wage] No cutoff_settings row matched date",
-              todayYmd
-            );
+            console.warn("[Wage] No cutoff_settings row matched date", todayYmd);
             toast.warning(
               "Wage saved, but no active cutoff was found for today (proration log skipped)."
             );

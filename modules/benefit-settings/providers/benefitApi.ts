@@ -154,12 +154,33 @@ export async function saveBenefitSetting(setting: BenefitSetting) {
 // --------------------
 // Cutoff settings (for loan schedule display)
 // --------------------
+// --------------------
+// Cutoff settings (for loan schedule display + effectivity sync)
+// --------------------
 export async function fetchCutoffSettings(): Promise<CutoffSetting[]> {
-  const json = await apiFetch(
-    "/items/cutoff_settings?limit=500&sort=start_date&fields=id,cutoff_type,start_date,end_date"
+  // Prefer OPEN periods (your config usually has 2 rows OPEN: FIRST + SECOND)
+  const openJson = await apiFetch(
+    "/items/cutoff_settings" +
+    "?limit=50" +
+    "&sort=start_date" +
+    "&filter[period_status][_eq]=OPEN" +
+    "&fields=id,cutoff_type,start_date,end_date,period_status,month,year,payout_date"
   );
-  return json.data || [];
+
+  const openRows = (openJson?.data || []) as CutoffSetting[];
+  if (openRows.length) return openRows;
+
+  // Fallback: if OPEN is not used, return most recent rows
+  const json = await apiFetch(
+    "/items/cutoff_settings" +
+    "?limit=200" +
+    "&sort=-start_date" +
+    "&fields=id,cutoff_type,start_date,end_date,period_status,month,year,payout_date"
+  );
+
+  return (json?.data || []) as CutoffSetting[];
 }
+
 
 // --------------------
 // Benefit Loans (NEW) - SSS & PAGIBIG only

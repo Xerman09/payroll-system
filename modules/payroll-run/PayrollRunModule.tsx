@@ -1,180 +1,309 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import type { EmployeeRow, PayrollConfigState, PayrollStep } from "./types";
-import {
-  payrollCutoffs,
-  payrollDepartments,
-  initialEmployees,
-  salaryHistory,
-} from "./providers/mockData";
-
 import DashboardLayout from "@/components/layout/DashboardLayout";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+
+import type {
+  CutoffSetting,
+  Department,
+  PayrollConfigState,
+  PayrollComputedLine,
+  PayrollRunHeader,
+  PayrollStep,
+  PayrollWorkspace,
+} from "./types";
+
 import { PayrollStepper } from "./components/PayrollStepper";
 import { PayrollConfigStep } from "./components/PayrollConfigStep";
 import { PayrollAdjustStep } from "./components/PayrollAdjustStep";
 import { PayrollProcessStep } from "./components/PayrollProcessStep";
 import { PayrollReviewStep } from "./components/PayrollReviewStep";
-import { AdjustmentModal } from "./components/AdjustmentModal";
-import { computePayrollRegister, parseCutoffValue } from "./utils/payroll";
 
-import { Card } from "@/components/ui/card";
+import * as svc from "./providers/payrollRunService";
 
 const DEFAULT_CONFIG: PayrollConfigState = {
-  cutoffValue: payrollCutoffs[0]?.value ?? "",
-  departmentValue: "ALL",
+  cutoffId: null,
+  departmentId: null, // null = ALL
 };
 
 export default function PayrollRunModule() {
   const [step, setStep] = useState<PayrollStep>(1);
+
+  // master data
+  const [cutoffs, setCutoffs] = useState<CutoffSetting[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [loadingMaster, setLoadingMaster] = useState(false);
+
+  // config
   const [config, setConfig] = useState<PayrollConfigState>(DEFAULT_CONFIG);
-  const [employees, setEmployees] = useState<EmployeeRow[]>(initialEmployees);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [activeEmployeeId, setActiveEmployeeId] = useState<number | null>(null);
+  // run header
+  const [run, setRun] = useState<PayrollRunHeader | null>(null);
 
-  const activeEmployee = useMemo(() => {
-    if (activeEmployeeId == null) return null;
-    return employees.find((e) => e.id === activeEmployeeId) ?? null;
-  }, [activeEmployeeId, employees]);
+  // loaded workspace inputs
+  const [ws, setWs] = useState<PayrollWorkspace | null>(null);
+  const [loadingWs, setLoadingWs] = useState(false);
 
-  const filteredEmployees = useMemo(() => {
-    if (config.departmentValue === "ALL") return employees;
-    return employees.filter((e) => e.department === config.departmentValue);
-  }, [employees, config.departmentValue]);
+  // hold/exclude
+  const [holdMap, setHoldMap] = useState<Map<number, boolean>>(new Map());
 
-  const cutoff = useMemo(
-    () => parseCutoffValue(config.cutoffValue),
-    [config.cutoffValue]
+  // computed register
+  const computed = useMemo(() => {
+    if (!ws) return null;
+    return svc.computeRegister({ ws, holdMap });
+  }, [ws, holdMap]);
+
+  const selectedCutoff = useMemo(
+    () => cutoffs.find((c) => c.id === config.cutoffId) ?? null,
+    [cutoffs, config.cutoffId],
   );
 
-  const register = useMemo(() => {
-    if (!cutoff.start || !cutoff.end) {
-      return {
-        rows: [],
-        summary: { totalNet: 0, activeHeadcount: 0, varianceAlerts: 0 },
-      };
-    }
-
-    return computePayrollRegister(
-      filteredEmployees,
-      cutoff.start,
-      cutoff.end,
-      salaryHistory,
-      { fixedDeductions: 2000 }
-    );
-  }, [cutoff.start, cutoff.end, filteredEmployees]);
+  const selectedDepartment = useMemo(
+    () =>
+      config.departmentId == null
+        ? null
+        : (departments.find((d) => d.id === config.departmentId) ?? null),
+    [departments, config.departmentId],
+  );
 
   useEffect(() => {
-    if (step !== 3) return;
-    const t = setTimeout(() => setStep(4), 1500);
-    return () => clearTimeout(t);
-  }, [step]);
+    (async () => {
+      try {
+        setLoadingMaster(true);
+        const [c, d] = await Promise.all([
+          svc.listCutoffs(),
+          svc.listDepartments(),
+        ]);
+        setCutoffs(c);
+        setDepartments(d);
+        // preselect first cutoff if none
+        if (c.length && config.cutoffId == null)
+          setConfig((p) => ({ ...p, cutoffId: c[0].id }));
+      } catch (e: any) {
+        toast.error(e?.message || "Failed to load payroll masters");
+      } finally {
+        setLoadingMaster(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  function navTo(next: PayrollStep) {
-    setStep(next);
+  async function loadOrCreateRunAndWorkspace() {
+    if (!selectedCutoff) {
+      toast.error("Please select a cutoff.");
+      return;
+    }
+
+    try {
+      setLoadingWs(true);
+
+      // 1) Load existing draft run (if exists)
+      const existing = await svc.findExistingDraftRun({
+        cutoffId: selectedCutoff.id,
+        departmentId: config.departmentId,
+      });
+
+      let activeRun = existing;
+
+      // 2) If none, create DRAFT run
+      if (!activeRun) {
+        const refNo = svc.generatePayrollRefNo({
+          cutoff: selectedCutoff,
+          department: selectedDepartment,
+        });
+        activeRun = await svc.createDraftRun({
+          cutoff: selectedCutoff,
+          departmentId: config.departmentId,
+          createdBy: 1, // TODO: replace with logged-in user id
+          payrollRefNo: refNo,
+        });
+      }
+
+      setRun(activeRun);
+
+      // 3) Load workspace inputs for computation
+      const workspace = await svc.loadWorkspace({
+        cutoff: selectedCutoff,
+        departmentId: config.departmentId,
+      });
+
+      setWs(workspace);
+
+      // 4) reset hold map
+      setHoldMap(new Map());
+
+      setStep(2);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to load payroll workspace");
+    } finally {
+      setLoadingWs(false);
+    }
   }
 
-  function toggleHold(employeeId: number) {
-    setEmployees((prev) =>
-      prev.map((e) => (e.id === employeeId ? { ...e, onHold: !e.onHold } : e))
-    );
+  function toggleHold(userId: number) {
+    setHoldMap((prev) => {
+      const next = new Map(prev);
+      next.set(userId, !Boolean(next.get(userId)));
+      return next;
+    });
   }
 
-  function openAdjustment(employeeId: number) {
-    setActiveEmployeeId(employeeId);
-    setModalOpen(true);
+  async function processAndSave() {
+    if (!run || !ws || !computed) return;
+
+    try {
+      setStep(3);
+
+      // persist lines
+      await svc.saveLines({
+        payrollRunId: run.payroll_run_id,
+        cutoff: ws.cutoff,
+        lines: computed.lines,
+      });
+
+      // persist header totals
+      await svc.updateRunTotals({
+        payrollRunId: run.payroll_run_id,
+        summary: computed.summary,
+      });
+
+      // optionally mark PROCESSED
+      // await patch payroll_run -> status PROCESSED
+
+      setStep(4);
+      toast.success("Payroll computed and saved (DRAFT lines).");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to process payroll");
+      setStep(2);
+    }
   }
 
-  function saveAdjustment(
-    employeeId: number,
-    adjustment: EmployeeRow["adjustments"][number]
-  ) {
-    setEmployees((prev) =>
-      prev.map((e) =>
-        e.id === employeeId
-          ? { ...e, adjustments: [...e.adjustments, adjustment] }
-          : e
-      )
-    );
+  async function postPayroll() {
+    if (!run) return;
+
+    try {
+      await svc.postRun({
+        payrollRunId: run.payroll_run_id,
+        postedBy: 1 /* TODO: auth */,
+      });
+      toast.success("Payroll POSTED successfully.");
+      // refresh run
+      setRun((p) => (p ? { ...p, status: "POSTED" } : p));
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to post payroll");
+    }
   }
 
   function startOver() {
     setConfig(DEFAULT_CONFIG);
-    setEmployees(initialEmployees);
-    setActiveEmployeeId(null);
-    setModalOpen(false);
+    setRun(null);
+    setWs(null);
+    setHoldMap(new Map());
     setStep(1);
   }
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Page header like your COOP module */}
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
-              Payroll Run Manager
+              Payroll Run
             </h1>
-            <p className="text-sm text-muted-foreground">
-              Generate, Adjust, and Validate Employee Payroll
-            </p>
+            <div className="text-sm text-muted-foreground">
+              Data-driven payroll register using Attendance, Holidays, Manual
+              Entries, and Wage Profiles.
+            </div>
+            {run ? (
+              <div className="mt-1 text-xs text-muted-foreground">
+                Ref: <span className="font-mono">{run.payroll_ref_no}</span> •
+                Status: <span className="font-semibold">{run.status}</span>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={startOver} disabled={step === 3}>
+              Start Over
+            </Button>
+            {step === 4 ? (
+              <Button
+                onClick={postPayroll}
+                disabled={!run || run.status === "POSTED"}
+              >
+                Post Payroll
+              </Button>
+            ) : null}
           </div>
         </div>
 
-        {/* Stepper inside a normal page card (not a banner card) */}
         <Card className="p-6">
           <PayrollStepper activeStep={step} />
         </Card>
 
         {step === 1 ? (
           <PayrollConfigStep
+            loading={loadingMaster || loadingWs}
             config={config}
-            cutoffs={payrollCutoffs}
-            departments={payrollDepartments}
+            cutoffs={cutoffs}
+            departments={departments}
             onChange={(patch) => setConfig((c) => ({ ...c, ...patch }))}
-            onNext={() => navTo(2)}
+            onNext={loadOrCreateRunAndWorkspace}
           />
         ) : null}
 
-        {step === 2 ? (
+        {step === 2 && ws && computed ? (
           <PayrollAdjustStep
-            employees={filteredEmployees}
+            cutoff={ws.cutoff}
+            department={ws.department}
+            run={run}
+            lines={computed.lines}
+            summary={computed.summary}
+            holdMap={holdMap}
             onToggleHold={toggleHold}
-            onOpenAdjustment={openAdjustment}
-            onNext={() => navTo(3)}
+            onRecompute={() =>
+              toast.message("Recompute happens automatically on changes.")
+            }
+            onNext={processAndSave}
           />
         ) : null}
 
         {step === 3 ? <PayrollProcessStep /> : null}
 
-        {step === 4 ? (
+        {step === 4 && computed ? (
           <PayrollReviewStep
-            rows={register.rows}
-            summary={register.summary}
-            onBackToAdjust={() => navTo(2)}
+            run={run}
+            rows={computed.lines}
+            summary={computed.summary}
+            onBackToAdjust={() => setStep(2)}
             onStartOver={startOver}
+            onPost={postPayroll}
           />
         ) : null}
 
-        <Card className="p-4 text-sm text-muted-foreground">
-          Prototype parity notes:
+        <Card className="p-4 text-xs text-muted-foreground">
+          Version-1 notes:
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>
-              Base pay uses semi-monthly assumption (basic/2) unless a salary
-              change falls within the cutoff.
+              Holiday/Rest Day premiums follow your finalized rules (Regular:
+              entitled/worked; Special: +30%; Sunday: +30%).
             </li>
-            <li>Fixed deductions are mocked at ₱2,000 per employee.</li>
-            <li>Processing step is a simulated delay (1.5s) before Review.</li>
+            <li>
+              Night differential uses placeholder logic until{" "}
+              <code>attendance_approval.night_diff_minutes</code> exists.
+            </li>
+            <li>
+              Government contributions are manual values split 50/50 per cutoff.
+            </li>
+            <li>
+              Shortage deductions are encoded in payroll_other_deductions
+              (category=SHORTAGE).
+            </li>
           </ul>
         </Card>
-
-        <AdjustmentModal
-          open={modalOpen}
-          employee={activeEmployee}
-          onOpenChange={setModalOpen}
-          onSave={saveAdjustment}
-        />
       </div>
     </DashboardLayout>
   );
