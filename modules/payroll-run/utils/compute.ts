@@ -1,7 +1,8 @@
 // modules/payroll-run/utils/compute.ts
+
 import type {
-  AttendanceApproval,
   BenefitCode,
+  EmployeeAllowance,
   EmployeeLoan,
   HolidayRow,
   ManualEntry,
@@ -10,624 +11,611 @@ import type {
   WageProfile,
 } from "../types";
 
-type ComputeArgs = {
-  user: UserRow;
-  wage: WageProfile | null;
-  attendance: any[];
-  holidays: HolidayRow[];
-  cutoffStart: string;
-  cutoffEnd: string;
-  manualEntries: ManualEntry[];
-  departmentName: string | null;
-  previousNetPay: number;
-  onHold: boolean;
-
-  // Benefit deduction logic (govt contrib)
-  benefitMultipliers: Record<BenefitCode, number>;
-
-  // Employee loans (VALE/CAR LOAN/COOP) 50/50 per cutoff
-  employeeLoans: EmployeeLoan[];
-
-  // Benefit loans (SSS/PAGIBIG)
-  benefitLoans?: any[];
-  cutoffType?: "FIRST" | "SECOND";
-  cutoffId?: number;
-};
+/**
+ * Currency formatter (PHP)
+ */
+export function formatPHP(amount: number): string {
+  const v = Number(amount ?? 0);
+  const safe = Number.isFinite(v) ? v : 0;
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(safe);
+}
 
 function n(v: any): number {
   const x = Number(v ?? 0);
   return Number.isFinite(x) ? x : 0;
 }
 
-function s(v: any): string {
-  return String(v ?? "");
-}
-
-function round2(x: number): number {
-  return Math.round((x + Number.EPSILON) * 100) / 100;
-}
-
-export function formatPHP(amount: number): string {
-  const v = Number.isFinite(Number(amount)) ? Number(amount) : 0;
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(v);
-}
-
-function buildName(u: UserRow): string {
-  const fn = s(u.first_name).trim();
-  const ln = s(u.last_name).trim();
-  const full = `${fn} ${ln}`.trim();
-  return full || `Employee #${u.id}`;
-}
-
-function normAttendance(row: any): AttendanceApproval {
-  return {
-    approval_id: n(row.approval_id ?? row.approvalId ?? row.id),
-    employee_id: n(row.employee_id ?? row.employeeId ?? row.user_id ?? row.userId),
-    date_schedule: s(row.date_schedule ?? row.dateSchedule),
-    work_minutes: n(row.work_minutes ?? row.workMinutes),
-    late_minutes: n(row.late_minutes ?? row.lateMinutes),
-    undertime_minutes: n(row.undertime_minutes ?? row.undertimeMinutes),
-    overtime_minutes: n(row.overtime_minutes ?? row.overtimeMinutes),
-    night_diff_minutes: row.night_diff_minutes ?? row.nightDiffMinutes ?? null,
-    status: (row.status ?? "approved") as any,
-  };
-}
-
-type HolidayKind = "regular" | "special" | "company";
-type HolidayFlag = "NONE" | "REGULAR" | "SPECIAL";
-
-type HolidayInfo = {
-  date: string; // YYYY-MM-DD
-  type: HolidayKind;
-  description: string;
-  is_paid: number; // 0/1
-};
-
-function normHoliday(row: any): HolidayInfo {
-  return {
-    date: s(row.holiday_date ?? row.holidayDate ?? row.date ?? row.holiday_date),
-    type: (String(row.holiday_type ?? row.holidayType ?? "regular").toLowerCase() as HolidayKind),
-    description: s(row.description ?? row.name ?? ""),
-    is_paid: n(row.is_paid ?? row.isPaid ?? 1) ? 1 : 0,
-  };
-}
-
-// Priority if multiple holiday rows exist for same date:
-// regular > special > company
-function higherHoliday(a: HolidayKind, b: HolidayKind): HolidayKind {
-  const rank: Record<HolidayKind, number> = { regular: 3, special: 2, company: 1 };
-  return rank[a] >= rank[b] ? a : b;
-}
-
-// Rest Day rule: Sunday only (timezone-stable using UTC)
-function isSunday(ymd: string): boolean {
-  const d = new Date(`${ymd}T00:00:00Z`);
-  return d.getUTCDay() === 0; // 0 = Sunday
-}
-
-function toHolidayFlag(h?: HolidayInfo | null): HolidayFlag {
-  if (!h) return "NONE";
-  const t = String(h.type ?? "").toLowerCase();
-  if (t === "regular") return "REGULAR";
-  if (t === "special") return "SPECIAL";
-  if (t === "company") return "SPECIAL"; // pragmatic default: treat company holiday like special
-  return "NONE";
+function upper(v: any): string {
+  return String(v ?? "").trim().toUpperCase();
 }
 
 /**
- * Rate matrix (NO STACKING):
- * - Regular Holiday only => base=2.00, ot=2.60
- * - Rest Day only (Sunday) => base=1.30, ot=1.69
- * - Special + Rest => base=1.50, ot=1.95
- * - Regular + Rest => base=2.60, ot=3.38
+ * IMPORTANT:
+ * Your ManualEntry.type is used as the entry kind: "EARNING" | "DEDUCTION".
+ * But payroll_other_deductions often has its own "type" (MANUAL/SHORTAGE).
+ *
+ * So we normalize a separate "category" signal here.
  */
-function getDayMultipliers(args: {
-  isRestDay: boolean;
-  holiday: HolidayFlag;
-}): { baseMult: number; otMult: number; bucket: "NORMAL" | "REST" | "HOLIDAY" } {
-  const { isRestDay, holiday } = args;
+function entryCategory(e: any): string {
+  // Prefer category (our canonical field)
+  const cat =
+    e?.category ??
+    e?.deduction_type ??
+    e?.deductionType ??
+    e?.other_deduction_type ??
+    e?.otherDeductionType ??
+    e?.deduction_kind ??
+    e?.deductionKind ??
+    null;
 
-  // combined cases (holiday + rest)
-  if (isRestDay && holiday === "SPECIAL") return { baseMult: 1.5, otMult: 1.95, bucket: "HOLIDAY" };
-  if (isRestDay && holiday === "REGULAR") return { baseMult: 2.6, otMult: 3.38, bucket: "HOLIDAY" };
+  if (cat != null && String(cat).trim() !== "") return upper(cat);
 
-  // holiday only
-  if (!isRestDay && holiday === "SPECIAL") return { baseMult: 1.3, otMult: 1.69, bucket: "HOLIDAY" };
-  if (!isRestDay && holiday === "REGULAR") return { baseMult: 2.0, otMult: 2.6, bucket: "HOLIDAY" };
+  // Fallback: if someone mistakenly stored MANUAL/SHORTAGE inside e.type (instead of EARNING/DEDUCTION)
+  const t = upper(e?.type);
+  if (t && t !== "EARNING" && t !== "DEDUCTION") return t;
 
-  // rest day only
-  if (isRestDay && holiday === "NONE") return { baseMult: 1.3, otMult: 1.69, bucket: "REST" };
-
-  // normal
-  return { baseMult: 1.0, otMult: 1.0, bucket: "NORMAL" };
+  return "";
 }
 
-// ✅ Benefit loans
-function normBenefitLoan(row: any) {
+function isCategory(e: ManualEntry, cat: string) {
+  return entryCategory(e) === upper(cat);
+}
+
+/**
+ * Assumptions about attendance rows (from attendance_approval):
+ * - date_schedule: "YYYY-MM-DD"
+ * - work_minutes, late_minutes, undertime_minutes, overtime_minutes
+ * - night_diff_minutes (optional / may be missing)
+ */
+type AttendanceApprovalRow = {
+  employee_id?: number;
+  date_schedule: string;
+  work_minutes?: number;
+  late_minutes?: number;
+  undertime_minutes?: number;
+  overtime_minutes?: number;
+  night_diff_minutes?: number;
+};
+
+type CutoffType = "FIRST" | "SECOND" | string;
+
+function toISODate(v: any): string {
+  const t = String(v ?? "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  if (t.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+  return t;
+}
+
+function dayOfWeekISO(dateYYYYMMDD: string): number {
+  const [y, m, d] = dateYYYYMMDD.split("-").map((x) => Number(x));
+  const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
+  return dt.getDay();
+}
+
+type HolidayFlags = {
+  isRegularHoliday: boolean;
+  isSpecialHoliday: boolean;
+  isRestDay: boolean;
+  holidayName?: string | null;
+  holidayTypeRaw?: string | null;
+};
+
+function normalizeHolidayType(row: any): string {
+  return upper(row?.holiday_type ?? row?.holidayType ?? row?.type ?? row?.holiday_kind ?? "");
+}
+
+function normalizeHolidayName(row: any): string {
+  const name = row?.holiday_name ?? row?.name ?? row?.description ?? row?.title ?? "";
+  return String(name ?? "").trim();
+}
+
+function buildHolidayIndex(rows: HolidayRow[]): Map<string, { type: string; name: string }> {
+  const map = new Map<string, { type: string; name: string }>();
+  for (const r of rows ?? []) {
+    const d = toISODate((r as any)?.holiday_date ?? (r as any)?.date ?? (r as any)?.holidayDate);
+    if (!d) continue;
+    map.set(d, { type: normalizeHolidayType(r), name: normalizeHolidayName(r) });
+  }
+  return map;
+}
+
+/**
+ * Rest-day logic (current V1):
+ * - Treat Sunday as Rest Day.
+ * - If holiday calendar explicitly labels "SUNDAY" / "REST" / "RESTDAY", honor it too.
+ */
+function resolveHolidayFlags(date: string, holidayIndex: Map<string, { type: string; name: string }>): HolidayFlags {
+  const h = holidayIndex.get(date);
+  const t = upper(h?.type ?? "");
+
+  const isRegularHoliday = t.includes("REGULAR");
+  const isSpecialHoliday = t.includes("SPECIAL");
+
+  const explicitRest =
+    t.includes("SUNDAY") || t.includes("RESTDAY") || t === "REST" || t === "RD";
+
+  const isRestDay = explicitRest || dayOfWeekISO(date) === 0;
+
   return {
-    loan_id: n(row.loan_id ?? row.id),
-    user_id: n(row.user_id),
-    benefit_code: String(row.benefit_code ?? "").toUpperCase(), // "SSS" | "PAGIBIG"
-    loan_name: row.loan_name ?? null,
-    reference_no: row.reference_no ?? null,
-    amortization_amount: n(row.amortization_amount),
-    deduct_on: String(row.deduct_on ?? "BOTH").toUpperCase(), // FIRST|SECOND|BOTH
-    start_cutoff_id: n(row.start_cutoff_id),
-    remaining_balance: n(row.remaining_balance),
-    last_paid_cutoff_id: row.last_paid_cutoff_id == null ? null : n(row.last_paid_cutoff_id),
-    status: String(row.status ?? "ACTIVE").toUpperCase(),
+    isRegularHoliday,
+    isSpecialHoliday,
+    isRestDay,
+    holidayName: h?.name ?? null,
+    holidayTypeRaw: h?.type ?? null,
   };
 }
 
-function benefitLoanAmountForCutoff(args: {
-  loan: ReturnType<typeof normBenefitLoan>;
-  cutoffType: string;
-}): number {
-  const deductOn = String(args.loan.deduct_on ?? "BOTH").toUpperCase();
-  const amort = n(args.loan.amortization_amount);
+function computeRates(wage: WageProfile | null) {
+  const daily = n((wage as any)?.daily_wage ?? (wage as any)?.daily_rate ?? 0);
+  const hourly =
+    (wage as any)?.hourly_wage != null
+      ? n((wage as any)?.hourly_wage)
+      : daily > 0
+        ? daily / 8
+        : 0;
+  const monthly =
+    (wage as any)?.monthly_wage != null
+      ? n((wage as any)?.monthly_wage)
+      : daily > 0
+        ? daily * 26
+        : 0;
 
-  if (amort <= 0) return 0;
-  if (deductOn === "BOTH") return round2(amort / 2);
-  if (!args.cutoffType) return 0;
-  return deductOn === args.cutoffType ? round2(amort) : 0;
+  return { daily, hourly, monthly };
 }
 
-export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
-  const empName = buildName(args.user);
+function fullName(u: UserRow): string {
+  const fn = String((u as any)?.first_name ?? (u as any)?.user_fname ?? "").trim();
+  const ln = String((u as any)?.last_name ?? (u as any)?.user_lname ?? "").trim();
+  const name = `${fn} ${ln}`.trim();
+  return name || String((u as any)?.employee_name ?? (u as any)?.name ?? `User #${(u as any)?.id ?? "—"}`);
+}
 
-  const daily = n(args.wage?.daily_wage);
-  const hourly =
-    args.wage?.hourly_wage != null ? n(args.wage.hourly_wage) : daily > 0 ? daily / 8 : 0;
+function allowanceAmountThisCutoff(a: EmployeeAllowance, cutoffType: CutoffType): number {
+  const pre = (a as any)?.amount_this_cutoff;
+  if (pre != null && Number.isFinite(Number(pre))) return n(pre);
 
-  // Use DAILY-based minute rate (per your statutory formula)
-  const DR = daily > 0 ? daily : hourly > 0 ? hourly * 8 : 0;
-  const MR = DR > 0 ? DR / 480 : 0;
+  const payCycle = upper((a as any)?.pay_cycle ?? (a as any)?.payCycle ?? "");
+  const amt = n((a as any)?.amount);
 
-  const monthly =
-    args.wage?.monthly_wage != null ? n(args.wage.monthly_wage) : daily > 0 ? daily * 26 : 0;
+  if (payCycle.includes("PER_CUTOFF") || payCycle.includes("EACH_CUTOFF")) return amt;
+  if (payCycle.includes("FIRST")) return upper(cutoffType) === "FIRST" ? amt : 0;
+  if (payCycle.includes("SECOND")) return upper(cutoffType) === "SECOND" ? amt : 0;
+  if (payCycle.includes("BOTH") || payCycle.includes("MONTH")) return amt / 2;
 
-  // Attendance rows
-  const att = (args.attendance ?? [])
-    .map(normAttendance)
-    .filter((r) => String(r.status ?? "").toLowerCase() === "approved");
+  return amt;
+}
 
-  // Holiday map
-  const holidayMap = new Map<string, HolidayInfo>();
-  for (const h of (args.holidays ?? []).map(normHoliday)) {
-    if (!h.date) continue;
-    const existing = holidayMap.get(h.date);
-    if (!existing) {
-      holidayMap.set(h.date, h);
-      continue;
-    }
-    const bestType = higherHoliday(existing.type, h.type);
-    holidayMap.set(h.date, {
-      ...existing,
-      type: bestType,
-      is_paid: existing.is_paid || h.is_paid ? 1 : 0,
-      description: existing.description || h.description,
-    });
+function computeEmployeeLoansDeduction(employeeLoans: EmployeeLoan[]) {
+  let vale = 0;
+  let car = 0;
+  let coop = 0;
+
+  for (const l of employeeLoans ?? []) {
+    const type = upper((l as any)?.loan_type ?? (l as any)?.loanType ?? "");
+    const perCutoff = n((l as any)?.monthly_payment) / 2;
+
+    if (type.includes("VALE")) vale += perCutoff;
+    else if (type.includes("CAR")) car += perCutoff;
+    else if (type.includes("COOP")) coop += perCutoff;
+    else vale += perCutoff;
   }
 
-  const attendedDates = new Set(att.map((r) => r.date_schedule));
+  const total = vale + car + coop;
+  return { vale, car, coop, total };
+}
 
-  // Totals (minutes)
+function computeBenefitLoansDeduction(args: {
+  benefitLoans: any[];
+  cutoffType: CutoffType;
+  cutoffId: number;
+}) {
+  let sss = 0;
+  let pagibig = 0;
+
+  for (const r of args.benefitLoans ?? []) {
+    const status = upper(r?.status);
+    if (status && status !== "ACTIVE") continue;
+
+    const remaining = n(r?.remaining_balance);
+    if (remaining <= 0) continue;
+
+    const startCutoffId = n(r?.start_cutoff_id);
+    if (startCutoffId && args.cutoffId && args.cutoffId < startCutoffId) continue;
+
+    const benefitCode = upper(r?.benefit_code);
+    const deductOn = upper(r?.deduct_on);
+    const amort = n(r?.amortization_amount);
+
+    let thisCutoff = 0;
+
+    if (deductOn === "BOTH") thisCutoff = amort / 2;
+    else if (deductOn === upper(args.cutoffType)) thisCutoff = amort;
+    else thisCutoff = 0;
+
+    if (thisCutoff <= 0) continue;
+
+    thisCutoff = Math.min(thisCutoff, remaining);
+
+    if (benefitCode === "SSS") sss += thisCutoff;
+    else if (benefitCode === "PAGIBIG" || benefitCode === "PAG-IBIG") pagibig += thisCutoff;
+  }
+
+  const total = sss + pagibig;
+  return { sss, pagibig, total };
+}
+
+function computeGovBenefits(args: {
+  wage: WageProfile | null;
+  benefitMultipliers: Record<BenefitCode, number>;
+}) {
+  const sssMonthly = n((args.wage as any)?.sss_employee ?? (args.wage as any)?.sss_contribution_monthly ?? 0);
+  const phMonthly = n(
+    (args.wage as any)?.philhealth_employee ?? (args.wage as any)?.philhealth_contribution_monthly ?? 0,
+  );
+  const piMonthly = n((args.wage as any)?.pagibig_employee ?? (args.wage as any)?.pagibig_contribution_monthly ?? 0);
+
+  const mul = args.benefitMultipliers ?? ({} as any);
+
+  const sss = mul.SSS ? sssMonthly * 0.5 : 0;
+  const philhealth = mul.PHILHEALTH ? phMonthly * 0.5 : 0;
+  const pagibig = mul.PAGIBIG ? piMonthly * 0.5 : 0;
+
+  return { sss, philhealth, pagibig };
+}
+
+function round2(v: number) {
+  return Math.round(n(v) * 100) / 100;
+}
+
+function computeHolidayAndRestPremium(args: {
+  date: string;
+  basePay8h: number;
+  worked: boolean;
+  flags: HolidayFlags;
+  dailyRate: number;
+}) {
+  let holidayPay = 0;
+  let restDayAmount = 0;
+
+  const { isRegularHoliday, isSpecialHoliday, isRestDay } = args.flags;
+
+  if (isRegularHoliday) {
+    if (args.worked) {
+      const addFactor = isRestDay ? 1.6 : 1.0;
+      holidayPay += args.basePay8h * addFactor;
+    } else {
+      holidayPay += args.dailyRate;
+    }
+    return { holidayPay, restDayAmount };
+  }
+
+  if (isSpecialHoliday) {
+    if (args.worked) {
+      const addFactor = isRestDay ? 0.5 : 0.3;
+      holidayPay += args.basePay8h * addFactor;
+    }
+    return { holidayPay, restDayAmount };
+  }
+
+  if (isRestDay && args.worked) {
+    restDayAmount += args.basePay8h * 0.3;
+  }
+
+  return { holidayPay, restDayAmount };
+}
+
+/**
+ * Main line computation
+ */
+export function computeEmployeeLine(args: {
+  user: UserRow;
+  wage: WageProfile | null;
+  attendance: AttendanceApprovalRow[];
+  holidays: HolidayRow[];
+
+  cutoffStart: string;
+  cutoffEnd: string;
+
+  manualEntries: ManualEntry[];
+  allowances: EmployeeAllowance[];
+
+  departmentName: string | null;
+
+  previousNetPay?: number;
+  onHold?: boolean;
+
+  benefitMultipliers: Record<BenefitCode, number>;
+  employeeLoans: EmployeeLoan[];
+
+  benefitLoans: any[];
+  cutoffType: CutoffType;
+  cutoffId: number;
+}): PayrollComputedLine {
+  const userId = n((args.user as any)?.id ?? (args.user as any)?.user_id);
+
+  const rates = computeRates(args.wage);
+  const dailyRate = rates.daily;
+  const hourlyRate = rates.hourly;
+  const monthlyRate = rates.monthly;
+
+  let totalDaysWorked = 0;
   let totalWorkMinutes = 0;
   let lateMinutes = 0;
   let undertimeMinutes = 0;
   let overtimeMinutes = 0;
   let nightDiffMinutes = 0;
 
-  // Earnings buckets
   let basicPay = 0;
   let otAmount = 0;
+  let holidayPay = 0;
+  let restDayAmount = 0;
+  let nightDiffAmount = 0;
 
-  let holidayPay = 0;   // includes combined rest+holiday cases
-  let restDayAmount = 0; // rest day only (Sunday, non-holiday)
+  const holidayIndex = buildHolidayIndex(args.holidays ?? []);
+  const holidayDayItems: any[] = [];
 
-  const holidayItems: Array<{
-    date: string;
-    holiday: HolidayFlag;
-    is_rest_day: boolean;
-    base_minutes: number;
-    ot_minutes: number;
-    base_mult: number;
-    ot_mult: number;
-    pay: number;
-    ot_pay: number;
-    total: number;
-    description: string;
-    pay_type: "WORKED_PREMIUM" | "UNWORKED_HOLIDAY_PAY";
-  }> = [];
+  for (const r of args.attendance ?? []) {
+    const date = toISODate((r as any)?.date_schedule);
+    if (!date) continue;
 
+    const wm = n((r as any)?.work_minutes);
+    const lm = n((r as any)?.late_minutes);
+    const um = n((r as any)?.undertime_minutes);
+    const om = n((r as any)?.overtime_minutes);
+    const ndm = n((r as any)?.night_diff_minutes);
 
-  const restDayItems: Array<{
-    date: string;
-    base_minutes: number;
-    ot_minutes: number;
-    base_mult: number;
-    ot_mult: number;
-    pay: number;
-    ot_pay: number;
-    total: number;
-  }> = [];
+    const worked = wm > 0;
 
-  // Iterate attendance rows and compute day-by-day
-  for (const r of att) {
-    const date = r.date_schedule;
-    const h = holidayMap.get(date) ?? null;
-    const holidayFlag = toHolidayFlag(h);
-    const rd = isSunday(date);
+    if (worked) totalDaysWorked += 1;
 
-    const wmRaw = n(r.work_minutes);
-    const omRaw = n(r.overtime_minutes);
-
-    // base minutes always capped at 480
-    const baseMin = Math.min(wmRaw, 480);
-
-    // OT minutes: trust overtime_minutes, but if work_minutes > 480 and OT not provided, don't underpay
-    const otMin = Math.max(omRaw, Math.max(0, wmRaw - 480));
-
-    const lm = n(r.late_minutes);
-    const um = n(r.undertime_minutes);
-    const ndm = r.night_diff_minutes == null ? 0 : n(r.night_diff_minutes);
-
-    totalWorkMinutes += wmRaw;
-    overtimeMinutes += otMin;
+    totalWorkMinutes += wm;
+    lateMinutes += lm;
+    undertimeMinutes += um;
+    overtimeMinutes += om;
     nightDiffMinutes += ndm;
 
-    const { baseMult, otMult, bucket } = getDayMultipliers({
-      isRestDay: rd,
-      holiday: holidayFlag,
+    const baseMinutes8h = Math.max(0, Math.min(wm, 480));
+    const basePay8h = (hourlyRate * baseMinutes8h) / 60;
+
+    basicPay += basePay8h;
+
+    const flags = resolveHolidayFlags(date, holidayIndex);
+
+    const prem = computeHolidayAndRestPremium({
+      date,
+      basePay8h,
+      worked,
+      flags,
+      dailyRate,
     });
 
-    // pay using minute-rate formula
-    const basePay = round2(baseMin * MR * baseMult);
-    const otPay = round2(otMin * MR * otMult);
-    const dayTotal = round2(basePay + otPay);
+    holidayPay += prem.holidayPay;
+    restDayAmount += prem.restDayAmount;
 
-    // ✅ No late/undertime deductions on:
-    // - any holiday (including combined rest+holiday)
-    // - rest day only
-    if (bucket === "NORMAL") {
-      lateMinutes += lm;
-      undertimeMinutes += um;
-
-      // Normal day buckets (kept separate for UI)
-      basicPay += basePay;
-      otAmount += otPay;
-    } else if (bucket === "REST") {
-      restDayAmount += dayTotal;
-      restDayItems.push({
+    if (flags.isRegularHoliday || flags.isSpecialHoliday || flags.isRestDay) {
+      holidayDayItems.push({
         date,
-        base_minutes: baseMin,
-        ot_minutes: otMin,
-        base_mult: baseMult,
-        ot_mult: otMult,
-        pay: basePay,
-        ot_pay: otPay,
-        total: dayTotal,
+        worked,
+        work_minutes: baseMinutes8h,
+        base_pay: round2(basePay8h),
+        holiday_type: flags.holidayTypeRaw ?? null,
+        holiday_name: flags.holidayName ?? null,
+        is_rest_day: flags.isRestDay,
+        computed: {
+          holiday_pay_add: round2(prem.holidayPay),
+          rest_day_add: round2(prem.restDayAmount),
+        },
       });
-    } else {
-      // HOLIDAY bucket includes:
-      // - holiday only
-      // - rest day + holiday combined (no stacking)
-      holidayPay += dayTotal;
-      holidayItems.push({
-        date,
-        holiday: holidayFlag,
-        is_rest_day: rd,
-        base_minutes: baseMin,
-        ot_minutes: otMin,
-        base_mult: baseMult,
-        ot_mult: otMult,
-        pay: basePay,
-        ot_pay: otPay,
-        total: dayTotal,
-        description: h?.description ?? "",
-        pay_type: "WORKED_PREMIUM",
-      });
-
     }
   }
 
-  basicPay = round2(basicPay);
-  otAmount = round2(otAmount);
-  holidayPay = round2(holidayPay);
-  restDayAmount = round2(restDayAmount);
+  const OT_MULT = 1.25;
+  otAmount = (hourlyRate * overtimeMinutes) / 60 * OT_MULT;
 
-  // Paid holidays with NO attendance row:
-  // Pay = Daily Rate (no premium; premium is for "worked" cases)
-  for (const [date, h] of holidayMap.entries()) {
-    if (!h.is_paid) continue;
-    if (attendedDates.has(date)) continue;
+  const ND_RATE = 0.1;
+  nightDiffAmount = (hourlyRate * nightDiffMinutes) / 60 * ND_RATE;
 
-    const pay = round2(DR);
-    holidayPay = round2(holidayPay + pay);
-
-    holidayItems.push({
-      date,
-      holiday: toHolidayFlag(h),
-      is_rest_day: isSunday(date),
-      base_minutes: 0,
-      ot_minutes: 0,
-      base_mult: 1.0,
-      ot_mult: 0,
-      pay,
-      ot_pay: 0,
-      total: pay,
-      description: h.description,
-      pay_type: "UNWORKED_HOLIDAY_PAY",
-    });
-  }
-
-
-  const nightDiffAmount = round2((nightDiffMinutes / 60) * hourly * 0.1);
-  const totalDaysWorked = totalWorkMinutes > 0 ? round2(totalWorkMinutes / 480) : 0;
-
-  // Manual entries
-  const manualAdds = (args.manualEntries ?? [])
-    .filter((m) => m.type === "EARNING")
-    .reduce((sum, m) => sum + n(m.amount), 0);
-
-  const manualDedsAll = (args.manualEntries ?? [])
-    .filter((m) => m.type === "DEDUCTION")
-    .reduce((sum, m) => sum + n(m.amount), 0);
-
-  const shortage = (args.manualEntries ?? [])
-    .filter((m) => m.type === "DEDUCTION")
-    .filter((m) => {
-      const cat = s(m.category).trim().toLowerCase();
-      const desc = s(m.desc).trim().toLowerCase();
-      return cat === "shortage" || desc.includes("shortage");
-    })
-    .reduce((sum, m) => sum + n(m.amount), 0);
-
-  const shortageDeduction = round2(shortage);
-  const manualDeductions = round2(manualDedsAll);
-  const otherDeductions = round2(manualDeductions - shortageDeduction);
-
-  // Time-based deductions (ONLY from normal days)
-  const lateDeduction = round2((lateMinutes / 60) * hourly);
-  const undertimeDeduction = round2((undertimeMinutes / 60) * hourly);
-
-  // Govt benefits
-  const multSSS = n(args.benefitMultipliers?.SSS ?? 0);
-  const multPhil = n(args.benefitMultipliers?.PHILHEALTH ?? 0);
-  const multPagibig = n(args.benefitMultipliers?.PAGIBIG ?? 0);
-
-  const sssMonthly = n(args.wage?.sss_employee);
-  const philMonthly = n(args.wage?.philhealth_employee);
-  const pagibigMonthly = n(args.wage?.pagibig_employee);
-
-  const benefitSSS = round2(sssMonthly * multSSS);
-  const benefitPhilhealth = round2(philMonthly * multPhil);
-  const benefitPagibig = round2(pagibigMonthly * multPagibig);
-
-  // Employee loans 50/50
-  const loanHalf = (monthlyPayment: number) => round2(n(monthlyPayment) / 2);
-
-  let loanVale = 0;
-  let loanCar = 0;
-  let loanCoop = 0;
-
-  for (const L of args.employeeLoans ?? []) {
-    const half = loanHalf(L.monthly_payment);
-    if (L.loan_type === "VALE") loanVale += half;
-    else if (L.loan_type === "CAR LOAN") loanCar += half;
-    else if (L.loan_type === "COOP") loanCoop += half;
-  }
-
-  loanVale = round2(loanVale);
-  loanCar = round2(loanCar);
-  loanCoop = round2(loanCoop);
-
-  const loanTotal = round2(loanVale + loanCar + loanCoop);
-
-  // Benefit loans (SSS/PAGIBIG)
-  const cutoffType = String(args.cutoffType ?? "").toUpperCase();
-  const cutoffId = n(args.cutoffId);
-
-  const bLoansNorm = (args.benefitLoans ?? []).map(normBenefitLoan);
-
-  const bLoansEffective = bLoansNorm.filter((x) => {
-    if (String(x.status).toUpperCase() !== "ACTIVE") return false;
-    if (n(x.remaining_balance) <= 0) return false;
-
-    if (cutoffId > 0 && n(x.start_cutoff_id) > cutoffId) return false;
-    if (cutoffId > 0 && x.last_paid_cutoff_id != null && n(x.last_paid_cutoff_id) === cutoffId) return false;
-
-    const deductOn = String(x.deduct_on ?? "BOTH").toUpperCase();
-    if (deductOn === "BOTH") return true;
-    if (!cutoffType) return false;
-    return deductOn === cutoffType;
-  });
-
-  const bLoanItems = bLoansEffective.map((x) => {
-    const amount = benefitLoanAmountForCutoff({ loan: x, cutoffType });
+  const allowanceItems = (args.allowances ?? []).map((a) => {
+    const amt = allowanceAmountThisCutoff(a, args.cutoffType);
     return {
-      loan_id: x.loan_id,
-      benefit_code: x.benefit_code,
-      loan_name: x.loan_name,
-      reference_no: x.reference_no,
-      amortization_amount: x.amortization_amount,
-      deduct_on: x.deduct_on,
-      amount_this_cutoff: amount,
+      allowance_id: n((a as any)?.allowance_id ?? (a as any)?.id),
+      description: (a as any)?.description ?? null,
+      pay_cycle: (a as any)?.pay_cycle ?? null,
+      amount_this_cutoff: round2(amt),
     };
   });
 
-  const benefitLoanSSS = round2(
-    bLoanItems
-      .filter((x) => x.benefit_code === "SSS")
-      .reduce((sum, x) => sum + n(x.amount_this_cutoff), 0),
-  );
+  const allowanceTotal = allowanceItems.reduce((sum, x) => sum + n(x.amount_this_cutoff), 0);
 
-  const benefitLoanPagibig = round2(
-    bLoanItems
-      .filter((x) => x.benefit_code === "PAGIBIG")
-      .reduce((sum, x) => sum + n(x.amount_this_cutoff), 0),
-  );
+  // Manual Entries (additions / deductions)
+  const entries = Array.isArray(args.manualEntries) ? args.manualEntries : [];
+  const additions = entries.filter((e) => upper((e as any)?.type) === "EARNING");
+  const deductions = entries.filter((e) => upper((e as any)?.type) === "DEDUCTION");
 
-  const benefitLoanTotal = round2(benefitLoanSSS + benefitLoanPagibig);
+  const manualAdditionsTotal = additions.reduce((sum, e) => sum + n((e as any)?.amount), 0);
 
-  // Not wired yet
-  const allowance = 0;
-  const retroPay = 0;
-  const drDeduction = 0;
+  const drDeduction = deductions
+    .filter((e) => isCategory(e, "DR_PAYMENT"))
+    .reduce((sum, e) => sum + n((e as any)?.amount), 0);
 
-  const grossPay = round2(
+  const shortageDeduction = deductions
+    .filter((e) => isCategory(e, "SHORTAGE"))
+    .reduce((sum, e) => sum + n((e as any)?.amount), 0);
+
+  // Other manual deductions excluding DR_PAYMENT and SHORTAGE
+  const otherManualDeductionsTotal = deductions
+    .filter((e) => !isCategory(e, "DR_PAYMENT") && !isCategory(e, "SHORTAGE"))
+    .reduce((sum, e) => sum + n((e as any)?.amount), 0);
+
+  const lateDeduction = (hourlyRate * lateMinutes) / 60;
+  const undertimeDeduction = (hourlyRate * undertimeMinutes) / 60;
+
+  const empLoans = computeEmployeeLoansDeduction(args.employeeLoans ?? []);
+  const benLoans = computeBenefitLoansDeduction({
+    benefitLoans: args.benefitLoans ?? [],
+    cutoffType: args.cutoffType,
+    cutoffId: args.cutoffId,
+  });
+
+  const gov = computeGovBenefits({
+    wage: args.wage,
+    benefitMultipliers: args.benefitMultipliers ?? ({} as any),
+  });
+
+  const grossPay =
     basicPay +
     otAmount +
     holidayPay +
     restDayAmount +
     nightDiffAmount +
-    allowance +
-    retroPay +
-    manualAdds,
-  );
+    allowanceTotal +
+    manualAdditionsTotal;
 
-  const totalDeductions = round2(
+  const totalDeductions =
     lateDeduction +
     undertimeDeduction +
     shortageDeduction +
-    loanTotal +
-    benefitLoanTotal +
-    benefitSSS +
-    benefitPhilhealth +
-    benefitPagibig +
     drDeduction +
-    otherDeductions,
-  );
+    empLoans.total +
+    benLoans.total +
+    gov.sss +
+    gov.philhealth +
+    gov.pagibig +
+    otherManualDeductionsTotal;
 
-  const netPay = round2(grossPay - totalDeductions);
+  const netPay = grossPay - totalDeductions;
 
-  const prev = n(args.previousNetPay);
-  const variancePct = prev > 0 ? round2(((netPay - prev) / prev) * 100) : null;
-  const varianceFlag = prev > 0 && Math.abs(n(variancePct)) >= 10;
+  const prevNet = n(args.previousNetPay ?? 0);
+  let variancePct: number | null = null;
+  let varianceFlag = false;
 
-  return {
-    user_id: args.user.id,
-    employee_name: empName,
-    position: args.user.position ?? null,
-    department_name: args.departmentName ?? null,
+  if (prevNet > 0) {
+    variancePct = ((netPay - prevNet) / prevNet) * 100;
+    varianceFlag = Math.abs(variancePct) >= 20 || Math.abs(netPay - prevNet) >= 2000;
+  }
 
-    daily_rate: round2(daily),
-    hourly_rate: round2(hourly),
-    monthly_rate: round2(monthly),
-
-    total_days_worked: totalDaysWorked,
-    total_work_minutes: totalWorkMinutes,
-    late_minutes: lateMinutes,
-    undertime_minutes: undertimeMinutes,
-    overtime_minutes: overtimeMinutes,
-    night_diff_minutes: nightDiffMinutes,
-
-    // Earnings
-    basic_pay: round2(basicPay),
-    ot_amount: round2(otAmount),
-    holiday_pay: round2(holidayPay),
-    rest_day_amount: round2(restDayAmount),
-    night_diff_amount: nightDiffAmount,
-    allowance,
-    retro_pay: retroPay,
-    manual_additions: round2(manualAdds),
-
-    // Deductions
-    late_deduction: lateDeduction,
-    undertime_deduction: undertimeDeduction,
-    shortage_deduction: shortageDeduction,
-
-    benefit_sss: benefitSSS,
-    benefit_philhealth: benefitPhilhealth,
-    benefit_pagibig: benefitPagibig,
-
-    loan_vale: loanVale,
-    loan_car: loanCar,
-    loan_coop: loanCoop,
-    loan_total: loanTotal,
-
-    benefit_loan_sss: benefitLoanSSS,
-    benefit_loan_pagibig: benefitLoanPagibig,
-    benefit_loan_total: benefitLoanTotal,
-
-    dr_deduction: drDeduction,
-    other_deductions: otherDeductions,
-    manual_deductions: manualDeductions,
-
-    total_additions: round2(manualAdds + allowance + retroPay + holidayPay + restDayAmount + nightDiffAmount + otAmount),
-    total_deductions: totalDeductions,
-    gross_pay: grossPay,
-    net_pay: netPay,
-
-    previous_net_pay: prev,
-    variance_pct: variancePct,
-    variance_flag: varianceFlag,
-
-    on_hold: Boolean(args.onHold),
-
-    breakdown_json: {
-      rates: {
-        daily: DR,
-        minute_rate: MR,
-        hourly,
-        monthly,
-      },
-      earnings: {
-        basic_pay: round2(basicPay),
-        ot_amount: round2(otAmount),
-        holiday_pay: round2(holidayPay),
-        rest_day_amount: round2(restDayAmount),
-        night_diff_amount: nightDiffAmount,
-        manual_additions: round2(manualAdds),
-        holiday_items: holidayItems,
-        rest_day_items: restDayItems,
-        rate_matrix: {
-          regular_only: { base: 2.0, ot: 2.6 },
-          rest_only: { base: 1.3, ot: 1.69 },
-          special_plus_rest: { base: 1.5, ot: 1.95 },
-          regular_plus_rest: { base: 2.6, ot: 3.38 },
-        },
-      },
-      deductions: {
-        late_deduction: lateDeduction,
-        undertime_deduction: undertimeDeduction,
-        shortage_deduction: shortageDeduction,
-        employee_loans: {
-          rule: "50/50 per cutoff",
-          vale: loanVale,
-          car_loan: loanCar,
-          coop: loanCoop,
-          total: loanTotal,
-        },
-        benefit_loans: {
-          rule: 'If deduct_on="BOTH" then 50/50 per cutoff; else deduct full on matching cutoff',
-          sss: benefitLoanSSS,
-          pagibig: benefitLoanPagibig,
-          total: benefitLoanTotal,
-          items: bLoanItems,
-        },
-        benefits: {
-          rule: "benefit_cutoff_settings",
-          multipliers: { SSS: multSSS, PHILHEALTH: multPhil, PAGIBIG: multPagibig },
-          sss: benefitSSS,
-          philhealth: benefitPhilhealth,
-          pagibig: benefitPagibig,
-        },
-        other_deductions: otherDeductions,
-        manual_deductions: manualDeductions,
-      },
-      totals: {
-        gross_pay: grossPay,
-        total_deductions: totalDeductions,
-        net_pay: netPay,
-      },
-      cutoff: { start: args.cutoffStart, end: args.cutoffEnd, type: args.cutoffType, id: args.cutoffId },
-      flags: { on_hold: Boolean(args.onHold), variance_flag: varianceFlag },
+  const breakdown_json = {
+    attendance: {
+      total_days_worked: totalDaysWorked,
+      total_work_minutes: totalWorkMinutes,
+      late_minutes: lateMinutes,
+      undertime_minutes: undertimeMinutes,
+      overtime_minutes: overtimeMinutes,
+      night_diff_minutes: nightDiffMinutes,
+      flagged_days: holidayDayItems,
     },
-  } as any;
+    earnings: {
+      basic_pay: round2(basicPay),
+      ot_amount: round2(otAmount),
+      holiday_pay: round2(holidayPay),
+      rest_day_amount: round2(restDayAmount),
+      night_diff_amount: round2(nightDiffAmount),
+      allowance_total: round2(allowanceTotal),
+      allowance_items: allowanceItems,
+      manual_additions_total: round2(manualAdditionsTotal),
+      manual_additions: additions.map((e) => ({
+        id: (e as any)?.id ?? null,
+        desc: (e as any)?.desc ?? null,
+        amount: round2(n((e as any)?.amount)),
+      })),
+    },
+    deductions: {
+      late_deduction: round2(lateDeduction),
+      undertime_deduction: round2(undertimeDeduction),
+      shortage_deduction: round2(shortageDeduction),
+      dr_deduction: round2(drDeduction),
+      employee_loans: {
+        vale: round2(empLoans.vale),
+        car: round2(empLoans.car),
+        coop: round2(empLoans.coop),
+        total: round2(empLoans.total),
+      },
+      benefit_loans: {
+        sss: round2(benLoans.sss),
+        pagibig: round2(benLoans.pagibig),
+        total: round2(benLoans.total),
+      },
+      gov_benefits: {
+        sss: round2(gov.sss),
+        philhealth: round2(gov.philhealth),
+        pagibig: round2(gov.pagibig),
+      },
+      manual_deductions_total: round2(otherManualDeductionsTotal),
+      manual_deductions: deductions
+        .filter((e) => !isCategory(e, "DR_PAYMENT") && !isCategory(e, "SHORTAGE"))
+        .map((e) => ({
+          id: (e as any)?.id ?? null,
+          desc: (e as any)?.desc ?? null,
+          amount: round2(n((e as any)?.amount)),
+          category: (e as any)?.category ?? null,
+        })),
+    },
+  };
+
+  const employee_name = fullName(args.user);
+
+  const out: PayrollComputedLine = {
+    user_id: userId as any,
+    employee_name: employee_name as any,
+    department_name: (args.departmentName ?? (args.user as any)?.department_name ?? null) as any,
+    position: ((args.user as any)?.position ?? null) as any,
+
+    daily_rate: round2(dailyRate) as any,
+    hourly_rate: round2(hourlyRate) as any,
+    monthly_rate: round2(monthlyRate) as any,
+
+    total_days_worked: totalDaysWorked as any,
+    total_work_minutes: totalWorkMinutes as any,
+    late_minutes: lateMinutes as any,
+    undertime_minutes: undertimeMinutes as any,
+    overtime_minutes: overtimeMinutes as any,
+    night_diff_minutes: nightDiffMinutes as any,
+
+    basic_pay: round2(basicPay) as any,
+    ot_amount: round2(otAmount) as any,
+    holiday_pay: round2(holidayPay) as any,
+    rest_day_amount: round2(restDayAmount) as any,
+    night_diff_amount: round2(nightDiffAmount) as any,
+    allowance: round2(allowanceTotal) as any,
+    manual_additions: round2(manualAdditionsTotal) as any,
+
+    late_deduction: round2(lateDeduction) as any,
+    undertime_deduction: round2(undertimeDeduction) as any,
+    shortage_deduction: round2(shortageDeduction) as any,
+
+    benefit_sss: round2(gov.sss) as any,
+    benefit_philhealth: round2(gov.philhealth) as any,
+    benefit_pagibig: round2(gov.pagibig) as any,
+
+    manual_deductions: round2(otherManualDeductionsTotal) as any,
+
+    gross_pay: round2(grossPay) as any,
+    total_deductions: round2(totalDeductions) as any,
+    net_pay: round2(netPay) as any,
+
+    on_hold: Boolean(args.onHold) as any,
+
+    variance_flag: Boolean(varianceFlag) as any,
+    variance_pct: variancePct == null ? null : round2(variancePct) as any,
+
+    breakdown_json: breakdown_json as any,
+  } as PayrollComputedLine;
+
+  // Extra fields consumed by EmployeeDetailsSheet
+  (out as any).dr_deduction = round2(drDeduction);
+  (out as any).loan_vale = round2(empLoans.vale);
+  (out as any).loan_car = round2(empLoans.car);
+  (out as any).loan_coop = round2(empLoans.coop);
+  (out as any).loan_total = round2(empLoans.total);
+
+  (out as any).benefit_loan_sss = round2(benLoans.sss);
+  (out as any).benefit_loan_pagibig = round2(benLoans.pagibig);
+  (out as any).benefit_loan_total = round2(benLoans.total);
+
+  return out;
 }

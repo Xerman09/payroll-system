@@ -1,4 +1,5 @@
 // modules/payroll-run/providers/payrollApi.ts
+
 type DirectusList<T> = { data: T[] };
 type DirectusSingle<T> = { data: T };
 
@@ -24,15 +25,26 @@ function qs(params: Record<string, any>) {
   return sp.toString();
 }
 
-export async function listItems<T>(resource: string, params: Record<string, any>): Promise<T[]> {
+export async function listItems<T>(
+  resource: string,
+  params: Record<string, any>,
+): Promise<T[]> {
   const query = qs({ resource, ...params });
-  const json = await apiFetch<DirectusList<T>>(`${BASE}?${query}`, { method: "GET" });
+  const json = await apiFetch<DirectusList<T>>(`${BASE}?${query}`, {
+    method: "GET",
+  });
   return (json?.data ?? []) as T[];
 }
 
-export async function getItem<T>(resource: string, id: number, params: Record<string, any>): Promise<T> {
+export async function getItem<T>(
+  resource: string,
+  id: number,
+  params: Record<string, any>,
+): Promise<T> {
   const query = qs({ resource, id, ...params });
-  const json = await apiFetch<DirectusSingle<T>>(`${BASE}?${query}`, { method: "GET" });
+  const json = await apiFetch<DirectusSingle<T>>(`${BASE}?${query}`, {
+    method: "GET",
+  });
   return json.data as T;
 }
 
@@ -46,7 +58,11 @@ export async function createItem<T>(resource: string, payload: any): Promise<T> 
   return json.data as T;
 }
 
-export async function patchItem<T>(resource: string, id: number, payload: any): Promise<T> {
+export async function patchItem<T>(
+  resource: string,
+  id: number,
+  payload: any,
+): Promise<T> {
   const query = qs({ resource, id });
   const json = await apiFetch<DirectusSingle<T>>(`${BASE}?${query}`, {
     method: "PATCH",

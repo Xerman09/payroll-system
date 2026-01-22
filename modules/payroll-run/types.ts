@@ -37,7 +37,7 @@ export interface BenefitCutoffSetting {
   cutoff: CutoffType; // FIRST / SECOND
   is_active: number; // 1/0
   effective_from: string | null; // YYYY-MM-DD
-  effective_to: string | null;   // YYYY-MM-DD
+  effective_to: string | null; // YYYY-MM-DD
 }
 
 export interface CutoffSetting {
@@ -152,6 +152,44 @@ export interface EmployeeLoan {
   status: EmployeeLoanStatus;
 }
 
+/** Allowances */
+export type AllowancePayCycle = "N/A" | "PER_CUTOFF" | "PER_MONTH";
+
+export interface EmployeeAllowance {
+  allowance_id: number;
+  user_id: number;
+  amount: number;
+  description?: string | null;
+
+  // one-time window
+  cutoff_start?: string | null; // YYYY-MM-DD | null
+  cutoff_end?: string | null; // YYYY-MM-DD | null
+
+  // recurring controls
+  is_recurring: number; // 1/0
+  is_active: number; // 1/0
+  pay_cycle: AllowancePayCycle;
+  start_date?: string | null; // YYYY-MM-DD | null
+  end_date?: string | null; // YYYY-MM-DD | null
+
+  // processing flag (esp one-time)
+  is_processed: number; // 1/0
+
+  created_by?: number | null;
+  created_date?: string | null;
+  updated_by?: number | null;
+  updated_date?: string | null;
+}
+
+export interface AllowanceAppliedItem {
+  allowance_id: number;
+  description: string;
+  pay_cycle: AllowancePayCycle;
+  is_recurring: boolean;
+  amount_raw: number;
+  amount_this_cutoff: number;
+}
+
 /** Computed breakdown per employee */
 export interface PayrollComputedLine {
   user_id: number;
@@ -178,7 +216,7 @@ export interface PayrollComputedLine {
   holiday_pay: number;
   rest_day_amount: number;
   night_diff_amount: number;
-  allowance: number;
+  allowance: number; // computed from employee_allowance
   retro_pay: number;
   manual_additions: number;
 
@@ -214,10 +252,15 @@ export interface PayrollComputedLine {
   on_hold: boolean;
 
   breakdown_json?: Record<string, unknown>;
-  benefit_loans: number; // already exists in your file
-  // ADD THESE:
+
+  // benefit loans
+  benefit_loans: number; // legacy / kept
   benefit_loan_sss: number;
   benefit_loan_pagibig: number;
+  benefit_loan_total: number;
+
+  // convenience for UI (optional)
+  allowance_items?: AllowanceAppliedItem[];
 }
 
 export interface PayrollSummary {
@@ -239,9 +282,10 @@ export interface PayrollWorkspace {
 
   // NEW:
   benefitSettings: BenefitCutoffSetting[];
-  benefitMultipliers: Record<BenefitCode, number>; // 1 or 0 (or 0.5 fallback)
+  benefitMultipliers: Record<BenefitCode, number>; // 1 or 0
   employeeLoans: Map<number, EmployeeLoan[]>;
   benefitLoans: Map<number, BenefitLoanRow[]>;
 
-
+  // NEW: allowances
+  allowances: Map<number, EmployeeAllowance[]>;
 }
