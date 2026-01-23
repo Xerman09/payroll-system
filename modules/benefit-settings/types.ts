@@ -23,18 +23,12 @@ export interface UserData {
 
 export interface BenefitSettingRaw extends BenefitSetting { }
 
-// === Cutoff settings (needed for loan schedule display + effectivity sync) ===
+// === Cutoff settings (needed for loan schedule display) ===
 export interface CutoffSetting {
   id: number;
   cutoff_type: "FIRST" | "SECOND";
   start_date: string;
   end_date: string;
-
-  // optional but useful
-  period_status?: string | null;
-  month?: number;
-  year?: number;
-  payout_date?: string | null;
 }
 
 // === Benefit Loans (NEW) ===

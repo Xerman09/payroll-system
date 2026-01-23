@@ -25,12 +25,8 @@ export type WageDataState = {
   dailyWage: number;
   vacationLeave: number;
   sickLeave: number;
-
   isPaidHoliday: boolean;
   isCard: boolean;
-
-  // ✅ NEW
-  isRegularEmployee: boolean;
 
   sss: string;
   pagibig: string;
@@ -50,9 +46,6 @@ export type WageRecord = {
 
   paid_holiday: 0 | 1 | number;
   isCard: 0 | 1 | number;
-
-  // ✅ NEW (Directus returns field exactly as in collection)
-  isRegularEmployee?: 0 | 1 | number;
 
   sss_contribution_monthly: string | number | null;
   pagibig_contribution_monthly: string | number | null;
@@ -75,9 +68,6 @@ export type WagePayload = {
 
   paid_holiday: 0 | 1;
   isCard: 0 | 1;
-
-  // ✅ NEW
-  isRegularEmployee: 0 | 1;
 
   updated_by: number;
 
@@ -466,7 +456,6 @@ export type BenefitLoanCreatePayload = {
 export type BenefitLoanPatchPayload = Partial<
   Omit<BenefitLoanCreatePayload, "user_id" | "created_by">
 >;
-
 // =======================================================
 // STOCK PURCHASE / DR PAYMENT (dr_payment)
 // =======================================================
@@ -496,13 +485,14 @@ export type DRPaymentRecord = {
   payment_method: DRPaymentMethod | null;
   remarks: string | null;
 
-  created_at?: string;
+  created_at?: string; // if Directus exposes it
   created_by?: number | null;
 };
 
 export type DRPaymentDraft = {
   delivery_receipt_number: string;
 
+  // helper select (optional); if chosen, it will populate cutoff_from/to
   cutoff_setting_id: number | null;
 
   cutoff_from: string; // YYYY-MM-DD

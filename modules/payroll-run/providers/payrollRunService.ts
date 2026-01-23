@@ -1,5 +1,4 @@
 // modules/payroll-run/providers/payrollRunService.ts
-
 import type {
   BenefitCode,
   BenefitCutoffSetting,
@@ -16,6 +15,7 @@ import type {
   PayrollWorkspace,
   UserRow,
   WageProfile,
+  WageProrationLog,
 } from "../types";
 
 import { computeEmployeeLine } from "../utils/compute";
@@ -40,6 +40,9 @@ export const RES = {
   benefitLoans: "benefit_loans",
 
   allowances: "employee_allowance",
+
+  // ✅ Wage proration logs
+  wageProration: "user_wage_proration_log",
 
   // ✅ DR payments fetched as system deductions
   drPayments: "dr_payment",
@@ -105,10 +108,8 @@ function normalizeUser(row: any): UserRow {
 
 function normalizeWage(row: any): WageProfile {
   const daily = n(row.daily_wage);
-  const hourly =
-    row.hourly_wage != null ? n(row.hourly_wage) : daily > 0 ? daily / 8 : 0;
-  const monthly =
-    row.monthly_wage != null ? n(row.monthly_wage) : daily > 0 ? daily * 26 : 0;
+  const hourly = row.hourly_wage != null ? n(row.hourly_wage) : daily > 0 ? daily / 8 : 0;
+  const monthly = row.monthly_wage != null ? n(row.monthly_wage) : daily > 0 ? daily * 26 : 0;
 
   return {
     id: n(row.id),
@@ -118,11 +119,8 @@ function normalizeWage(row: any): WageProfile {
     monthly_wage: monthly,
     is_deleted: bitToNum(row.is_deleted ?? row.isDeleted),
 
-    // monthly employee values (your system stores monthly)
     sss_employee: n(row.sss_employee ?? row.sss_contribution_monthly),
-    philhealth_employee: n(
-      row.philhealth_employee ?? row.philhealth_contribution_monthly,
-    ),
+    philhealth_employee: n(row.philhealth_employee ?? row.philhealth_contribution_monthly),
     pagibig_employee: n(row.pagibig_employee ?? row.pagibig_contribution_monthly),
 
     ...row,
@@ -198,10 +196,31 @@ function normalizeAllowance(row: any): EmployeeAllowance {
   };
 }
 
+// ✅ Wage proration normalization (effective-date driven)
+function normalizeProrationLog(row: any): WageProrationLog {
+  const effRaw =
+    row?.effective_date ?? row?.effectivity_date ?? row?.effectiveDate ?? row?.effectivityDate ?? "";
+
+  const eff = String(effRaw ?? "").trim();
+  const effective_date = eff.length >= 10 ? eff.slice(0, 10) : eff;
+
+  return {
+    id: n(row?.id),
+    user_id: n(row?.user_id),
+    previous_daily_wage: n(
+      row?.previous_daily_wage ??
+      row?.previous_daily_rate ??
+      row?.old_daily_wage ??
+      row?.old_daily_rate,
+    ),
+    new_daily_wage: n(row?.new_daily_wage ?? row?.new_daily_rate ?? row?.daily_wage ?? row?.daily_rate),
+    effective_date,
+    created_at: row?.created_at != null ? String(row.created_at) : row?.date_created != null ? String(row.date_created) : null,
+  };
+}
+
 /**
- * Manual category normalization:
- * - supports: category, deduction_type, entry_category, etc.
- * - also supports legacy `type` field containing "SHORTAGE" (but ignores "EARNING"/"DEDUCTION")
+ * Manual category normalization
  */
 function normalizeManualCategory(row: any): string | null {
   const raw =
@@ -215,10 +234,7 @@ function normalizeManualCategory(row: any): string | null {
   const fromType = row?.type;
   const pick =
     raw ??
-    (fromType &&
-      !["EARNING", "DEDUCTION"].includes(String(fromType).toUpperCase())
-      ? fromType
-      : null);
+    (fromType && !["EARNING", "DEDUCTION"].includes(String(fromType).toUpperCase()) ? fromType : null);
 
   if (pick == null) return null;
 
@@ -234,24 +250,14 @@ async function safeList<T>(
   try {
     return await api.listItems<T>(resource, params);
   } catch (e) {
-    console.warn(
-      `[payrollRunService] listItems failed for ${resource}`,
-      e,
-    );
+    console.warn(`[payrollRunService] listItems failed for ${resource} - payrollRunService.ts:253`, e);
     return fallback;
   }
 }
 
-export function isActiveByDeletedFlags(args: {
-  user?: UserRow | null;
-  wage?: WageProfile | null;
-}): boolean {
-  const uDel = bitToNum(
-    (args.user as any)?.is_deleted ?? (args.user as any)?.isDeleted,
-  );
-  const wDel = bitToNum(
-    (args.wage as any)?.is_deleted ?? (args.wage as any)?.isDeleted,
-  );
+export function isActiveByDeletedFlags(args: { user?: UserRow | null; wage?: WageProfile | null }): boolean {
+  const uDel = bitToNum((args.user as any)?.is_deleted ?? (args.user as any)?.isDeleted);
+  const wDel = bitToNum((args.wage as any)?.is_deleted ?? (args.wage as any)?.isDeleted);
   return !(uDel === 1 || wDel === 1);
 }
 
@@ -261,10 +267,7 @@ export async function listCutoffs(): Promise<CutoffSetting[]> {
 }
 
 export async function listDepartments(): Promise<Department[]> {
-  const rows = await api.listItems<any>(RES.departments, {
-    sort: "department_name",
-    limit: 200,
-  });
+  const rows = await api.listItems<any>(RES.departments, { sort: "department_name", limit: 200 });
   return (rows ?? []).map(normalizeDepartment);
 }
 
@@ -276,9 +279,7 @@ export async function findExistingDraftRun(args: {
 
   const rows = await api.listItems<any>(RES.payrollRun, {
     "filter[cutoff_id][_eq]": cutoffId,
-    ...(departmentId == null
-      ? {}
-      : { "filter[department_id][_eq]": departmentId }),
+    ...(departmentId == null ? {} : { "filter[department_id][_eq]": departmentId }),
     "filter[status][_eq]": "DRAFT",
     sort: "-payroll_run_id",
     limit: 1,
@@ -287,17 +288,9 @@ export async function findExistingDraftRun(args: {
   return rows?.[0] ? normalizeRunHeader(rows[0]) : null;
 }
 
-export function generatePayrollRefNo(args: {
-  cutoff: CutoffSetting;
-  department?: Department | null;
-}) {
-  const dep = args.department?.name
-    ? args.department.name.toUpperCase().replace(/\s+/g, "-")
-    : "ALL";
-  return `PR-${dep}-${args.cutoff.start_date.replaceAll(
-    "-",
-    "",
-  )}-${args.cutoff.end_date.replaceAll("-", "")}`;
+export function generatePayrollRefNo(args: { cutoff: CutoffSetting; department?: Department | null }) {
+  const dep = args.department?.name ? args.department.name.toUpperCase().replace(/\s+/g, "-") : "ALL";
+  return `PR-${dep}-${args.cutoff.start_date.replaceAll("-", "")}-${args.cutoff.end_date.replaceAll("-", "")}`;
 }
 
 export async function createDraftRun(args: {
@@ -332,12 +325,7 @@ function dateLTE(a: string, b: string) {
 function dateGTE(a: string, b: string) {
   return a >= b;
 }
-function overlapsRange(args: {
-  from: string | null;
-  to: string | null;
-  start: string;
-  end: string;
-}) {
+function overlapsRange(args: { from: string | null; to: string | null; start: string; end: string }) {
   const from = args.from ?? "0000-01-01";
   const to = args.to ?? "9999-12-31";
   return dateLTE(from, args.end) && dateGTE(to, args.start);
@@ -350,16 +338,10 @@ export async function loadWorkspace(args: {
   const { cutoff, departmentId } = args;
 
   const department =
-    departmentId == null
-      ? null
-      : normalizeDepartment(
-        await api.getItem<any>(RES.departments, departmentId, {}),
-      );
+    departmentId == null ? null : normalizeDepartment(await api.getItem<any>(RES.departments, departmentId, {}));
 
   const rawEmployees = await api.listItems<any>(RES.users, {
-    ...(departmentId == null
-      ? {}
-      : { "filter[user_department][_eq]": departmentId }),
+    ...(departmentId == null ? {} : { "filter[user_department][_eq]": departmentId }),
     limit: 5000,
   });
 
@@ -367,12 +349,10 @@ export async function loadWorkspace(args: {
   const userIds = employees.map((u) => u.id);
 
   const wagesArr = userIds.length
-    ? (
-      await api.listItems<any>(RES.wages, {
-        "filter[user_id][_in]": userIds.join(","),
-        limit: 5000,
-      })
-    ).map(normalizeWage)
+    ? (await api.listItems<any>(RES.wages, {
+      "filter[user_id][_in]": userIds.join(","),
+      limit: 5000,
+    })).map(normalizeWage)
     : [];
 
   const wages = new Map<number, WageProfile>();
@@ -391,17 +371,47 @@ export async function loadWorkspace(args: {
   for (const row of attendanceArr ?? []) {
     const empId = n(row.employee_id);
     if (!attendance.has(empId)) attendance.set(empId, []);
-    const normalizedRow = {
+    attendance.get(empId)!.push({
       ...row,
       night_diff_minutes: row.night_diff_minutes ?? 0,
-    };
-    attendance.get(empId)!.push(normalizedRow);
+    });
   }
 
   const holidays = await safeList<HolidayRow>(RES.holidays, {
     "filter[holiday_date][_between]": `${cutoff.start_date},${cutoff.end_date}`,
     limit: 500,
   });
+
+  // ✅ Wage proration logs (effective-date driven within cutoff window)
+  const prorationRows = userIds.length
+    ? await safeList<any>(RES.wageProration, {
+      "filter[user_id][_in]": userIds.join(","),
+      "filter[effective_date][_lte]": cutoff.end_date,
+      sort: "effective_date,created_at,id",
+      limit: 20000,
+    })
+    : [];
+
+
+
+  const wageProrationLogs = new Map<number, WageProrationLog[]>();
+  for (const raw of prorationRows ?? []) {
+    const r = normalizeProrationLog(raw);
+    const uid = n(r.user_id);
+    if (!uid || !r.effective_date) continue;
+    if (!wageProrationLogs.has(uid)) wageProrationLogs.set(uid, []);
+    wageProrationLogs.get(uid)!.push(r);
+  }
+  for (const [uid, rows] of wageProrationLogs.entries()) {
+    rows.sort((a, b) => {
+      if (a.effective_date !== b.effective_date) return a.effective_date < b.effective_date ? -1 : 1;
+      const ca = String(a.created_at ?? "");
+      const cb = String(b.created_at ?? "");
+      if (ca !== cb) return ca < cb ? -1 : 1;
+      return n(a.id) - n(b.id);
+    });
+    wageProrationLogs.set(uid, rows);
+  }
 
   // Manual additions/deductions (per-cutoff overlap)
   const adds = userIds.length
@@ -422,7 +432,7 @@ export async function loadWorkspace(args: {
     })
     : [];
 
-  // ✅ DR payments as system deductions (read-only)
+  // DR payments as system deductions (read-only)
   const drPays = userIds.length
     ? await safeList<any>(RES.drPayments, {
       "filter[employee_id][_in]": userIds.join(","),
@@ -440,9 +450,6 @@ export async function loadWorkspace(args: {
     manualEntries.get(user_id)!.push(e);
   }
 
-  // ✅ IMPORTANT FIX:
-  // payroll_other_additions has no `type` and no `category`.
-  // We will always expose additions as MANUAL additions in UI, but DO NOT persist category.
   for (const a of adds ?? []) {
     pushME(n(a.user_id), {
       id: n(a.id),
@@ -463,11 +470,10 @@ export async function loadWorkspace(args: {
       type: "DEDUCTION",
       desc: s(d.description ?? d.desc ?? "Manual Deduction"),
       amount: n(d.amount),
-      category: normalizeManualCategory(d), // ✅ SHORTAGE | MANUAL
+      category: normalizeManualCategory(d),
     });
   }
 
-  // DR payments -> ManualEntry (system)
   for (const p of drPays ?? []) {
     const userId = n(p.employee_id);
     const drId = n(p.dr_payment_id ?? p.id);
@@ -477,26 +483,22 @@ export async function loadWorkspace(args: {
     if (!userId || !drId || amt <= 0) continue;
 
     pushME(userId, {
-      id: -Math.abs(drId), // negative = system item
+      id: -Math.abs(drId),
       cutoff_id: cutoff.id,
       user_id: userId,
       type: "DEDUCTION",
       desc: `DR Payment: ${drNo || `#${drId}`}`,
       amount: amt,
       category: "DR_PAYMENT",
-
     });
   }
 
-  // Benefit cutoff settings -> multipliers
   const rawBenefitSettings = await safeList<any>(RES.benefitSettings, {
     "filter[is_active][_eq]": 1,
     limit: 50,
   });
 
-  const benefitSettings = (rawBenefitSettings ?? [])
-    .map(normalizeBenefitSetting)
-    .filter((b) => b.is_active === 1);
+  const benefitSettings = (rawBenefitSettings ?? []).map(normalizeBenefitSetting).filter((b) => b.is_active === 1);
 
   const codes: BenefitCode[] = ["SSS", "PHILHEALTH", "PAGIBIG"];
 
@@ -518,11 +520,9 @@ export async function loadWorkspace(args: {
         }),
       )[0];
 
-    benefitMultipliers[code] =
-      effectiveSetting && effectiveSetting.cutoff === cutoff.cutoff_type ? 1 : 0;
+    benefitMultipliers[code] = effectiveSetting && effectiveSetting.cutoff === cutoff.cutoff_type ? 1 : 0;
   }
 
-  // Employee loans
   const rawLoans = userIds.length
     ? await safeList<any>(RES.employeeLoans, {
       "filter[user_id][_in]": userIds.join(","),
@@ -546,7 +546,6 @@ export async function loadWorkspace(args: {
     employeeLoans.get(loan.user_id)!.push(loan);
   }
 
-  // Benefit loans (SSS/PAGIBIG)
   const rawBenefitLoans = userIds.length
     ? await safeList<any>(RES.benefitLoans, {
       "filter[user_id][_in]": userIds.join(","),
@@ -563,7 +562,6 @@ export async function loadWorkspace(args: {
     benefitLoans.get(userId)!.push(r);
   }
 
-  // Allowances
   const rawAllowances = userIds.length
     ? await safeList<any>(RES.allowances, {
       "filter[user_id][_in]": userIds.join(","),
@@ -627,6 +625,9 @@ export async function loadWorkspace(args: {
     benefitLoans,
 
     allowances,
+
+    // ✅ NEW
+    wageProrationLogs,
   } as PayrollWorkspace;
 }
 
@@ -653,6 +654,7 @@ export function computeRegister(args: {
     const loans = ws.employeeLoans.get(u.id) ?? [];
     const bLoans = ws.benefitLoans?.get(u.id) ?? [];
     const alw = ws.allowances?.get(u.id) ?? [];
+    const prLogs = ws.wageProrationLogs?.get(u.id) ?? []; // ✅ proration logs per user
     const onHold = Boolean(holdMap.get(u.id));
 
     const prevNet = previousNetMap?.get(u.id) ?? 0;
@@ -677,6 +679,9 @@ export function computeRegister(args: {
       cutoffId: ws.cutoff.id,
 
       allowances: alw,
+
+      // ✅ NEW
+      wageProrationLogs: prLogs,
     });
 
     lines.push(line);
@@ -700,41 +705,6 @@ export function computeRegister(args: {
       variance_alerts: varianceAlerts,
     },
   };
-}
-
-export async function updateRunTotals(args: {
-  payrollRunId: number;
-  summary: PayrollSummary;
-}): Promise<void> {
-  await api.patchItem(RES.payrollRun, args.payrollRunId, {
-    headcount: args.summary.headcount,
-    total_gross: args.summary.total_gross,
-    total_deductions: args.summary.total_deductions,
-    total_net: args.summary.total_net,
-    variance_alert_count: args.summary.variance_alerts,
-  });
-}
-
-export async function saveLines(args: {
-  payrollRunId: number;
-  cutoff: CutoffSetting;
-  lines: PayrollComputedLine[];
-}): Promise<void> {
-  const { payrollRunId, cutoff, lines } = args;
-  void payrollRunId;
-  void cutoff;
-  void lines;
-}
-
-export async function postRun(args: {
-  payrollRunId: number;
-  postedBy: number;
-}): Promise<void> {
-  await api.patchItem(RES.payrollRun, args.payrollRunId, {
-    status: "POSTED",
-    posted_by: args.postedBy,
-    posted_at: new Date().toISOString().slice(0, 19).replace("T", " "),
-  });
 }
 
 // ✅ NEW: stamp DR payments as posted to payroll
@@ -854,7 +824,7 @@ export async function deleteManualEntry(args: {
   }
 
   const resource = resourceForManualType(args.type);
-  await api.deleteItem(resource, args.entryId);
+  await api.deleteItem(RES.otherDeds === resource ? RES.otherDeds : resource, args.entryId);
 }
 
 export async function createDRPaymentDeduction(args: {
@@ -911,11 +881,9 @@ export async function createDRPaymentDeduction(args: {
 }
 
 function drIdFromManualEntry(e: ManualEntry): number {
-  // Preferred: explicit meta if you decide to add it later
   const meta = (e as any)?.dr_payment_id ?? (e as any)?.source_id ?? null;
   const id = n(meta);
 
-  // Fallback: your UI uses negative id = -abs(drId)
   if (id > 0) return id;
 
   const fallback = Math.abs(n((e as any)?.id));
@@ -923,23 +891,22 @@ function drIdFromManualEntry(e: ManualEntry): number {
 }
 
 function stripDRPrefix(desc: string): string {
-  const s = String(desc ?? "").trim();
-  // If the UI shows "DR Payment: QWE123", we store only "QWE123"
-  const m = /^DR\s*PAYMENT\s*:\s*(.+)$/i.exec(s);
-  return (m?.[1] ?? s).trim();
+  const s0 = String(desc ?? "").trim();
+  const m = /^DR\s*PAYMENT\s*:\s*(.+)$/i.exec(s0);
+  return (m?.[1] ?? s0).trim();
 }
-// ✅ Compatibility exports for PayrollRunModule.tsx usage
-export async function updateDRPaymentDeduction(args: {
-  drPaymentId: number;
-  drReceiptNo: string;
+
+export async function updateDRPayment(args: {
+  entry: ManualEntry;
+  desc: string;
   amount: number;
   remarks?: string | null;
 }): Promise<void> {
-  const id = n(args.drPaymentId);
+  const id = drIdFromManualEntry(args.entry);
   if (!id) throw new Error("Invalid DR payment id.");
 
   const payload: Record<string, any> = {
-    delivery_receipt_number: stripDRPrefix(args.drReceiptNo),
+    delivery_receipt_number: stripDRPrefix(args.desc),
     amount_paid: Number(args.amount ?? 0),
   };
 
@@ -953,11 +920,92 @@ export async function updateDRPaymentDeduction(args: {
   await api.patchItem(RES.drPayments, id, payload);
 }
 
-export async function deleteDRPaymentDeduction(args: {
-  drPaymentId: number;
-}): Promise<void> {
-  const id = n(args.drPaymentId);
+export async function deleteDRPayment(args: { entry: ManualEntry }): Promise<void> {
+  const id = drIdFromManualEntry(args.entry);
   if (!id) throw new Error("Invalid DR payment id.");
 
   await api.deleteItem(RES.drPayments, id);
+}
+
+// ✅ Compatibility exports (used by PayrollRunModule.tsx)
+export async function updateDRPaymentDeduction(args: {
+  drPaymentId: number;
+  drReceiptNo: string;
+  amount: number;
+  remarks?: string | null;
+}): Promise<void> {
+  const entry = { id: -Math.abs(args.drPaymentId) } as any;
+  await updateDRPayment({
+    entry,
+    desc: String(args.drReceiptNo ?? "").trim(),
+    amount: Number(args.amount ?? 0),
+    remarks: args.remarks,
+  });
+}
+
+export async function deleteDRPaymentDeduction(args: {
+  drPaymentId: number;
+}): Promise<void> {
+  const entry = { id: -Math.abs(args.drPaymentId) } as any;
+  await deleteDRPayment({ entry });
+}
+
+export async function saveLines(args: {
+  payrollRunId: number;
+  cutoff: CutoffSetting;
+  lines: PayrollComputedLine[];
+}): Promise<void> {
+  const { payrollRunId, cutoff, lines } = args;
+  void payrollRunId;
+  void cutoff;
+  void lines;
+}
+
+export async function postRun(args: {
+  payrollRunId: number;
+  postedBy: number;
+}): Promise<void> {
+  await api.patchItem(RES.payrollRun, args.payrollRunId, {
+    status: "POSTED",
+    posted_by: args.postedBy,
+    posted_at: new Date().toISOString().slice(0, 19).replace("T", " "),
+  });
+}
+
+// ✅ NEW: persist computed totals to payroll_run header
+export async function updateRunTotals(args: {
+  payrollRunId: number;
+
+  // preferred: pass the summary object you already have
+  summary?: PayrollSummary | null;
+
+  // optional direct values (in case the UI calls it this way)
+  headcount?: number;
+  total_gross?: number;
+  total_deductions?: number;
+  total_net?: number;
+  variance_alert_count?: number;
+
+  // legacy aliases (safe to accept)
+  totalNet?: number;
+  activeHeadcount?: number;
+  varianceAlerts?: number;
+}): Promise<void> {
+  const s0: any = args.summary ?? {};
+
+  const headcount = n(args.headcount ?? s0.headcount ?? args.activeHeadcount ?? s0.activeHeadcount);
+  const total_gross = n(args.total_gross ?? s0.total_gross ?? s0.totalGross ?? s0.gross);
+  const total_deductions = n(args.total_deductions ?? s0.total_deductions ?? s0.totalDeductions ?? s0.deductions);
+  const total_net = n(args.total_net ?? s0.total_net ?? args.totalNet ?? s0.totalNet ?? s0.net);
+  const variance_alert_count = n(
+    args.variance_alert_count ?? s0.variance_alerts ?? args.varianceAlerts ?? s0.varianceAlerts,
+  );
+
+  await api.patchItem(RES.payrollRun, args.payrollRunId, {
+    headcount,
+    total_gross,
+    total_deductions,
+    total_net,
+    variance_alert_count,
+  });
 }

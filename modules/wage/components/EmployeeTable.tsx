@@ -210,7 +210,7 @@ export default function EmployeeTable({
               employees.map((emp) => {
                 const deptName =
                   departments.find(
-                    (d) => d.department_id === emp.user_department,
+                    (d) => d.department_id === emp.user_department
                   )?.department_name ?? "N/A";
                 return (
                   <TableRow

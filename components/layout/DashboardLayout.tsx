@@ -1,14 +1,18 @@
+//@/components/layout/DashboardLayout.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
+import Footer from "./Footer";
 import { useSidebar } from "@/providers/SidebarProvider";
 import { cn } from "@/lib/utils";
 import useSessionTimeout from "@/hooks/useSessionTimeout";
 import PreventBackAfterLogout from "@/components/PreventBackAfterLogout";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { Toaster } from "@/components/ui/sonner";
+
+const DEV_SIGNATURE = "System Developed by CODENAME | 2026";
 
 export default function DashboardLayout({
   children,
@@ -31,6 +35,15 @@ export default function DashboardLayout({
     }
   }, []);
 
+  // Console signature (non-invasive; devtools only)
+  useEffect(() => {
+    try {
+      // Runs once on mount
+      // eslint-disable-next-line no-console
+      console.log(DEV_SIGNATURE);
+    } catch {}
+  }, []);
+
   // Update localStorage and html class whenever theme changes
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
@@ -47,21 +60,29 @@ export default function DashboardLayout({
 
   if (loading) return null; // prevent flashing dashboard
 
+  // DashboardLayout.tsx (only showing the relevant return block)
+
   return (
     <div className="flex min-h-screen">
       <PreventBackAfterLogout />
       <Sidebar />
+
       <div
         className={cn(
-          "flex-1 transition-all duration-200 ease-out bg-gray-50 dark:bg-gray-900",
-          // On mobile, no margin, on md+, margin based on collapsed
+          // ✅ make this a column flex container and full height
+          "flex-1 flex min-h-screen flex-col transition-all duration-200 ease-out bg-gray-50 dark:bg-gray-900",
           "md:ml-20",
-          !collapsed && "md:ml-[250px]"
+          !collapsed && "md:ml-[250px]",
         )}
       >
         <Navbar toggleTheme={toggleTheme} currentTheme={theme} />
-        <main className="p-6">{children}</main>
+
+        {/* ✅ main grows to fill remaining space, pushing footer down */}
+        <main className="flex-1 p-6">{children}</main>
+
+        <Footer codename="loA_btst" />
       </div>
+
       <Toaster position="top-right" richColors />
     </div>
   );

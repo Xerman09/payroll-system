@@ -16,7 +16,9 @@ type ResourceKey =
   | "employee_loan"
   | "benefit_loans"
   | "employee_allowance"
-  | "dr_payment";
+  | "dr_payment"
+  // ✅ NEW
+  | "user_wage_proration_log";
 
 const ALLOWED: Record<ResourceKey, true> = {
   payroll_run: true,
@@ -34,6 +36,8 @@ const ALLOWED: Record<ResourceKey, true> = {
   benefit_loans: true,
   employee_allowance: true,
   dr_payment: true,
+  // ✅ NEW
+  user_wage_proration_log: true,
 };
 
 function baseUrl() {
@@ -76,6 +80,16 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
   const sp = new URLSearchParams(url.searchParams);
   sp.delete("resource");
   sp.delete("id");
+
+  // ✅ Optional safety clamp (prevents accidental 20k+ queries from breaking anything)
+  // If you don't want this behavior, you can remove this block.
+  const limitRaw = sp.get("limit");
+  if (limitRaw != null) {
+    const lim = Number(limitRaw);
+    if (Number.isFinite(lim) && lim > 0) {
+      sp.set("limit", String(Math.min(lim, 5000)));
+    }
+  }
 
   const endpoint =
     idRaw && String(idRaw).trim() !== ""
