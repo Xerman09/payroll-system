@@ -26,10 +26,36 @@ export type PayrollOtherDeductionRow = {
   created_date: string;
 };
 
+export type DRPaymentMethod =
+  | "PAYROLL_DEDUCTION"
+  | "CASH"
+  | "CHECK"
+  | "BANK_TRANSFER"
+  | "OTHERS";
+
+export type DRPaymentRow = {
+  dr_payment_id: number;
+  delivery_receipt_number: string;
+  employee_id: number;
+  cutoff_from: string; // YYYY-MM-DD
+  cutoff_to: string; // YYYY-MM-DD
+  payroll_ref_no: string | null;
+  is_posted_to_payroll: 0 | 1 | boolean;
+  payment_date: string; // YYYY-MM-DD
+  amount_paid: string | number;
+  payment_method: DRPaymentMethod | null;
+  remarks: string | null;
+  created_at: string;
+  created_by: number | null;
+};
+
 type DirectusList<T> = { data: T[] };
 type DirectusSingle<T> = { data: T };
 
-function buildProxyUrl(resource: string, opts?: { id?: number | string; params?: Record<string, string> }) {
+function buildProxyUrl(
+  resource: string,
+  opts?: { id?: number | string; params?: Record<string, string> },
+) {
   const sp = new URLSearchParams();
   sp.set("resource", resource);
 
@@ -48,25 +74,20 @@ function buildProxyUrl(resource: string, opts?: { id?: number | string; params?:
 }
 
 function jsonErrorMessage(json: any, fallback: string) {
-  return (
-    json?.errors?.[0]?.message ||
-    json?.error ||
-    json?.message ||
-    fallback
-  );
+  return json?.errors?.[0]?.message || json?.error || json?.message || fallback;
 }
 
 async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     cache: "no-store",
     headers: {
-      "Content-Type": "application/json",
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
       ...(init?.headers as any),
     },
     ...init,
   });
 
-  // your proxy returns 204 for DELETE
+  // proxy returns 204/205 for DELETE
   if (res.status === 204 || res.status === 205) return null as unknown as T;
 
   const text = await res.text();
@@ -84,7 +105,7 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   return json as T;
 }
 
-function buildCutoffListParams(userId: number, cutoffStart: string, cutoffEnd: string) {
+function cutoffParams(userId: number, cutoffStart: string, cutoffEnd: string) {
   return {
     "filter[user_id][_eq]": String(userId),
     "filter[cutoff_start][_eq]": cutoffStart,
@@ -104,7 +125,7 @@ export async function listOtherAdditions(params: {
   cutoffEnd: string;
 }): Promise<PayrollOtherAdditionRow[]> {
   const url = buildProxyUrl("payroll_other_additions", {
-    params: buildCutoffListParams(params.userId, params.cutoffStart, params.cutoffEnd),
+    params: cutoffParams(params.userId, params.cutoffStart, params.cutoffEnd),
   });
 
   const out = await apiFetch<DirectusList<PayrollOtherAdditionRow>>(url);
@@ -117,10 +138,39 @@ export async function listOtherDeductions(params: {
   cutoffEnd: string;
 }): Promise<PayrollOtherDeductionRow[]> {
   const url = buildProxyUrl("payroll_other_deductions", {
-    params: buildCutoffListParams(params.userId, params.cutoffStart, params.cutoffEnd),
+    params: cutoffParams(params.userId, params.cutoffStart, params.cutoffEnd),
   });
 
   const out = await apiFetch<DirectusList<PayrollOtherDeductionRow>>(url);
+  return Array.isArray(out?.data) ? out.data : [];
+}
+
+export async function listDRPayments(params: {
+  employeeId: number;
+  cutoffFrom: string;
+  cutoffTo: string;
+  unpostedOnly?: boolean; // default true
+  payrollDeductionOnly?: boolean; // default true
+}): Promise<DRPaymentRow[]> {
+  const p: Record<string, string> = {
+    "filter[employee_id][_eq]": String(params.employeeId),
+    "filter[cutoff_from][_eq]": params.cutoffFrom,
+    "filter[cutoff_to][_eq]": params.cutoffTo,
+    sort: "-dr_payment_id",
+    limit: "200",
+  };
+
+  if (params.unpostedOnly !== false) {
+    p["filter[is_posted_to_payroll][_eq]"] = "0";
+  }
+
+  if (params.payrollDeductionOnly !== false) {
+    p["filter[payment_method][_eq]"] = "PAYROLL_DEDUCTION";
+  }
+
+  const url = buildProxyUrl("dr_payment", { params: p });
+
+  const out = await apiFetch<DirectusList<DRPaymentRow>>(url);
   return Array.isArray(out?.data) ? out.data : [];
 }
 
@@ -180,6 +230,39 @@ export async function createOtherDeduction(payload: {
   return out.data;
 }
 
+export async function createDRPayment(payload: {
+  employee_id: number;
+  cutoff_from: string;
+  cutoff_to: string;
+  delivery_receipt_number: string;
+  payment_date: string;
+  amount_paid: number;
+  payment_method?: DRPaymentMethod | null; // default PAYROLL_DEDUCTION
+  remarks?: string | null;
+  created_by?: number | null;
+}): Promise<DRPaymentRow> {
+  const url = buildProxyUrl("dr_payment");
+
+  const out = await apiFetch<DirectusSingle<DRPaymentRow>>(url, {
+    method: "POST",
+    body: JSON.stringify({
+      employee_id: payload.employee_id,
+      cutoff_from: payload.cutoff_from,
+      cutoff_to: payload.cutoff_to,
+      delivery_receipt_number: payload.delivery_receipt_number,
+      payroll_ref_no: null,
+      is_posted_to_payroll: 0,
+      payment_date: payload.payment_date,
+      amount_paid: payload.amount_paid,
+      payment_method: payload.payment_method ?? "PAYROLL_DEDUCTION",
+      remarks: payload.remarks ?? null,
+      created_by: payload.created_by ?? null,
+    }),
+  });
+
+  return out.data;
+}
+
 /* =========================
    UPDATE
 ========================= */
@@ -219,6 +302,34 @@ export async function updateOtherDeduction(
   return out.data;
 }
 
+export async function updateDRPayment(
+  drPaymentId: number,
+  patch: {
+    delivery_receipt_number?: string;
+    payment_date?: string;
+    amount_paid?: number;
+    payment_method?: DRPaymentMethod | null;
+    remarks?: string | null;
+  },
+): Promise<DRPaymentRow> {
+  const url = buildProxyUrl("dr_payment", { id: drPaymentId });
+
+  const out = await apiFetch<DirectusSingle<DRPaymentRow>>(url, {
+    method: "PATCH",
+    body: JSON.stringify({
+      ...(patch.delivery_receipt_number != null
+        ? { delivery_receipt_number: patch.delivery_receipt_number }
+        : {}),
+      ...(patch.payment_date != null ? { payment_date: patch.payment_date } : {}),
+      ...(patch.amount_paid != null ? { amount_paid: patch.amount_paid } : {}),
+      ...(patch.payment_method !== undefined ? { payment_method: patch.payment_method } : {}),
+      ...(patch.remarks !== undefined ? { remarks: patch.remarks } : {}),
+    }),
+  });
+
+  return out.data;
+}
+
 /* =========================
    DELETE
 ========================= */
@@ -230,5 +341,10 @@ export async function deleteOtherAddition(id: number): Promise<void> {
 
 export async function deleteOtherDeduction(id: number): Promise<void> {
   const url = buildProxyUrl("payroll_other_deductions", { id });
+  await apiFetch(url, { method: "DELETE" });
+}
+
+export async function deleteDRPayment(drPaymentId: number): Promise<void> {
+  const url = buildProxyUrl("dr_payment", { id: drPaymentId });
   await apiFetch(url, { method: "DELETE" });
 }

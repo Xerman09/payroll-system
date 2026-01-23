@@ -1,3 +1,4 @@
+// modules/payroll-run/components/EmployeeDetailsSheet.tsx
 "use client";
 
 import * as React from "react";
@@ -73,6 +74,8 @@ function entryCategory(e: any): string {
     e?.otherDeductionType ??
     e?.deduction_kind ??
     e?.deductionKind ??
+    e?.type_kind ??
+    e?.kind ??
     null;
 
   if (cat != null && String(cat).trim() !== "") return upper(cat);
@@ -83,18 +86,17 @@ function entryCategory(e: any): string {
   return "";
 }
 
+function readAmount(e: any): number {
+  // supports: {amount}, {amount_paid}, {amountPaid}
+  const v = e?.amount ?? e?.amount_paid ?? e?.amountPaid ?? 0;
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function formatEntryAmount(e: ManualEntry) {
-  const amt = Number((e as any)?.amount ?? 0);
+  const amt = readAmount(e as any);
   if (upper((e as any)?.type) === "DEDUCTION") return `(${formatPHP(amt)})`;
   return formatPHP(amt);
-}
-
-function isDRPaymentEntry(e: ManualEntry) {
-  return entryCategory(e) === "DR_PAYMENT";
-}
-
-function isShortageEntry(e: ManualEntry) {
-  return entryCategory(e) === "SHORTAGE";
 }
 
 function extractDrReceiptNo(desc: string): string {
@@ -103,9 +105,89 @@ function extractDrReceiptNo(desc: string): string {
   return s.replace(prefix, "").trim();
 }
 
-function safeId(e: ManualEntry) {
-  const id = (e as any)?.id;
+function isDRPaymentEntry(e: any): boolean {
+  // Robust detection: works whether parent mapped it into ManualEntry shape or not.
+  const cat = entryCategory(e);
+  if (cat === "DR_PAYMENT") return true;
+
+  // Direct dr_payment table shapes
+  if (e?.dr_payment_id != null) return true;
+  if (e?.delivery_receipt_number) return true;
+
+  // Common meta fields you may pass through
+  if (upper(e?.source) === "DR_PAYMENT" || upper(e?.source) === "DR")
+    return true;
+
+  // Fallback: description prefix
+  const desc = String(e?.desc ?? e?.description ?? "");
+  if (/^DR\s*PAYMENT\s*:/i.test(desc)) return true;
+
+  return false;
+}
+
+function isShortageEntry(e: any): boolean {
+  const cat = entryCategory(e);
+  if (cat === "SHORTAGE") return true;
+
+  const desc = String(e?.desc ?? e?.description ?? "").toLowerCase();
+  return desc.includes("shortage");
+}
+
+function drReceiptNoFromEntry(e: any): string {
+  if (e?.delivery_receipt_number) return String(e.delivery_receipt_number);
+  const desc = String(e?.desc ?? e?.description ?? "");
+  const fromDesc = extractDrReceiptNo(desc);
+  return fromDesc || "";
+}
+
+function drPaymentDateFromEntry(e: any): string {
+  // supports payment_date or paymentDate
+  const v =
+    e?.payment_date ??
+    e?.paymentDate ??
+    e?.meta?.payment_date ??
+    e?.meta?.paymentDate ??
+    "";
+  const s = String(v ?? "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+}
+
+function drPaymentMethodFromEntry(e: any): string {
+  const v =
+    e?.payment_method ??
+    e?.paymentMethod ??
+    e?.meta?.payment_method ??
+    e?.meta?.paymentMethod ??
+    "";
+  return String(v ?? "").trim();
+}
+
+function drPostedFromEntry(e: any): boolean {
+  const v =
+    e?.is_posted_to_payroll ??
+    e?.isPostedToPayroll ??
+    e?.meta?.is_posted_to_payroll ??
+    e?.meta?.isPostedToPayroll ??
+    0;
+  return Boolean(Number(v) === 1 || v === true);
+}
+
+function safeId(e: any) {
+  const id = e?.id ?? e?.dr_payment_id ?? e?.drPaymentId;
   return id == null ? "noid" : String(id);
+}
+
+function entryDesc(e: any): string {
+  // prefer desc, then description, else build for DR
+  const d = e?.desc ?? e?.description ?? "";
+  if (String(d).trim()) return String(d);
+
+  if (isDRPaymentEntry(e)) {
+    const drNo = drReceiptNoFromEntry(e);
+    return drNo ? `DR Payment: ${drNo}` : "DR Payment";
+  }
+
+  return "";
 }
 
 export function EmployeeDetailsSheet({
@@ -121,19 +203,18 @@ export function EmployeeDetailsSheet({
   line: PayrollComputedLine | null;
   manualEntries: ManualEntry[];
 
-  // Optional to avoid runtime crash
   onOpenAdjust?: (() => void) | null;
 
   onEditEntry: (entry: ManualEntry) => void;
   onDeleteEntry: (entry: ManualEntry) => void;
 
-  // Parent controls `open`; this is still used for explicit Close.
   onOpenChange: (v: boolean) => void;
 }) {
   const allowanceItems =
     ((line as any)?.breakdown_json?.earnings?.allowance_items as any[]) ?? [];
 
   const entries = Array.isArray(manualEntries) ? manualEntries : [];
+
   const additionEntries = entries.filter(
     (e) => upper((e as any)?.type) === "EARNING",
   );
@@ -373,14 +454,14 @@ export function EmployeeDetailsSheet({
                           >
                             <div className="min-w-0">
                               <div className="truncate text-muted-foreground">
-                                {(e as any)?.desc || "Addition"}
+                                {entryDesc(e) || "Addition"}
                               </div>
                               <div className="text-[11px] text-muted-foreground">
                                 EARNING adjustment
                               </div>
                             </div>
                             <div className="font-mono">
-                              {formatPHP(Number((e as any)?.amount ?? 0))}
+                              {formatEntryAmount(e)}
                             </div>
                           </div>
                         ))}
@@ -546,19 +627,26 @@ export function EmployeeDetailsSheet({
               ) : (
                 <div className="space-y-2">
                   {entries.map((e) => {
-                    const isDR = isDRPaymentEntry(e);
-                    const shortage = isShortageEntry(e);
+                    const isDR = isDRPaymentEntry(e as any);
+                    const shortage = isShortageEntry(e as any);
 
-                    const desc = String((e as any)?.desc ?? "");
-                    const drNo = isDR ? extractDrReceiptNo(desc) : "";
+                    const desc = entryDesc(e as any);
+                    const drNo = isDR ? drReceiptNoFromEntry(e as any) : "";
+                    const drDate = isDR ? drPaymentDateFromEntry(e as any) : "";
+                    const drMethod = isDR
+                      ? drPaymentMethodFromEntry(e as any)
+                      : "";
+                    const drPosted = isDR ? drPostedFromEntry(e as any) : false;
 
                     const typeLabel = isDR
-                      ? "System (DR Payment)"
+                      ? "Stock Purchase (DR Payment)"
                       : upper((e as any)?.type) === "EARNING"
                         ? "Addition"
                         : shortage
                           ? "Shortage Deduction"
                           : "Deduction";
+
+                    const disableEditDelete = isDR && drPosted;
 
                     return (
                       <div
@@ -572,16 +660,35 @@ export function EmployeeDetailsSheet({
 
                           <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                             <span>{typeLabel}</span>
+
                             {isDR ? (
                               <Badge variant="secondary">DR_PAYMENT</Badge>
                             ) : null}
+
                             {!isDR && shortage ? (
                               <Badge variant="secondary">SHORTAGE</Badge>
                             ) : null}
+
                             {isDR && drNo ? (
-                              <span className="font-mono text-[11px] text-muted-foreground">
-                                DR: {drNo}
+                              <span className="font-mono">DR: {drNo}</span>
+                            ) : null}
+
+                            {isDR && drDate ? (
+                              <span className="font-mono">Date: {drDate}</span>
+                            ) : null}
+
+                            {isDR && drMethod ? (
+                              <span className="font-mono">
+                                Method: {upper(drMethod)}
                               </span>
+                            ) : null}
+
+                            {isDR ? (
+                              drPosted ? (
+                                <Badge variant="destructive">POSTED</Badge>
+                              ) : (
+                                <Badge variant="outline">UNPOSTED</Badge>
+                              )
                             ) : null}
                           </div>
                         </div>
@@ -605,7 +712,12 @@ export function EmployeeDetailsSheet({
                               ev.stopPropagation();
                               onEditEntry(e);
                             }}
-                            title="Edit"
+                            title={
+                              disableEditDelete
+                                ? "Cannot edit posted DR payments"
+                                : "Edit"
+                            }
+                            disabled={disableEditDelete}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -618,7 +730,12 @@ export function EmployeeDetailsSheet({
                               ev.stopPropagation();
                               onDeleteEntry(e);
                             }}
-                            title="Delete"
+                            title={
+                              disableEditDelete
+                                ? "Cannot delete posted DR payments"
+                                : "Delete"
+                            }
+                            disabled={disableEditDelete}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

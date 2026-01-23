@@ -31,7 +31,8 @@ type ComputeArgs = {
   cutoffType?: "FIRST" | "SECOND";
   cutoffId?: number;
 
-  allowances?: EmployeeAllowance[];
+  // ✅ Allowances fetched from employee_allowance
+  allowances?: EmployeeAllowance[] | any[];
 
   // ✅ wage proration logs for this user (effective-date driven)
   wageProrationLogs?: WageProrationLog[] | any[];
@@ -154,7 +155,168 @@ function getDayMultipliers(args: {
   return { baseMult: 1.0, otMult: 1.0, bucket: "NORMAL" };
 }
 
-// ✅ Benefit loans
+/* -------------------------------- Allowances -------------------------------- */
+
+type AllowancePayCycle = "N/A" | "PER_CUTOFF" | "PER_MONTH";
+
+type AllowanceNorm = {
+  allowance_id: number;
+  user_id: number;
+  amount: number;
+  description: string | null;
+
+  cutoff_start: string | null;
+  cutoff_end: string | null;
+
+  is_recurring: number; // 0/1
+  is_active: number; // 0/1
+  pay_cycle: AllowancePayCycle;
+
+  start_date: string | null;
+  end_date: string | null;
+
+  is_processed: number; // 0/1 (usually for one-time)
+};
+
+function normAllowance(row: any): AllowanceNorm {
+  const payCycleRaw = String(row?.pay_cycle ?? row?.payCycle ?? "N/A").toUpperCase();
+  const pay_cycle: AllowancePayCycle =
+    payCycleRaw === "PER_CUTOFF" ? "PER_CUTOFF" : payCycleRaw === "PER_MONTH" ? "PER_MONTH" : "N/A";
+
+  const d10 = (v: any) => {
+    const x = s(v).slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : null;
+  };
+
+  return {
+    allowance_id: n(row?.allowance_id ?? row?.allowanceId ?? row?.id),
+    user_id: n(row?.user_id ?? row?.userId),
+    amount: n(row?.amount),
+    description: row?.description ?? null,
+
+    cutoff_start: d10(row?.cutoff_start ?? row?.cutoffStart),
+    cutoff_end: d10(row?.cutoff_end ?? row?.cutoffEnd),
+
+    is_recurring: n(row?.is_recurring ?? row?.isRecurring) ? 1 : 0,
+    is_active: n(row?.is_active ?? row?.isActive) ? 1 : 0,
+    pay_cycle,
+
+    start_date: d10(row?.start_date ?? row?.startDate),
+    end_date: d10(row?.end_date ?? row?.endDate),
+
+    is_processed: n(row?.is_processed ?? row?.isProcessed) ? 1 : 0,
+  };
+}
+
+function overlapsWindow(args: { cutoffStart: string; cutoffEnd: string; start?: string | null; end?: string | null }) {
+  const { cutoffStart, cutoffEnd } = args;
+  const start = args.start ?? null;
+  const end = args.end ?? null;
+
+  if (start && start > cutoffEnd) return false;
+  if (end && end < cutoffStart) return false;
+  return true;
+}
+
+function allowanceAmountForCutoff(args: {
+  allowances: any[];
+  cutoffStart: string;
+  cutoffEnd: string;
+  cutoffType?: string;
+}): { total: number; items: any[] } {
+  const cutoffType = String(args.cutoffType ?? "").toUpperCase(); // FIRST|SECOND|"" (optional)
+
+  const rows = (Array.isArray(args.allowances) ? args.allowances : []).map(normAllowance);
+
+  const items: Array<{
+    allowance_id: number;
+    description: string | null;
+    pay_cycle: AllowancePayCycle;
+    is_recurring: number;
+    amount_full: number;
+    amount_this_cutoff: number;
+    source: "RECURRING" | "ONE_TIME";
+  }> = [];
+
+  for (const a of rows) {
+    if (a.amount <= 0) continue;
+
+    // One-time allowance: cutoff_start/cutoff_end match cutoff, usually processed once
+    if (!a.is_recurring) {
+      if (a.is_processed) continue;
+      if (!a.cutoff_start || !a.cutoff_end) continue;
+      if (a.cutoff_start !== args.cutoffStart) continue;
+      if (a.cutoff_end !== args.cutoffEnd) continue;
+
+      items.push({
+        allowance_id: a.allowance_id,
+        description: a.description,
+        pay_cycle: a.pay_cycle,
+        is_recurring: 0,
+        amount_full: round2(a.amount),
+        amount_this_cutoff: round2(a.amount),
+        source: "ONE_TIME",
+      });
+      continue;
+    }
+
+    // Recurring allowance
+    if (!a.is_active) continue;
+    if (a.pay_cycle === "N/A") continue;
+
+    // window filter (start_date/end_date overlaps cutoff)
+    if (
+      !overlapsWindow({
+        cutoffStart: args.cutoffStart,
+        cutoffEnd: args.cutoffEnd,
+        start: a.start_date,
+        end: a.end_date,
+      })
+    ) {
+      continue;
+    }
+
+    // PER_CUTOFF: pay full amount each cutoff
+    if (a.pay_cycle === "PER_CUTOFF") {
+      items.push({
+        allowance_id: a.allowance_id,
+        description: a.description,
+        pay_cycle: a.pay_cycle,
+        is_recurring: 1,
+        amount_full: round2(a.amount),
+        amount_this_cutoff: round2(a.amount),
+        source: "RECURRING",
+      });
+      continue;
+    }
+
+    // PER_MONTH: split across cutoffs (assumes semi-monthly payroll)
+    if (a.pay_cycle === "PER_MONTH") {
+      const half = round2(a.amount / 2);
+
+      // If cutoffType is not provided, still split 50/50 to avoid overpaying in one cutoff.
+      const amountThisCutoff =
+        cutoffType === "FIRST" || cutoffType === "SECOND" || !cutoffType ? half : half;
+
+      items.push({
+        allowance_id: a.allowance_id,
+        description: a.description,
+        pay_cycle: a.pay_cycle,
+        is_recurring: 1,
+        amount_full: round2(a.amount),
+        amount_this_cutoff: round2(amountThisCutoff),
+        source: "RECURRING",
+      });
+      continue;
+    }
+  }
+
+  const total = round2(items.reduce((sum, x) => sum + n(x.amount_this_cutoff), 0));
+  return { total, items };
+}
+
+/* ------------------------------ Benefit loans ------------------------------ */
+
 function normBenefitLoan(row: any) {
   return {
     loan_id: n(row.loan_id ?? row.id),
@@ -184,20 +346,11 @@ function benefitLoanAmountForCutoff(args: {
   return deductOn === args.cutoffType ? round2(amort) : 0;
 }
 
-/**
- * ✅ Wage proration helper (effective-date driven)
- *
- * Expectations:
- * - wageProrationLogs can be raw rows or normalized rows
- * - each log indicates: previous_daily_wage -> new_daily_wage starting effective_date
- */
-function buildDailyRateResolver(args: {
-  wage: WageProfile | null;
-  wageProrationLogs?: any[];
-}) {
+/* ------------------------- Wage proration (existing) ------------------------- */
+
+function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationLogs?: any[] }) {
   const wage = args.wage;
 
-  // current wage profile daily as the “target” rate
   let baseDaily = (() => {
     const d = n((wage as any)?.daily_wage);
     if (d > 0) return d;
@@ -241,13 +394,11 @@ function buildDailyRateResolver(args: {
 
   const logs = Array.isArray(args.wageProrationLogs) ? args.wageProrationLogs : [];
 
-  // Build raw events
   let events = logs
     .map((row: any) => {
       const effective_date = parseEffectiveDate(row);
       if (!effective_date) return null;
 
-      // try daily columns first
       let old_daily = pickFirstNumber(row, [
         "previous_daily_wage",
         "previous_daily_rate",
@@ -271,7 +422,6 @@ function buildDailyRateResolver(args: {
         "daily_new",
       ]);
 
-      // monthly -> daily fallback (if ever present)
       if (old_daily <= 0) {
         const old_monthly = pickFirstNumber(row, [
           "old_monthly_wage",
@@ -312,7 +462,6 @@ function buildDailyRateResolver(args: {
       id: number;
     }>;
 
-  // Sort and de-dupe by effective_date (keep latest within same date)
   events.sort((a, b) => {
     if (a.effective_date !== b.effective_date) return a.effective_date < b.effective_date ? -1 : 1;
     const ac = a.created_at ? String(a.created_at) : "";
@@ -322,15 +471,13 @@ function buildDailyRateResolver(args: {
   });
 
   const byDate = new Map<string, typeof events[number]>();
-  for (const ev of events) byDate.set(ev.effective_date, ev); // later wins
+  for (const ev of events) byDate.set(ev.effective_date, ev);
   events = Array.from(byDate.values()).sort((a, b) => (a.effective_date < b.effective_date ? -1 : 1));
 
-  // If wage profile is missing daily but logs exist, use last new_daily as base
   if (baseDaily <= 0 && events.length) {
     baseDaily = events[events.length - 1].new_daily || events[0].old_daily || 0;
   }
 
-  // Reconcile: keep only the chain that leads to the current wage profile daily (prevents “using wrong latest log”)
   if (events.length && baseDaily > 0) {
     let current = round2(baseDaily);
     const chain: typeof events = [];
@@ -343,7 +490,6 @@ function buildDailyRateResolver(args: {
       }
     }
 
-    // If chain exists, use it. If not, keep events as-is (data might still be usable).
     if (chain.length) events = chain;
   }
 
@@ -359,7 +505,6 @@ function buildDailyRateResolver(args: {
 
     if (applied) return applied.new_daily > 0 ? applied.new_daily : baseDaily;
 
-    // before first event => old_daily of first event
     const first = events[0];
     return first?.old_daily > 0 ? first.old_daily : baseDaily;
   }
@@ -387,6 +532,24 @@ function buildDailyRateResolver(args: {
   };
 }
 
+/* --------------------------------- Helpers --------------------------------- */
+
+function upper(v: any): string {
+  return String(v ?? "").trim().toUpperCase();
+}
+
+function isDRPaymentManualEntry(m: any): boolean {
+  const cat = String(m?.category ?? m?.deduction_type ?? m?.other_deduction_type ?? m?.deductionKind ?? "")
+    .trim()
+    .toLowerCase();
+  if (cat === "dr_payment") return true;
+
+  const desc = String(m?.desc ?? m?.description ?? "").trim().toLowerCase();
+  return desc.startsWith("dr payment:");
+}
+
+/* -------------------------------- Compute -------------------------------- */
+
 export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const empName = buildName(args.user);
 
@@ -397,18 +560,15 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const monthlyBase =
     args.wage?.monthly_wage != null ? n(args.wage.monthly_wage) : dailyBase > 0 ? dailyBase * 26 : 0;
 
-  // ✅ Resolve per-date daily/hourly/minute rate (proration-aware)
   const rate = buildDailyRateResolver({
     wage: args.wage,
     wageProrationLogs: (args.wageProrationLogs ?? []) as any[],
   });
 
-  // Attendance rows
   const att = (args.attendance ?? [])
     .map(normAttendance)
     .filter((r) => String(r.status ?? "").toLowerCase() === "approved");
 
-  // Holiday map
   const holidayMap = new Map<string, HolidayInfo>();
   for (const h of (args.holidays ?? []).map(normHoliday)) {
     if (!h.date) continue;
@@ -428,25 +588,21 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
   const attendedDates = new Set(att.map((r) => r.date_schedule));
 
-  // Totals (minutes)
   let totalWorkMinutes = 0;
   let lateMinutes = 0;
   let undertimeMinutes = 0;
   let overtimeMinutes = 0;
   let nightDiffMinutes = 0;
 
-  // Earnings buckets
   let basicPay = 0;
   let otAmount = 0;
 
   let holidayPay = 0;
   let restDayAmount = 0;
 
-  // Deductions (computed per-day for proration correctness)
   let lateDeduction = 0;
   let undertimeDeduction = 0;
 
-  // Night diff amount (computed per-day)
   let nightDiffAmount = 0;
 
   const holidayItems: Array<any> = [];
@@ -466,10 +622,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     const wmRaw = n(r.work_minutes);
     const omRaw = n(r.overtime_minutes);
 
-    // base minutes always capped at 480
     const baseMin = Math.min(wmRaw, 480);
-
-    // OT minutes: trust overtime_minutes, but if work_minutes > 480 and OT not provided, don't underpay
     const otMin = Math.max(omRaw, Math.max(0, wmRaw - 480));
 
     const lm = n(r.late_minutes);
@@ -493,7 +646,6 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
       nightDiffAmount += round2((ndm / 60) * dayHourly * 0.1);
     }
 
-    // No late/undertime deductions on holiday or rest day bucket
     if (bucket === "NORMAL") {
       lateMinutes += lm;
       undertimeMinutes += um;
@@ -576,42 +728,52 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
   const totalDaysWorked = totalWorkMinutes > 0 ? round2(totalWorkMinutes / 480) : 0;
 
-  // Manual entries
+  /* ------------------------------ Manual entries ------------------------------ */
+
   const manualAdds = (args.manualEntries ?? [])
-    .filter((m) => m.type === "EARNING")
-    .reduce((sum, m) => sum + n(m.amount), 0);
+    .filter((m) => upper(m.type) === "EARNING")
+    .reduce((sum, m: any) => sum + n(m.amount), 0);
 
-  const manualDedsAll = (args.manualEntries ?? [])
-    .filter((m) => m.type === "DEDUCTION")
-    .reduce((sum, m) => sum + n(m.amount), 0);
+  const manualDeductionEntries = (args.manualEntries ?? []).filter((m) => upper((m as any)?.type) === "DEDUCTION");
 
-  const shortage = (args.manualEntries ?? [])
-    .filter((m) => m.type === "DEDUCTION")
-    .filter((m) => {
-      const cat = s(m.category).trim().toLowerCase();
-      const desc = s(m.desc).trim().toLowerCase();
-      return cat === "shortage" || desc.includes("shortage");
-    })
-    .reduce((sum, m) => sum + n(m.amount), 0);
+  const manualDedsAll = manualDeductionEntries.reduce((sum, m: any) => sum + n(m.amount), 0);
 
-  const shortageDeduction = round2(shortage);
+  const drDeduction = round2(
+    manualDeductionEntries.filter((m: any) => isDRPaymentManualEntry(m)).reduce((sum, m: any) => sum + n(m.amount), 0),
+  );
+
+  const shortageDeduction = round2(
+    manualDeductionEntries
+      .filter((m: any) => !isDRPaymentManualEntry(m))
+      .filter((m: any) => {
+        const cat = s((m as any)?.category).trim().toLowerCase();
+        const desc = s((m as any)?.desc).trim().toLowerCase();
+        return cat === "shortage" || desc.includes("shortage");
+      })
+      .reduce((sum, m: any) => sum + n(m.amount), 0),
+  );
+
   const manualDeductions = round2(manualDedsAll);
-  const otherDeductions = round2(manualDeductions - shortageDeduction);
 
-  // Govt benefits
+  // "other_deductions" = manual deductions excluding shortage and DR payments
+  const otherDeductions = round2(manualDeductions - shortageDeduction - drDeduction);
+
+  /* ------------------------------ Govt benefits ------------------------------ */
+
   const multSSS = n(args.benefitMultipliers?.SSS ?? 0);
   const multPhil = n(args.benefitMultipliers?.PHILHEALTH ?? 0);
   const multPagibig = n(args.benefitMultipliers?.PAGIBIG ?? 0);
 
-  const sssMonthly = n(args.wage?.sss_employee);
-  const philMonthly = n(args.wage?.philhealth_employee);
-  const pagibigMonthly = n(args.wage?.pagibig_employee);
+  const sssMonthly = n((args.wage as any)?.sss_employee);
+  const philMonthly = n((args.wage as any)?.philhealth_employee);
+  const pagibigMonthly = n((args.wage as any)?.pagibig_employee);
 
   const benefitSSS = round2(sssMonthly * multSSS);
   const benefitPhilhealth = round2(philMonthly * multPhil);
   const benefitPagibig = round2(pagibigMonthly * multPagibig);
 
-  // Employee loans 50/50
+  /* --------------------------- Employee loans 50/50 --------------------------- */
+
   const loanHalf = (monthlyPayment: number) => round2(n(monthlyPayment) / 2);
 
   let loanVale = 0;
@@ -619,10 +781,11 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   let loanCoop = 0;
 
   for (const L of args.employeeLoans ?? []) {
-    const half = loanHalf(L.monthly_payment);
-    if (L.loan_type === "VALE") loanVale += half;
-    else if (L.loan_type === "CAR LOAN") loanCar += half;
-    else if (L.loan_type === "COOP") loanCoop += half;
+    const half = loanHalf((L as any).monthly_payment);
+    const lt = String((L as any).loan_type ?? "").toUpperCase();
+    if (lt === "VALE") loanVale += half;
+    else if (lt === "CAR LOAN") loanCar += half;
+    else if (lt === "COOP") loanCoop += half;
   }
 
   loanVale = round2(loanVale);
@@ -631,7 +794,8 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
   const loanTotal = round2(loanVale + loanCar + loanCoop);
 
-  // Benefit loans (SSS/PAGIBIG)
+  /* ----------------------- Benefit loans (SSS/PAGIBIG) ----------------------- */
+
   const cutoffType = String(args.cutoffType ?? "").toUpperCase();
   const cutoffId = n(args.cutoffId);
 
@@ -673,15 +837,35 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
   const benefitLoanTotal = round2(benefitLoanSSS + benefitLoanPagibig);
 
-  // Not wired yet (kept stable)
-  const allowance = 0;
+  /* ------------------------------- Allowances ------------------------------- */
+
+  const allowanceCalc = allowanceAmountForCutoff({
+    allowances: (args.allowances ?? []) as any[],
+    cutoffStart: args.cutoffStart,
+    cutoffEnd: args.cutoffEnd,
+    cutoffType,
+  });
+
+  const allowance = round2(allowanceCalc.total);
+  const allowanceItems = allowanceCalc.items.map((x) => ({
+    allowance_id: x.allowance_id,
+    description: x.description,
+    pay_cycle: x.pay_cycle,
+    is_recurring: x.is_recurring,
+    amount_full: x.amount_full,
+    amount_this_cutoff: x.amount_this_cutoff,
+    source: x.source,
+  }));
+
+  /* -------------------------------- Totals -------------------------------- */
+
   const retroPay = 0;
-  const drDeduction = 0;
 
   const grossPay = round2(
     basicPay + otAmount + holidayPay + restDayAmount + nightDiffAmount + allowance + retroPay + manualAdds,
   );
 
+  // totalDeductions adds shortage + dr + other_deductions such that manual deductions are counted once overall
   const totalDeductions = round2(
     lateDeduction +
     undertimeDeduction +
@@ -702,9 +886,9 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const varianceFlag = prev > 0 && Math.abs(n(variancePct)) >= 10;
 
   return {
-    user_id: args.user.id,
+    user_id: (args.user as any).id,
     employee_name: empName,
-    position: args.user.position ?? null,
+    position: (args.user as any).position ?? null,
     department_name: args.departmentName ?? null,
 
     daily_rate: round2(dailyBase),
@@ -723,6 +907,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     holiday_pay: round2(holidayPay),
     rest_day_amount: round2(restDayAmount),
     night_diff_amount: nightDiffAmount,
+
     allowance,
     retro_pay: retroPay,
     manual_additions: round2(manualAdds),
@@ -778,14 +963,22 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         holiday_pay: round2(holidayPay),
         rest_day_amount: round2(restDayAmount),
         night_diff_amount: round2(nightDiffAmount),
+
+        allowance_total: round2(allowance),
+        allowance_items: allowanceItems,
+
         manual_additions: round2(manualAdds),
+
         holiday_items: holidayItems,
         rest_day_items: restDayItems,
       },
       deductions: {
         late_deduction: round2(lateDeduction),
         undertime_deduction: round2(undertimeDeduction),
+
         shortage_deduction: round2(shortageDeduction),
+        dr_deduction: round2(drDeduction),
+
         employee_loans: {
           rule: "50/50 per cutoff",
           vale: round2(loanVale),

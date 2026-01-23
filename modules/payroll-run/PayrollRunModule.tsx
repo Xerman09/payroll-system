@@ -264,9 +264,19 @@ export default function PayrollRunModule() {
             summary={computed.summary}
             holdMap={holdMap}
             onToggleHold={toggleHold}
-            onRecompute={() =>
-              toast.message("Recompute happens automatically on changes.")
-            }
+            onRecompute={async () => {
+              // Reload workspace to get updated manual entries
+              try {
+                const updatedWorkspace = await svc.loadWorkspace({
+                  cutoff: selectedCutoff!,
+                  departmentId: config.departmentId,
+                });
+                setWs(updatedWorkspace);
+                toast.success("Payroll updated with latest adjustments.");
+              } catch (e: any) {
+                toast.error(e?.message || "Failed to reload payroll data");
+              }
+            }}
             onNext={processAndSave}
           />
         ) : null}
