@@ -46,7 +46,7 @@ type Props = {
     amount: number;
   }) => Promise<void>;
 
-  // ✅ NEW: when true, treat "desc" as DR receipt number and lock type to DEDUCTION
+  // when true, treat "desc" as DR receipt number and lock type to DEDUCTION
   drMode?: boolean;
 };
 
@@ -85,13 +85,11 @@ export function ManualAdjustmentDialog({
     }
   }, [open, mode, initial, defaultType]);
 
-  // ✅ DR edits must always be DEDUCTION
   useEffect(() => {
     if (open && drMode) setType("DEDUCTION");
   }, [open, drMode]);
 
   const amount = useMemo(() => parseAmount(amountStr), [amountStr]);
-
   const canSubmit = !busy && desc.trim().length > 0 && amount > 0;
 
   const title =
@@ -130,7 +128,14 @@ export function ManualAdjustmentDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      modal={false}
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) setBusy(false);
+        onOpenChange(v);
+      }}
+    >
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -138,7 +143,6 @@ export function ManualAdjustmentDialog({
         </DialogHeader>
 
         <div className="grid gap-4">
-          {/* Type (hidden/locked for DR edits) */}
           {!drMode ? (
             <div className="grid gap-2">
               <Label>Type</Label>

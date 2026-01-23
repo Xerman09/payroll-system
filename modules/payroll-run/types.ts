@@ -1,12 +1,20 @@
 // modules/payroll-run/types.ts
 
+// ------------------------------
+// Core enums / primitives
+// ------------------------------
 export type PayrollStep = 1 | 2 | 3 | 4;
 
 export type CutoffType = "FIRST" | "SECOND";
 export type BenefitCode = "SSS" | "PHILHEALTH" | "PAGIBIG";
 
+export type ManualEntryType = "EARNING" | "DEDUCTION";
+
 export type AdjustmentType = "EARNING" | "DEDUCTION";
 
+// ------------------------------
+// Prototype-only / legacy types (kept to avoid TS errors)
+// ------------------------------
 export interface Adjustment {
   type: AdjustmentType;
   desc: string;
@@ -14,9 +22,6 @@ export interface Adjustment {
   recurring?: boolean;
 }
 
-/**
- * Legacy/prototype employee row (keep if other UI files still reference it)
- */
 export interface EmployeeRow {
   id: number;
   name: string;
@@ -28,6 +33,53 @@ export interface EmployeeRow {
   adjustments: Adjustment[];
 }
 
+export interface SalaryHistoryEntry {
+  user_id: number;
+  old_basic: number;
+  new_basic: number;
+  effective_date: string; // YYYY-MM-DD
+}
+
+export interface PayrollCutoffOption {
+  value: string; // "YYYY-MM-DD_YYYY-MM-DD"
+  label: string;
+}
+
+export interface PayrollDepartmentOption {
+  value: string; // "ALL" | "IT" | etc.
+  label: string;
+}
+
+// ✅ must match how PayrollRunModule uses it
+export type PayrollConfigState = {
+  cutoffId: number | null;
+  departmentId: number | null;
+};
+
+
+
+
+export interface ProratedPayResult {
+  amount: number;
+  isProrated: boolean;
+  // Free-form details shown in UI only; do not parse.
+  details?: {
+    changeEffectiveDate: string;
+    oldBasic: number;
+    newBasic: number;
+    daysOnOldRate: number;
+    daysOnNewRate: number;
+    oldDaily: number;
+    newDaily: number;
+    payOld: number;
+    payNew: number;
+    totalProrated: number;
+  };
+}
+
+// ------------------------------
+// Directus-backed entities
+// ------------------------------
 export interface BenefitCutoffSetting {
   id: number;
   benefit_code: BenefitCode;
@@ -44,24 +96,28 @@ export interface CutoffSetting {
   start_date: string; // YYYY-MM-DD
   end_date: string; // YYYY-MM-DD
   payout_date?: string | null;
-  status?: string | null; // OPEN/ACTIVE/etc
+  status?: string | null; // OPEN, CLOSED, etc.
 }
 
 export interface Department {
   id: number;
   name: string;
-  // allow extra fields from API
+  // allow passthrough fields from Directus
   [k: string]: any;
 }
 
 export interface UserRow {
   id: number;
-  first_name: string | null;
-  last_name: string | null;
-  department_id: number | null;
-  position: string | null;
-  is_deleted: number; // 1/0
-  // allow extra fields from API
+
+  first_name?: string | null;
+  last_name?: string | null;
+
+  department_id?: number | null;
+  position?: string | null;
+
+  is_deleted?: number; // 0/1
+
+  // allow passthrough fields from Directus
   [k: string]: any;
 }
 
@@ -73,72 +129,79 @@ export interface WageProfile {
   hourly_wage: number;
   monthly_wage: number;
 
-  is_deleted: number; // 1/0
+  is_deleted?: number; // 0/1
 
-  // employee share (monthly baseline)
-  sss_employee: number;
-  philhealth_employee: number;
-  pagibig_employee: number;
+  // optional stored monthly contributions (employee share)
+  sss_employee?: number;
+  philhealth_employee?: number;
+  pagibig_employee?: number;
 
-  // allow extra fields from API
   [k: string]: any;
 }
 
-/**
- * Attendance approval row (from attendance_approval)
- * Keep fields used by compute + payrollRunService; other fields can exist.
- */
+export type AttendanceApprovalStatus = "approved" | "rejected" | "pending" | string;
+
 export interface AttendanceApproval {
-  approval_id?: number;
+  approval_id: number;
   employee_id: number;
+
   date_schedule: string; // YYYY-MM-DD
+
+  approved_by?: number;
+  approved_at?: string;
 
   work_minutes: number;
   late_minutes: number;
   undertime_minutes: number;
   overtime_minutes: number;
 
-  // optional
   night_diff_minutes?: number;
 
-  status?: "approved" | "rejected" | string;
+  remarks?: string | null;
+  status: AttendanceApprovalStatus;
 
   [k: string]: any;
 }
 
-export type HolidayType = "REGULAR" | "SPECIAL" | "LOCAL" | "N/A" | string;
+export type HolidayType = "REGULAR" | "SPECIAL" | "SPECIAL_NON_WORKING" | string;
 
 export interface HolidayRow {
-  id?: number;
+  id: number;
   holiday_date: string; // YYYY-MM-DD
   holiday_name?: string | null;
   holiday_type: HolidayType;
 
+  is_active?: number;
+
   [k: string]: any;
 }
 
-export type ManualEntryType = "EARNING" | "DEDUCTION";
 
-export interface ManualEntry {
-  id: number;
-  cutoff_id: number;
-  user_id: number;
+export type ManualEntry = {
+  id?: number | string;
   type: ManualEntryType;
   desc: string;
   amount: number;
-  category: string | null;
-}
-
-export type LoanType = "VALE" | "CAR" | "COOP" | string;
+  // optional metadata (safe)
+  category?: string | null;
+  deduction_kind?: string | null;
+};
+// ------------------------------
+// Loans / benefits
+// ------------------------------
+export type EmployeeLoanStatus = "ACTIVE" | "INACTIVE" | "CLOSED" | string;
 
 export interface EmployeeLoan {
   loan_id: number;
   user_id: number;
-  loan_type: LoanType;
+
+  loan_type: string; // VALE | CAR | COOP | etc (your system)
   monthly_payment: number;
+
   start_date: string; // YYYY-MM-DD
-  end_date: string | null; // YYYY-MM-DD | null
-  status: "ACTIVE" | "CLOSED" | "CANCELLED" | string;
+  end_date: string | null;
+
+  status: EmployeeLoanStatus;
 
   [k: string]: any;
 }
@@ -146,23 +209,25 @@ export interface EmployeeLoan {
 export type DeductOn = "FIRST" | "SECOND" | "BOTH" | string;
 
 export interface BenefitLoanRow {
-  loan_id?: number;
-  id?: number;
-
+  loan_id: number;
   user_id: number;
-  benefit_code: BenefitCode;
+
+  benefit_code: string; // "SSS" | "PAGIBIG" etc (keep wide to match Directus)
+  loan_name?: string | null;
 
   amortization_amount?: number;
   deduct_on?: DeductOn;
 
   remaining_balance?: number;
 
-  status?: "ACTIVE" | "CLOSED" | string;
+  status?: string;
 
   [k: string]: any;
 }
 
-/** Allowances */
+// ------------------------------
+// Allowances
+// ------------------------------
 export type AllowancePayCycle = "N/A" | "PER_CUTOFF" | "PER_MONTH";
 
 export interface EmployeeAllowance {
@@ -179,7 +244,6 @@ export interface EmployeeAllowance {
   is_recurring: number; // 1/0
   is_active: number; // 1/0
   pay_cycle: AllowancePayCycle;
-
   start_date?: string | null; // YYYY-MM-DD | null
   end_date?: string | null; // YYYY-MM-DD | null
 
@@ -203,31 +267,40 @@ export interface AllowanceAppliedItem {
   amount_this_cutoff: number;
 }
 
-/** Wage proration logs */
+// ------------------------------
+// Wage proration logs
+// ------------------------------
 export interface WageProrationLog {
   id: number;
   user_id: number;
+
   previous_daily_wage: number;
   new_daily_wage: number;
+
   effective_date: string; // YYYY-MM-DD
   created_at: string | null;
 
   [k: string]: any;
 }
 
-/** Payroll run header */
-export type PayrollRunStatus = "DRAFT" | "POSTED" | "CANCELLED" | "VOID" | string;
+// ------------------------------
+// Payroll run header
+// ------------------------------
+export type PayrollRunStatus = "DRAFT" | "POSTED" | "PROCESSED" | "CANCELLED" | string;
 
 export interface PayrollRunHeader {
   payroll_run_id: number;
+
   cutoff_id: number;
   cutoff_type: CutoffType;
+
   cutoff_start: string; // YYYY-MM-DD
   cutoff_end: string; // YYYY-MM-DD
 
   department_id: number | null;
 
   status: PayrollRunStatus;
+
   payroll_ref_no: string;
 
   headcount: number;
@@ -250,7 +323,9 @@ export interface PayrollRunHeader {
   [k: string]: any;
 }
 
-/** Computed breakdown per employee */
+// ------------------------------
+// Computed breakdown per employee
+// ------------------------------
 export interface PayrollComputedLine {
   user_id: number;
   employee_name: string;
@@ -290,12 +365,13 @@ export interface PayrollComputedLine {
   benefit_philhealth: number;
   benefit_pagibig: number;
 
-  // employee loans
+  // employee loans (50/50 per cutoff)
   loan_vale: number;
   loan_car: number;
   loan_coop: number;
   loan_total: number;
 
+  // system deductions
   dr_deduction: number;
   other_deductions: number;
   manual_deductions: number;
@@ -314,7 +390,7 @@ export interface PayrollComputedLine {
   breakdown_json?: Record<string, unknown>;
 
   // benefit loans
-  benefit_loans: number;
+  benefit_loans: number; // legacy / kept
   benefit_loan_sss: number;
   benefit_loan_pagibig: number;
   benefit_loan_total: number;
@@ -324,23 +400,17 @@ export interface PayrollComputedLine {
   [k: string]: any;
 }
 
-/**
- * Summary (current + legacy compatibility)
- */
 export interface PayrollSummary {
-  // current
   headcount: number;
   total_gross: number;
   total_deductions: number;
   total_net: number;
   variance_alerts: number;
-
-  // legacy optional (if other UI still uses them)
-  totalNet?: number;
-  activeHeadcount?: number;
-  varianceAlerts?: number;
 }
 
+// ------------------------------
+// Workspace aggregation (loadWorkspace)
+// ------------------------------
 export interface PayrollWorkspace {
   cutoff: CutoffSetting;
   department: Department | null;
@@ -353,38 +423,13 @@ export interface PayrollWorkspace {
   manualEntries: Map<number, ManualEntry[]>;
 
   benefitSettings: BenefitCutoffSetting[];
-  benefitMultipliers: Record<BenefitCode, number>;
+  benefitMultipliers: Record<BenefitCode, number>; // 1 or 0
 
   employeeLoans: Map<number, EmployeeLoan[]>;
   benefitLoans: Map<number, BenefitLoanRow[]>;
 
   allowances: Map<number, EmployeeAllowance[]>;
 
-  // ✅ REQUIRED by payrollRunService.ts
+  // ✅ REQUIRED by your new loadWorkspace
   wageProrationLogs: Map<number, WageProrationLog[]>;
-}
-
-/**
- * Optional: if you still have older compute code referencing these.
- */
-export interface SalaryHistoryEntry {
-  user_id: number;
-  old_basic: number;
-  new_basic: number;
-  effective_date: string; // YYYY-MM-DD
-}
-
-export interface PayrollCutoffOption {
-  value: string; // "YYYY-MM-DD_YYYY-MM-DD"
-  label: string;
-}
-
-export interface PayrollDepartmentOption {
-  value: string; // "ALL" | etc.
-  label: string;
-}
-
-export interface PayrollConfigState {
-  cutoffValue: string;
-  departmentValue: string;
 }

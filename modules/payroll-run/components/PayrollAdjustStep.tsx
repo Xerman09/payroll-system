@@ -1,13 +1,17 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
+
 import type {
   CutoffSetting,
   Department,
   PayrollComputedLine,
   PayrollRunHeader,
   PayrollSummary,
+  ManualEntry,
 } from "../types";
+
 import { formatPHP } from "../utils/payroll";
 
 import { Button } from "@/components/ui/button";
@@ -32,6 +36,22 @@ import {
 import { cn } from "@/lib/utils";
 
 import { EmployeeDetailsSheet } from "./EmployeeDetailsSheet";
+import {
+  listOtherAdditions,
+  listOtherDeductions,
+  deleteOtherAddition,
+  deleteOtherDeduction,
+} from "../providers/payrollAdjustmentsService";
+
+import {
+  AddEmployeeAdjustmentsDialog,
+  type ManualEntryExt,
+} from "./AddEmployeeAdjustmentsDialog";
+
+function toNumber(v: any): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
 
 export function PayrollAdjustStep({
   cutoff,
@@ -57,6 +77,14 @@ export function PayrollAdjustStep({
   const [q, setQ] = useState("");
   const [activeUserId, setActiveUserId] = useState<number | null>(null);
 
+  // DB-backed manual entries for the active employee (cutoff-scoped)
+  const [manualEntries, setManualEntries] = useState<ManualEntryExt[]>([]);
+  const [loadingEntries, setLoadingEntries] = useState(false);
+
+  // Add/Edit dialog
+  const [manualOpen, setManualOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<ManualEntryExt | null>(null);
+
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return lines;
@@ -70,6 +98,112 @@ export function PayrollAdjustStep({
         : (lines.find((l) => l.user_id === activeUserId) ?? null),
     [activeUserId, lines],
   );
+
+  const cutoffStart = cutoff.start_date;
+  const cutoffEnd = cutoff.end_date;
+
+  const refreshManualEntries = useCallback(async () => {
+    if (!activeUserId) {
+      setManualEntries([]);
+      return;
+    }
+
+    try {
+      setLoadingEntries(true);
+
+      const [adds, deds] = await Promise.all([
+        listOtherAdditions({
+          userId: activeUserId,
+          cutoffStart,
+          cutoffEnd,
+        }),
+        listOtherDeductions({
+          userId: activeUserId,
+          cutoffStart,
+          cutoffEnd,
+        }),
+      ]);
+
+      const mappedAdds: ManualEntryExt[] = adds.map((r) => ({
+        id: r.id,
+        type: "EARNING" as any,
+        amount: toNumber(r.amount),
+        desc: r.description ?? "Manual Addition",
+        category: "MANUAL_ADDITION",
+        __source: "ADD",
+      })) as any;
+
+      const mappedDeds: ManualEntryExt[] = deds.map((r) => ({
+        id: r.id,
+        type: "DEDUCTION" as any,
+        amount: toNumber(r.amount),
+        desc:
+          r.description ??
+          (r.type === "SHORTAGE" ? "Shortage" : "Manual Deduction"),
+        category: r.type, // SHORTAGE|MANUAL (EmployeeDetailsSheet detects SHORTAGE)
+        other_deduction_type: r.type,
+        __source: "DED",
+      })) as any;
+
+      // Combine, newest first by id (already sorted per endpoint)
+      const merged = [...mappedAdds, ...mappedDeds].sort((a: any, b: any) => {
+        const ai = Number((a as any)?.id ?? 0);
+        const bi = Number((b as any)?.id ?? 0);
+        return bi - ai;
+      });
+
+      setManualEntries(merged);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to load employee adjustments");
+      setManualEntries([]);
+    } finally {
+      setLoadingEntries(false);
+    }
+  }, [activeUserId, cutoffStart, cutoffEnd]);
+
+  useEffect(() => {
+    // load when employee opens OR cutoff changes
+    refreshManualEntries();
+  }, [refreshManualEntries]);
+
+  function openAddAdjustment() {
+    if (!activeUserId) return;
+    setEditingEntry(null);
+    setManualOpen(true);
+  }
+
+  function openEditAdjustment(entry: ManualEntry) {
+    setEditingEntry(entry as ManualEntryExt);
+    setManualOpen(true);
+  }
+
+  async function deleteAdjustment(entry: ManualEntry) {
+    const ext = entry as ManualEntryExt;
+    const id = Number((ext as any)?.id);
+    const src = (ext as any)?.__source as "ADD" | "DED" | undefined;
+
+    if (!id || !src) {
+      toast.error("Cannot delete: missing source/id.");
+      return;
+    }
+
+    const ok = window.confirm("Delete this adjustment?");
+    if (!ok) return;
+
+    try {
+      if (src === "ADD") await deleteOtherAddition(id);
+      else await deleteOtherDeduction(id);
+
+      toast.success("Adjustment deleted.");
+      await refreshManualEntries();
+
+      // If you want computed totals to reflect instantly, you must reload/recompute your workspace.
+      // Leaving your hook as-is:
+      onRecompute();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete adjustment");
+    }
+  }
 
   return (
     <Card>
@@ -90,7 +224,11 @@ export function PayrollAdjustStep({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={onRecompute}>
+          <Button
+            variant="outline"
+            onClick={onRecompute}
+            title="If recompute is wired to reload workspace, it will reflect new DB adjustments."
+          >
             Recompute
           </Button>
           <Button onClick={onNext}>Process & Save →</Button>
@@ -261,11 +399,43 @@ export function PayrollAdjustStep({
           </Table>
         </div>
 
+        {/* Employee Details (DB-backed manual entries) */}
         <EmployeeDetailsSheet
           open={activeUserId != null}
           line={activeLine}
-          onOpenChange={(v) => setActiveUserId(v ? activeUserId : null)}
+          manualEntries={manualEntries as any}
+          onOpenAdjust={() => openAddAdjustment()}
+          onEditEntry={(e) => openEditAdjustment(e)}
+          onDeleteEntry={(e) => deleteAdjustment(e)}
+          onOpenChange={(v) => {
+            // Close only when the user explicitly closes the sheet.
+            // EmployeeDetailsSheet already blocks outside/escape closures.
+            if (!v) setActiveUserId(null);
+          }}
         />
+
+        {/* Add/Edit dialog */}
+        {activeUserId != null ? (
+          <AddEmployeeAdjustmentsDialog
+            open={manualOpen}
+            onOpenChange={setManualOpen}
+            userId={activeUserId}
+            cutoffStart={cutoffStart}
+            cutoffEnd={cutoffEnd}
+            createdBy={null}
+            editingEntry={editingEntry}
+            onSaved={async () => {
+              await refreshManualEntries();
+              onRecompute();
+            }}
+          />
+        ) : null}
+
+        {activeUserId != null && loadingEntries ? (
+          <div className="text-xs text-muted-foreground">
+            Loading employee adjustments from DB…
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

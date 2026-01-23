@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import * as React from "react";
 import type { ManualEntry, PayrollComputedLine } from "../types";
 import { formatPHP } from "../utils/compute";
 
@@ -84,8 +84,8 @@ function entryCategory(e: any): string {
 }
 
 function formatEntryAmount(e: ManualEntry) {
-  const amt = Number(e.amount ?? 0);
-  if (upper(e.type) === "DEDUCTION") return `(${formatPHP(amt)})`;
+  const amt = Number((e as any)?.amount ?? 0);
+  if (upper((e as any)?.type) === "DEDUCTION") return `(${formatPHP(amt)})`;
   return formatPHP(amt);
 }
 
@@ -93,15 +93,19 @@ function isDRPaymentEntry(e: ManualEntry) {
   return entryCategory(e) === "DR_PAYMENT";
 }
 
+function isShortageEntry(e: ManualEntry) {
+  return entryCategory(e) === "SHORTAGE";
+}
+
 function extractDrReceiptNo(desc: string): string {
   const s = String(desc ?? "").trim();
-  // expected: "DR Payment: QWE123"
   const prefix = /^DR\s*PAYMENT\s*:\s*/i;
   return s.replace(prefix, "").trim();
 }
 
-function isShortageEntry(e: ManualEntry) {
-  return entryCategory(e) === "SHORTAGE";
+function safeId(e: ManualEntry) {
+  const id = (e as any)?.id;
+  return id == null ? "noid" : String(id);
 }
 
 export function EmployeeDetailsSheet({
@@ -116,27 +120,55 @@ export function EmployeeDetailsSheet({
   open: boolean;
   line: PayrollComputedLine | null;
   manualEntries: ManualEntry[];
-  onOpenAdjust: () => void;
+
+  // Optional to avoid runtime crash
+  onOpenAdjust?: (() => void) | null;
+
   onEditEntry: (entry: ManualEntry) => void;
   onDeleteEntry: (entry: ManualEntry) => void;
+
+  // Parent controls `open`; this is still used for explicit Close.
   onOpenChange: (v: boolean) => void;
 }) {
   const allowanceItems =
     ((line as any)?.breakdown_json?.earnings?.allowance_items as any[]) ?? [];
 
   const entries = Array.isArray(manualEntries) ? manualEntries : [];
-
-  const additionEntries = entries.filter((e) => upper(e.type) === "EARNING");
+  const additionEntries = entries.filter(
+    (e) => upper((e as any)?.type) === "EARNING",
+  );
 
   const employeeMeta = [
     line?.position ?? "—",
     line?.department_name ?? "—",
   ].filter(Boolean);
 
+  const totalsGross = formatPHP(line?.gross_pay ?? 0);
+  const totalsDed = formatPHP(line?.total_deductions ?? 0);
+  const totalsNet = formatPHP(line?.net_pay ?? 0);
+
+  const openAdjust = React.useCallback(() => {
+    if (typeof onOpenAdjust === "function") {
+      onOpenAdjust();
+      return;
+    }
+    console.warn(
+      "[EmployeeDetailsSheet] onOpenAdjust is not a function. Fix parent prop wiring.",
+      { onOpenAdjust },
+    );
+  }, [onOpenAdjust]);
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 sm:max-w-[980px]">
+    <Dialog modal={false} open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="p-0 sm:max-w-[980px]"
+        // ✅ Prevent Radix from dismissing the sheet when another dialog opens
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <div className="flex max-h-[85vh] flex-col">
+          {/* Header */}
           <div className="border-b bg-muted/20 px-6 py-4">
             <DialogHeader className="space-y-2">
               <div className="flex items-start justify-between gap-3 pr-10">
@@ -153,7 +185,7 @@ export function EmployeeDetailsSheet({
                     {line?.variance_pct != null ? (
                       <Badge variant="secondary" className="font-mono">
                         {line.variance_pct > 0 ? "+" : ""}
-                        {line.variance_pct.toFixed(1)}%
+                        {Number(line.variance_pct).toFixed(1)}%
                       </Badge>
                     ) : (
                       <Badge variant="secondary">New</Badge>
@@ -189,6 +221,7 @@ export function EmployeeDetailsSheet({
             </DialogHeader>
           </div>
 
+          {/* Body */}
           <div className="flex-1 overflow-y-auto px-6 py-5">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <StatCard
@@ -229,6 +262,7 @@ export function EmployeeDetailsSheet({
             </div>
 
             <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {/* Left */}
               <div className="space-y-4">
                 <div className="rounded-xl border bg-card p-4 shadow-sm">
                   <div className="flex items-center justify-between">
@@ -294,7 +328,7 @@ export function EmployeeDetailsSheet({
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {allowanceItems.map((a) => (
+                        {allowanceItems.map((a: any) => (
                           <div
                             key={String(a.allowance_id)}
                             className="flex items-center justify-between gap-3 text-sm"
@@ -334,19 +368,19 @@ export function EmployeeDetailsSheet({
                       <div className="space-y-2">
                         {additionEntries.map((e) => (
                           <div
-                            key={`add-${e.id ?? "noid"}-${e.desc}`}
+                            key={`add-${safeId(e)}-${String((e as any)?.desc ?? "")}`}
                             className="flex items-center justify-between gap-3 text-sm"
                           >
                             <div className="min-w-0">
                               <div className="truncate text-muted-foreground">
-                                {e.desc || "Addition"}
+                                {(e as any)?.desc || "Addition"}
                               </div>
                               <div className="text-[11px] text-muted-foreground">
                                 EARNING adjustment
                               </div>
                             </div>
                             <div className="font-mono">
-                              {formatPHP(Number(e.amount ?? 0))}
+                              {formatPHP(Number((e as any)?.amount ?? 0))}
                             </div>
                           </div>
                         ))}
@@ -356,6 +390,7 @@ export function EmployeeDetailsSheet({
                 </div>
               </div>
 
+              {/* Right */}
               <div className="space-y-4">
                 <div className="rounded-xl border bg-card p-4 shadow-sm">
                   <div className="text-sm font-semibold">Earnings</div>
@@ -475,6 +510,7 @@ export function EmployeeDetailsSheet({
               </div>
             </div>
 
+            {/* Manual Adjustments */}
             <div className="mt-5 rounded-xl border bg-card p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -489,7 +525,11 @@ export function EmployeeDetailsSheet({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={onOpenAdjust}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openAdjust();
+                  }}
                   disabled={!line}
                 >
                   <Plus className="mr-2 h-4 w-4" />
@@ -509,31 +549,39 @@ export function EmployeeDetailsSheet({
                     const isDR = isDRPaymentEntry(e);
                     const shortage = isShortageEntry(e);
 
+                    const desc = String((e as any)?.desc ?? "");
+                    const drNo = isDR ? extractDrReceiptNo(desc) : "";
+
+                    const typeLabel = isDR
+                      ? "System (DR Payment)"
+                      : upper((e as any)?.type) === "EARNING"
+                        ? "Addition"
+                        : shortage
+                          ? "Shortage Deduction"
+                          : "Deduction";
+
                     return (
                       <div
-                        key={`${e.type}-${e.id ?? "noid"}-${e.desc}`}
+                        key={`${String((e as any)?.type ?? "X")}-${safeId(e)}-${desc}`}
                         className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
                       >
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium">
-                            {e.desc || "Adjustment"}
+                            {desc || "Adjustment"}
                           </div>
-                          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                            <span>
-                              {isDR
-                                ? "System (DR Payment)"
-                                : upper(e.type) === "EARNING"
-                                  ? "Addition"
-                                  : shortage
-                                    ? "Shortage Deduction"
-                                    : "Deduction"}
-                            </span>
 
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                            <span>{typeLabel}</span>
                             {isDR ? (
                               <Badge variant="secondary">DR_PAYMENT</Badge>
                             ) : null}
                             {!isDR && shortage ? (
                               <Badge variant="secondary">SHORTAGE</Badge>
+                            ) : null}
+                            {isDR && drNo ? (
+                              <span className="font-mono text-[11px] text-muted-foreground">
+                                DR: {drNo}
+                              </span>
                             ) : null}
                           </div>
                         </div>
@@ -542,28 +590,34 @@ export function EmployeeDetailsSheet({
                           <div
                             className={cn(
                               "font-mono text-sm",
-                              upper(e.type) === "DEDUCTION" &&
+                              upper((e as any)?.type) === "DEDUCTION" &&
                                 "text-destructive",
                             )}
                           >
                             {formatEntryAmount(e)}
                           </div>
 
-                          {/* ✅ Enable edit for DR entries */}
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => onEditEntry(e)}
+                            onClick={(ev) => {
+                              ev.preventDefault();
+                              ev.stopPropagation();
+                              onEditEntry(e);
+                            }}
                             title="Edit"
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
 
-                          {/* ✅ Enable delete for DR entries */}
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => onDeleteEntry(e)}
+                            onClick={(ev) => {
+                              ev.preventDefault();
+                              ev.stopPropagation();
+                              onDeleteEntry(e);
+                            }}
                             title="Delete"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -585,21 +639,20 @@ export function EmployeeDetailsSheet({
             </div>
           </div>
 
+          {/* Footer */}
           <div className="border-t bg-background px-6 py-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-muted-foreground">
                 Totals:{" "}
                 <span className="font-mono font-semibold">
-                  Gross {formatPHP(line?.gross_pay ?? 0)}
+                  Gross {totalsGross}
                 </span>{" "}
                 •{" "}
                 <span className="font-mono font-semibold text-destructive">
-                  Deductions {formatPHP(line?.total_deductions ?? 0)}
+                  Deductions {totalsDed}
                 </span>{" "}
                 •{" "}
-                <span className="font-mono font-semibold">
-                  Net {formatPHP(line?.net_pay ?? 0)}
-                </span>
+                <span className="font-mono font-semibold">Net {totalsNet}</span>
               </div>
 
               <div className="flex items-center justify-end gap-2">
@@ -608,7 +661,11 @@ export function EmployeeDetailsSheet({
                 </Button>
                 <Button
                   variant="secondary"
-                  onClick={onOpenAdjust}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openAdjust();
+                  }}
                   disabled={!line}
                 >
                   <Plus className="mr-2 h-4 w-4" />
@@ -622,3 +679,5 @@ export function EmployeeDetailsSheet({
     </Dialog>
   );
 }
+
+export default EmployeeDetailsSheet;
