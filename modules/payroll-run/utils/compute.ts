@@ -60,6 +60,16 @@ function round2(x: number): number {
   return Math.round((x + Number.EPSILON) * 100) / 100;
 }
 
+function ymdOrNull(v: any): string | null {
+  const x = s(v).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : null;
+}
+
+function inRange(ymd: string, start: string, end: string): boolean {
+  if (!ymd || !start || !end) return false;
+  return ymd >= start && ymd <= end;
+}
+
 export function formatPHP(amount: number): string {
   const v = Number.isFinite(Number(amount)) ? Number(amount) : 0;
   return new Intl.NumberFormat("en-PH", {
@@ -71,10 +81,65 @@ export function formatPHP(amount: number): string {
 }
 
 function buildName(u: UserRow): string {
-  const fn = s(u.first_name).trim();
-  const ln = s(u.last_name).trim();
+  const fn = s((u as any).first_name).trim();
+  const ln = s((u as any).last_name).trim();
   const full = `${fn} ${ln}`.trim();
-  return full || `Employee #${u.id}`;
+  return full || `Employee #${(u as any).id}`;
+}
+
+function resolvePosition(u: UserRow): string | null {
+  const raw =
+    (u as any).position ??
+    (u as any).position_name ??
+    (u as any).user_position ??
+    (u as any).userPosition ??
+    (u as any).job_title ??
+    (u as any).jobTitle ??
+    null;
+  const v = raw == null ? "" : String(raw).trim();
+  return v ? v : null;
+}
+
+/**
+ * ✅ Department name resolver (covers common Directus/user shapes)
+ * This is important when departmentName is null (ALL departments run).
+ */
+function resolveDepartmentName(args: { user: UserRow; fallback: string | null }): string | null {
+  if (args.fallback && String(args.fallback).trim()) return String(args.fallback).trim();
+
+  const u: any = args.user;
+
+  const candidates: any[] = [
+    u.department_name,
+    u.departmentName,
+    u.department,
+    u.department_text,
+    u.departmentText,
+
+    // common relational embeds
+    u.user_department?.department_name,
+    u.user_department?.name,
+    u.department_rel?.department_name,
+    u.department_rel?.name,
+    u.department_obj?.department_name,
+    u.department_obj?.name,
+    u.department_info?.department_name,
+    u.department_info?.name,
+
+    // sometimes the relation is returned under "department_id" but as object
+    u.department_id?.department_name,
+    u.department_id?.name,
+  ];
+
+  for (const c of candidates) {
+    if (c == null) continue;
+    if (typeof c === "string") {
+      const v = c.trim();
+      if (v) return v;
+    }
+  }
+
+  return null;
 }
 
 function normAttendance(row: any): AttendanceApproval {
@@ -99,6 +164,7 @@ type HolidayInfo = {
   type: HolidayKind;
   description: string;
   is_paid: number; // 0/1
+  last_working_day: string | null; // ✅ holiday_calendar.last_working_day
 };
 
 function normHoliday(row: any): HolidayInfo {
@@ -107,6 +173,7 @@ function normHoliday(row: any): HolidayInfo {
     type: String(row.holiday_type ?? row.holidayType ?? "regular").toLowerCase() as HolidayKind,
     description: s(row.description ?? row.name ?? ""),
     is_paid: n(row.is_paid ?? row.isPaid ?? 1) ? 1 : 0,
+    last_working_day: ymdOrNull(row.last_working_day ?? row.lastWorkingDay),
   };
 }
 
@@ -183,26 +250,21 @@ function normAllowance(row: any): AllowanceNorm {
   const pay_cycle: AllowancePayCycle =
     payCycleRaw === "PER_CUTOFF" ? "PER_CUTOFF" : payCycleRaw === "PER_MONTH" ? "PER_MONTH" : "N/A";
 
-  const d10 = (v: any) => {
-    const x = s(v).slice(0, 10);
-    return /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : null;
-  };
-
   return {
     allowance_id: n(row?.allowance_id ?? row?.allowanceId ?? row?.id),
     user_id: n(row?.user_id ?? row?.userId),
     amount: n(row?.amount),
     description: row?.description ?? null,
 
-    cutoff_start: d10(row?.cutoff_start ?? row?.cutoffStart),
-    cutoff_end: d10(row?.cutoff_end ?? row?.cutoffEnd),
+    cutoff_start: ymdOrNull(row?.cutoff_start ?? row?.cutoffStart),
+    cutoff_end: ymdOrNull(row?.cutoff_end ?? row?.cutoffEnd),
 
     is_recurring: n(row?.is_recurring ?? row?.isRecurring) ? 1 : 0,
     is_active: n(row?.is_active ?? row?.isActive) ? 1 : 0,
     pay_cycle,
 
-    start_date: d10(row?.start_date ?? row?.startDate),
-    end_date: d10(row?.end_date ?? row?.endDate),
+    start_date: ymdOrNull(row?.start_date ?? row?.startDate),
+    end_date: ymdOrNull(row?.end_date ?? row?.endDate),
 
     is_processed: n(row?.is_processed ?? row?.isProcessed) ? 1 : 0,
   };
@@ -225,7 +287,6 @@ function allowanceAmountForCutoff(args: {
   cutoffType?: string;
 }): { total: number; items: any[] } {
   const cutoffType = String(args.cutoffType ?? "").toUpperCase(); // FIRST|SECOND|"" (optional)
-
   const rows = (Array.isArray(args.allowances) ? args.allowances : []).map(normAllowance);
 
   const items: Array<{
@@ -293,10 +354,7 @@ function allowanceAmountForCutoff(args: {
     // PER_MONTH: split across cutoffs (assumes semi-monthly payroll)
     if (a.pay_cycle === "PER_MONTH") {
       const half = round2(a.amount / 2);
-
-      // If cutoffType is not provided, still split 50/50 to avoid overpaying in one cutoff.
-      const amountThisCutoff =
-        cutoffType === "FIRST" || cutoffType === "SECOND" || !cutoffType ? half : half;
+      const amountThisCutoff = cutoffType === "FIRST" || cutoffType === "SECOND" || !cutoffType ? half : half;
 
       items.push({
         allowance_id: a.allowance_id,
@@ -333,10 +391,7 @@ function normBenefitLoan(row: any) {
   };
 }
 
-function benefitLoanAmountForCutoff(args: {
-  loan: ReturnType<typeof normBenefitLoan>;
-  cutoffType: string;
-}): number {
+function benefitLoanAmountForCutoff(args: { loan: ReturnType<typeof normBenefitLoan>; cutoffType: string }): number {
   const deductOn = String(args.loan.deduct_on ?? "BOTH").toUpperCase();
   const amort = n(args.loan.amortization_amount);
 
@@ -548,26 +603,270 @@ function isDRPaymentManualEntry(m: any): boolean {
   return desc.startsWith("dr payment:");
 }
 
+type BreakdownItem = {
+  item_key: string; // stable unique key for printing/deduping
+  type: "EARNING" | "DEDUCTION";
+  category: string; // MANUAL_ADDITION | SHORTAGE | DR_PAYMENT | MANUAL_DEDUCTION | EMPLOYEE_LOAN | etc.
+  code?: string | null; // optional: loan_type, etc.
+  description: string;
+  amount: number; // always positive; sign comes from `type`
+  source_table?: string | null;
+  source_id?: string | number | null;
+  meta?: any;
+};
+
+function cleanDesc(v: any): string {
+  const s = String(v ?? "").trim();
+  return s;
+}
+
+function manualSourceTable(m: any): string | null {
+  return (
+    m?.source_table ??
+    m?.sourceTable ??
+    m?.meta?.source_table ??
+    m?.meta?.sourceTable ??
+    null
+  );
+}
+
+function manualSourceId(m: any): any {
+  return (
+    m?.source_id ??
+    m?.sourceId ??
+    m?.meta?.source_id ??
+    m?.meta?.sourceId ??
+    m?.id ??
+    null
+  );
+}
+
+function manualStableKey(prefix: string, m: any, fallbackIndex: number): string {
+  const sid = manualSourceId(m);
+  if (sid != null && String(sid).trim() !== "") return `${prefix}:${String(sid)}`;
+
+  const id = m?.id ?? null;
+  if (id != null && String(id).trim() !== "") return `${prefix}:ID:${String(id)}`;
+
+  // fallback: derive from desc+amount+index
+  const d = cleanDesc(m?.desc ?? m?.description ?? "");
+  const a = n(m?.amount ?? 0);
+  return `${prefix}:X:${fallbackIndex}:${d.slice(0, 40)}:${a.toFixed(2)}`;
+}
+
+function isShortageManualEntry(m: any): boolean {
+  const cat = String(m?.category ?? m?.deduction_type ?? m?.other_deduction_type ?? "")
+    .trim()
+    .toLowerCase();
+  if (cat === "shortage") return true;
+
+  const desc = String(m?.desc ?? m?.description ?? "").trim().toLowerCase();
+  return desc.includes("shortage");
+}
+
+function extractDRReceiptNo(desc: string): string {
+  const s = String(desc ?? "").trim();
+  const prefix = /^DR\s*PAYMENT\s*:\s*/i;
+  return s.replace(prefix, "").trim();
+}
+
+function drReceiptNoFromEntry(m: any): string {
+  if (m?.delivery_receipt_number) return String(m.delivery_receipt_number);
+  const d = cleanDesc(m?.desc ?? m?.description ?? "");
+  return extractDRReceiptNo(d) || "";
+}
+
+function drPaymentDateFromEntry(m: any): string {
+  const v =
+    m?.payment_date ??
+    m?.paymentDate ??
+    m?.meta?.payment_date ??
+    m?.meta?.paymentDate ??
+    "";
+  const s = String(v ?? "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+}
+
+function drPaymentMethodFromEntry(m: any): string {
+  const v =
+    m?.payment_method ??
+    m?.paymentMethod ??
+    m?.meta?.payment_method ??
+    m?.meta?.paymentMethod ??
+    "";
+  return String(v ?? "").trim();
+}
+
+function drPostedFromEntry(m: any): boolean {
+  const v =
+    m?.is_posted_to_payroll ??
+    m?.isPostedToPayroll ??
+    m?.meta?.is_posted_to_payroll ??
+    m?.meta?.isPostedToPayroll ??
+    0;
+  return Boolean(Number(v) === 1 || v === true);
+}
+
+export function buildManualItemizationsForBreakdown(manualEntries: any[]): {
+  manual_addition_items: BreakdownItem[];
+  manual_deduction_items: BreakdownItem[];
+  manual_deduction_summary: {
+    total: number;
+    shortage_total: number;
+    dr_total: number;
+    other_total: number;
+  };
+} {
+  const rows = Array.isArray(manualEntries) ? manualEntries : [];
+
+  const additions = rows.filter((m) => upper(m?.type) === "EARNING");
+  const deductions = rows.filter((m) => upper(m?.type) === "DEDUCTION");
+
+  const manual_addition_items: BreakdownItem[] = additions.map((m, idx) => {
+    const desc = cleanDesc(m?.desc ?? m?.description ?? "") || "Manual Addition";
+    const amt = round2(n(m?.amount));
+    return {
+      item_key: manualStableKey("MA", m, idx),
+      type: "EARNING",
+      category: "MANUAL_ADDITION",
+      description: desc,
+      amount: amt,
+      source_table: manualSourceTable(m),
+      source_id: manualSourceId(m),
+      meta: m?.meta ?? null,
+    };
+  });
+
+  const manual_deduction_items: BreakdownItem[] = deductions.map((m, idx) => {
+    const desc = cleanDesc(m?.desc ?? m?.description ?? "") || "Manual Deduction";
+    const amt = round2(n(m?.amount));
+
+    const isDR = isDRPaymentManualEntry(m);
+    const isShortage = !isDR && isShortageManualEntry(m);
+
+    const category = isDR ? "DR_PAYMENT" : isShortage ? "SHORTAGE" : "MANUAL_DEDUCTION";
+
+    const drNo = isDR ? drReceiptNoFromEntry(m) : "";
+    const drDate = isDR ? drPaymentDateFromEntry(m) : "";
+    const drMethod = isDR ? drPaymentMethodFromEntry(m) : "";
+    const drPosted = isDR ? drPostedFromEntry(m) : false;
+
+    return {
+      item_key: manualStableKey("MD", m, idx),
+      type: "DEDUCTION",
+      category,
+      description: desc,
+      amount: amt,
+      source_table: manualSourceTable(m),
+      source_id: manualSourceId(m),
+      meta: isDR
+        ? {
+          ...(m?.meta ?? {}),
+          delivery_receipt_number: drNo || (m?.delivery_receipt_number ?? null),
+          payment_date: drDate || (m?.payment_date ?? null),
+          payment_method: drMethod || (m?.payment_method ?? null),
+          is_posted_to_payroll: drPosted ? 1 : 0,
+        }
+        : m?.meta ?? null,
+    };
+  });
+
+  const shortage_total = round2(
+    manual_deduction_items
+      .filter((x) => x.category === "SHORTAGE")
+      .reduce((sum, x) => sum + n(x.amount), 0),
+  );
+
+  const dr_total = round2(
+    manual_deduction_items
+      .filter((x) => x.category === "DR_PAYMENT")
+      .reduce((sum, x) => sum + n(x.amount), 0),
+  );
+
+  const total = round2(manual_deduction_items.reduce((sum, x) => sum + n(x.amount), 0));
+  const other_total = round2(total - shortage_total - dr_total);
+
+  return {
+    manual_addition_items,
+    manual_deduction_items,
+    manual_deduction_summary: { total, shortage_total, dr_total, other_total },
+  };
+}
+
+export function buildEmployeeLoanItemsForBreakdown(employeeLoans: any[]): BreakdownItem[] {
+  const rows = Array.isArray(employeeLoans) ? employeeLoans : [];
+
+  // rule: 50/50 per cutoff
+  return rows.map((L, idx) => {
+    const loanId = n(L?.loan_id ?? L?.loanId ?? L?.id);
+    const loanType = String(L?.loan_type ?? L?.loanType ?? "").toUpperCase();
+    const monthly = round2(n(L?.monthly_payment ?? L?.monthlyPayment));
+    const amt = round2(monthly / 2);
+
+    return {
+      item_key: loanId ? `EL:${loanId}` : `EL:X:${idx}`,
+      type: "DEDUCTION",
+      category: "EMPLOYEE_LOAN",
+      code: loanType || null,
+      description: loanType ? `Employee Loan: ${loanType}` : "Employee Loan",
+      amount: amt,
+      source_table: "employee_loan",
+      source_id: loanId || null,
+      meta: {
+        loan_id: loanId || null,
+        loan_type: loanType || null,
+        monthly_payment: monthly,
+        rule: "50/50 per cutoff",
+      },
+    };
+  });
+}
+
+/**
+ * ✅ NEW RULE (fix bug):
+ * Unworked holiday pay is ONLY granted if:
+ * - holiday.is_paid === 1
+ * - holiday.last_working_day is within the cutoff window
+ * - the employee has an APPROVED attendance_approval row on holiday.last_working_day
+ */
+function eligibleForUnworkedHolidayPay(args: {
+  holiday: HolidayInfo;
+  cutoffStart: string;
+  cutoffEnd: string;
+  approvedAttendanceDates: Set<string>;
+}): boolean {
+  const h = args.holiday;
+  if (!h || !h.is_paid) return false;
+  const lwd = h.last_working_day;
+  if (!lwd) return false;
+  if (!inRange(lwd, args.cutoffStart, args.cutoffEnd)) return false;
+  return args.approvedAttendanceDates.has(lwd);
+}
+
 /* -------------------------------- Compute -------------------------------- */
 
 export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const empName = buildName(args.user);
+  const position = resolvePosition(args.user);
+  const departmentResolved = resolveDepartmentName({ user: args.user, fallback: args.departmentName });
 
-  const dailyBase = n(args.wage?.daily_wage);
+  const dailyBase = n((args.wage as any)?.daily_wage);
   const hourlyBase =
-    args.wage?.hourly_wage != null ? n(args.wage.hourly_wage) : dailyBase > 0 ? dailyBase / 8 : 0;
+    (args.wage as any)?.hourly_wage != null ? n((args.wage as any).hourly_wage) : dailyBase > 0 ? dailyBase / 8 : 0;
 
   const monthlyBase =
-    args.wage?.monthly_wage != null ? n(args.wage.monthly_wage) : dailyBase > 0 ? dailyBase * 26 : 0;
+    (args.wage as any)?.monthly_wage != null ? n((args.wage as any).monthly_wage) : dailyBase > 0 ? dailyBase * 26 : 0;
 
   const rate = buildDailyRateResolver({
     wage: args.wage,
     wageProrationLogs: (args.wageProrationLogs ?? []) as any[],
   });
 
+  // ✅ ensure attendance is cutoff-scoped and approved
   const att = (args.attendance ?? [])
     .map(normAttendance)
-    .filter((r) => String(r.status ?? "").toLowerCase() === "approved");
+    .filter((r) => String(r.status ?? "").toLowerCase() === "approved")
+    .filter((r) => inRange(String(r.date_schedule ?? ""), args.cutoffStart, args.cutoffEnd));
 
   const holidayMap = new Map<string, HolidayInfo>();
   for (const h of (args.holidays ?? []).map(normHoliday)) {
@@ -583,10 +882,12 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
       type: bestType,
       is_paid: existing.is_paid || h.is_paid ? 1 : 0,
       description: existing.description || h.description,
+      last_working_day: existing.last_working_day ?? h.last_working_day ?? null,
     });
   }
 
-  const attendedDates = new Set(att.map((r) => r.date_schedule));
+  const approvedAttendanceDates = new Set(att.map((r) => r.date_schedule));
+  const attendedHolidayDates = new Set(att.map((r) => r.date_schedule)); // same set; semantic naming
 
   let totalWorkMinutes = 0;
   let lateMinutes = 0;
@@ -608,6 +909,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const holidayItems: Array<any> = [];
   const restDayItems: Array<any> = [];
 
+  // Worked days (includes worked holidays/rest-days via multiplier buckets)
   for (const r of att) {
     const date = r.date_schedule;
 
@@ -683,6 +985,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         ot_pay: otPay,
         total: dayTotal,
         description: h?.description ?? "",
+        last_working_day: h?.last_working_day ?? null,
         pay_type: "WORKED_PREMIUM",
         daily_rate_used: dayDaily,
         minute_rate_used: dayMR,
@@ -698,10 +1001,47 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   undertimeDeduction = round2(undertimeDeduction);
   nightDiffAmount = round2(nightDiffAmount);
 
-  // Paid holidays with NO attendance row: pay = Daily Rate (no premium)
+  /**
+   * ✅ Paid holidays with NO attendance row:
+   * Pay daily rate ONLY if employee is eligible by last_working_day attendance.
+   * Otherwise: NO holiday pay.
+   */
   for (const [date, h] of holidayMap.entries()) {
     if (!h.is_paid) continue;
-    if (attendedDates.has(date)) continue;
+
+    // Only evaluate holidays that are within this cutoff window
+    if (!inRange(date, args.cutoffStart, args.cutoffEnd)) continue;
+
+    // If employee worked on the holiday date, it was already paid in the main loop
+    if (attendedHolidayDates.has(date)) continue;
+
+    // Eligibility gate (last_working_day attendance)
+    const ok = eligibleForUnworkedHolidayPay({
+      holiday: h,
+      cutoffStart: args.cutoffStart,
+      cutoffEnd: args.cutoffEnd,
+      approvedAttendanceDates,
+    });
+
+    if (!ok) {
+      holidayItems.push({
+        date,
+        holiday: toHolidayFlag(h),
+        is_rest_day: isSunday(date),
+        base_minutes: 0,
+        ot_minutes: 0,
+        base_mult: 0,
+        ot_mult: 0,
+        pay: 0,
+        ot_pay: 0,
+        total: 0,
+        description: h.description,
+        last_working_day: h.last_working_day,
+        pay_type: "UNWORKED_HOLIDAY_NOT_ELIGIBLE",
+        rule: "Requires approved attendance on last_working_day within cutoff window.",
+      });
+      continue;
+    }
 
     const dayDaily = rate.dailyForDate(date);
     const pay = round2(dayDaily);
@@ -720,49 +1060,53 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
       ot_pay: 0,
       total: pay,
       description: h.description,
+      last_working_day: h.last_working_day,
       pay_type: "UNWORKED_HOLIDAY_PAY",
+      rule: "Eligible due to approved attendance on last_working_day within cutoff.",
       daily_rate_used: dayDaily,
       minute_rate_used: dayDaily > 0 ? dayDaily / 480 : 0,
     });
   }
 
-  const totalDaysWorked = totalWorkMinutes > 0 ? round2(totalWorkMinutes / 480) : 0;
+  // ✅ days worked should NOT be inflated by overtime; use unique attendance dates with work_minutes > 0
+  const totalDaysWorked = new Set(att.filter((x) => n(x.work_minutes) > 0).map((x) => x.date_schedule)).size;
+
+  // ✅ new: hours worked derived from total_work_minutes
+  const totalHoursWorked = round2(totalWorkMinutes / 60);
+
+  // ✅ new: holiday_days derived from paid holiday items only (total > 0)
+  const holidayDays = round2(holidayItems.filter((x) => n(x?.total) > 0).length);
 
   /* ------------------------------ Manual entries ------------------------------ */
+  /* ------------------------------ Manual entries ------------------------------ */
 
-  const manualAdds = (args.manualEntries ?? [])
-    .filter((m) => upper(m.type) === "EARNING")
-    .reduce((sum, m: any) => sum + n(m.amount), 0);
+  const itemized = buildManualItemizationsForBreakdown(args.manualEntries ?? []);
 
-  const manualDeductionEntries = (args.manualEntries ?? []).filter((m) => upper((m as any)?.type) === "DEDUCTION");
-
-  const manualDedsAll = manualDeductionEntries.reduce((sum, m: any) => sum + n(m.amount), 0);
-
-  const drDeduction = round2(
-    manualDeductionEntries.filter((m: any) => isDRPaymentManualEntry(m)).reduce((sum, m: any) => sum + n(m.amount), 0),
+  const manualAdds = round2(
+    itemized.manual_addition_items.reduce((sum, x) => sum + n(x.amount), 0),
   );
 
-  const shortageDeduction = round2(
-    manualDeductionEntries
-      .filter((m: any) => !isDRPaymentManualEntry(m))
-      .filter((m: any) => {
-        const cat = s((m as any)?.category).trim().toLowerCase();
-        const desc = s((m as any)?.desc).trim().toLowerCase();
-        return cat === "shortage" || desc.includes("shortage");
-      })
-      .reduce((sum, m: any) => sum + n(m.amount), 0),
+  const manualDeductionItems = itemized.manual_deduction_items;
+
+  const manualDedsAll = round2(
+    manualDeductionItems.reduce((sum, x) => sum + n(x.amount), 0),
   );
+
+  const drDeduction = round2(itemized.manual_deduction_summary.dr_total);
+  const shortageDeduction = round2(itemized.manual_deduction_summary.shortage_total);
 
   const manualDeductions = round2(manualDedsAll);
 
   // "other_deductions" = manual deductions excluding shortage and DR payments
   const otherDeductions = round2(manualDeductions - shortageDeduction - drDeduction);
 
+
+
   /* ------------------------------ Govt benefits ------------------------------ */
 
-  const multSSS = n(args.benefitMultipliers?.SSS ?? 0);
-  const multPhil = n(args.benefitMultipliers?.PHILHEALTH ?? 0);
-  const multPagibig = n(args.benefitMultipliers?.PAGIBIG ?? 0);
+  const multSSS = n((args.benefitMultipliers as any)?.SSS ?? 0);
+  const multPhil = n((args.benefitMultipliers as any)?.PHILHEALTH ?? 0);
+  const multPagibig = n((args.benefitMultipliers as any)?.PAGIBIG ?? 0);
 
   const sssMonthly = n((args.wage as any)?.sss_employee);
   const philMonthly = n((args.wage as any)?.philhealth_employee);
@@ -774,23 +1118,27 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
   /* --------------------------- Employee loans 50/50 --------------------------- */
 
-  const loanHalf = (monthlyPayment: number) => round2(n(monthlyPayment) / 2);
+  /* --------------------------- Employee loans 50/50 --------------------------- */
 
-  let loanVale = 0;
-  let loanCar = 0;
-  let loanCoop = 0;
+  const employeeLoanItems = buildEmployeeLoanItemsForBreakdown(args.employeeLoans ?? []);
 
-  for (const L of args.employeeLoans ?? []) {
-    const half = loanHalf((L as any).monthly_payment);
-    const lt = String((L as any).loan_type ?? "").toUpperCase();
-    if (lt === "VALE") loanVale += half;
-    else if (lt === "CAR LOAN") loanCar += half;
-    else if (lt === "COOP") loanCoop += half;
-  }
+  const loanVale = round2(
+    employeeLoanItems
+      .filter((x) => String(x.code ?? "").toUpperCase() === "VALE")
+      .reduce((sum, x) => sum + n(x.amount), 0),
+  );
 
-  loanVale = round2(loanVale);
-  loanCar = round2(loanCar);
-  loanCoop = round2(loanCoop);
+  const loanCar = round2(
+    employeeLoanItems
+      .filter((x) => String(x.code ?? "").toUpperCase() === "CAR LOAN")
+      .reduce((sum, x) => sum + n(x.amount), 0),
+  );
+
+  const loanCoop = round2(
+    employeeLoanItems
+      .filter((x) => String(x.code ?? "").toUpperCase() === "COOP")
+      .reduce((sum, x) => sum + n(x.amount), 0),
+  );
 
   const loanTotal = round2(loanVale + loanCar + loanCoop);
 
@@ -857,6 +1205,23 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     source: x.source,
   }));
 
+  /* ------------------------------- Proration flags ------------------------------- */
+
+  const prorationEventsInCutoff = (rate.events ?? []).filter((ev: any) =>
+    inRange(String(ev?.effective_date ?? ""), args.cutoffStart, args.cutoffEnd),
+  );
+
+  const isProrated = prorationEventsInCutoff.length > 0;
+  const prorationJson = isProrated
+    ? {
+      policy:
+        "is_prorated=1 when at least one wage proration event effective_date falls within the cutoff window.",
+      cutoff: { start: args.cutoffStart, end: args.cutoffEnd },
+      events_in_cutoff: prorationEventsInCutoff,
+      all_events_used_chain: rate.events ?? [],
+    }
+    : null;
+
   /* -------------------------------- Totals -------------------------------- */
 
   const retroPay = 0;
@@ -884,12 +1249,13 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const prev = n(args.previousNetPay);
   const variancePct = prev > 0 ? round2(((netPay - prev) / prev) * 100) : null;
   const varianceFlag = prev > 0 && Math.abs(n(variancePct)) >= 10;
+  const varianceAmountUI = round2(netPay - prev);
 
   return {
-    user_id: (args.user as any).id,
+    user_id: n((args.user as any).id),
     employee_name: empName,
-    position: (args.user as any).position ?? null,
-    department_name: args.departmentName ?? null,
+    position: position,
+    department_name: departmentResolved,
 
     daily_rate: round2(dailyBase),
     hourly_rate: round2(hourlyBase),
@@ -897,6 +1263,8 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
     total_days_worked: totalDaysWorked,
     total_work_minutes: totalWorkMinutes,
+    total_hours_worked: totalHoursWorked,
+
     late_minutes: lateMinutes,
     undertime_minutes: undertimeMinutes,
     overtime_minutes: overtimeMinutes,
@@ -904,45 +1272,54 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
     basic_pay: round2(basicPay),
     ot_amount: round2(otAmount),
+
+    // legacy mirror fields
+    holiday: round2(holidayPay),
     holiday_pay: round2(holidayPay),
+    holiday_days: holidayDays,
+
     rest_day_amount: round2(restDayAmount),
-    night_diff_amount: nightDiffAmount,
+    night_diff_amount: round2(nightDiffAmount),
 
     allowance,
     retro_pay: retroPay,
     manual_additions: round2(manualAdds),
 
-    late_deduction: lateDeduction,
-    undertime_deduction: undertimeDeduction,
-    shortage_deduction: shortageDeduction,
+    late_deduction: round2(lateDeduction),
+    undertime_deduction: round2(undertimeDeduction),
+    shortage_deduction: round2(shortageDeduction),
 
-    benefit_sss: benefitSSS,
-    benefit_philhealth: benefitPhilhealth,
-    benefit_pagibig: benefitPagibig,
+    benefit_sss: round2(benefitSSS),
+    benefit_philhealth: round2(benefitPhilhealth),
+    benefit_pagibig: round2(benefitPagibig),
 
-    loan_vale: loanVale,
-    loan_car: loanCar,
-    loan_coop: loanCoop,
-    loan_total: loanTotal,
+    loan_vale: round2(loanVale),
+    loan_car: round2(loanCar),
+    loan_coop: round2(loanCoop),
+    loan_total: round2(loanTotal),
 
-    benefit_loan_sss: benefitLoanSSS,
-    benefit_loan_pagibig: benefitLoanPagibig,
-    benefit_loan_total: benefitLoanTotal,
+    benefit_loan_sss: round2(benefitLoanSSS),
+    benefit_loan_pagibig: round2(benefitLoanPagibig),
+    benefit_loan_total: round2(benefitLoanTotal),
 
-    dr_deduction: drDeduction,
-    other_deductions: otherDeductions,
-    manual_deductions: manualDeductions,
+    dr_deduction: round2(drDeduction),
+    other_deductions: round2(otherDeductions),
+    manual_deductions: round2(manualDeductions),
 
     total_additions: round2(manualAdds + allowance + retroPay + holidayPay + restDayAmount + nightDiffAmount + otAmount),
-    total_deductions: totalDeductions,
-    gross_pay: grossPay,
-    net_pay: netPay,
+    total_deductions: round2(totalDeductions),
+    gross_pay: round2(grossPay),
+    net_pay: round2(netPay),
 
     previous_net_pay: prev,
+    variance_amount_ui: varianceAmountUI,
     variance_pct: variancePct,
-    variance_flag: varianceFlag,
+    variance_flag: Boolean(varianceFlag),
 
     on_hold: Boolean(args.onHold),
+
+    is_prorated: Boolean(isProrated),
+    proration_json: prorationJson,
 
     breakdown_json: {
       rates: {
@@ -968,6 +1345,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         allowance_items: allowanceItems,
 
         manual_additions: round2(manualAdds),
+        manual_addition_items: itemized.manual_addition_items,
 
         holiday_items: holidayItems,
         rest_day_items: restDayItems,
@@ -986,6 +1364,8 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
           coop: round2(loanCoop),
           total: round2(loanTotal),
         },
+        employee_loan_items: employeeLoanItems,
+
         benefit_loans: {
           rule: 'If deduct_on="BOTH" then 50/50 per cutoff; else deduct full on matching cutoff',
           sss: round2(benefitLoanSSS),
@@ -1000,9 +1380,14 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
           philhealth: round2(benefitPhilhealth),
           pagibig: round2(benefitPagibig),
         },
+
         other_deductions: round2(otherDeductions),
         manual_deductions: round2(manualDeductions),
+
+        manual_deduction_items: itemized.manual_deduction_items,
+        manual_deduction_summary: itemized.manual_deduction_summary,
       },
+
       totals: {
         gross_pay: round2(grossPay),
         total_deductions: round2(totalDeductions),
@@ -1015,6 +1400,14 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         id: args.cutoffId,
       },
       flags: { on_hold: Boolean(args.onHold), variance_flag: Boolean(varianceFlag) },
+      policies: {
+        unworked_holiday_pay_rule:
+          "Pay unworked holiday ONLY if holiday.last_working_day is within cutoff and employee has approved attendance on that last_working_day.",
+      },
+      proration: {
+        is_prorated: Boolean(isProrated),
+        events_in_cutoff: prorationEventsInCutoff,
+      },
     },
   } as any;
 }

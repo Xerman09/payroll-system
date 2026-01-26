@@ -1,13 +1,29 @@
+// modules/payroll-run/components/PayrollReviewStep.tsx
 "use client";
 
-import React from "react";
+import * as React from "react";
+import { toast } from "sonner";
+
 import type {
   PayrollComputedLine,
   PayrollRunHeader,
-  PayrollSummary,
+  PayrollWorkspace,
 } from "../types";
+
+import { formatPHP } from "../utils/compute";
+import { getDepartmentLookups } from "../providers/directusMasterData";
+
+import {
+  fetchPayrollRunEmployeesForPrint,
+  rowsHaveBreakdown,
+} from "../providers/payslipPrintProvider";
+
+import { downloadPayslipsPdf } from "../utils/payslipPdf";
+
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -16,11 +32,120 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatPHP } from "../utils/payroll";
-import { cn } from "@/lib/utils";
 
-function VarianceCell({ row }: { row: PayrollComputedLine }) {
-  if (row.variancePct === null) {
+function n(v: any): number {
+  const x = Number(v ?? 0);
+  return Number.isFinite(x) ? x : 0;
+}
+
+function round2(x: number): number {
+  return Math.round((x + Number.EPSILON) * 100) / 100;
+}
+
+function resolveLines(props: any): PayrollComputedLine[] {
+  const direct =
+    props?.lines ??
+    props?.computedLines ??
+    props?.computed ??
+    props?.results ??
+    props?.rows ??
+    props?.workspace?.lines ??
+    props?.workspace?.computedLines ??
+    props?.workspace?.computed ??
+    props?.workspace?.results ??
+    props?.workspace?.employees ??
+    [];
+
+  return Array.isArray(direct) ? (direct as PayrollComputedLine[]) : [];
+}
+
+type PayrollReviewStepProps = {
+  run?: PayrollRunHeader | null;
+  workspace?: PayrollWorkspace | any | null;
+
+  lines?: PayrollComputedLine[];
+  computedLines?: PayrollComputedLine[];
+  computed?: PayrollComputedLine[];
+  results?: PayrollComputedLine[];
+  rows?: PayrollComputedLine[];
+
+  summary?: any;
+
+  isBusy?: boolean;
+
+  onBack?: () => void;
+  onFinalize?: () => void;
+  onExport?: () => void;
+
+  onBackToAdjust?: () => void;
+  onStartOver?: () => void;
+  onPost?: () => Promise<void>;
+};
+
+function getRowId(r: any): string {
+  return String(r?.user_id ?? r?.userId ?? r?.employeeId ?? r?.id ?? "");
+}
+
+function getRowName(r: any): string {
+  return (
+    r?.employee_name ??
+    r?.employeeName ??
+    r?.full_name ??
+    r?.name ??
+    (getRowId(r) ? `Employee #${getRowId(r)}` : "Employee")
+  );
+}
+
+function getGross(r: any): number {
+  return n(r?.gross_pay ?? r?.grossPay ?? r?.gross ?? r?.gross_amount);
+}
+
+function getDeductions(r: any): number {
+  return n(
+    r?.total_deductions ??
+      r?.totalDeductions ??
+      r?.deductions ??
+      r?.deductions_total,
+  );
+}
+
+function getNet(r: any): number {
+  return n(r?.net_pay ?? r?.netPay ?? r?.net ?? r?.net_amount);
+}
+
+function getOnHold(r: any): boolean {
+  return Boolean(r?.on_hold ?? r?.onHold);
+}
+
+function getVariancePct(r: any): number | null {
+  const v =
+    r?.variancePct ??
+    r?.variance_pct ??
+    r?.variance_percent ??
+    r?.variancePercent ??
+    null;
+
+  if (v === null || v === undefined) return null;
+  const x = Number(v);
+  return Number.isFinite(x) ? x : null;
+}
+
+function getVarianceAlert(r: any): boolean {
+  return Boolean(r?.varianceAlert ?? r?.variance_alert ?? r?.variance_flag);
+}
+
+function getIsProrated(r: any): boolean {
+  return Boolean(r?.isProrated ?? r?.is_prorated);
+}
+
+function getProratedDetails(r: any): any | null {
+  return r?.proratedDetails ?? r?.prorated_details ?? null;
+}
+
+function VarianceCell({ row }: { row: any }) {
+  const pct = getVariancePct(row);
+
+  if (pct === null) {
     return (
       <span className="inline-flex rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-semibold text-yellow-900">
         New Hire
@@ -28,9 +153,8 @@ function VarianceCell({ row }: { row: PayrollComputedLine }) {
     );
   }
 
-  const pct = row.variancePct;
   const isNegative = pct < 0;
-  const baseClass = row.varianceAlert
+  const baseClass = getVarianceAlert(row)
     ? "font-bold text-destructive"
     : isNegative
       ? "text-destructive"
@@ -44,169 +168,494 @@ function VarianceCell({ row }: { row: PayrollComputedLine }) {
   );
 }
 
-function ProrationDetails({ row }: { row: PayrollComputedLine }) {
-  if (!row.isProrated || !row.proratedDetails) return null;
+function ProrationDetails({ row }: { row: any }) {
+  const isProrated = getIsProrated(row);
+  const d = getProratedDetails(row);
 
-  const d = row.proratedDetails;
+  if (!isProrated || !d) return null;
 
   return (
     <div className="mt-2 inline-block rounded-md border border-blue-200 bg-blue-50 p-2 text-[11px] leading-5 text-blue-900">
       <div className="font-semibold">Wage Change Detected</div>
       <div>
-        • {d.daysOnOldRate} days @{" "}
-        <span className="line-through opacity-70">{formatPHP(d.oldBasic)}</span>
+        • {n(d.daysOnOldRate)} days @{" "}
+        <span className="line-through opacity-70">
+          {formatPHP(n(d.oldBasic))}
+        </span>
       </div>
       <div>
-        • {d.daysOnNewRate} days @{" "}
-        <span className="font-semibold">{formatPHP(d.newBasic)}</span>
+        • {n(d.daysOnNewRate)} days @{" "}
+        <span className="font-semibold">{formatPHP(n(d.newBasic))}</span>
       </div>
     </div>
   );
 }
 
-export function PayrollReviewStep(props: {
-  run: PayrollRunHeader | null;
-  rows: PayrollComputedLine[];
-  summary: PayrollSummary;
-  onBackToAdjust: () => void;
-  onStartOver: () => void;
-  onPost: () => Promise<void>;
-}) {
+function payslipKeyClient(r: any): string | null {
+  const primary =
+    r?.id ?? r?.payroll_run_employee_id ?? r?.payrollRunEmployeeId ?? null;
+  if (
+    primary !== null &&
+    primary !== undefined &&
+    String(primary).trim() !== ""
+  ) {
+    return `pre:${String(primary)}`;
+  }
+
+  const run = r?.payroll_run_id ?? r?.payrollRunId ?? null;
+  const user = r?.user_id ?? r?.userId ?? null;
+
+  if (
+    run !== null &&
+    run !== undefined &&
+    String(run).trim() !== "" &&
+    user !== null &&
+    user !== undefined &&
+    String(user).trim() !== ""
+  ) {
+    return `ru:${String(run)}-${String(user)}`;
+  }
+
+  return null;
+}
+
+function dedupeRowsClient(rows: any[]) {
+  const out: any[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const k = payslipKeyClient(r);
+    if (!k) {
+      out.push(r);
+      continue;
+    }
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(r);
+  }
+  return out;
+}
+
+export function PayrollReviewStep(props: PayrollReviewStepProps) {
+  const lines = React.useMemo(() => resolveLines(props), [props]);
+
+  const [deptLookups, setDeptLookups] = React.useState<{
+    deptNameByDeptId: Record<string, string>;
+    deptNameByUserId: Record<string, string>;
+  }>({ deptNameByDeptId: {}, deptNameByUserId: {} });
+
+  const [deptLoadError, setDeptLoadError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const lookups = await getDepartmentLookups();
+        if (!alive) return;
+        setDeptLookups(lookups);
+        setDeptLoadError(null);
+      } catch (e: any) {
+        if (!alive) return;
+        setDeptLoadError(e?.message || "Failed to load department lookups");
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const getDeptNameForLine = React.useCallback(
+    (r: any): string | null => {
+      const direct =
+        r?.department_name ?? r?.departmentName ?? r?.department ?? null;
+      if (typeof direct === "string" && direct.trim()) return direct;
+
+      const deptId =
+        r?.department_id ??
+        r?.departmentId ??
+        r?.user_department ??
+        r?.userDepartment ??
+        null;
+
+      if (deptId != null) {
+        const name = deptLookups.deptNameByDeptId[String(deptId)];
+        if (name) return name;
+      }
+
+      const userId = r?.user_id ?? r?.userId ?? r?.employeeId ?? r?.id ?? null;
+      if (userId != null) {
+        const name = deptLookups.deptNameByUserId[String(userId)];
+        if (name) return name;
+      }
+
+      return null;
+    },
+    [deptLookups.deptNameByDeptId, deptLookups.deptNameByUserId],
+  );
+
+  const displayLines = React.useMemo(() => {
+    return lines.map((r: any) => {
+      const dept = getDeptNameForLine(r);
+      return {
+        ...r,
+        department_name: dept ?? r?.department_name ?? null,
+        departmentName: dept ?? r?.departmentName ?? null,
+      };
+    });
+  }, [lines, getDeptNameForLine]);
+
+  const summary = React.useMemo(() => {
+    const s = (props as any)?.summary ?? null;
+    if (s && typeof s === "object") {
+      return {
+        count: Number.isFinite(Number(s.count))
+          ? Number(s.count)
+          : displayLines.length,
+        totalGross: round2(
+          n(s.totalGross ?? s.total_gross ?? s.total_gross_pay),
+        ),
+        totalDeductions: round2(
+          n(s.totalDeductions ?? s.total_deductions ?? s.total_deduction),
+        ),
+        totalNet: round2(n(s.totalNet ?? s.total_net ?? s.total_payout)),
+        onHoldCount: Number.isFinite(Number(s.onHoldCount ?? s.on_hold_count))
+          ? Number(s.onHoldCount ?? s.on_hold_count)
+          : displayLines.reduce((c, r: any) => c + (getOnHold(r) ? 1 : 0), 0),
+        varianceFlagCount: Number.isFinite(
+          Number(s.varianceFlagCount ?? s.varianceAlerts ?? s.variance_alerts),
+        )
+          ? Number(s.varianceFlagCount ?? s.varianceAlerts ?? s.variance_alerts)
+          : displayLines.reduce(
+              (c, r: any) => c + (getVarianceAlert(r) ? 1 : 0),
+              0,
+            ),
+      };
+    }
+
+    const totalGross = round2(
+      displayLines.reduce((sum, r: any) => sum + getGross(r), 0),
+    );
+    const totalDeductions = round2(
+      displayLines.reduce((sum, r: any) => sum + getDeductions(r), 0),
+    );
+    const totalNet = round2(
+      displayLines.reduce((sum, r: any) => sum + getNet(r), 0),
+    );
+
+    const onHoldCount = displayLines.reduce(
+      (c, r: any) => c + (getOnHold(r) ? 1 : 0),
+      0,
+    );
+    const varianceFlagCount = displayLines.reduce(
+      (c, r: any) => c + (getVarianceAlert(r) ? 1 : 0),
+      0,
+    );
+
+    return {
+      count: displayLines.length,
+      totalGross,
+      totalDeductions,
+      totalNet,
+      onHoldCount,
+      varianceFlagCount,
+    };
+  }, [displayLines, props]);
+
+  const cutoffLabel =
+    (props as any)?.cutoffLabel ??
+    (props as any)?.run?.cutoff_label ??
+    (props as any)?.run?.cutoffLabel ??
+    null;
+
+  const cutoffRange =
+    (props as any)?.run?.cutoff_start && (props as any)?.run?.cutoff_end
+      ? `${String((props as any).run.cutoff_start).slice(0, 10)} to ${String(
+          (props as any).run.cutoff_end,
+        ).slice(0, 10)}`
+      : null;
+
+  const payrollPeriodLabel =
+    cutoffLabel ?? (cutoffRange ? `Cutoff: ${cutoffRange}` : "Cutoff");
+
+  const [isPrinting, setIsPrinting] = React.useState(false);
+
+  const runId =
+    (props as any)?.run?.payroll_run_id ??
+    (props as any)?.run?.payrollRunId ??
+    (props as any)?.payroll_run_id ??
+    (props as any)?.payrollRunId ??
+    null;
+
+  const onDownloadPayslipsPdf = React.useCallback(async () => {
+    try {
+      if (summary.count === 0) {
+        toast.error("No payroll rows to export.");
+        return;
+      }
+
+      setIsPrinting(true);
+
+      let rowsToPrint: any[] = [...displayLines];
+
+      // Ensure breakdown_json is present for itemized lists
+      if (!rowsHaveBreakdown(rowsToPrint) && runId != null) {
+        rowsToPrint = await fetchPayrollRunEmployeesForPrint(Number(runId));
+      }
+
+      if (!Array.isArray(rowsToPrint) || rowsToPrint.length === 0) {
+        toast.error("No payroll rows available for exporting.");
+        setIsPrinting(false);
+        return;
+      }
+
+      rowsToPrint = dedupeRowsClient(rowsToPrint);
+
+      rowsToPrint.sort((a, b) =>
+        String(getRowName(a)).localeCompare(String(getRowName(b))),
+      );
+
+      await downloadPayslipsPdf({
+        rows: rowsToPrint,
+        payrollPeriodLabel,
+        pageSize: "LEGAL",
+        fileName: "Payslips-Legal-5perPage.pdf",
+      });
+
+      toast.success("Payslips PDF generated.");
+      setIsPrinting(false);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to generate payslips PDF");
+      setIsPrinting(false);
+    }
+  }, [summary.count, displayLines, runId, payrollPeriodLabel]);
+
+  const backHandler = props.onBack ?? props.onBackToAdjust;
+  const finalizeHandler =
+    props.onFinalize ??
+    (props.onPost ? () => void props.onPost?.() : undefined);
+
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-3">
         <Card className="p-4">
-          <div className="text-xs font-bold uppercase text-muted-foreground">
-            Total Payout
-          </div>
+          <div className="text-sm text-muted-foreground">Total Net Pay</div>
           <div className="mt-1 text-2xl font-bold text-primary">
             {formatPHP(summary.totalNet)}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {summary.count} employee(s)
           </div>
         </Card>
 
         <Card className="p-4">
-          <div className="text-xs font-bold uppercase text-muted-foreground">
-            Active Headcount
-          </div>
+          <div className="text-sm text-muted-foreground">Total Gross Pay</div>
           <div className="mt-1 text-2xl font-bold">
-            {summary.activeHeadcount}
+            {formatPHP(summary.totalGross)}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            Before deductions
           </div>
         </Card>
 
         <Card className="p-4 border-l-4 border-l-yellow-400">
-          <div className="text-xs font-bold uppercase text-muted-foreground">
-            Variance Alert
-          </div>
+          <div className="text-sm text-muted-foreground">Alerts</div>
           <div className="mt-1 text-sm">
-            <span className="font-bold text-destructive">
-              {summary.varianceAlerts}
+            <span className="font-semibold">
+              On hold: {summary.onHoldCount}
             </span>{" "}
-            employees have &gt;20% diff.
+            •{" "}
+            <span className="font-semibold text-destructive">
+              Variance flagged: {summary.varianceFlagCount}
+            </span>
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            Variance is based on previous cutoff (when available)
           </div>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle>Final Register</CardTitle>
+      <Card className="p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <div className="text-sm font-medium">Payroll Run Review</div>
+            <div className="text-xs text-muted-foreground">
+              {cutoffLabel ? (
+                <span>Cutoff: {cutoffLabel}</span>
+              ) : cutoffRange ? (
+                <span>Cutoff: {cutoffRange}</span>
+              ) : (
+                <span>Cutoff: (not set)</span>
+              )}
+            </div>
+            {deptLoadError ? (
+              <div className="text-xs text-destructive">
+                Department join disabled: {deptLoadError}
+              </div>
+            ) : null}
+          </div>
 
           <div className="flex flex-wrap gap-2">
             <Button
-              variant="outline"
-              onClick={() =>
-                window.alert("Bank file (TXT/CSV) downloaded for BDO!")
-              }
+              variant="secondary"
+              onClick={onDownloadPayslipsPdf}
+              disabled={props.isBusy || isPrinting || summary.count === 0}
             >
-              Download Bank File
+              {isPrinting
+                ? "Generating PDF..."
+                : "Download Payslips (PDF, Legal, 5/Page)"}
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => window.alert("Payslips queued for email!")}
-            >
-              Email Payslips
-            </Button>
-            <Button
-              className="bg-emerald-600 hover:bg-emerald-700"
-              onClick={() => window.alert("Payroll POSTED successfully!")}
-            >
-              Post Payroll
-            </Button>
-          </div>
-        </CardHeader>
 
-        <CardContent className="space-y-4">
-          <div className="overflow-x-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/40">
-                  <TableHead>Employee</TableHead>
-                  <TableHead className="text-right">Gross Pay</TableHead>
-                  <TableHead className="text-right">Deductions</TableHead>
-                  <TableHead className="text-right">Net Pay</TableHead>
-                  <TableHead className="text-right">
-                    Variance (vs Prev)
-                  </TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-
-              <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.employeeId}>
-                    <TableCell>
-                      <div className="font-semibold">{row.employeeName}</div>
-                      <ProrationDetails row={row} />
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm">
-                      {formatPHP(row.gross)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm text-destructive">
-                      ({formatPHP(row.deductions)})
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm font-bold">
-                      {formatPHP(row.net)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <VarianceCell row={row} />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">
-                        Ready
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={6}
-                      className="py-8 text-center text-sm text-muted-foreground"
-                    >
-                      No active employees in this run (all are on hold or none
-                      match filters).
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={onBackToAdjust}>
-                ← Back to Adjust
+            {props.onExport ? (
+              <Button
+                variant="secondary"
+                onClick={props.onExport}
+                disabled={props.isBusy || summary.count === 0}
+              >
+                Export
               </Button>
-              <Button variant="outline" size="sm" onClick={onStartOver}>
+            ) : null}
+
+            {props.onStartOver ? (
+              <Button
+                variant="outline"
+                onClick={props.onStartOver}
+                disabled={props.isBusy}
+              >
                 Start Over
               </Button>
+            ) : null}
+
+            {backHandler ? (
+              <Button
+                variant="outline"
+                onClick={backHandler}
+                disabled={props.isBusy}
+              >
+                Back
+              </Button>
+            ) : null}
+
+            {finalizeHandler ? (
+              <Button
+                onClick={finalizeHandler}
+                disabled={props.isBusy || summary.count === 0}
+              >
+                {props.onPost ? "Post Payroll" : "Finalize"}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <Separator className="my-4" />
+
+        <Card className="border-0 shadow-none">
+          <CardHeader className="px-0 pb-2">
+            <CardTitle className="text-base">Employees</CardTitle>
+          </CardHeader>
+
+          <CardContent className="px-0 pt-0">
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead className="text-right">Gross Pay</TableHead>
+                    <TableHead className="text-right">Deductions</TableHead>
+                    <TableHead className="text-right">Net Pay</TableHead>
+                    <TableHead className="text-right">Variance</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {displayLines.map((row: any) => {
+                    const id =
+                      getRowId(row) || Math.random().toString(16).slice(2);
+                    const name = getRowName(row);
+                    const dept =
+                      row?.department_name ?? row?.departmentName ?? null;
+
+                    const gross = getGross(row);
+                    const ded = getDeductions(row);
+                    const net = getNet(row);
+
+                    const onHold = getOnHold(row);
+
+                    return (
+                      <TableRow key={String(id)}>
+                        <TableCell className="align-top">
+                          <div className="font-semibold">{name}</div>
+                          <ProrationDetails row={row} />
+                        </TableCell>
+
+                        <TableCell className="align-top">
+                          <div className="text-sm">
+                            {dept ? (
+                              dept
+                            ) : (
+                              <span className="text-muted-foreground">
+                                (unknown)
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="text-right font-mono text-sm">
+                          {formatPHP(gross)}
+                        </TableCell>
+
+                        <TableCell className="text-right font-mono text-sm text-destructive">
+                          ({formatPHP(ded)})
+                        </TableCell>
+
+                        <TableCell className="text-right font-mono text-sm font-bold">
+                          {formatPHP(net)}
+                        </TableCell>
+
+                        <TableCell className="text-right">
+                          <VarianceCell row={row} />
+                        </TableCell>
+
+                        <TableCell className="text-center">
+                          {onHold ? (
+                            <span className="inline-flex rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-semibold text-yellow-900">
+                              On hold
+                            </span>
+                          ) : (
+                            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">
+                              Ready
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+
+                  {displayLines.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={7}
+                        className="py-8 text-center text-sm text-muted-foreground"
+                      >
+                        No computed payroll lines found for this run.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
             </div>
 
-            <div className="text-xs text-muted-foreground">
-              Variance compares Net Pay against the previous cutoff.
+            <div className="mt-3 text-xs text-muted-foreground">
+              Tip: Variance compares Net Pay against the previous cutoff when
+              available.
             </div>
-          </div>
-        </CardContent>
+          </CardContent>
+        </Card>
       </Card>
     </div>
   );
 }
+
+export default PayrollReviewStep;

@@ -1,8 +1,8 @@
 import type {
   Adjustment,
   EmployeeRow,
-  PayrollComputedRow,
-  PayrollComputeOptions,
+  PayrollComputedLine,
+  PayrollCutoffOption,
   PayrollSummary,
   ProratedPayResult,
   SalaryHistoryEntry,
@@ -113,8 +113,8 @@ export function computeEmployeePayroll(
   cutoffStart: string,
   cutoffEnd: string,
   salaryHistory: SalaryHistoryEntry[],
-  options: PayrollComputeOptions,
-): PayrollComputedRow | null {
+  options: { fixedDeductions: number },
+): PayrollComputedLine | null {
   if (employee.onHold) return null;
 
   const payData = calculateProratedPay(employee, cutoffStart, cutoffEnd, salaryHistory);
@@ -135,18 +135,16 @@ export function computeEmployeePayroll(
   }
 
   return {
-    employeeId: employee.id,
-    employeeName: employee.name,
-    isProrated: payData.isProrated,
-    proratedDetails: payData.details,
-    gross,
-    deductions,
-    net,
-    previousNet: employee.previousNet,
-    variancePct,
-    varianceAlert,
-    status: "Ready",
-  };
+    user_id: employee.id,
+    employee_name: employee.name,
+    gross_pay: gross,
+    total_deductions: deductions,
+    net_pay: net,
+    previous_net_pay: employee.previousNet,
+    variance_pct: variancePct,
+    variance_flag: varianceAlert,
+    on_hold: false,
+  } as unknown as PayrollComputedLine;
 }
 
 /**
@@ -157,25 +155,29 @@ export function computePayrollRegister(
   cutoffStart: string,
   cutoffEnd: string,
   salaryHistory: SalaryHistoryEntry[],
-  options: PayrollComputeOptions,
-): { rows: PayrollComputedRow[]; summary: PayrollSummary } {
-  const rows: PayrollComputedRow[] = [];
+  options: { fixedDeductions: number },
+): { rows: PayrollComputedLine[]; summary: PayrollSummary } {
+  const rows: PayrollComputedLine[] = [];
   let totalNet = 0;
-  let activeHeadcount = 0;
+  let totalGross = 0;
+  let totalDeductions = 0;
+  let headcount = 0;
   let varianceAlerts = 0;
 
   for (const emp of employees) {
     const row = computeEmployeePayroll(emp, cutoffStart, cutoffEnd, salaryHistory, options);
     if (!row) continue;
     rows.push(row);
-    totalNet += row.net;
-    activeHeadcount += 1;
-    if (row.varianceAlert) varianceAlerts += 1;
+    totalNet += row.net_pay;
+    totalGross += row.gross_pay;
+    totalDeductions += row.total_deductions;
+    headcount += 1;
+    if (row.variance_flag) varianceAlerts += 1;
   }
 
   return {
     rows,
-    summary: { totalNet, activeHeadcount, varianceAlerts },
+    summary: { total_net: totalNet, total_gross: totalGross, total_deductions: totalDeductions, headcount, variance_alerts: varianceAlerts },
   };
 }
 // modules/payroll-run/utils/payroll.ts

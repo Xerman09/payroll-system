@@ -18,7 +18,11 @@ type ResourceKey =
   | "employee_allowance"
   | "dr_payment"
   // ✅ NEW
-  | "user_wage_proration_log";
+  | "user_wage_proration_log"
+  | "payroll_run_employee_item"
+  | "retro_pay"
+  | "coop_savings_membership"
+  ;
 
 const ALLOWED: Record<ResourceKey, true> = {
   payroll_run: true,
@@ -38,6 +42,9 @@ const ALLOWED: Record<ResourceKey, true> = {
   dr_payment: true,
   // ✅ NEW
   user_wage_proration_log: true,
+  payroll_run_employee_item: true,
+  retro_pay: true,
+  coop_savings_membership: true,
 };
 
 function baseUrl() {

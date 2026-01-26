@@ -19,11 +19,16 @@ export function PayrollStepper({ activeStep }: { activeStep: PayrollStep }) {
       {STEPS.map((s) => {
         const isActive = s.step <= activeStep;
         return (
-          <div key={s.step} className="relative z-10 flex w-20 flex-col items-center">
+          <div
+            key={s.step}
+            className="relative z-10 flex w-20 flex-col items-center"
+          >
             <div
               className={cn(
                 "flex h-10 w-10 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors",
-                isActive ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground",
+                isActive
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background text-muted-foreground",
               )}
             >
               {s.step}

@@ -1,16 +1,22 @@
+// modules/payroll-run/PayrollRunModule.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import {
+  CheckCircle2,
+  ClipboardCheck,
+  PlayCircle,
+  RefreshCcw,
+} from "lucide-react";
 
 import type {
   CutoffSetting,
   Department,
   PayrollConfigState,
-  PayrollComputedLine,
   PayrollRunHeader,
   PayrollStep,
   PayrollWorkspace,
@@ -28,6 +34,29 @@ const DEFAULT_CONFIG: PayrollConfigState = {
   cutoffId: null,
   departmentId: null, // null = ALL
 };
+
+function stepLabel(step: PayrollStep) {
+  switch (step) {
+    case 1:
+      return "Configure";
+    case 2:
+      return "Adjust";
+    case 3:
+      return "Processing";
+    case 4:
+      return "Review";
+    default:
+      return "Payroll Run";
+  }
+}
+
+function statusClasses(status?: string | null) {
+  const s = String(status ?? "").toUpperCase();
+  if (s === "POSTED")
+    return "border-emerald-200/60 bg-emerald-50 text-emerald-700";
+  if (s === "DRAFT") return "border-amber-200/60 bg-amber-50 text-amber-700";
+  return "border-border bg-muted/40 text-muted-foreground";
+}
 
 export default function PayrollRunModule() {
   const [step, setStep] = useState<PayrollStep>(1);
@@ -79,9 +108,11 @@ export default function PayrollRunModule() {
         ]);
         setCutoffs(c);
         setDepartments(d);
+
         // preselect first cutoff if none
-        if (c.length && config.cutoffId == null)
+        if (c.length && config.cutoffId == null) {
           setConfig((p) => ({ ...p, cutoffId: c[0].id }));
+        }
       } catch (e: any) {
         toast.error(e?.message || "Failed to load payroll masters");
       } finally {
@@ -114,6 +145,7 @@ export default function PayrollRunModule() {
           cutoff: selectedCutoff,
           department: selectedDepartment,
         });
+
         activeRun = await svc.createDraftRun({
           cutoff: selectedCutoff,
           departmentId: config.departmentId,
@@ -157,21 +189,18 @@ export default function PayrollRunModule() {
     try {
       setStep(3);
 
-      // persist lines
+      // 1) Persist computed lines to payroll_run_employee
       await svc.saveLines({
         payrollRunId: run.payroll_run_id,
         cutoff: ws.cutoff,
         lines: computed.lines,
       });
 
-      // persist header totals
+      // 2) Persist header totals
       await svc.updateRunTotals({
         payrollRunId: run.payroll_run_id,
         summary: computed.summary,
       });
-
-      // optionally mark PROCESSED
-      // await patch payroll_run -> status PROCESSED
 
       setStep(4);
       toast.success("Payroll computed and saved (DRAFT lines).");
@@ -187,132 +216,294 @@ export default function PayrollRunModule() {
     try {
       await svc.postRun({
         payrollRunId: run.payroll_run_id,
-        postedBy: 1 /* TODO: auth */,
+        postedBy: 1, // TODO: auth
       });
+
+      // Optional (recommended): stamp DR payments as posted only when payroll is posted.
+      if (ws && computed) {
+        const employeeIds = computed.lines
+          .map((x) => Number((x as any)?.user_id))
+          .filter((x) => Number.isFinite(x) && x > 0);
+
+        await svc.postDRPaymentsToPayroll({
+          cutoff: ws.cutoff,
+          payrollRefNo: run.payroll_ref_no,
+          employeeIds,
+        });
+      }
+
       toast.success("Payroll POSTED successfully.");
-      // refresh run
       setRun((p) => (p ? { ...p, status: "POSTED" } : p));
     } catch (e: any) {
       toast.error(e?.message || "Failed to post payroll");
     }
   }
 
-  function startOver() {
+  const startOver = useCallback(() => {
     setConfig(DEFAULT_CONFIG);
     setRun(null);
     setWs(null);
     setHoldMap(new Map());
     setStep(1);
-  }
+  }, []);
+
+  // ✅ When PayrollAdjustStep confirms leaving (Start Over), execute reset here.
+  useEffect(() => {
+    const handler = () => startOver();
+    window.addEventListener("payroll-run:confirm-start-over", handler as any);
+    return () =>
+      window.removeEventListener(
+        "payroll-run:confirm-start-over",
+        handler as any,
+      );
+  }, [startOver]);
+
+  const busy = loadingMaster || loadingWs || step === 3;
+  const canPost = Boolean(run) && run?.status !== "POSTED" && step === 4;
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Payroll Run
-            </h1>
-            <div className="text-sm text-muted-foreground">
-              Data-driven payroll register using Attendance, Holidays, Manual
-              Entries, and Wage Profiles.
-            </div>
-            {run ? (
-              <div className="mt-1 text-xs text-muted-foreground">
-                Ref: <span className="font-mono">{run.payroll_ref_no}</span> •
-                Status: <span className="font-semibold">{run.status}</span>
+      <div className="mx-auto w-full max-w-7xl space-y-6 px-2 pb-10 sm:px-4">
+        {/* Header / Hero */}
+        <Card className="relative overflow-hidden rounded-2xl border bg-card shadow-sm">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-muted/60 via-transparent to-muted/30" />
+          <div className="relative p-5 sm:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                    Payroll Run
+                  </h1>
+
+                  <span className="rounded-full border bg-background/60 px-2.5 py-1 text-xs text-muted-foreground">
+                    {stepLabel(step)}
+                  </span>
+
+                  {run ? (
+                    <span
+                      className={[
+                        "rounded-full border px-2.5 py-1 text-xs font-medium",
+                        statusClasses(run.status),
+                      ].join(" ")}
+                      title="Payroll run status"
+                    >
+                      {String(run.status ?? "—")}
+                    </span>
+                  ) : null}
+                </div>
+
+                <p className="max-w-2xl text-sm text-muted-foreground">
+                  Data-driven payroll register using Attendance, Holidays,
+                  Manual Entries, and Wage Profiles.
+                </p>
+
+                {run ? (
+                  <div className="flex flex-wrap gap-2 pt-1 text-xs text-muted-foreground">
+                    <span className="rounded-lg border bg-background/70 px-2 py-1">
+                      Ref:{" "}
+                      <span className="font-mono text-foreground">
+                        {run.payroll_ref_no}
+                      </span>
+                    </span>
+                    {selectedCutoff ? (
+                      <span className="rounded-lg border bg-background/70 px-2 py-1">
+                        Cutoff:{" "}
+                        <span className="font-medium text-foreground">
+                          {String(
+                            (selectedCutoff as any)?.label ?? selectedCutoff.id,
+                          )}
+                        </span>
+                      </span>
+                    ) : null}
+                    <span className="rounded-lg border bg-background/70 px-2 py-1">
+                      Department:{" "}
+                      <span className="font-medium text-foreground">
+                        {selectedDepartment ? selectedDepartment.name : "All"}
+                      </span>
+                    </span>
+                  </div>
+                ) : null}
               </div>
-            ) : null}
+
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    // ✅ Trigger shadcn AlertDialog when user is in Adjust step.
+                    if (step === 2) {
+                      window.dispatchEvent(
+                        new CustomEvent("payroll-run:request-start-over"),
+                      );
+                      return;
+                    }
+                    startOver();
+                  }}
+                  disabled={busy}
+                  className="gap-2"
+                >
+                  <RefreshCcw className="h-4 w-4" />
+                  Start Over
+                </Button>
+
+                {step === 4 ? (
+                  <Button
+                    onClick={postPayroll}
+                    disabled={!canPost}
+                    className="gap-2"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Post Payroll
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Stepper */}
+        <Card className="rounded-2xl border bg-card p-4 shadow-sm sm:p-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="text-sm font-semibold">Workflow</div>
+              <div className="text-xs text-muted-foreground">
+                Configure, adjust, compute, then review and post.
+              </div>
+            </div>
+
+            <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
+              <span className="inline-flex items-center gap-1 rounded-full border bg-muted/30 px-2 py-1">
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                Draft-safe
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full border bg-muted/30 px-2 py-1">
+                <PlayCircle className="h-3.5 w-3.5" />
+                Data-driven
+              </span>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={startOver} disabled={step === 3}>
-              Start Over
-            </Button>
-            {step === 4 ? (
-              <Button
-                onClick={postPayroll}
-                disabled={!run || run.status === "POSTED"}
-              >
-                Post Payroll
-              </Button>
-            ) : null}
-          </div>
-        </div>
-
-        <Card className="p-6">
           <PayrollStepper activeStep={step} />
         </Card>
 
-        {step === 1 ? (
-          <PayrollConfigStep
-            loading={loadingMaster || loadingWs}
-            config={config}
-            cutoffs={cutoffs}
-            departments={departments}
-            onChange={(patch) => setConfig((c) => ({ ...c, ...patch }))}
-            onNext={loadOrCreateRunAndWorkspace}
-          />
-        ) : null}
+        {/* Step body */}
+        <div className="space-y-6">
+          {step === 1 ? (
+            <Card className="rounded-2xl border bg-card shadow-sm">
+              <div className="p-4 sm:p-6">
+                <PayrollConfigStep
+                  loading={loadingMaster || loadingWs}
+                  config={config}
+                  cutoffs={cutoffs}
+                  departments={departments}
+                  onChange={(patch) => setConfig((c) => ({ ...c, ...patch }))}
+                  onNext={loadOrCreateRunAndWorkspace}
+                />
+              </div>
+            </Card>
+          ) : null}
 
-        {step === 2 && ws && computed ? (
-          <PayrollAdjustStep
-            cutoff={ws.cutoff}
-            department={ws.department}
-            run={run}
-            lines={computed.lines}
-            summary={computed.summary}
-            holdMap={holdMap}
-            onToggleHold={toggleHold}
-            onRecompute={async () => {
-              // Reload workspace to get updated manual entries
-              try {
-                const updatedWorkspace = await svc.loadWorkspace({
-                  cutoff: selectedCutoff!,
-                  departmentId: config.departmentId,
-                });
-                setWs(updatedWorkspace);
-                toast.success("Payroll updated with latest adjustments.");
-              } catch (e: any) {
-                toast.error(e?.message || "Failed to reload payroll data");
-              }
-            }}
-            onNext={processAndSave}
-          />
-        ) : null}
+          {step === 2 && ws && computed ? (
+            <Card className="rounded-2xl border bg-card shadow-sm">
+              <div className="p-4 sm:p-6">
+                <PayrollAdjustStep
+                  cutoff={ws.cutoff}
+                  department={ws.department}
+                  run={run}
+                  lines={computed.lines}
+                  summary={computed.summary}
+                  holdMap={holdMap}
+                  onToggleHold={toggleHold}
+                  onRecompute={async () => {
+                    try {
+                      const updatedWorkspace = await svc.loadWorkspace({
+                        cutoff: selectedCutoff!,
+                        departmentId: config.departmentId,
+                      });
+                      setWs(updatedWorkspace);
+                      toast.success("Payroll updated with latest adjustments.");
+                    } catch (e: any) {
+                      toast.error(
+                        e?.message || "Failed to reload payroll data",
+                      );
+                    }
+                  }}
+                  onNext={processAndSave}
+                />
+              </div>
+            </Card>
+          ) : null}
 
-        {step === 3 ? <PayrollProcessStep /> : null}
+          {step === 3 ? (
+            <Card className="rounded-2xl border bg-card shadow-sm">
+              <div className="p-4 sm:p-6">
+                <PayrollProcessStep />
+              </div>
+            </Card>
+          ) : null}
 
-        {step === 4 && computed ? (
-          <PayrollReviewStep
-            run={run}
-            rows={computed.lines}
-            summary={computed.summary}
-            onBackToAdjust={() => setStep(2)}
-            onStartOver={startOver}
-            onPost={postPayroll}
-          />
-        ) : null}
+          {step === 4 && computed ? (
+            <Card className="rounded-2xl border bg-card shadow-sm">
+              <div className="p-4 sm:p-6">
+                <PayrollReviewStep
+                  run={run}
+                  rows={computed.lines}
+                  summary={computed.summary}
+                  onBackToAdjust={() => setStep(2)}
+                  onStartOver={startOver}
+                  onPost={postPayroll}
+                />
+              </div>
+            </Card>
+          ) : null}
+        </div>
 
-        <Card className="p-4 text-xs text-muted-foreground">
-          Version-1 notes:
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>
-              Holiday/Rest Day premiums follow your finalized rules (Regular:
-              entitled/worked; Special: +30%; Sunday: +30%).
-            </li>
-            <li>
-              Night differential uses placeholder logic until{" "}
-              <code>attendance_approval.night_diff_minutes</code> exists.
-            </li>
-            <li>
-              Government contributions are manual values split 50/50 per cutoff.
-            </li>
-            <li>
-              Shortage deductions are encoded in payroll_other_deductions
-              (category=SHORTAGE).
-            </li>
-          </ul>
+        {/* Notes */}
+        <Card className="rounded-2xl border bg-card shadow-sm">
+          <div className="p-4 sm:p-6">
+            <details className="group">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="text-sm font-semibold">Version notes</div>
+                  <div className="text-xs text-muted-foreground">
+                    Implementation details and current assumptions.
+                  </div>
+                </div>
+                <span className="rounded-full border bg-muted/30 px-2.5 py-1 text-xs text-muted-foreground group-open:hidden">
+                  Show
+                </span>
+                <span className="hidden rounded-full border bg-muted/30 px-2.5 py-1 text-xs text-muted-foreground group-open:inline-flex">
+                  Hide
+                </span>
+              </summary>
+
+              <div className="mt-4 rounded-xl border bg-muted/20 p-4">
+                <ul className="list-disc space-y-2 pl-5 text-sm text-muted-foreground">
+                  <li>
+                    Holiday/Rest Day premiums follow your finalized rules
+                    (Regular: entitled/worked; Special: +30%; Sunday: +30%).
+                  </li>
+                  <li>
+                    Night differential uses placeholder logic until{" "}
+                    <code className="rounded bg-background px-1 py-0.5 text-xs text-foreground">
+                      attendance_approval.night_diff_minutes
+                    </code>{" "}
+                    exists.
+                  </li>
+                  <li>
+                    Government contributions are manual values split 50/50 per
+                    cutoff.
+                  </li>
+                  <li>
+                    Shortage deductions are encoded in{" "}
+                    <code className="rounded bg-background px-1 py-0.5 text-xs text-foreground">
+                      payroll_other_deductions
+                    </code>{" "}
+                    (category=SHORTAGE).
+                  </li>
+                </ul>
+              </div>
+            </details>
+          </div>
         </Card>
       </div>
     </DashboardLayout>
