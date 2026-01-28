@@ -1,4 +1,3 @@
-// modules/payroll-run/components/EmployeeDetailsSheet.tsx
 "use client";
 
 import * as React from "react";
@@ -16,15 +15,35 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import { Pencil, Trash2, Plus } from "lucide-react";
+import {
+  Pencil,
+  Trash2,
+  Plus,
+  Wallet,
+  Receipt,
+  PiggyBank,
+  BadgePercent,
+  Clock,
+  CalendarDays,
+  Layers,
+  CircleDollarSign,
+  ArrowDownRight,
+  ArrowUpRight,
+  Sparkles,
+  Coins,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
+function round2(x: number): number {
+  return Math.round((x + Number.EPSILON) * 100) / 100;
+}
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 text-sm">
       <div className="text-muted-foreground">{label}</div>
-      <div className="font-mono">{value}</div>
+      <div className="font-mono tabular-nums">{value}</div>
     </div>
   );
 }
@@ -34,27 +53,103 @@ function StatCard({
   value,
   sublabel,
   tone = "default",
+  icon,
 }: {
   label: string;
   value: React.ReactNode;
   sublabel?: React.ReactNode;
   tone?: "default" | "good" | "bad";
+  icon?: React.ReactNode;
 }) {
   return (
     <div
       className={cn(
-        "rounded-xl border bg-card p-4 shadow-sm",
+        "relative overflow-hidden rounded-2xl border bg-card p-4 shadow-sm",
         tone === "good" && "border-emerald-200/60",
         tone === "bad" && "border-red-200/60",
       )}
     >
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {label}
+          </div>
+          <div className="mt-1 text-xl font-bold">{value}</div>
+          {sublabel ? (
+            <div className="mt-1 text-xs text-muted-foreground">{sublabel}</div>
+          ) : null}
+        </div>
+
+        {icon ? (
+          <div className="rounded-xl border bg-muted/30 p-2 text-muted-foreground">
+            {icon}
+          </div>
+        ) : null}
       </div>
-      <div className="mt-1 text-xl font-bold">{value}</div>
-      {sublabel ? (
-        <div className="mt-1 text-xs text-muted-foreground">{sublabel}</div>
-      ) : null}
+
+      <div className="pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full bg-muted/20" />
+    </div>
+  );
+}
+
+function Section({
+  title,
+  icon,
+  right,
+  children,
+  className,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  right?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("rounded-2xl border bg-card p-4 shadow-sm", className)}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          {icon ? (
+            <div className="rounded-xl border bg-muted/30 p-2 text-muted-foreground">
+              {icon}
+            </div>
+          ) : null}
+          <div className="text-sm font-semibold">{title}</div>
+        </div>
+        {right ? <div className="shrink-0">{right}</div> : null}
+      </div>
+      <Separator className="my-3" />
+      {children}
+    </div>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+  tone = "neutral",
+  icon,
+}: {
+  label: string;
+  value: React.ReactNode;
+  tone?: "neutral" | "good" | "bad";
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 rounded-xl border bg-muted/10 px-3 py-2",
+        tone === "good" && "border-emerald-200/60",
+        tone === "bad" && "border-red-200/60",
+      )}
+    >
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        {icon ? <span className="text-muted-foreground">{icon}</span> : null}
+        <span className="font-semibold uppercase tracking-wide">{label}</span>
+      </div>
+      <div className="font-mono text-xs font-semibold tabular-nums">
+        {value}
+      </div>
     </div>
   );
 }
@@ -75,6 +170,7 @@ function entryCategory(e: any): string {
     e?.deduction_kind ??
     e?.deductionKind ??
     e?.type_kind ??
+    e?.typeKind ??
     e?.kind ??
     null;
 
@@ -87,7 +183,6 @@ function entryCategory(e: any): string {
 }
 
 function readAmount(e: any): number {
-  // supports: {amount}, {amount_paid}, {amountPaid}
   const v = e?.amount ?? e?.amount_paid ?? e?.amountPaid ?? 0;
   const n = Number(v ?? 0);
   return Number.isFinite(n) ? n : 0;
@@ -99,26 +194,56 @@ function formatEntryAmount(e: ManualEntry) {
   return formatPHP(amt);
 }
 
+function safeId(e: any) {
+  const id =
+    e?.id ??
+    e?.retro_id ??
+    e?.retroId ??
+    e?.dr_payment_id ??
+    e?.drPaymentId ??
+    e?.coop_savings_membership_id ??
+    e?.coopSavingsMembershipId ??
+    e?.savings_id ??
+    e?.savingsId ??
+    null;
+
+  return id == null ? "noid" : String(id);
+}
+
 function extractDrReceiptNo(desc: string): string {
   const s = String(desc ?? "").trim();
   const prefix = /^DR\s*PAYMENT\s*:\s*/i;
   return s.replace(prefix, "").trim();
 }
 
+function entryDesc(e: any): string {
+  // ✅ DR FIRST: never return raw "DR PAYMENT: ..." desc
+  if (isDRPaymentEntry(e)) {
+    const drNo = drReceiptNoFromEntry(e); // already strips prefix via extractDrReceiptNo()
+    return drNo ? drNo : "DR Payment";
+  }
+
+  const d = e?.desc ?? e?.description ?? "";
+  if (String(d).trim()) return String(d);
+
+  if (isShortageEntry(e)) return "Shortage";
+  if (isRetroPayEntry(e)) return "Retro Pay";
+  if (isSavingsEntry(e)) return "Savings";
+
+  return "";
+}
+
+// ===== Itemized detectors =====
 function isDRPaymentEntry(e: any): boolean {
-  // Robust detection: works whether parent mapped it into ManualEntry shape or not.
   const cat = entryCategory(e);
   if (cat === "DR_PAYMENT") return true;
 
-  // Direct dr_payment table shapes
   if (e?.dr_payment_id != null) return true;
   if (e?.delivery_receipt_number) return true;
 
-  // Common meta fields you may pass through
   if (upper(e?.source) === "DR_PAYMENT" || upper(e?.source) === "DR")
     return true;
 
-  // Fallback: description prefix
   const desc = String(e?.desc ?? e?.description ?? "");
   if (/^DR\s*PAYMENT\s*:/i.test(desc)) return true;
 
@@ -133,6 +258,29 @@ function isShortageEntry(e: any): boolean {
   return desc.includes("shortage");
 }
 
+function isRetroPayEntry(e: any): boolean {
+  const cat = entryCategory(e);
+  if (cat === "RETRO_PAY" || cat === "RETROPAY") return true;
+
+  if (upper(e?.source) === "RETRO_PAY") return true;
+
+  // Directus row from retro_pay table
+  if (e?.retro_id != null || e?.retroId != null) return true;
+
+  const desc = String(e?.desc ?? e?.description ?? "").toLowerCase();
+  return desc.includes("retro");
+}
+
+function isSavingsEntry(e: any): boolean {
+  const cat = entryCategory(e);
+  if (cat === "COOP_SAVINGS_MEMBERSHIP" || cat === "SAVINGS") return true;
+
+  if (upper(e?.source) === "COOP_SAVINGS_MEMBERSHIP") return true;
+
+  const desc = String(e?.desc ?? e?.description ?? "").toLowerCase();
+  return desc.includes("savings") || desc.includes("coop savings");
+}
+
 function drReceiptNoFromEntry(e: any): string {
   if (e?.delivery_receipt_number) return String(e.delivery_receipt_number);
   const desc = String(e?.desc ?? e?.description ?? "");
@@ -141,7 +289,6 @@ function drReceiptNoFromEntry(e: any): string {
 }
 
 function drPaymentDateFromEntry(e: any): string {
-  // supports payment_date or paymentDate
   const v =
     e?.payment_date ??
     e?.paymentDate ??
@@ -172,22 +319,373 @@ function drPostedFromEntry(e: any): boolean {
   return Boolean(Number(v) === 1 || v === true);
 }
 
-function safeId(e: any) {
-  const id = e?.id ?? e?.dr_payment_id ?? e?.drPaymentId;
-  return id == null ? "noid" : String(id);
+function resolvePayrollId(line: PayrollComputedLine | null): string {
+  const v =
+    (line as any)?.payroll_run_employee_id ??
+    (line as any)?.payrollRunEmployeeId ??
+    (line as any)?.pre_id ??
+    (line as any)?.id ??
+    "";
+  const s = String(v ?? "").trim();
+  return s || "—";
 }
 
-function entryDesc(e: any): string {
-  // prefer desc, then description, else build for DR
-  const d = e?.desc ?? e?.description ?? "";
-  if (String(d).trim()) return String(d);
+function itemizedBadgesForEntry(e: any) {
+  const out: Array<{
+    label: string;
+    variant?: "secondary" | "outline" | "destructive" | "default";
+  }> = [];
 
-  if (isDRPaymentEntry(e)) {
-    const drNo = drReceiptNoFromEntry(e);
-    return drNo ? `DR Payment: ${drNo}` : "DR Payment";
+  if (isDRPaymentEntry(e))
+    out.push({ label: "DR_PAYMENT", variant: "secondary" });
+  if (isShortageEntry(e)) out.push({ label: "SHORTAGE", variant: "secondary" });
+  if (isRetroPayEntry(e))
+    out.push({ label: "RETRO_PAY", variant: "secondary" });
+  if (isSavingsEntry(e))
+    out.push({ label: "COOP_SAVINGS_MEMBERSHIP", variant: "secondary" });
+
+  return out;
+}
+
+function prettyPayCycle(v: any) {
+  const s = String(v ?? "").trim();
+  if (!s) return "—";
+  return s.replaceAll("_", " ").toLowerCase();
+}
+
+function MoneyPill({
+  amount,
+  kind,
+  accent,
+}: {
+  amount: string;
+  kind: "EARNING" | "DEDUCTION";
+  accent?: "retro" | "savings" | "none";
+}) {
+  if (accent === "retro") {
+    return (
+      <div className="rounded-xl border border-amber-200/70 bg-amber-50/50 px-2.5 py-1 font-mono text-xs tabular-nums text-amber-800">
+        {amount}
+      </div>
+    );
   }
 
-  return "";
+  if (accent === "savings") {
+    return (
+      <div className="rounded-xl border border-blue-200/70 bg-blue-50/50 px-2.5 py-1 font-mono text-xs tabular-nums text-blue-800">
+        {amount}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border px-2.5 py-1 font-mono text-xs tabular-nums",
+        kind === "DEDUCTION"
+          ? "border-red-200/60 bg-red-50/40 text-destructive"
+          : "border-emerald-200/60 bg-emerald-50/40 text-emerald-700",
+      )}
+    >
+      {amount}
+    </div>
+  );
+}
+
+/**
+ * ✅ IMPORTANT: enrich entries so Edit/Delete knows the correct table
+ *  - Retro Pay -> __source: "RETRO" and id: retro_id
+ *  - DR Payment -> __source: "DR" and id: dr_payment_id
+ *  - Coop Savings -> __source: "COOP" and id: source_id
+ *  - Normal earning -> __source: "ADD"
+ *  - Normal deduction -> __source: "DED"
+ */
+function normalizeEntry(e: any): any {
+  if (!e || typeof e !== "object") return e;
+
+  const retroId = e?.retro_id ?? e?.retroId ?? null;
+  const drId = e?.dr_payment_id ?? e?.drPaymentId ?? null;
+  const coopId = e?.source_id ?? e?.sourceId ?? null;
+
+  if (isRetroPayEntry(e) && retroId != null) {
+    return { ...e, __source: "RETRO", id: Number(retroId), type: "EARNING" };
+  }
+  if (isDRPaymentEntry(e) && drId != null) {
+    return { ...e, __source: "DR", id: Number(drId), type: "DEDUCTION" };
+  }
+  if (isSavingsEntry(e) && coopId != null) {
+    return { ...e, __source: "COOP", id: Number(coopId), type: "DEDUCTION" };
+  }
+
+  const t = upper(e?.type);
+  if (t === "EARNING")
+    return { ...e, __source: "ADD", id: Number(e?.id ?? 0) || e?.id };
+  if (t === "DEDUCTION")
+    return { ...e, __source: "DED", id: Number(e?.id ?? 0) || e?.id };
+
+  // fallback
+  return { ...e, __source: e?.__source ?? undefined };
+}
+
+function AdjustmentItem({
+  entry,
+  onEdit,
+  onDelete,
+}: {
+  entry: ManualEntry;
+  onEdit: (e: ManualEntry) => void;
+  onDelete: (e: ManualEntry) => void;
+}) {
+  const e: any = normalizeEntry(entry as any);
+
+  const isDR = isDRPaymentEntry(e);
+  const retro = isRetroPayEntry(e);
+  const shortage = isShortageEntry(e);
+  const savings = isSavingsEntry(e);
+
+  const desc = entryDesc(e);
+  const drNo = isDR ? drReceiptNoFromEntry(e) : "";
+  const drDate = isDR ? drPaymentDateFromEntry(e) : "";
+  const drMethod = isDR ? drPaymentMethodFromEntry(e) : "";
+  const drPosted = isDR ? drPostedFromEntry(e) : false;
+
+  const typeLabel = isDR
+    ? "Stock Purchase (DR Payment)"
+    : retro
+      ? "Retro Pay"
+      : savings
+        ? "Coop Savings"
+        : upper(e?.type) === "EARNING"
+          ? "Addition"
+          : shortage
+            ? "Shortage Deduction"
+            : "Deduction";
+
+  const disableEditDelete = isDR && drPosted;
+  const badges = itemizedBadgesForEntry(e);
+
+  const kind: "EARNING" | "DEDUCTION" =
+    upper(e?.type) === "DEDUCTION" ? "DEDUCTION" : "EARNING";
+
+  return (
+    <div
+      className={cn(
+        "group relative rounded-2xl border bg-background p-3 transition hover:bg-muted/10",
+        retro && "border-amber-200/70 bg-amber-50/20",
+        savings && "border-blue-200/70 bg-blue-50/20",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="truncate text-sm font-semibold">
+              {desc || "Adjustment"}
+            </div>
+
+            {/* ✅ SIMPLIFIED: Only show badge if not retro or savings (avoid redundancy) */}
+            {!retro && !savings && (
+              <Badge variant="outline" className="text-[10px]">
+                {typeLabel}
+              </Badge>
+            )}
+
+            {isDR ? (
+              drPosted ? (
+                <Badge variant="destructive" className="text-[10px]">
+                  POSTED
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-[10px]">
+                  UNPOSTED
+                </Badge>
+              )
+            ) : null}
+          </div>
+
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+            {badges.map((b) => (
+              <Badge key={b.label} variant={b.variant ?? "secondary"}>
+                {b.label}
+              </Badge>
+            ))}
+
+            {retro ? (
+              <span className="font-mono">
+                Retro ID: {String(e?.id ?? e?.retro_id ?? "—")}
+              </span>
+            ) : savings ? (
+              <span className="font-mono">
+                Membership ID: {String(e?.id ?? e?.source_id ?? "—")}
+              </span>
+            ) : (
+              <span className="font-mono">Ref: {safeId(e)}</span>
+            )}
+
+            {isDR && drNo ? (
+              <span className="inline-flex items-center gap-1 font-mono">
+                <Receipt className="h-3.5 w-3.5" />
+                {drNo}
+              </span>
+            ) : null}
+            {isDR && drDate ? (
+              <span className="inline-flex items-center gap-1 font-mono">
+                <CalendarDays className="h-3.5 w-3.5" />
+                {drDate}
+              </span>
+            ) : null}
+            {isDR && drMethod ? (
+              <span className="inline-flex items-center gap-1 font-mono">
+                <Layers className="h-3.5 w-3.5" />
+                {upper(drMethod)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <MoneyPill
+            amount={formatEntryAmount(e)}
+            kind={kind}
+            accent={retro ? "retro" : savings ? "savings" : "none"}
+          />
+
+          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                onEdit(e);
+              }}
+              title={
+                disableEditDelete ? "Cannot edit posted DR payments" : "Edit"
+              }
+              disabled={disableEditDelete}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                onDelete(e);
+              }}
+              title={
+                disableEditDelete
+                  ? "Cannot delete posted DR payments"
+                  : "Delete"
+              }
+              disabled={disableEditDelete}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+function MinimalAdjustmentRow({
+  entry,
+  onEdit,
+  onDelete,
+}: {
+  entry: ManualEntry;
+  onEdit: (e: ManualEntry) => void;
+  onDelete: (e: ManualEntry) => void;
+}) {
+  const e: any = normalizeEntry(entry as any);
+
+  const isDR = isDRPaymentEntry(e);
+  const retro = isRetroPayEntry(e);
+  const shortage = isShortageEntry(e);
+  const savings = isSavingsEntry(e);
+
+  const desc = entryDesc(e) || "—";
+
+  const typeLabel = retro
+    ? "RETRO PAY"
+    : savings
+      ? "COOP SAVINGS"
+      : isDR
+        ? "DR PAYMENT"
+        : shortage
+          ? "SHORTAGE"
+          : upper(e?.type) === "EARNING"
+            ? "ADDITION"
+            : "DEDUCTION";
+
+  const kind: "EARNING" | "DEDUCTION" =
+    upper(e?.type) === "DEDUCTION" ? "DEDUCTION" : "EARNING";
+
+  const accent: "retro" | "savings" | "none" = retro
+    ? "retro"
+    : savings
+      ? "savings"
+      : "none";
+
+  const disableEditDelete = isDR && drPostedFromEntry(e);
+
+  return (
+    <div className="group flex items-center justify-between gap-3 border-b px-0 py-2">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          {/* Type: simple text (no badge) */}
+          <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {typeLabel}
+          </span>
+
+          {/* Description */}
+          <span className="truncate text-sm">{desc}</span>
+        </div>
+      </div>
+
+      {/* Amount + actions */}
+      <div className="flex items-center gap-2">
+        <MoneyPill amount={formatEntryAmount(e)} kind={kind} accent={accent} />
+
+        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={(ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              onEdit(e);
+            }}
+            disabled={disableEditDelete}
+            title={
+              disableEditDelete ? "Cannot edit posted DR payments" : "Edit"
+            }
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={(ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              onDelete(e);
+            }}
+            disabled={disableEditDelete}
+            title={
+              disableEditDelete ? "Cannot delete posted DR payments" : "Delete"
+            }
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function EmployeeDetailsSheet({
@@ -213,10 +711,96 @@ export function EmployeeDetailsSheet({
   const allowanceItems =
     ((line as any)?.breakdown_json?.earnings?.allowance_items as any[]) ?? [];
 
-  const entries = Array.isArray(manualEntries) ? manualEntries : [];
+  // ✅ Get coop savings items from breakdown_json (Option B table)
+  const coopSavingsItemsFromBreakdown =
+    ((line as any)?.breakdown_json?.deductions?.coop_savings_items as any[]) ??
+    [];
 
-  const additionEntries = entries.filter(
-    (e) => upper((e as any)?.type) === "EARNING",
+  // ✅ FIX: Get retro items directly from breakdown_json
+  const retroItemsFromBreakdown =
+    ((line as any)?.breakdown_json?.earnings?.retro_items as any[]) ?? [];
+
+  const rawEntries = Array.isArray(manualEntries) ? manualEntries : [];
+  const entries = rawEntries.map((e) => normalizeEntry(e));
+
+  const retroEntries = entries.filter((e) => isRetroPayEntry(e as any));
+  const savingsEntries = entries.filter((e) => isSavingsEntry(e as any));
+
+  // ✅ COMBINE: Both manual entries and breakdown retro items
+  const allRetroEntries = [
+    ...retroEntries,
+    ...retroItemsFromBreakdown.map((item: any) => ({
+      ...item,
+      retro_id: item.source_id ?? item.retro_id ?? item.id,
+      amount: item.amount,
+      description: item.description ?? item.label,
+      type: "EARNING",
+      __source: "RETRO",
+    })),
+  ];
+
+  // ✅ COMBINE: Both manual savings entries and breakdown coop savings items
+  const allSavingsEntries = [
+    ...savingsEntries,
+    ...coopSavingsItemsFromBreakdown.map((item: any) => ({
+      ...item,
+      id: item.source_id ?? item.id,
+      amount: item.amount,
+      description: item.description ?? item.label ?? "COOP Savings Membership",
+      type: "DEDUCTION",
+      category: "COOP_SAVINGS_MEMBERSHIP",
+      __source: "COOP",
+    })),
+  ];
+
+  const nonRetroEarningEntries = entries.filter((e) => {
+    const t = upper((e as any)?.type);
+    if (t === "EARNING" && !isRetroPayEntry(e as any)) return true;
+    return false;
+  });
+
+  const deductionEntries = entries.filter((e) => {
+    const t = upper((e as any)?.type);
+    if (t === "DEDUCTION") return true;
+    if (isDRPaymentEntry(e as any)) return true;
+    if (isShortageEntry(e as any)) return true;
+    if (isSavingsEntry(e as any)) return true;
+    return false;
+  });
+
+  // ✅ Add all savings entries (manual + breakdown) to deduction list
+  const allDeductionEntries = [...deductionEntries, ...allSavingsEntries];
+
+  const drEntries = entries.filter((e) => isDRPaymentEntry(e as any));
+  const shortageEntries = entries.filter((e) => isShortageEntry(e as any));
+
+  const retroTotal = allRetroEntries.reduce(
+    (sum, e) => sum + readAmount(e as any),
+    0,
+  );
+  const manualAddsTotal = nonRetroEarningEntries.reduce(
+    (sum, e) => sum + readAmount(e as any),
+    0,
+  );
+
+  const savingsTotal = allSavingsEntries.reduce(
+    (sum, e) => sum + readAmount(e as any),
+    0,
+  );
+
+  const allowancesTotal = allowanceItems.reduce(
+    (sum: number, a: any) => sum + Number(a?.amount_this_cutoff ?? 0),
+    0,
+  );
+
+  const additionEntries = [...allRetroEntries, ...nonRetroEarningEntries];
+  const additionsTotal = additionEntries.reduce(
+    (sum, e) => sum + readAmount(e as any),
+    0,
+  );
+  const deductionsAdjTotal = allDeductionEntries.reduce(
+    (sum, e) => sum + readAmount(e as any),
+    0,
   );
 
   const employeeMeta = [
@@ -227,6 +811,8 @@ export function EmployeeDetailsSheet({
   const totalsGross = formatPHP(line?.gross_pay ?? 0);
   const totalsDed = formatPHP(line?.total_deductions ?? 0);
   const totalsNet = formatPHP(line?.net_pay ?? 0);
+
+  const payrollId = resolvePayrollId(line);
 
   const openAdjust = React.useCallback(() => {
     if (typeof onOpenAdjust === "function") {
@@ -242,22 +828,25 @@ export function EmployeeDetailsSheet({
   return (
     <Dialog modal={false} open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="p-0 sm:max-w-[980px]"
-        // ✅ Prevent Radix from dismissing the sheet when another dialog opens
+        className="p-0 sm:max-w-[1040px]"
         onInteractOutside={(e) => e.preventDefault()}
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
-        <div className="flex max-h-[85vh] flex-col">
+        <div className="flex max-h-[86vh] flex-col">
           {/* Header */}
           <div className="border-b bg-muted/20 px-6 py-4">
             <DialogHeader className="space-y-2">
               <div className="flex items-start justify-between gap-3 pr-10">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <DialogTitle className="truncate">
                       {line?.employee_name ?? "Employee Details"}
                     </DialogTitle>
+
+                    <Badge variant="outline" className="font-mono">
+                      Payroll ID: {payrollId}
+                    </Badge>
 
                     {line?.variance_flag ? (
                       <Badge variant="destructive">Variance Alert</Badge>
@@ -286,7 +875,42 @@ export function EmployeeDetailsSheet({
                     ) : null}
                   </DialogDescription>
 
-                  <p className="mt-2 text-xs text-muted-foreground">
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <MiniStat
+                      label="Allowances"
+                      value={formatPHP(allowancesTotal)}
+                      icon={<Wallet className="h-4 w-4" />}
+                    />
+                    <MiniStat
+                      label="Adj. Additions"
+                      value={formatPHP(additionsTotal)}
+                      tone="good"
+                      icon={<ArrowUpRight className="h-4 w-4" />}
+                    />
+                    <MiniStat
+                      label="Adj. Deductions"
+                      value={formatPHP(deductionsAdjTotal)}
+                      tone="bad"
+                      icon={<ArrowDownRight className="h-4 w-4" />}
+                    />
+                    {retroTotal > 0 ? (
+                      <MiniStat
+                        label="Retro Pay"
+                        value={formatPHP(retroTotal)}
+                        tone="good"
+                        icon={<Sparkles className="h-4 w-4" />}
+                      />
+                    ) : null}
+                    {savingsTotal > 0 ? (
+                      <MiniStat
+                        label="Savings"
+                        value={formatPHP(savingsTotal)}
+                        icon={<PiggyBank className="h-4 w-4" />}
+                      />
+                    ) : null}
+                  </div>
+
+                  <p className="mt-3 text-xs text-muted-foreground">
                     Benefits follow{" "}
                     <span className="font-medium">benefit_cutoff_settings</span>
                     . Employee loans are{" "}
@@ -298,6 +922,22 @@ export function EmployeeDetailsSheet({
                     <span className="font-medium">PAYROLL_DEDUCTION</span>.
                   </p>
                 </div>
+
+                <div className="hidden sm:flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      openAdjust();
+                    }}
+                    disabled={!line}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Adjustment
+                  </Button>
+                </div>
               </div>
             </DialogHeader>
           </div>
@@ -308,6 +948,7 @@ export function EmployeeDetailsSheet({
               <StatCard
                 label="Gross Pay"
                 value={formatPHP(line?.gross_pay ?? 0)}
+                icon={<CircleDollarSign className="h-5 w-5" />}
                 sublabel={
                   <>
                     Basic {formatPHP(line?.basic_pay ?? 0)} • OT{" "}
@@ -319,6 +960,7 @@ export function EmployeeDetailsSheet({
                 label="Total Deductions"
                 tone="bad"
                 value={formatPHP(line?.total_deductions ?? 0)}
+                icon={<ArrowDownRight className="h-5 w-5" />}
                 sublabel={
                   <>
                     Late {formatPHP(line?.late_deduction ?? 0)} • Undertime{" "}
@@ -330,6 +972,7 @@ export function EmployeeDetailsSheet({
                 label="Net Pay"
                 tone="good"
                 value={formatPHP(line?.net_pay ?? 0)}
+                icon={<Wallet className="h-5 w-5" />}
                 sublabel={
                   line?.variance_flag ? (
                     <span className="text-destructive">
@@ -342,417 +985,607 @@ export function EmployeeDetailsSheet({
               />
             </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {/* Left */}
-              <div className="space-y-4">
-                <div className="rounded-xl border bg-card p-4 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold">Rates</div>
-                    {line?.variance_flag ? (
-                      <Badge variant="destructive">Variance</Badge>
-                    ) : null}
-                  </div>
-                  <Separator className="my-3" />
-                  <Row label="Daily" value={formatPHP(line?.daily_rate ?? 0)} />
-                  <Row
-                    label="Hourly"
-                    value={formatPHP(line?.hourly_rate ?? 0)}
-                  />
-                  <Row
-                    label="Monthly"
-                    value={formatPHP(line?.monthly_rate ?? 0)}
-                  />
-                </div>
-
-                <div className="rounded-xl border bg-card p-4 shadow-sm">
-                  <div className="text-sm font-semibold">Attendance Totals</div>
-                  <Separator className="my-3" />
-                  <Row
-                    label="Days Worked"
-                    value={line?.total_days_worked ?? 0}
-                  />
-                  <Row
-                    label="Work Minutes"
-                    value={line?.total_work_minutes ?? 0}
-                  />
-                  <Row label="Late Minutes" value={line?.late_minutes ?? 0} />
-                  <Row
-                    label="Undertime Minutes"
-                    value={line?.undertime_minutes ?? 0}
-                  />
-                  <Row label="OT Minutes" value={line?.overtime_minutes ?? 0} />
-                  <Row
-                    label="Night Diff Minutes"
-                    value={line?.night_diff_minutes ?? 0}
-                  />
-                </div>
-
-                <div className="rounded-xl border bg-card p-4 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold">
-                      Earnings Itemizations
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {allowanceItems.length + additionEntries.length} item(s)
-                    </div>
-                  </div>
-                  <Separator className="my-3" />
-
-                  <div className="space-y-2">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Allowances
-                    </div>
-
-                    {allowanceItems.length === 0 ? (
-                      <div className="text-sm text-muted-foreground">
-                        No allowance items for this cutoff.
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {allowanceItems.map((a: any) => (
-                          <div
-                            key={String(a.allowance_id)}
-                            className="flex items-center justify-between gap-3 text-sm"
-                          >
-                            <div className="min-w-0">
-                              <div className="truncate text-muted-foreground">
-                                {a.description ||
-                                  `Allowance #${a.allowance_id}`}
-                              </div>
-                              <div className="text-[11px] text-muted-foreground">
-                                {String(a.pay_cycle ?? "")
-                                  .replaceAll("_", " ")
-                                  .toLowerCase()}
-                              </div>
-                            </div>
-                            <div className="font-mono">
-                              {formatPHP(Number(a.amount_this_cutoff ?? 0))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <Separator className="my-4" />
-
-                  <div className="space-y-2">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Manual Additions
-                    </div>
-
-                    {additionEntries.length === 0 ? (
-                      <div className="text-sm text-muted-foreground">
-                        No manual additions for this cutoff.
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {additionEntries.map((e) => (
-                          <div
-                            key={`add-${safeId(e)}-${String((e as any)?.desc ?? "")}`}
-                            className="flex items-center justify-between gap-3 text-sm"
-                          >
-                            <div className="min-w-0">
-                              <div className="truncate text-muted-foreground">
-                                {entryDesc(e) || "Addition"}
-                              </div>
-                              <div className="text-[11px] text-muted-foreground">
-                                EARNING adjustment
-                              </div>
-                            </div>
-                            <div className="font-mono">
-                              {formatEntryAmount(e)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Right */}
-              <div className="space-y-4">
-                <div className="rounded-xl border bg-card p-4 shadow-sm">
-                  <div className="text-sm font-semibold">Earnings</div>
-                  <Separator className="my-3" />
-                  <Row
-                    label="Basic Pay"
-                    value={formatPHP(line?.basic_pay ?? 0)}
-                  />
-                  <Row
-                    label="OT Amount"
-                    value={formatPHP(line?.ot_amount ?? 0)}
-                  />
-                  <Row
-                    label="Holiday Pay"
-                    value={formatPHP(line?.holiday_pay ?? 0)}
-                  />
-                  <Row
-                    label="Rest Day Amount"
-                    value={formatPHP(line?.rest_day_amount ?? 0)}
-                  />
-                  <Row
-                    label="Night Diff Amount"
-                    value={formatPHP(line?.night_diff_amount ?? 0)}
-                  />
-                  <Row
-                    label="Allowance (Total)"
-                    value={formatPHP(line?.allowance ?? 0)}
-                  />
-                  <Row
-                    label="Manual Additions (Total)"
-                    value={formatPHP(line?.manual_additions ?? 0)}
-                  />
-                </div>
-
-                <div className="rounded-xl border bg-card p-4 shadow-sm">
-                  <div className="text-sm font-semibold">Deductions</div>
-                  <Separator className="my-3" />
-
-                  <Row
-                    label="Late Deduction"
-                    value={formatPHP(line?.late_deduction ?? 0)}
-                  />
-                  <Row
-                    label="Undertime Deduction"
-                    value={formatPHP(line?.undertime_deduction ?? 0)}
-                  />
-                  <Row
-                    label="Shortage Deduction"
-                    value={formatPHP(line?.shortage_deduction ?? 0)}
-                  />
-
-                  <Row
-                    label="DR Payment"
-                    value={formatPHP((line as any)?.dr_deduction ?? 0)}
-                  />
-
-                  <Separator className="my-3" />
-                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Employee Loans (50/50 per cutoff)
-                  </div>
-                  <div className="mt-2 space-y-2">
-                    <Row
-                      label="Vale"
-                      value={formatPHP((line as any)?.loan_vale ?? 0)}
-                    />
-                    <Row
-                      label="Car Loan"
-                      value={formatPHP((line as any)?.loan_car ?? 0)}
-                    />
-                    <Row
-                      label="COOP"
-                      value={formatPHP((line as any)?.loan_coop ?? 0)}
-                    />
-                    <Row
-                      label="Loans Total"
-                      value={formatPHP((line as any)?.loan_total ?? 0)}
-                    />
-                  </div>
-
-                  <Separator className="my-3" />
-                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Benefit Loans (amortization per cutoff)
-                  </div>
-                  <div className="mt-2 space-y-2">
-                    <Row
-                      label="SSS Loan"
-                      value={formatPHP((line as any)?.benefit_loan_sss ?? 0)}
-                    />
-                    <Row
-                      label="Pag-IBIG Loan"
-                      value={formatPHP(
-                        (line as any)?.benefit_loan_pagibig ?? 0,
-                      )}
-                    />
-                    <Row
-                      label="Benefit Loans Total"
-                      value={formatPHP((line as any)?.benefit_loan_total ?? 0)}
-                    />
-                  </div>
-
-                  <Separator className="my-3" />
-                  <Row label="SSS" value={formatPHP(line?.benefit_sss ?? 0)} />
-                  <Row
-                    label="PhilHealth"
-                    value={formatPHP(line?.benefit_philhealth ?? 0)}
-                  />
-                  <Row
-                    label="Pag-IBIG"
-                    value={formatPHP(line?.benefit_pagibig ?? 0)}
-                  />
-
-                  <Row
-                    label="Manual Deductions (Total)"
-                    value={formatPHP(line?.manual_deductions ?? 0)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Manual Adjustments */}
-            <div className="mt-5 rounded-xl border bg-card p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold">
+            <div className="mt-5">
+              <Tabs defaultValue="adjustments">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="itemizations">
+                    Earnings Itemization
+                  </TabsTrigger>
+                  <TabsTrigger value="adjustments">
                     Manual Adjustments
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {entries.length} item(s)
-                  </div>
-                </div>
+                  </TabsTrigger>
+                </TabsList>
 
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    openAdjust();
-                  }}
-                  disabled={!line}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add
-                </Button>
-              </div>
-
-              <Separator className="my-3" />
-
-              {entries.length === 0 ? (
-                <div className="text-sm text-muted-foreground">
-                  No manual entries for this cutoff.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {entries.map((e) => {
-                    const isDR = isDRPaymentEntry(e as any);
-                    const shortage = isShortageEntry(e as any);
-
-                    const desc = entryDesc(e as any);
-                    const drNo = isDR ? drReceiptNoFromEntry(e as any) : "";
-                    const drDate = isDR ? drPaymentDateFromEntry(e as any) : "";
-                    const drMethod = isDR
-                      ? drPaymentMethodFromEntry(e as any)
-                      : "";
-                    const drPosted = isDR ? drPostedFromEntry(e as any) : false;
-
-                    const typeLabel = isDR
-                      ? "Stock Purchase (DR Payment)"
-                      : upper((e as any)?.type) === "EARNING"
-                        ? "Addition"
-                        : shortage
-                          ? "Shortage Deduction"
-                          : "Deduction";
-
-                    const disableEditDelete = isDR && drPosted;
-
-                    return (
-                      <div
-                        key={`${String((e as any)?.type ?? "X")}-${safeId(e)}-${desc}`}
-                        className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
+                <TabsContent value="overview" className="mt-4">
+                  <div className="space-y-4">
+                    {/* Top Row: Key Metrics */}
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <Section
+                        title="Rates"
+                        icon={<Layers className="h-5 w-5" />}
                       >
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium">
-                            {desc || "Adjustment"}
-                          </div>
-
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                            <span>{typeLabel}</span>
-
-                            {isDR ? (
-                              <Badge variant="secondary">DR_PAYMENT</Badge>
-                            ) : null}
-
-                            {!isDR && shortage ? (
-                              <Badge variant="secondary">SHORTAGE</Badge>
-                            ) : null}
-
-                            {isDR && drNo ? (
-                              <span className="font-mono">DR: {drNo}</span>
-                            ) : null}
-
-                            {isDR && drDate ? (
-                              <span className="font-mono">Date: {drDate}</span>
-                            ) : null}
-
-                            {isDR && drMethod ? (
-                              <span className="font-mono">
-                                Method: {upper(drMethod)}
-                              </span>
-                            ) : null}
-
-                            {isDR ? (
-                              drPosted ? (
-                                <Badge variant="destructive">POSTED</Badge>
-                              ) : (
-                                <Badge variant="outline">UNPOSTED</Badge>
-                              )
-                            ) : null}
-                          </div>
+                        <div className="space-y-2">
+                          <Row
+                            label="Daily"
+                            value={formatPHP(line?.daily_rate ?? 0)}
+                          />
+                          <Row
+                            label="Hourly"
+                            value={formatPHP(line?.hourly_rate ?? 0)}
+                          />
+                          <Row
+                            label="Monthly"
+                            value={formatPHP(line?.monthly_rate ?? 0)}
+                          />
                         </div>
+                      </Section>
 
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={cn(
-                              "font-mono text-sm",
-                              upper((e as any)?.type) === "DEDUCTION" &&
-                                "text-destructive",
-                            )}
-                          >
-                            {formatEntryAmount(e)}
+                      <Section
+                        title="Attendance Totals"
+                        icon={<Clock className="h-5 w-5" />}
+                      >
+                        <div className="space-y-2">
+                          <Row
+                            label="Days Worked"
+                            value={line?.total_days_worked ?? 0}
+                          />
+                          <Row
+                            label="Hours Worked"
+                            value={round2(
+                              (line?.total_work_minutes ?? 0) / 60,
+                            ).toFixed(2)}
+                          />
+                          <Row
+                            label="Late Minutes"
+                            value={line?.late_minutes ?? 0}
+                          />
+                          <Row
+                            label="Undertime Minutes"
+                            value={line?.undertime_minutes ?? 0}
+                          />
+                        </div>
+                      </Section>
+
+                      <Section
+                        title="Extra Time"
+                        icon={<Clock className="h-5 w-5" />}
+                      >
+                        <div className="space-y-2">
+                          <Row
+                            label="OT Minutes"
+                            value={line?.overtime_minutes ?? 0}
+                          />
+                          <Row
+                            label="Night Diff Minutes"
+                            value={line?.night_diff_minutes ?? 0}
+                          />
+                          <Row
+                            label="Holiday Days"
+                            value={round2(line?.holiday_days ?? 0).toFixed(0)}
+                          />
+                          <Row label="—" value="—" />
+                        </div>
+                      </Section>
+                    </div>
+
+                    {/* Middle Row: Earnings + Loans (left) / Deductions (right) */}
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      {/* LEFT COLUMN */}
+                      <div className="space-y-4">
+                        <Section
+                          title="Earnings Breakdown"
+                          icon={<ArrowUpRight className="h-5 w-5" />}
+                        >
+                          <div className="space-y-2">
+                            <Row
+                              label="Basic Pay"
+                              value={formatPHP(line?.basic_pay ?? 0)}
+                            />
+                            <Row
+                              label="OT Amount"
+                              value={formatPHP(line?.ot_amount ?? 0)}
+                            />
+                            <Row
+                              label="Holiday Pay"
+                              value={formatPHP(line?.holiday_pay ?? 0)}
+                            />
+                            <Row
+                              label="Rest Day Amount"
+                              value={formatPHP(line?.rest_day_amount ?? 0)}
+                            />
+                            <Row
+                              label="Night Diff Amount"
+                              value={formatPHP(line?.night_diff_amount ?? 0)}
+                            />
+                            <Separator className="my-2" />
+                            <Row
+                              label="Allowance"
+                              value={formatPHP(line?.allowance ?? 0)}
+                            />
+                            <Row
+                              label="Manual Additions"
+                              value={formatPHP(line?.manual_additions ?? 0)}
+                            />
+                            {retroTotal > 0 ? (
+                              <Row
+                                label="Retro Pay"
+                                value={formatPHP(retroTotal)}
+                              />
+                            ) : null}
+                            <Separator className="my-2" />
+                            <Row
+                              label="Total Earnings"
+                              value={
+                                <span className="font-bold text-emerald-700">
+                                  {formatPHP(line?.gross_pay ?? 0)}
+                                </span>
+                              }
+                            />
                           </div>
+                        </Section>
 
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(ev) => {
-                              ev.preventDefault();
-                              ev.stopPropagation();
-                              onEditEntry(e);
-                            }}
-                            title={
-                              disableEditDelete
-                                ? "Cannot edit posted DR payments"
-                                : "Edit"
-                            }
-                            disabled={disableEditDelete}
+                        {/* ✅ MOVED HERE: Loans under Earnings Breakdown */}
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <Section
+                            title="Employee Loans"
+                            icon={<Wallet className="h-5 w-5" />}
                           >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
+                            <div className="space-y-2">
+                              <Row
+                                label="Vale"
+                                value={formatPHP(line?.loan_vale ?? 0)}
+                              />
+                              <Row
+                                label="Car Loan"
+                                value={formatPHP(line?.loan_car ?? 0)}
+                              />
+                              <Row
+                                label="Coop Loan"
+                                value={formatPHP(line?.loan_coop ?? 0)}
+                              />
+                              <Separator className="my-2" />
+                              <Row
+                                label="Total"
+                                value={formatPHP(line?.loan_total ?? 0)}
+                              />
+                            </div>
+                          </Section>
 
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(ev) => {
-                              ev.preventDefault();
-                              ev.stopPropagation();
-                              onDeleteEntry(e);
-                            }}
-                            title={
-                              disableEditDelete
-                                ? "Cannot delete posted DR payments"
-                                : "Delete"
-                            }
-                            disabled={disableEditDelete}
+                          <Section
+                            title="Benefit Loans"
+                            icon={<PiggyBank className="h-5 w-5" />}
                           >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                            <div className="space-y-2">
+                              <Row
+                                label="SSS Loan"
+                                value={formatPHP(line?.benefit_loan_sss ?? 0)}
+                              />
+                              <Row
+                                label="PAGIBIG Loan"
+                                value={formatPHP(
+                                  line?.benefit_loan_pagibig ?? 0,
+                                )}
+                              />
+                              <Separator className="my-2" />
+                              <Row
+                                label="Total"
+                                value={formatPHP(line?.benefit_loan_total ?? 0)}
+                              />
+                              <Row label="—" value="—" />
+                            </div>
+                          </Section>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
 
-            <div className="mt-4 rounded-xl border bg-muted/20 p-4 text-xs text-muted-foreground">
-              breakdown_json is saved for auditability. Benefits follow
-              benefit_cutoff_settings; employee loans follow 50/50; benefit
-              loans follow amortization per cutoff. DR payments are deducted
-              from dr_payment when PAYROLL_DEDUCTION and not yet posted to
-              payroll.
+                      {/* RIGHT COLUMN */}
+                      <Section
+                        title="Deductions Breakdown"
+                        icon={<ArrowDownRight className="h-5 w-5" />}
+                      >
+                        <div className="space-y-2">
+                          <Row
+                            label="Late Deduction"
+                            value={formatPHP(line?.late_deduction ?? 0)}
+                          />
+                          <Row
+                            label="Undertime Deduction"
+                            value={formatPHP(line?.undertime_deduction ?? 0)}
+                          />
+                          <Row
+                            label="Shortage Deduction"
+                            value={formatPHP(line?.shortage_deduction ?? 0)}
+                          />
+                          <Row
+                            label="DR Payment"
+                            value={formatPHP((line as any)?.dr_deduction ?? 0)}
+                          />
+                          <Row
+                            label="Other Deductions"
+                            value={formatPHP(line?.other_deductions ?? 0)}
+                          />
+                          <Separator className="my-2" />
+                          <Row
+                            label="Benefits (SSS)"
+                            value={formatPHP(line?.benefit_sss ?? 0)}
+                          />
+                          <Row
+                            label="Benefits (PhilHealth)"
+                            value={formatPHP(line?.benefit_philhealth ?? 0)}
+                          />
+                          <Row
+                            label="Benefits (PAGIBIG)"
+                            value={formatPHP(line?.benefit_pagibig ?? 0)}
+                          />
+                          <Separator className="my-2" />
+                          <Row
+                            label="SSS Loan"
+                            value={formatPHP(line?.benefit_loan_sss ?? 0)}
+                          />
+                          <Row
+                            label="PAGIBIG Loan"
+                            value={formatPHP(line?.benefit_loan_pagibig ?? 0)}
+                          />
+                          <Row
+                            label="Benefit Loans Total"
+                            value={
+                              <span className="font-semibold">
+                                {formatPHP(line?.benefit_loan_total ?? 0)}
+                              </span>
+                            }
+                          />
+                          <Separator className="my-2" />
+                          <Row
+                            label="Vale"
+                            value={formatPHP(line?.loan_vale ?? 0)}
+                          />
+                          <Row
+                            label="Car Loan"
+                            value={formatPHP(line?.loan_car ?? 0)}
+                          />
+                          <Row
+                            label="Coop Loan"
+                            value={formatPHP(line?.loan_coop ?? 0)}
+                          />
+                          <Row
+                            label="Employee Loans Total"
+                            value={
+                              <span className="font-semibold">
+                                {formatPHP(line?.loan_total ?? 0)}
+                              </span>
+                            }
+                          />
+                          <Separator className="my-2" />
+                          {savingsTotal > 0 ? (
+                            <Row
+                              label="Coop Savings"
+                              value={formatPHP(savingsTotal)}
+                            />
+                          ) : null}
+                          <Separator className="my-2" />
+                          <Row
+                            label="Total Deductions"
+                            value={
+                              <span className="font-bold text-destructive">
+                                {formatPHP(line?.total_deductions ?? 0)}
+                              </span>
+                            }
+                          />
+                        </div>
+                      </Section>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* ✅ UPDATED: 3 columns (Allowances / Retro Pay / Manual Adjustments) */}
+                <TabsContent value="itemizations" className="mt-4">
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                    {/* Allowances */}
+                    <Section
+                      title="Allowances"
+                      icon={<Wallet className="h-5 w-5" />}
+                      right={
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary">
+                            {allowanceItems.length} item(s)
+                          </Badge>
+                          <Badge variant="outline" className="font-mono">
+                            {formatPHP(allowancesTotal)}
+                          </Badge>
+                        </div>
+                      }
+                    >
+                      {allowanceItems.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">
+                          No allowance items for this cutoff.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {allowanceItems.map((a: any) => (
+                            <div
+                              key={String(a.allowance_id)}
+                              className="flex items-center justify-between gap-3 rounded-2xl border bg-muted/10 p-3"
+                            >
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-semibold">
+                                  {a.description ||
+                                    `Allowance #${a.allowance_id}`}
+                                </div>
+                                <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-[10px]"
+                                  >
+                                    {prettyPayCycle(a.pay_cycle)}
+                                  </Badge>
+                                  {a.allowance_id != null ? (
+                                    <span className="font-mono">
+                                      ID: {String(a.allowance_id)}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                              <MoneyPill
+                                amount={formatPHP(
+                                  Number(a.amount_this_cutoff ?? 0),
+                                )}
+                                kind="EARNING"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </Section>
+
+                    {/* Retro Pay - ✅ UPDATED */}
+                    <Section
+                      title="Retro Pay"
+                      icon={<Coins className="h-5 w-5" />}
+                      right={
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary">
+                            {allRetroEntries.length} item(s)
+                          </Badge>
+                          <Badge variant="outline" className="font-mono">
+                            {formatPHP(retroTotal)}
+                          </Badge>
+                        </div>
+                      }
+                    >
+                      {allRetroEntries.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">
+                          No retro pay for this cutoff.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {allRetroEntries.map((e: any) => {
+                            const desc = entryDesc(e);
+                            return (
+                              <div
+                                key={`retro-${safeId(e)}-${String(desc)}`}
+                                className={cn(
+                                  "flex items-start justify-between gap-3 rounded-2xl border p-3",
+                                  "border-amber-200/70 bg-amber-50/20",
+                                )}
+                              >
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="truncate text-sm font-semibold">
+                                      {desc || "Retro Pay"}
+                                    </div>
+                                  </div>
+                                  <div className="mt-1 text-[11px] text-muted-foreground">
+                                    <span className="font-mono">
+                                      Retro ID:{" "}
+                                      {String(e?.retro_id ?? e?.id ?? "—")}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <MoneyPill
+                                  amount={formatEntryAmount(e)}
+                                  kind="EARNING"
+                                  accent="retro"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </Section>
+
+                    {/* Manual Additions (Earnings only, excluding Retro Pay) */}
+                    <Section
+                      title="Manual Additions"
+                      icon={<BadgePercent className="h-5 w-5" />}
+                      right={
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary">
+                            {nonRetroEarningEntries.length} item(s)
+                          </Badge>
+                          <Badge variant="outline" className="font-mono">
+                            {formatPHP(manualAddsTotal)}
+                          </Badge>
+                        </div>
+                      }
+                    >
+                      {nonRetroEarningEntries.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">
+                          No manual additions for this cutoff.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {nonRetroEarningEntries.map((e: any) => {
+                            const desc = entryDesc(e);
+                            return (
+                              <div
+                                key={`addonly-${safeId(e)}-${String(desc)}`}
+                                className="flex items-start justify-between gap-3 rounded-2xl border bg-muted/10 p-3"
+                              >
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="truncate text-sm font-semibold">
+                                      {desc || "Addition"}
+                                    </div>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px]"
+                                    >
+                                      Earning Adjustment
+                                    </Badge>
+                                  </div>
+                                  <div className="mt-1 text-[11px] text-muted-foreground">
+                                    <span className="font-mono">
+                                      Ref: {safeId(e)}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <MoneyPill
+                                  amount={formatEntryAmount(e)}
+                                  kind="EARNING"
+                                  accent="none"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </Section>
+                  </div>
+                </TabsContent>
+
+                {/* ✅ Manual Adjustments (Retro Pay & Coop Savings CRUD shown here) */}
+                <TabsContent value="adjustments" className="mt-4 space-y-4">
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-sm font-semibold">
+                          Manual Adjustments
+                        </div>
+                        <Badge variant="secondary" className="text-[11px]">
+                          {entries.length +
+                            coopSavingsItemsFromBreakdown.length +
+                            retroItemsFromBreakdown.length}{" "}
+                          item(s)
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className="font-mono text-[11px]"
+                        >
+                          +{formatPHP(additionsTotal)} / -
+                          {formatPHP(deductionsAdjTotal)}
+                        </Badge>
+                      </div>
+
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Showing only: type, description, amount — totals are
+                        grouped per column.
+                      </div>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openAdjust();
+                      }}
+                      disabled={!line}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add
+                    </Button>
+                  </div>
+
+                  {/* Lists */}
+                  <div className="space-y-4">
+                    {/* ADDITIONS */}
+                    <div className="border bg-background">
+                      {/* header */}
+                      <div className="flex items-center justify-between px-4 py-2">
+                        <div className="text-sm font-bold">ADDITIONS</div>
+                        <div className="font-mono text-sm font-bold text-emerald-700">
+                          {formatPHP(additionsTotal)}
+                        </div>
+                      </div>
+
+                      {/* list */}
+                      <div className="px-4">
+                        {additionEntries.length === 0 ? (
+                          <div className="py-3 text-sm text-muted-foreground">
+                            No additions.
+                          </div>
+                        ) : (
+                          <div>
+                            {additionEntries.map((e) => (
+                              <MinimalAdjustmentRow
+                                key={`earn-flat-${safeId(e)}-${entryDesc(e as any)}`}
+                                entry={e}
+                                onEdit={onEditEntry}
+                                onDelete={onDeleteEntry}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* footer total */}
+                      <div className="flex items-center justify-between border-t px-4 py-2">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Total Additions
+                        </span>
+                        <span className="font-mono text-sm font-bold text-emerald-700">
+                          {formatPHP(additionsTotal)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* DEDUCTIONS */}
+                    <div className="border bg-background">
+                      {/* header */}
+                      <div className="flex items-center justify-between px-4 py-2">
+                        <div className="text-sm font-bold">DEDUCTIONS</div>
+                        <div className="font-mono text-sm font-bold text-destructive">
+                          {formatPHP(deductionsAdjTotal)}
+                        </div>
+                      </div>
+
+                      {/* list */}
+                      <div className="px-4">
+                        {allDeductionEntries.length === 0 ? (
+                          <div className="py-3 text-sm text-muted-foreground">
+                            No deductions.
+                          </div>
+                        ) : (
+                          <div>
+                            {allDeductionEntries.map((e) => (
+                              <MinimalAdjustmentRow
+                                key={`ded-flat-${safeId(e)}-${entryDesc(e as any)}`}
+                                entry={e}
+                                onEdit={onEditEntry}
+                                onDelete={onDeleteEntry}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* footer total */}
+                      <div className="flex items-center justify-between border-t px-4 py-2">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Total Deductions
+                        </span>
+                        <span className="font-mono text-sm font-bold text-destructive">
+                          {formatPHP(deductionsAdjTotal)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
           </div>
 

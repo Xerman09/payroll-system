@@ -1,12 +1,13 @@
 // modules/payroll-run/utils/compute.ts
 import type {
-  AttendanceApproval,
   BenefitCode,
+  CoopSavingsMembershipRow,
   EmployeeAllowance,
   EmployeeLoan,
   HolidayRow,
   ManualEntry,
   PayrollComputedLine,
+  RetroPayRow,
   UserRow,
   WageProfile,
   WageProrationLog,
@@ -36,6 +37,10 @@ type ComputeArgs = {
 
   // ✅ wage proration logs for this user (effective-date driven)
   wageProrationLogs?: WageProrationLog[] | any[];
+
+  // ✅ Option B tables (dedicated collections)
+  retroPays?: RetroPayRow[] | any[];
+  coopSavingsMemberships?: CoopSavingsMembershipRow[] | any[];
 };
 
 /**
@@ -45,11 +50,6 @@ type ComputeArgs = {
 export function parseCutoffValue(value: string): { start: string; end: string } {
   const parts = String(value ?? "").split("_");
   return { start: parts[0] ?? "", end: parts[1] ?? "" };
-}
-
-function n(v: any): number {
-  const x = Number(v ?? 0);
-  return Number.isFinite(x) ? x : 0;
 }
 
 function s(v: any): string {
@@ -80,6 +80,40 @@ export function formatPHP(amount: number): string {
   }).format(v);
 }
 
+function n(v: any): number {
+  const x = Number(v ?? 0);
+  return Number.isFinite(x) ? x : 0;
+}
+
+function normKey(v: any): string {
+  return String(v ?? "")
+    .toLowerCase()
+    .replaceAll(/[\s_-]+/g, "")
+    .trim();
+}
+
+function matchesAny(label: any, needles: string[]): boolean {
+  const k = normKey(label);
+  return needles.some((x) => k.includes(normKey(x)));
+}
+
+function overlapsWindow(args: {
+  cutoffStart: string;
+  cutoffEnd: string;
+  start?: string | null;
+  end?: string | null;
+}) {
+  const { cutoffStart, cutoffEnd } = args;
+  const start = args.start ?? null;
+  const end = args.end ?? null;
+
+  if (start && start > cutoffEnd) return false;
+  if (end && end < cutoffStart) return false;
+  return true;
+}
+
+/* ---------------------------- user display helpers ---------------------------- */
+
 function buildName(u: UserRow): string {
   const fn = s((u as any).first_name).trim();
   const ln = s((u as any).last_name).trim();
@@ -102,7 +136,6 @@ function resolvePosition(u: UserRow): string | null {
 
 /**
  * ✅ Department name resolver (covers common Directus/user shapes)
- * This is important when departmentName is null (ALL departments run).
  */
 function resolveDepartmentName(args: { user: UserRow; fallback: string | null }): string | null {
   if (args.fallback && String(args.fallback).trim()) return String(args.fallback).trim();
@@ -116,7 +149,6 @@ function resolveDepartmentName(args: { user: UserRow; fallback: string | null })
     u.department_text,
     u.departmentText,
 
-    // common relational embeds
     u.user_department?.department_name,
     u.user_department?.name,
     u.department_rel?.department_name,
@@ -126,7 +158,6 @@ function resolveDepartmentName(args: { user: UserRow; fallback: string | null })
     u.department_info?.department_name,
     u.department_info?.name,
 
-    // sometimes the relation is returned under "department_id" but as object
     u.department_id?.department_name,
     u.department_id?.name,
   ];
@@ -142,7 +173,21 @@ function resolveDepartmentName(args: { user: UserRow; fallback: string | null })
   return null;
 }
 
-function normAttendance(row: any): AttendanceApproval {
+/* ------------------------------- normalize rows ------------------------------ */
+
+type AttendanceNorm = {
+  approval_id: number;
+  employee_id: number;
+  date_schedule: string;
+  work_minutes: number;
+  late_minutes: number;
+  undertime_minutes: number;
+  overtime_minutes: number;
+  night_diff_minutes: number | null;
+  status: string;
+};
+
+function normAttendance(row: any): AttendanceNorm {
   return {
     approval_id: n(row.approval_id ?? row.approvalId ?? row.id),
     employee_id: n(row.employee_id ?? row.employeeId ?? row.user_id ?? row.userId),
@@ -152,7 +197,7 @@ function normAttendance(row: any): AttendanceApproval {
     undertime_minutes: n(row.undertime_minutes ?? row.undertimeMinutes),
     overtime_minutes: n(row.overtime_minutes ?? row.overtimeMinutes),
     night_diff_minutes: row.night_diff_minutes ?? row.nightDiffMinutes ?? null,
-    status: (row.status ?? "approved") as any,
+    status: String(row.status ?? "approved"),
   };
 }
 
@@ -164,7 +209,7 @@ type HolidayInfo = {
   type: HolidayKind;
   description: string;
   is_paid: number; // 0/1
-  last_working_day: string | null; // ✅ holiday_calendar.last_working_day
+  last_working_day: string | null;
 };
 
 function normHoliday(row: any): HolidayInfo {
@@ -177,16 +222,15 @@ function normHoliday(row: any): HolidayInfo {
   };
 }
 
-// Priority if multiple holiday rows exist for same date: regular > special > company
 function higherHoliday(a: HolidayKind, b: HolidayKind): HolidayKind {
   const rank: Record<HolidayKind, number> = { regular: 3, special: 2, company: 1 };
   return rank[a] >= rank[b] ? a : b;
 }
 
-// Rest Day rule: Sunday only (timezone-stable using UTC)
+// Rest Day rule: Sunday only (timezone-stable)
 function isSunday(ymd: string): boolean {
   const d = new Date(`${ymd}T00:00:00Z`);
-  return d.getUTCDay() === 0; // 0 = Sunday
+  return d.getUTCDay() === 0;
 }
 
 function toHolidayFlag(h?: HolidayInfo | null): HolidayFlag {
@@ -194,7 +238,7 @@ function toHolidayFlag(h?: HolidayInfo | null): HolidayFlag {
   const t = String(h.type ?? "").toLowerCase();
   if (t === "regular") return "REGULAR";
   if (t === "special") return "SPECIAL";
-  if (t === "company") return "SPECIAL"; // treat company holiday like special
+  if (t === "company") return "SPECIAL";
   return "NONE";
 }
 
@@ -222,7 +266,7 @@ function getDayMultipliers(args: {
   return { baseMult: 1.0, otMult: 1.0, bucket: "NORMAL" };
 }
 
-/* -------------------------------- Allowances -------------------------------- */
+/* ------------------------------ Allowances ------------------------------ */
 
 type AllowancePayCycle = "N/A" | "PER_CUTOFF" | "PER_MONTH";
 
@@ -235,14 +279,14 @@ type AllowanceNorm = {
   cutoff_start: string | null;
   cutoff_end: string | null;
 
-  is_recurring: number; // 0/1
-  is_active: number; // 0/1
+  is_recurring: number;
+  is_active: number;
   pay_cycle: AllowancePayCycle;
 
   start_date: string | null;
   end_date: string | null;
 
-  is_processed: number; // 0/1 (usually for one-time)
+  is_processed: number;
 };
 
 function normAllowance(row: any): AllowanceNorm {
@@ -270,23 +314,13 @@ function normAllowance(row: any): AllowanceNorm {
   };
 }
 
-function overlapsWindow(args: { cutoffStart: string; cutoffEnd: string; start?: string | null; end?: string | null }) {
-  const { cutoffStart, cutoffEnd } = args;
-  const start = args.start ?? null;
-  const end = args.end ?? null;
-
-  if (start && start > cutoffEnd) return false;
-  if (end && end < cutoffStart) return false;
-  return true;
-}
-
 function allowanceAmountForCutoff(args: {
   allowances: any[];
   cutoffStart: string;
   cutoffEnd: string;
   cutoffType?: string;
 }): { total: number; items: any[] } {
-  const cutoffType = String(args.cutoffType ?? "").toUpperCase(); // FIRST|SECOND|"" (optional)
+  const cutoffType = String(args.cutoffType ?? "").toUpperCase();
   const rows = (Array.isArray(args.allowances) ? args.allowances : []).map(normAllowance);
 
   const items: Array<{
@@ -302,7 +336,7 @@ function allowanceAmountForCutoff(args: {
   for (const a of rows) {
     if (a.amount <= 0) continue;
 
-    // One-time allowance: cutoff_start/cutoff_end match cutoff, usually processed once
+    // ONE-TIME: must match cutoff window + not yet processed
     if (!a.is_recurring) {
       if (a.is_processed) continue;
       if (!a.cutoff_start || !a.cutoff_end) continue;
@@ -321,23 +355,13 @@ function allowanceAmountForCutoff(args: {
       continue;
     }
 
-    // Recurring allowance
+    // RECURRING
     if (!a.is_active) continue;
     if (a.pay_cycle === "N/A") continue;
 
-    // window filter (start_date/end_date overlaps cutoff)
-    if (
-      !overlapsWindow({
-        cutoffStart: args.cutoffStart,
-        cutoffEnd: args.cutoffEnd,
-        start: a.start_date,
-        end: a.end_date,
-      })
-    ) {
+    if (!overlapsWindow({ cutoffStart: args.cutoffStart, cutoffEnd: args.cutoffEnd, start: a.start_date, end: a.end_date }))
       continue;
-    }
 
-    // PER_CUTOFF: pay full amount each cutoff
     if (a.pay_cycle === "PER_CUTOFF") {
       items.push({
         allowance_id: a.allowance_id,
@@ -351,7 +375,6 @@ function allowanceAmountForCutoff(args: {
       continue;
     }
 
-    // PER_MONTH: split across cutoffs (assumes semi-monthly payroll)
     if (a.pay_cycle === "PER_MONTH") {
       const half = round2(a.amount / 2);
       const amountThisCutoff = cutoffType === "FIRST" || cutoffType === "SECOND" || !cutoffType ? half : half;
@@ -383,7 +406,7 @@ function normBenefitLoan(row: any) {
     loan_name: row.loan_name ?? null,
     reference_no: row.reference_no ?? null,
     amortization_amount: n(row.amortization_amount),
-    deduct_on: String(row.deduct_on ?? "BOTH").toUpperCase(), // FIRST|SECOND|BOTH
+    deduct_on: String(row.deduct_on ?? "BOTH").toUpperCase(),
     start_cutoff_id: n(row.start_cutoff_id),
     remaining_balance: n(row.remaining_balance),
     last_paid_cutoff_id: row.last_paid_cutoff_id == null ? null : n(row.last_paid_cutoff_id),
@@ -401,7 +424,7 @@ function benefitLoanAmountForCutoff(args: { loan: ReturnType<typeof normBenefitL
   return deductOn === args.cutoffType ? round2(amort) : 0;
 }
 
-/* ------------------------- Wage proration (existing) ------------------------- */
+/* ------------------------- Wage proration (effective-date) ------------------------- */
 
 function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationLogs?: any[] }) {
   const wage = args.wage;
@@ -461,7 +484,6 @@ function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationL
         "old_daily_rate",
         "from_daily_wage",
         "old_daily",
-        "old_daily_rate",
         "old_rate_daily",
         "prev_daily",
         "daily_old",
@@ -472,7 +494,6 @@ function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationL
         "new_daily_rate",
         "to_daily_wage",
         "new_daily",
-        "new_daily_rate",
         "new_rate_daily",
         "daily_new",
       ]);
@@ -489,12 +510,7 @@ function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationL
       }
 
       if (new_daily <= 0) {
-        const new_monthly = pickFirstNumber(row, [
-          "new_monthly_wage",
-          "to_monthly_wage",
-          "new_basic",
-          "new_monthly",
-        ]);
+        const new_monthly = pickFirstNumber(row, ["new_monthly_wage", "to_monthly_wage", "new_basic", "new_monthly"]);
         new_daily = toDailyFromMonthly(new_monthly);
       }
 
@@ -525,6 +541,7 @@ function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationL
     return (a.id ?? 0) - (b.id ?? 0);
   });
 
+  // collapse multiple events on same date (keep last by created_at/id ordering)
   const byDate = new Map<string, typeof events[number]>();
   for (const ev of events) byDate.set(ev.effective_date, ev);
   events = Array.from(byDate.values()).sort((a, b) => (a.effective_date < b.effective_date ? -1 : 1));
@@ -533,6 +550,7 @@ function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationL
     baseDaily = events[events.length - 1].new_daily || events[0].old_daily || 0;
   }
 
+  // Build a consistent chain from latest backwards (prevents broken proration chains)
   if (events.length && baseDaily > 0) {
     let current = round2(baseDaily);
     const chain: typeof events = [];
@@ -587,10 +605,51 @@ function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationL
   };
 }
 
-/* --------------------------------- Helpers --------------------------------- */
+/* ------------------------------ Manual itemizations ------------------------------ */
 
-function upper(v: any): string {
-  return String(v ?? "").trim().toUpperCase();
+// more tolerant type normalizer
+function manualKind(m: any): "EARNING" | "DEDUCTION" | "UNKNOWN" {
+  const t = String(m?.type ?? m?.entry_type ?? m?.entryType ?? "").toUpperCase().trim();
+  if (!t) return "UNKNOWN";
+  if (t === "EARNING" || t.includes("EARN") || t.includes("ADD")) return "EARNING";
+  if (t === "DEDUCTION" || t.includes("DEDUCT")) return "DEDUCTION";
+  return "UNKNOWN";
+}
+
+function cleanDesc(v: any): string {
+  return String(v ?? "").trim();
+}
+
+type BreakdownItem = {
+  item_key: string;
+  type: "EARNING" | "DEDUCTION";
+  category: string;
+  code?: string | null;
+  description: string;
+  amount: number;
+  source_table?: string | null;
+  source_id?: string | number | null;
+  meta?: any;
+};
+
+function manualSourceTable(m: any): string | null {
+  return m?.source_table ?? m?.sourceTable ?? m?.meta?.source_table ?? m?.meta?.sourceTable ?? null;
+}
+
+function manualSourceId(m: any): any {
+  return m?.source_id ?? m?.sourceId ?? m?.meta?.source_id ?? m?.meta?.sourceId ?? m?.id ?? null;
+}
+
+function manualStableKey(prefix: string, m: any, fallbackIndex: number): string {
+  const sid = manualSourceId(m);
+  if (sid != null && String(sid).trim() !== "") return `${prefix}:${String(sid)}`;
+
+  const id = m?.id ?? null;
+  if (id != null && String(id).trim() !== "") return `${prefix}:ID:${String(id)}`;
+
+  const d = cleanDesc(m?.desc ?? m?.description ?? "");
+  const a = n(m?.amount ?? 0);
+  return `${prefix}:X:${fallbackIndex}:${d.slice(0, 40)}:${a.toFixed(2)}`;
 }
 
 function isDRPaymentManualEntry(m: any): boolean {
@@ -603,61 +662,8 @@ function isDRPaymentManualEntry(m: any): boolean {
   return desc.startsWith("dr payment:");
 }
 
-type BreakdownItem = {
-  item_key: string; // stable unique key for printing/deduping
-  type: "EARNING" | "DEDUCTION";
-  category: string; // MANUAL_ADDITION | SHORTAGE | DR_PAYMENT | MANUAL_DEDUCTION | EMPLOYEE_LOAN | etc.
-  code?: string | null; // optional: loan_type, etc.
-  description: string;
-  amount: number; // always positive; sign comes from `type`
-  source_table?: string | null;
-  source_id?: string | number | null;
-  meta?: any;
-};
-
-function cleanDesc(v: any): string {
-  const s = String(v ?? "").trim();
-  return s;
-}
-
-function manualSourceTable(m: any): string | null {
-  return (
-    m?.source_table ??
-    m?.sourceTable ??
-    m?.meta?.source_table ??
-    m?.meta?.sourceTable ??
-    null
-  );
-}
-
-function manualSourceId(m: any): any {
-  return (
-    m?.source_id ??
-    m?.sourceId ??
-    m?.meta?.source_id ??
-    m?.meta?.sourceId ??
-    m?.id ??
-    null
-  );
-}
-
-function manualStableKey(prefix: string, m: any, fallbackIndex: number): string {
-  const sid = manualSourceId(m);
-  if (sid != null && String(sid).trim() !== "") return `${prefix}:${String(sid)}`;
-
-  const id = m?.id ?? null;
-  if (id != null && String(id).trim() !== "") return `${prefix}:ID:${String(id)}`;
-
-  // fallback: derive from desc+amount+index
-  const d = cleanDesc(m?.desc ?? m?.description ?? "");
-  const a = n(m?.amount ?? 0);
-  return `${prefix}:X:${fallbackIndex}:${d.slice(0, 40)}:${a.toFixed(2)}`;
-}
-
 function isShortageManualEntry(m: any): boolean {
-  const cat = String(m?.category ?? m?.deduction_type ?? m?.other_deduction_type ?? "")
-    .trim()
-    .toLowerCase();
+  const cat = String(m?.category ?? m?.deduction_type ?? m?.other_deduction_type ?? "").trim().toLowerCase();
   if (cat === "shortage") return true;
 
   const desc = String(m?.desc ?? m?.description ?? "").trim().toLowerCase();
@@ -665,9 +671,9 @@ function isShortageManualEntry(m: any): boolean {
 }
 
 function extractDRReceiptNo(desc: string): string {
-  const s = String(desc ?? "").trim();
+  const ss = String(desc ?? "").trim();
   const prefix = /^DR\s*PAYMENT\s*:\s*/i;
-  return s.replace(prefix, "").trim();
+  return ss.replace(prefix, "").trim();
 }
 
 function drReceiptNoFromEntry(m: any): string {
@@ -677,23 +683,13 @@ function drReceiptNoFromEntry(m: any): string {
 }
 
 function drPaymentDateFromEntry(m: any): string {
-  const v =
-    m?.payment_date ??
-    m?.paymentDate ??
-    m?.meta?.payment_date ??
-    m?.meta?.paymentDate ??
-    "";
-  const s = String(v ?? "").slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+  const v = m?.payment_date ?? m?.paymentDate ?? m?.meta?.payment_date ?? m?.meta?.paymentDate ?? "";
+  const ss = String(v ?? "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(ss) ? ss : "";
 }
 
 function drPaymentMethodFromEntry(m: any): string {
-  const v =
-    m?.payment_method ??
-    m?.paymentMethod ??
-    m?.meta?.payment_method ??
-    m?.meta?.paymentMethod ??
-    "";
+  const v = m?.payment_method ?? m?.paymentMethod ?? m?.meta?.payment_method ?? m?.meta?.paymentMethod ?? "";
   return String(v ?? "").trim();
 }
 
@@ -719,8 +715,8 @@ export function buildManualItemizationsForBreakdown(manualEntries: any[]): {
 } {
   const rows = Array.isArray(manualEntries) ? manualEntries : [];
 
-  const additions = rows.filter((m) => upper(m?.type) === "EARNING");
-  const deductions = rows.filter((m) => upper(m?.type) === "DEDUCTION");
+  const additions = rows.filter((m) => manualKind(m) === "EARNING");
+  const deductions = rows.filter((m) => manualKind(m) === "DEDUCTION");
 
   const manual_addition_items: BreakdownItem[] = additions.map((m, idx) => {
     const desc = cleanDesc(m?.desc ?? m?.description ?? "") || "Manual Addition";
@@ -738,7 +734,7 @@ export function buildManualItemizationsForBreakdown(manualEntries: any[]): {
   });
 
   const manual_deduction_items: BreakdownItem[] = deductions.map((m, idx) => {
-    const desc = cleanDesc(m?.desc ?? m?.description ?? "") || "Manual Deduction";
+    const rawDesc = cleanDesc(m?.desc ?? m?.description ?? "") || "Manual Deduction";
     const amt = round2(n(m?.amount));
 
     const isDR = isDRPaymentManualEntry(m);
@@ -751,11 +747,16 @@ export function buildManualItemizationsForBreakdown(manualEntries: any[]): {
     const drMethod = isDR ? drPaymentMethodFromEntry(m) : "";
     const drPosted = isDR ? drPostedFromEntry(m) : false;
 
+    // ✅ remove "DR Payment:" prefix for display (backward compatible)
+    const displayDesc = isDR
+      ? (extractDRReceiptNo(rawDesc) || drNo || "DR Payment")
+      : rawDesc;
+
     return {
       item_key: manualStableKey("MD", m, idx),
       type: "DEDUCTION",
       category,
-      description: desc,
+      description: displayDesc,
       amount: amt,
       source_table: manualSourceTable(m),
       source_id: manualSourceId(m),
@@ -771,16 +772,13 @@ export function buildManualItemizationsForBreakdown(manualEntries: any[]): {
     };
   });
 
+
   const shortage_total = round2(
-    manual_deduction_items
-      .filter((x) => x.category === "SHORTAGE")
-      .reduce((sum, x) => sum + n(x.amount), 0),
+    manual_deduction_items.filter((x) => x.category === "SHORTAGE").reduce((sum, x) => sum + n(x.amount), 0),
   );
 
   const dr_total = round2(
-    manual_deduction_items
-      .filter((x) => x.category === "DR_PAYMENT")
-      .reduce((sum, x) => sum + n(x.amount), 0),
+    manual_deduction_items.filter((x) => x.category === "DR_PAYMENT").reduce((sum, x) => sum + n(x.amount), 0),
   );
 
   const total = round2(manual_deduction_items.reduce((sum, x) => sum + n(x.amount), 0));
@@ -823,11 +821,10 @@ export function buildEmployeeLoanItemsForBreakdown(employeeLoans: any[]): Breakd
 }
 
 /**
- * ✅ NEW RULE (fix bug):
- * Unworked holiday pay is ONLY granted if:
+ * ✅ Unworked holiday pay eligibility:
  * - holiday.is_paid === 1
- * - holiday.last_working_day is within the cutoff window
- * - the employee has an APPROVED attendance_approval row on holiday.last_working_day
+ * - holiday.last_working_day is within cutoff
+ * - approved attendance exists on last_working_day
  */
 function eligibleForUnworkedHolidayPay(args: {
   holiday: HolidayInfo;
@@ -841,6 +838,51 @@ function eligibleForUnworkedHolidayPay(args: {
   if (!lwd) return false;
   if (!inRange(lwd, args.cutoffStart, args.cutoffEnd)) return false;
   return args.approvedAttendanceDates.has(lwd);
+}
+
+/* ------------------------------ Option B normalizers ------------------------------ */
+
+function normRetroPayRow(row: any) {
+  return {
+    retro_id: n(row?.retro_id ?? row?.id),
+    user_id: n(row?.user_id),
+    amount: n(row?.amount),
+    description: row?.description ?? row?.remarks ?? row?.note ?? null,
+    cutoff_start: ymdOrNull(row?.cutoff_start ?? row?.cutoffStart),
+    cutoff_end: ymdOrNull(row?.cutoff_end ?? row?.cutoffEnd),
+    is_processed: n(row?.is_processed ?? row?.isProcessed) ? 1 : 0,
+  };
+}
+
+function normCoopSavingsRow(row: any) {
+  return {
+    id: n(row?.id),
+    user_id: n(row?.user_id),
+    membership_id: row?.membership_id != null ? String(row.membership_id) : "",
+    monthly_amount: n(row?.monthly_amount ?? row?.amount ?? 0),
+    start_date: ymdOrNull(row?.start_date ?? row?.startDate),
+    end_date: ymdOrNull(row?.end_date ?? row?.endDate),
+    is_active: n(row?.is_active ?? row?.isActive) ? 1 : 0,
+  };
+}
+
+function monthlySplitPerCutoff(monthly: number): number {
+  if (monthly <= 0) return 0;
+  // ✅ business rule: 50/50 per cutoff
+  return round2(monthly / 2);
+}
+
+function dedupeByItemKey<T extends { item_key: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const it of items) {
+    const k = String(it?.item_key ?? "").trim();
+    if (!k) continue;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(it);
+  }
+  return out;
 }
 
 /* -------------------------------- Compute -------------------------------- */
@@ -862,7 +904,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     wageProrationLogs: (args.wageProrationLogs ?? []) as any[],
   });
 
-  // ✅ ensure attendance is cutoff-scoped and approved
+  // ✅ attendance is cutoff-scoped and approved
   const att = (args.attendance ?? [])
     .map(normAttendance)
     .filter((r) => String(r.status ?? "").toLowerCase() === "approved")
@@ -887,7 +929,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   }
 
   const approvedAttendanceDates = new Set(att.map((r) => r.date_schedule));
-  const attendedHolidayDates = new Set(att.map((r) => r.date_schedule)); // same set; semantic naming
+  const attendedHolidayDates = new Set(att.map((r) => r.date_schedule));
 
   let totalWorkMinutes = 0;
   let lateMinutes = 0;
@@ -909,7 +951,6 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const holidayItems: Array<any> = [];
   const restDayItems: Array<any> = [];
 
-  // Worked days (includes worked holidays/rest-days via multiplier buckets)
   for (const r of att) {
     const date = r.date_schedule;
 
@@ -931,9 +972,14 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     const um = n(r.undertime_minutes);
     const ndm = r.night_diff_minutes == null ? 0 : n(r.night_diff_minutes);
 
-    totalWorkMinutes += wmRaw;
+    // ✅ FIX: work minutes should reflect late + undertime (net minutes worked)
+    const effectiveWorkedMin = Math.max(0, baseMin - lm - um);
+    totalWorkMinutes += effectiveWorkedMin;
+
     overtimeMinutes += otMin;
     nightDiffMinutes += ndm;
+    lateMinutes += lm;
+    undertimeMinutes += um;
 
     const { baseMult, otMult, bucket } = getDayMultipliers({
       isRestDay: rd,
@@ -949,8 +995,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     }
 
     if (bucket === "NORMAL") {
-      lateMinutes += lm;
-      undertimeMinutes += um;
+
 
       if (lm > 0 && dayHourly > 0) lateDeduction += round2((lm / 60) * dayHourly);
       if (um > 0 && dayHourly > 0) undertimeDeduction += round2((um / 60) * dayHourly);
@@ -1001,21 +1046,12 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   undertimeDeduction = round2(undertimeDeduction);
   nightDiffAmount = round2(nightDiffAmount);
 
-  /**
-   * ✅ Paid holidays with NO attendance row:
-   * Pay daily rate ONLY if employee is eligible by last_working_day attendance.
-   * Otherwise: NO holiday pay.
-   */
+  // unworked holidays
   for (const [date, h] of holidayMap.entries()) {
     if (!h.is_paid) continue;
-
-    // Only evaluate holidays that are within this cutoff window
     if (!inRange(date, args.cutoffStart, args.cutoffEnd)) continue;
-
-    // If employee worked on the holiday date, it was already paid in the main loop
     if (attendedHolidayDates.has(date)) continue;
 
-    // Eligibility gate (last_working_day attendance)
     const ok = eligibleForUnworkedHolidayPay({
       holiday: h,
       cutoffStart: args.cutoffStart,
@@ -1068,39 +1104,172 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     });
   }
 
-  // ✅ days worked should NOT be inflated by overtime; use unique attendance dates with work_minutes > 0
   const totalDaysWorked = new Set(att.filter((x) => n(x.work_minutes) > 0).map((x) => x.date_schedule)).size;
-
-  // ✅ new: hours worked derived from total_work_minutes
   const totalHoursWorked = round2(totalWorkMinutes / 60);
-
-  // ✅ new: holiday_days derived from paid holiday items only (total > 0)
   const holidayDays = round2(holidayItems.filter((x) => n(x?.total) > 0).length);
 
-  /* ------------------------------ Manual entries ------------------------------ */
-  /* ------------------------------ Manual entries ------------------------------ */
+  /* ------------------------------ Manual entries (split) ------------------------------ */
 
-  const itemized = buildManualItemizationsForBreakdown(args.manualEntries ?? []);
+  const manualRows = Array.isArray(args.manualEntries) ? args.manualEntries : [];
 
-  const manualAdds = round2(
-    itemized.manual_addition_items.reduce((sum, x) => sum + n(x.amount), 0),
+  const manualText = (m: any) =>
+    [
+      m?.category,
+      m?.deduction_type,
+      m?.other_deduction_type,
+      m?.code,
+      m?.entry_code,
+      m?.type,
+      m?.desc,
+      m?.description,
+      m?.note,
+      m?.remarks,
+      m?.memo,
+    ]
+      .filter((x) => x != null && String(x).trim() !== "")
+      .join(" ");
+
+  const isRetroRow = (m: any) =>
+    manualKind(m) === "EARNING" &&
+    matchesAny(manualText(m), ["retro_pay", "retro pay", "retro", "backpay", "back pay"]);
+
+  const isCoopSavingsRow = (m: any) =>
+    manualKind(m) === "DEDUCTION" &&
+    matchesAny(manualText(m), [
+      "coop_savings_membership",
+      "coop savings membership",
+      "coop savings",
+      "coopsavings",
+      "coop_savings",
+      "savings(coop_savings_membership)",
+    ]);
+
+  const isCoopLoanRow = (m: any) =>
+    manualKind(m) === "DEDUCTION" && matchesAny(manualText(m), ["coop_loan", "coop loan", "cooploan"]);
+
+  const retroRows = manualRows.filter(isRetroRow);
+  const coopSavingsRowsManual = manualRows.filter(isCoopSavingsRow);
+  const coopLoanRows = manualRows.filter((m) => isCoopLoanRow(m) && !isCoopSavingsRow(m));
+
+  const baseManualRows = manualRows.filter(
+    (m) => !isRetroRow(m) && !isCoopSavingsRow(m) && !isCoopLoanRow(m),
   );
 
-  const manualDeductionItems = itemized.manual_deduction_items;
+  const itemizedBase = buildManualItemizationsForBreakdown(baseManualRows);
+  const retroItemizedManual = buildManualItemizationsForBreakdown(retroRows);
+  const coopSavingsItemizedManual = buildManualItemizationsForBreakdown(coopSavingsRowsManual);
+  const coopLoanItemized = buildManualItemizationsForBreakdown(coopLoanRows);
 
-  const manualDedsAll = round2(
-    manualDeductionItems.reduce((sum, x) => sum + n(x.amount), 0),
-  );
+  const manualAdds = round2(itemizedBase.manual_addition_items.reduce((sum, x) => sum + n(x.amount), 0));
 
-  const drDeduction = round2(itemized.manual_deduction_summary.dr_total);
-  const shortageDeduction = round2(itemized.manual_deduction_summary.shortage_total);
+  const shortageDeduction = round2(itemizedBase.manual_deduction_summary.shortage_total);
+  const drDeduction = round2(itemizedBase.manual_deduction_summary.dr_total);
+  const otherDeductions = round2(itemizedBase.manual_deduction_summary.other_total);
 
-  const manualDeductions = round2(manualDedsAll);
+  const coopLoan = round2(coopLoanItemized.manual_deduction_items.reduce((sum, x) => sum + n(x.amount), 0));
 
-  // "other_deductions" = manual deductions excluding shortage and DR payments
-  const otherDeductions = round2(manualDeductions - shortageDeduction - drDeduction);
+  /* ------------------------------ Retro Pay (Option B + Manual) ------------------------------ */
 
+  // Manual retro items (legacy)
+  const retro_items_manual: BreakdownItem[] = retroItemizedManual.manual_addition_items.map((x) => ({
+    ...x,
+    category: "RETRO_PAY",
+  }));
 
+  // Option B retro_pay table items (NEW) — supports multiple per cutoff
+  const retroTableRows = (Array.isArray(args.retroPays) ? args.retroPays : []).map(normRetroPayRow);
+  const retro_items_table: BreakdownItem[] = retroTableRows
+    .filter((r) => r.amount > 0)
+    .filter((r) => r.is_processed !== 1)
+    .filter((r) => overlapsWindow({ cutoffStart: args.cutoffStart, cutoffEnd: args.cutoffEnd, start: r.cutoff_start, end: r.cutoff_end }))
+    .map((r, idx) => {
+      const rid = r.retro_id;
+      const key = rid ? `RP:${rid}` : `RP:IDX:${idx + 1}`;
+      const desc = String(r.description ?? "").trim() || "Retro Pay";
+
+      return {
+        item_key: key,
+        type: "EARNING",
+        category: "RETRO_PAY",
+        description: desc,
+        amount: round2(r.amount),
+        source_table: "retro_pay",
+        source_id: rid || null,
+        meta: {
+          retro_id: rid || null,
+          cutoff_start: r.cutoff_start ?? null,
+          cutoff_end: r.cutoff_end ?? null,
+          rule: "Included when retro_pay overlaps cutoff window and is_processed=0",
+        },
+      };
+    });
+
+  // Merge + dedupe by item_key
+  const retro_items_all = dedupeByItemKey<BreakdownItem>([...retro_items_manual, ...retro_items_table]);
+  const retroPay = round2(retro_items_all.reduce((sum, x) => sum + n(x.amount), 0));
+
+  // Backward compat array name (your old UI may be reading retro_pay_items)
+  const retro_pay_items = retro_items_all;
+
+  /* ------------------------------ COOP Savings Membership (Option B + Manual) ------------------------------ */
+
+  // Manual coop savings items (legacy)
+  const coop_savings_items_manual: BreakdownItem[] = coopSavingsItemizedManual.manual_deduction_items.map((x) => ({
+    ...x,
+    category: "COOP_SAVINGS_MEMBERSHIP",
+  }));
+
+  // Option B coop_savings_membership table (NEW)
+  const coopRows = (Array.isArray(args.coopSavingsMemberships) ? args.coopSavingsMemberships : []).map(normCoopSavingsRow);
+
+  const coop_savings_items_table: BreakdownItem[] = coopRows
+    .filter((r) => r.is_active === 1)
+    .filter((r) => r.monthly_amount > 0)
+    .filter((r) =>
+      overlapsWindow({
+        cutoffStart: args.cutoffStart,
+        cutoffEnd: args.cutoffEnd,
+        start: r.start_date,
+        end: r.end_date,
+      }),
+    )
+    .map((r, idx) => {
+      const amountThisCutoff = monthlySplitPerCutoff(r.monthly_amount);
+      const key = r.membership_id
+        ? `CSM:${r.membership_id}`
+        : r.id
+          ? `CSM:${r.id}`
+          : `CSM:IDX:${idx + 1}`;
+
+      return {
+        item_key: key,
+        type: "DEDUCTION",
+        category: "COOP_SAVINGS_MEMBERSHIP",
+        description: "COOP Savings Membership",
+        amount: round2(amountThisCutoff),
+        source_table: "coop_savings_membership",
+        source_id: r.id || null,
+        meta: {
+          membership_id: r.membership_id || null,
+          monthly_amount: round2(r.monthly_amount),
+          amount_this_cutoff: round2(amountThisCutoff),
+          start_date: r.start_date ?? null,
+          end_date: r.end_date ?? null,
+          rule: "50/50 per cutoff from monthly_amount when membership overlaps cutoff window",
+        },
+      };
+    })
+    .filter((x) => n(x.amount) > 0);
+
+  const coop_savings_items = dedupeByItemKey<BreakdownItem>([
+    ...coop_savings_items_manual,
+    ...coop_savings_items_table,
+  ]);
+
+  const coopSavings = round2(coop_savings_items.reduce((sum, x) => sum + n(x.amount), 0));
+
+  // Manual deductions total includes coop savings + coop loan
+  const manualDeductions = round2(shortageDeduction + drDeduction + otherDeductions + coopSavings + coopLoan);
 
   /* ------------------------------ Govt benefits ------------------------------ */
 
@@ -1115,8 +1284,6 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const benefitSSS = round2(sssMonthly * multSSS);
   const benefitPhilhealth = round2(philMonthly * multPhil);
   const benefitPagibig = round2(pagibigMonthly * multPagibig);
-
-  /* --------------------------- Employee loans 50/50 --------------------------- */
 
   /* --------------------------- Employee loans 50/50 --------------------------- */
 
@@ -1224,13 +1391,10 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
   /* -------------------------------- Totals -------------------------------- */
 
-  const retroPay = 0;
-
   const grossPay = round2(
     basicPay + otAmount + holidayPay + restDayAmount + nightDiffAmount + allowance + retroPay + manualAdds,
   );
 
-  // totalDeductions adds shortage + dr + other_deductions such that manual deductions are counted once overall
   const totalDeductions = round2(
     lateDeduction +
     undertimeDeduction +
@@ -1241,7 +1405,9 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     benefitPhilhealth +
     benefitPagibig +
     drDeduction +
-    otherDeductions,
+    otherDeductions +
+    coopSavings +
+    coopLoan,
   );
 
   const netPay = round2(grossPay - totalDeductions);
@@ -1254,16 +1420,16 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   return {
     user_id: n((args.user as any).id),
     employee_name: empName,
-    position: position,
+    position,
     department_name: departmentResolved,
 
     daily_rate: round2(dailyBase),
     hourly_rate: round2(hourlyBase),
     monthly_rate: round2(monthlyBase),
 
-    total_days_worked: totalDaysWorked,
+    total_days_worked: new Set(att.filter((x) => n(x.work_minutes) > 0).map((x) => x.date_schedule)).size,
     total_work_minutes: totalWorkMinutes,
-    total_hours_worked: totalHoursWorked,
+    total_hours_worked: round2(totalWorkMinutes / 60),
 
     late_minutes: lateMinutes,
     undertime_minutes: undertimeMinutes,
@@ -1273,17 +1439,20 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     basic_pay: round2(basicPay),
     ot_amount: round2(otAmount),
 
-    // legacy mirror fields
     holiday: round2(holidayPay),
     holiday_pay: round2(holidayPay),
-    holiday_days: holidayDays,
+    holiday_days: round2(holidayItems.filter((x) => n(x?.total) > 0).length),
 
     rest_day_amount: round2(restDayAmount),
     night_diff_amount: round2(nightDiffAmount),
 
     allowance,
-    retro_pay: retroPay,
+    retro_pay: round2(retroPay),
     manual_additions: round2(manualAdds),
+
+    // ✅ Option B totals now visible at top-level too
+    coop_savings: round2(coopSavings),
+    coop_loan: round2(coopLoan),
 
     late_deduction: round2(lateDeduction),
     undertime_deduction: round2(undertimeDeduction),
@@ -1306,7 +1475,9 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     other_deductions: round2(otherDeductions),
     manual_deductions: round2(manualDeductions),
 
-    total_additions: round2(manualAdds + allowance + retroPay + holidayPay + restDayAmount + nightDiffAmount + otAmount),
+    total_additions: round2(
+      manualAdds + allowance + retroPay + holidayPay + restDayAmount + nightDiffAmount + otAmount,
+    ),
     total_deductions: round2(totalDeductions),
     gross_pay: round2(grossPay),
     net_pay: round2(netPay),
@@ -1332,7 +1503,8 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
           monthly: round2(monthlyBase),
         },
         daily_rate_events: rate.events,
-        policy: "Per-date daily/hourly/minute rate derived from wage proration logs when available; otherwise wage profile.",
+        policy:
+          "Per-date daily/hourly/minute rate derived from wage proration logs when available; otherwise wage profile.",
       },
       earnings: {
         basic_pay: round2(basicPay),
@@ -1344,8 +1516,34 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         allowance_total: round2(allowance),
         allowance_items: allowanceItems,
 
+        // ✅ base manual additions (retro excluded)
         manual_additions: round2(manualAdds),
-        manual_addition_items: itemized.manual_addition_items,
+        manual_addition_items: itemizedBase.manual_addition_items,
+
+        // ✅ retro pay (multiple per cutoff supported)
+        retro_pay: round2(retroPay),
+
+        // NEW canonical field for payroll_run_employee_item sync
+        retro_items: retro_items_all.map((x) => ({
+          item_key: x.item_key,
+          amount: x.amount,
+          description: x.description,
+          label: x.description, // compatibility with older consumers
+          source_table: x.source_table ?? "retro_pay",
+          source_id: x.source_id ?? null,
+          meta: x.meta ?? null,
+        })),
+
+        // Backward-compat (your older UI may be reading this)
+        retro_pay_items: retro_pay_items.map((x) => ({
+          item_key: x.item_key,
+          amount: x.amount,
+          description: x.description,
+          label: x.description,
+          source_table: x.source_table ?? "retro_pay",
+          source_id: x.source_id ?? null,
+          meta: x.meta ?? null,
+        })),
 
         holiday_items: holidayItems,
         rest_day_items: restDayItems,
@@ -1382,10 +1580,32 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         },
 
         other_deductions: round2(otherDeductions),
+
+        // ✅ manual deductions total includes coop savings/loan
         manual_deductions: round2(manualDeductions),
 
-        manual_deduction_items: itemized.manual_deduction_items,
-        manual_deduction_summary: itemized.manual_deduction_summary,
+        // ✅ base manual deduction items (coop excluded)
+        manual_deduction_items: itemizedBase.manual_deduction_items,
+        manual_deduction_summary: itemizedBase.manual_deduction_summary,
+
+        // ✅ coop savings membership (now comes from Option B table)
+        coop_savings: round2(coopSavings),
+        coop_savings_items: coop_savings_items.map((x) => ({
+          item_key: x.item_key,
+          amount: x.amount,
+          description: x.description,
+          label: x.description,
+          membership_id: (x.meta?.membership_id ?? null) as any,
+          source_table: x.source_table ?? "coop_savings_membership",
+          source_id: x.source_id ?? null,
+          meta: x.meta ?? null,
+        })),
+
+        coop_loan: round2(coopLoan),
+        coop_loan_items: coopLoanItemized.manual_deduction_items.map((x) => ({
+          ...x,
+          category: "COOP_LOAN",
+        })),
       },
 
       totals: {

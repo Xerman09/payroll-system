@@ -2,6 +2,7 @@
 import type {
   BenefitCode,
   BenefitCutoffSetting,
+  CoopSavingsMembershipRow,
   CutoffSetting,
   Department,
   EmployeeAllowance,
@@ -13,6 +14,7 @@ import type {
   PayrollRunHeader,
   PayrollSummary,
   PayrollWorkspace,
+  RetroPayRow,
   UserRow,
   WageProfile,
   WageProrationLog,
@@ -25,7 +27,7 @@ export const RES = {
   payrollRun: "payroll_run",
   payrollLines: "payroll_run_employee",
 
-  // ✅ Option A normalized line items (new)
+  // ✅ Option A normalized line items
   payrollLineItems: "payroll_run_employee_item",
 
   cutoffs: "cutoff_settings",
@@ -43,6 +45,10 @@ export const RES = {
   benefitLoans: "benefit_loans",
 
   allowances: "employee_allowance",
+
+  // ✅ Option B tables
+  retro_pay: "retro_pay",
+  coop_savings: "coop_savings_membership",
 
   // ✅ Wage proration logs
   wageProration: "user_wage_proration_log",
@@ -122,7 +128,7 @@ async function safeList<T>(
   try {
     return await api.listItems<T>(resource, params);
   } catch (e) {
-    console.warn(`[payrollRunService] listItems failed for ${resource} - payrollRunService.ts:125`, e);
+    console.warn(`[payrollRunService] listItems failed for ${resource} - payrollRunService.ts:131`, e);
     return fallback;
   }
 }
@@ -608,12 +614,88 @@ export async function loadWorkspace(args: {
       cutoff_id: cutoff.id,
       user_id: userId,
       type: "DEDUCTION",
-      desc: `DR Payment: ${drNo || `#${drId}`}`,
+      desc: `${drNo || `#${drId}`}`,
       amount: amt,
       category: "DR_PAYMENT",
     } as any as ManualEntry;
 
     pushME(userId, entry);
+  }
+
+  // ✅ Retro Pay (has cutoff_start/cutoff_end)
+  const retroArr = userIds.length
+    ? await safeList<any>(RES.retro_pay, {
+      "filter[user_id][_in]": userIds.join(","),
+      "filter[cutoff_start][_lte]": cutoff.end_date,
+      "filter[cutoff_end][_gte]": cutoff.start_date,
+      "filter[is_processed][_eq]": 0,
+      limit: 20000,
+    })
+    : [];
+
+  const retroPays = new Map<number, RetroPayRow[]>();
+  for (const raw of retroArr ?? []) {
+    const userId = n(raw.user_id);
+    if (!userId) continue;
+
+    const row: RetroPayRow = {
+      retro_id: n(raw.retro_id ?? raw.id),
+      user_id: userId,
+      amount: n(raw.amount),
+      description: raw.description ?? null,
+      cutoff_start: s(raw.cutoff_start).slice(0, 10),
+      cutoff_end: s(raw.cutoff_end).slice(0, 10),
+      is_processed: bitToNum(raw.is_processed),
+      created_by: raw.created_by ?? null,
+      created_date: raw.created_date ?? raw.created_at ?? null,
+      updated_by: raw.updated_by ?? null,
+      updated_date: raw.updated_date ?? raw.updated_at ?? null,
+      ...raw,
+    };
+
+    if (!retroPays.has(userId)) retroPays.set(userId, []);
+    retroPays.get(userId)!.push(row);
+  }
+
+  // ✅ COOP Savings Membership (NO cutoff fields; uses start_date/end_date + monthly_amount)
+  const coopArr = userIds.length
+    ? await safeList<any>(RES.coop_savings, {
+      "filter[user_id][_in]": userIds.join(","),
+      "filter[is_active][_eq]": 1,
+      "filter[start_date][_lte]": cutoff.end_date,
+
+      // end_date is NULL OR end_date >= cutoff.start_date
+      "filter[_or][0][end_date][_null]": "true",
+      "filter[_or][1][end_date][_gte]": cutoff.start_date,
+
+      limit: 20000,
+    })
+    : [];
+
+  const coopSavingsMemberships = new Map<number, CoopSavingsMembershipRow[]>();
+  for (const raw of coopArr ?? []) {
+    const userId = n(raw.user_id);
+    if (!userId) continue;
+
+    const row: CoopSavingsMembershipRow = {
+      id: n(raw.id),
+      user_id: userId,
+      membership_id: s(raw.membership_id),
+      monthly_amount: n(raw.monthly_amount),
+      total_collection: n(raw.total_collection),
+      total_months: n(raw.total_months),
+      start_date: s(raw.start_date).slice(0, 10),
+      end_date: raw.end_date ? s(raw.end_date).slice(0, 10) : null,
+      is_active: bitToNum(raw.is_active),
+      created_by: raw.created_by ?? null,
+      created_date: raw.created_date ?? raw.created_at ?? null,
+      updated_by: raw.updated_by ?? null,
+      updated_date: raw.updated_date ?? raw.updated_at ?? null,
+      ...raw,
+    };
+
+    if (!coopSavingsMemberships.has(userId)) coopSavingsMemberships.set(userId, []);
+    coopSavingsMemberships.get(userId)!.push(row);
   }
 
   const rawBenefitSettings = await safeList<any>(RES.benefitSettings, {
@@ -745,6 +827,10 @@ export async function loadWorkspace(args: {
     holidays,
     manualEntries,
 
+    // ✅ Option B tables in workspace
+    retroPays,
+    coopSavingsMemberships,
+
     benefitSettings,
     benefitMultipliers,
     employeeLoans,
@@ -782,6 +868,10 @@ export function computeRegister(args: {
     const prLogs = ws.wageProrationLogs?.get(u.id) ?? [];
     const onHold = Boolean(holdMap.get(u.id));
 
+    // ✅ Option B table rows per employee
+    const retro = ws.retroPays?.get(u.id) ?? [];
+    const coop = ws.coopSavingsMemberships?.get(u.id) ?? [];
+
     const prevNet = previousNetMap?.get(u.id) ?? 0;
 
     const line = computeEmployeeLine({
@@ -806,6 +896,10 @@ export function computeRegister(args: {
       allowances: alw,
 
       wageProrationLogs: prLogs,
+
+      // ✅ NEW: Option B rows
+      retroPays: retro,
+      coopSavingsMemberships: coop,
     });
 
     lines.push(line);
@@ -990,7 +1084,7 @@ export async function createDRPaymentDeduction(args: {
     cutoff_id: args.cutoff.id,
     user_id: args.userId,
     type: "DEDUCTION",
-    desc: `DR Payment: ${drNo || `#${drId || "NEW"}`}`,
+    desc: `${drNo || `#${drId || "NEW"}`}`,
     amount: amt,
     category: "DR_PAYMENT",
   } as any) as ManualEntry;
@@ -1111,7 +1205,8 @@ function buildPayrollRunEmployeePayload(args: {
       n(l?.benefit_loan_total) +
       n(l?.benefit_sss) +
       n(l?.benefit_philhealth) +
-      n(l?.benefit_pagibig),
+      n(l?.benefit_pagibig) +
+      n(l?.coop_savings),
     );
 
   const grossPay = n(l?.gross_pay) || round2(n(l?.basic_pay) + totalAdditions);
@@ -1191,13 +1286,17 @@ function buildPayrollRunEmployeePayload(args: {
     night_diff_amount: n(l?.night_diff_amount ?? 0),
 
     allowance: n(l?.allowance ?? l?.allowance_total ?? 0),
-    manual_additions: n(l?.manual_additions ?? l?.manual_adds ?? l?.manualAdds ?? 0),
+    manual_additions: n(
+      l?.manual_additions ?? l?.manual_adds ?? l?.manualAdds ?? 0,
+    ),
 
     late_deduction: n(l?.late_deduction ?? 0),
     undertime_deduction: n(l?.undertime_deduction ?? 0),
     shortage_deduction: n(l?.shortage_deduction ?? 0),
 
-    benefit_pagibig: n(l?.benefit_pagibig ?? l?.pagibig_employee ?? l?.pagibig ?? 0),
+    benefit_pagibig: n(
+      l?.benefit_pagibig ?? l?.pagibig_employee ?? l?.pagibig ?? 0,
+    ),
     benefit_philhealth: n(
       l?.benefit_philhealth ?? l?.philhealth_employee ?? l?.philhealth ?? 0,
     ),
@@ -1291,9 +1390,7 @@ function buildItemPayloadsFromBreakdown(args: {
   // 1) Allowances (earnings.allowance_items[])
   for (const [idx, it] of arr<any>(earnings?.allowance_items).entries()) {
     const allowanceId = n(it?.allowance_id ?? it?.id);
-    const key = allowanceId
-      ? `ALW:${allowanceId}`
-      : `ALW:IDX${idx + 1}`;
+    const key = allowanceId ? `ALW:${allowanceId}` : `ALW:IDX${idx + 1}`;
 
     const amount = round2(
       n(it?.amount_this_cutoff ?? it?.amount ?? it?.amount_full ?? 0),
@@ -1337,14 +1434,42 @@ function buildItemPayloadsFromBreakdown(args: {
       item_type: "EARNING",
       category: "MANUAL_ADDITION",
       code: it?.code != null ? s(it.code) : null,
-      description:
-        it?.description != null ? s(it.description) : "Manual Addition",
+      description: it?.description != null ? s(it.description) : "Manual Addition",
       amount,
       source_table: it?.source_table != null ? s(it.source_table) : "manual",
       source_id: sourceId || null,
       meta: normalizeJsonOrNull(it?.meta ?? null),
     });
   }
+
+  // ✅ 2.1) Retro pay items (earnings.retro_items[])
+  // ✅ 2.1) Retro pay items (earnings.retro_items[] OR earnings.retro_pay_items[])
+  for (const [idx, it] of arr<any>(earnings?.retro_items ?? earnings?.retro_pay_items).entries()) {
+    const sourceId = n(it?.source_id ?? it?.retro_id ?? it?.id ?? 0);
+    const key = sourceId ? `RP:${sourceId}` : `RP:IDX${idx + 1}`;
+
+    const amount = round2(n(it?.amount ?? 0));
+    if (amount === 0) continue;
+
+    const desc =
+      (it?.description != null ? s(it.description) : "") ||
+      (it?.label != null ? s(it.label) : "") ||
+      "Retro Pay";
+
+    out.push({
+      ...base,
+      item_key: key,
+      item_type: "EARNING",
+      category: "RETRO_PAY",
+      code: null,
+      description: desc,
+      amount,
+      source_table: "retro_pay",
+      source_id: sourceId || null,
+      meta: normalizeJsonOrNull(it?.meta ?? null),
+    });
+  }
+
 
   // 3) Employee loans (deductions.employee_loan_items[])
   for (const [idx, it] of arr<any>(deductions?.employee_loan_items).entries()) {
@@ -1415,7 +1540,6 @@ function buildItemPayloadsFromBreakdown(args: {
     const amount = round2(n(it?.amount ?? 0));
     if (amount === 0) continue;
 
-    // category should already be present (DR_PAYMENT, SHORTAGE, MANUAL, etc.)
     const cat =
       it?.category != null && String(it.category).trim()
         ? String(it.category).trim().toUpperCase()
@@ -1427,11 +1551,37 @@ function buildItemPayloadsFromBreakdown(args: {
       item_type: "DEDUCTION",
       category: cat,
       code: it?.code != null ? s(it.code) : null,
-      description:
-        it?.description != null ? s(it.description) : "Manual Deduction",
+      description: it?.description != null ? s(it.description) : "Manual Deduction",
       amount,
       source_table: it?.source_table != null ? s(it.source_table) : "manual",
       source_id: sourceId || null,
+      meta: normalizeJsonOrNull(it?.meta ?? null),
+    });
+  }
+
+  // ✅ 5.1) COOP savings membership (deductions.coop_savings_items[])
+  for (const [idx, it] of arr<any>(deductions?.coop_savings_items).entries()) {
+    const membershipId = it?.membership_id != null ? s(it.membership_id) : "";
+    const sourceId = n(it?.source_id ?? it?.id ?? 0);
+    const key = membershipId
+      ? `CSM:${membershipId}`
+      : sourceId
+        ? `CSM:${sourceId}`
+        : `CSM:IDX${idx + 1}`;
+
+    const amount = round2(n(it?.amount ?? 0));
+    if (amount === 0) continue;
+
+    out.push({
+      ...base,
+      item_key: key,
+      item_type: "DEDUCTION",
+      category: "COOP_SAVINGS_MEMBERSHIP",
+      code: null,
+      description: it?.label != null ? s(it.label) : "COOP Savings Membership",
+      amount,
+      source_table: "coop_savings_membership",
+      source_id: Number.isFinite(sourceId) && sourceId > 0 ? sourceId : null,
       meta: normalizeJsonOrNull(it?.meta ?? null),
     });
   }
@@ -1453,7 +1603,6 @@ async function deleteAllLineItemsForEmployee(args: {
   const preId = n(args.payrollRunEmployeeId);
   if (!preId) return;
 
-  // If the collection doesn't exist yet, do not block payroll saving
   let rows: any[] = [];
   try {
     rows = await safeList<any>(
@@ -1489,7 +1638,6 @@ async function syncLineItemsForEmployee(args: {
   const preId = n(args.payrollRunEmployeeId);
   if (!preId) return;
 
-  // Always clear first (prevents duplicates and stale items)
   await deleteAllLineItemsForEmployee({ payrollRunEmployeeId: preId });
 
   const payloads = buildItemPayloadsFromBreakdown({
@@ -1502,14 +1650,13 @@ async function syncLineItemsForEmployee(args: {
 
   if (!payloads.length) return;
 
-  // If the collection doesn't exist yet, do not block payroll saving
   try {
     const tasks = payloads.map((p) => async () => {
       await api.createItem<any>(RES.payrollLineItems, p);
     });
     await runWithConcurrency(tasks, 10);
   } catch (e) {
-    console.warn("[payrollRunService] syncLineItems failed - payrollRunService.ts:1512", e);
+    console.warn("[payrollRunService] syncLineItems failed - payrollRunService.ts:1659", e);
   }
 }
 
@@ -1566,7 +1713,6 @@ export async function saveLines(args: {
     if (ex) {
       const id = n(ex?.id);
       if (!id) {
-        // create + sync items
         tasks.push(async () => {
           const created = await api.createItem<any>(RES.payrollLines, payload);
           const preId = n(created?.id ?? created?.payroll_run_employee_id);
@@ -1579,7 +1725,6 @@ export async function saveLines(args: {
           });
         });
       } else {
-        // patch + sync items
         tasks.push(async () => {
           await api.patchItem(RES.payrollLines, id, payload);
           await syncLineItemsForEmployee({
@@ -1592,7 +1737,6 @@ export async function saveLines(args: {
         });
       }
     } else {
-      // create + sync items
       tasks.push(async () => {
         const created = await api.createItem<any>(RES.payrollLines, payload);
         const preId = n(created?.id ?? created?.payroll_run_employee_id);
@@ -1655,28 +1799,19 @@ export async function updateRunTotals(args: {
   const s0: any = args.summary ?? {};
 
   const headcount = n(
-    args.headcount ??
-    s0.headcount ??
-    args.activeHeadcount ??
-    s0.activeHeadcount,
+    args.headcount ?? s0.headcount ?? args.activeHeadcount ?? s0.activeHeadcount,
   );
   const total_gross = n(
     args.total_gross ?? s0.total_gross ?? s0.totalGross ?? s0.gross,
   );
   const total_deductions = n(
-    args.total_deductions ??
-    s0.total_deductions ??
-    s0.totalDeductions ??
-    s0.deductions,
+    args.total_deductions ?? s0.total_deductions ?? s0.totalDeductions ?? s0.deductions,
   );
   const total_net = n(
     args.total_net ?? s0.total_net ?? args.totalNet ?? s0.totalNet ?? s0.net,
   );
   const variance_alert_count = n(
-    args.variance_alert_count ??
-    s0.variance_alerts ??
-    args.varianceAlerts ??
-    s0.varianceAlerts,
+    args.variance_alert_count ?? s0.variance_alerts ?? args.varianceAlerts ?? s0.varianceAlerts,
   );
 
   await api.patchItem(RES.payrollRun, args.payrollRunId, {

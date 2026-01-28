@@ -832,6 +832,14 @@ export function PayrollAdjustStep({
             </Table>
           </div>
 
+          {/* Backdrop blur when sheet is open */}
+          {activeUserId != null && (
+            <div
+              className="fixed inset-0 z-40 backdrop-blur-sm bg-black/30"
+              onClick={() => setActiveUserId(null)}
+            />
+          )}
+
           {/* Employee Details */}
           <EmployeeDetailsSheet
             open={activeUserId != null}

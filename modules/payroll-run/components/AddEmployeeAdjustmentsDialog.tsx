@@ -8,9 +8,15 @@ import {
   createDRPayment,
   createOtherAddition,
   createOtherDeduction,
+  createRetroPay,
+  deleteDRPayment,
+  deleteOtherAddition,
+  deleteOtherDeduction,
+  deleteRetroPay,
   updateDRPayment,
   updateOtherAddition,
   updateOtherDeduction,
+  updateRetroPay,
   type PayrollOtherDeductionType,
 } from "../providers/payrollAdjustmentsService";
 
@@ -38,11 +44,12 @@ import {
 
 type Kind = "ADDITION" | "DEDUCTION";
 type DeductionTab = "MANUAL" | "SHORTAGE" | "DR_PAYMENT";
+type AdditionTab = "MANUAL_ADDITION" | "RETRO_PAY";
 
 // Extended entry with metadata for identifying source and ID during edit
 export type ManualEntryExt = any & {
   id?: number | string;
-  __source?: "ADD" | "DED" | "DR"; // ADD = other_addition, DED = other_deduction, DR = dr_payment
+  __source?: "ADD" | "DED" | "DR" | "RETRO";
   [k: string]: any;
 };
 
@@ -76,26 +83,20 @@ export function AddEmployeeAdjustmentsDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 
-  // employee/user scope
   userId: number;
+  cutoffStart: string;
+  cutoffEnd: string;
 
-  // cutoff scope
-  cutoffStart: string; // YYYY-MM-DD
-  cutoffEnd: string; // YYYY-MM-DD
-
-  // audit
   createdBy?: number | null;
 
-  // edit mode: if provided, dialog is in edit mode for this entry
   editingEntry?: ManualEntryExt | null;
-
-  // refresh parent after save
   onSaved?: () => void;
 }) {
   const [saving, setSaving] = React.useState(false);
 
   const [kind, setKind] = React.useState<Kind>("DEDUCTION");
   const [dedTab, setDedTab] = React.useState<DeductionTab>("MANUAL");
+  const [addTab, setAddTab] = React.useState<AdditionTab>("MANUAL_ADDITION");
 
   // common/manual fields
   const [amount, setAmount] = React.useState<string>("");
@@ -111,15 +112,21 @@ export function AddEmployeeAdjustmentsDialog({
     if (!open) return;
 
     if (editingEntry) {
-      // Load editing entry data
       const src = (editingEntry as any)?.__source as
         | "ADD"
         | "DED"
         | "DR"
+        | "RETRO"
         | undefined;
 
-      if (src === "ADD") {
+      if (src === "RETRO") {
         setKind("ADDITION");
+        setAddTab("RETRO_PAY");
+        setAmount(String(editingEntry.amount || ""));
+        setDescription(editingEntry.description || "");
+      } else if (src === "ADD") {
+        setKind("ADDITION");
+        setAddTab("MANUAL_ADDITION");
         setAmount(String(editingEntry.amount || ""));
         setDescription(editingEntry.description || "");
       } else if (src === "DR") {
@@ -135,10 +142,10 @@ export function AddEmployeeAdjustmentsDialog({
         setAmount(String(editingEntry.amount || ""));
         setDescription(editingEntry.description || "");
       } else {
-        // Fallback: reset if source unknown
         setSaving(false);
         setKind("DEDUCTION");
         setDedTab("MANUAL");
+        setAddTab("MANUAL_ADDITION");
         setAmount("");
         setDescription("");
         setDrNo("");
@@ -147,10 +154,10 @@ export function AddEmployeeAdjustmentsDialog({
         setDrRemarks("");
       }
     } else {
-      // reset minimal state per open (new entry)
       setSaving(false);
       setKind("DEDUCTION");
       setDedTab("MANUAL");
+      setAddTab("MANUAL_ADDITION");
       setAmount("");
       setDescription("");
 
@@ -167,27 +174,56 @@ export function AddEmployeeAdjustmentsDialog({
 
     try {
       setSaving(true);
+
       const entryId = (editingEntry as any)?.id as number | undefined;
       const entrySource = (editingEntry as any)?.__source as
         | "ADD"
         | "DED"
         | "DR"
+        | "RETRO"
         | undefined;
-      const isEditing = editingEntry && entryId && entrySource;
+
+      const isEditing = Boolean(editingEntry && entryId && entrySource);
 
       if (kind === "ADDITION") {
         const amt = num(amount);
         if (amt <= 0) throw new Error("Amount must be greater than 0.");
 
+        // ✅ Retro Pay goes to retro_pay table
+        if (addTab === "RETRO_PAY") {
+          if (isEditing && entrySource === "RETRO") {
+            await updateRetroPay(entryId!, {
+              amount: amt,
+              description: description.trim() || null,
+              updated_by: createdBy ?? null,
+            });
+            toast.success("Retro Pay updated.");
+          } else {
+            await createRetroPay({
+              user_id: userId,
+              amount: amt,
+              description: description.trim() || null,
+              cutoff_start: cutoffStart,
+              cutoff_end: cutoffEnd,
+              created_by: createdBy ?? null,
+            });
+            toast.success("Retro Pay saved.");
+          }
+
+          onSaved?.();
+          onOpenChange(false);
+          return;
+        }
+
+        // ✅ Normal manual addition goes to payroll_other_additions
         if (isEditing && entrySource === "ADD") {
-          // Update existing addition
-          await updateOtherAddition(entryId, {
+          await updateOtherAddition(entryId!, {
             amount: amt,
             description: description.trim() || null,
+            updated_by: createdBy ?? null,
           });
           toast.success("Addition updated.");
         } else {
-          // Create new addition
           await createOtherAddition({
             user_id: userId,
             amount: amt,
@@ -212,16 +248,15 @@ export function AddEmployeeAdjustmentsDialog({
         if (paid <= 0) throw new Error("Amount Paid must be greater than 0.");
 
         if (isEditing && entrySource === "DR") {
-          // Update existing DR payment
-          await updateDRPayment(entryId, {
+          await updateDRPayment(entryId!, {
             delivery_receipt_number: drNo.trim(),
             payment_date: drPaymentDate,
             amount_paid: paid,
             remarks: drRemarks.trim() || null,
+            updated_by: createdBy ?? null,
           });
           toast.success("Stock purchase (DR Payment) updated.");
         } else {
-          // Create new DR payment
           await createDRPayment({
             employee_id: userId,
             cutoff_from: cutoffStart,
@@ -245,18 +280,17 @@ export function AddEmployeeAdjustmentsDialog({
       const amt = num(amount);
       if (amt <= 0) throw new Error("Amount must be greater than 0.");
 
-      const t: PayrollOtherDeductionType = dedTab; // "MANUAL" | "SHORTAGE"
+      const t: PayrollOtherDeductionType = dedTab;
 
       if (isEditing && entrySource === "DED") {
-        // Update existing deduction
-        await updateOtherDeduction(entryId, {
+        await updateOtherDeduction(entryId!, {
           amount: amt,
           type: t,
           description: description.trim() || null,
+          updated_by: createdBy ?? null,
         });
         toast.success("Deduction updated.");
       } else {
-        // Create new deduction
         await createOtherDeduction({
           user_id: userId,
           amount: amt,
@@ -308,22 +342,69 @@ export function AddEmployeeAdjustmentsDialog({
           {kind === "ADDITION" ? (
             <>
               <div className="space-y-2">
-                <Label>Amount</Label>
-                <Input
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
-              </div>
+                <Label>Addition Category</Label>
 
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Textarea
-                  placeholder="Optional notes / reference"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
+                <Tabs
+                  value={addTab}
+                  onValueChange={(v) => setAddTab(v as AdditionTab)}
+                >
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="MANUAL_ADDITION">
+                      Manual Addition
+                    </TabsTrigger>
+                    <TabsTrigger value="RETRO_PAY">Retro Pay</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent
+                    value="MANUAL_ADDITION"
+                    className="mt-4 space-y-4"
+                  >
+                    <div className="space-y-2">
+                      <Label>Amount</Label>
+                      <Input
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Description</Label>
+                      <Textarea
+                        placeholder="Optional notes / reference"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                      />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="RETRO_PAY" className="mt-4 space-y-4">
+                    <div className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
+                      This will create a row in <code>retro_pay</code> and will
+                      be included in payroll computation for this cutoff.
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Retro Amount</Label>
+                      <Input
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Description</Label>
+                      <Textarea
+                        placeholder="Optional notes / reference"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                      />
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </div>
             </>
           ) : (
@@ -384,7 +465,7 @@ export function AddEmployeeAdjustmentsDialog({
                     </div>
                   </TabsContent>
 
-                  {/* DR PAYMENT FIELDS (aligned to dr_payment table) */}
+                  {/* DR PAYMENT FIELDS */}
                   <TabsContent value="DR_PAYMENT" className="mt-4 space-y-4">
                     <div className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
                       This will create a row in <code>dr_payment</code> with
