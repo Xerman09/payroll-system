@@ -16,6 +16,11 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 import {
   Pencil,
@@ -33,12 +38,14 @@ import {
   ArrowUpRight,
   Sparkles,
   Coins,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function round2(x: number): number {
   return Math.round((x + Number.EPSILON) * 100) / 100;
 }
+
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 text-sm">
@@ -427,168 +434,22 @@ function normalizeEntry(e: any): any {
   return { ...e, __source: e?.__source ?? undefined };
 }
 
-function AdjustmentItem({
-  entry,
-  onEdit,
-  onDelete,
-}: {
-  entry: ManualEntry;
-  onEdit: (e: ManualEntry) => void;
-  onDelete: (e: ManualEntry) => void;
-}) {
-  const e: any = normalizeEntry(entry as any);
+/** ✅ Holiday label helper (handles Holiday + Rest Day) */
+function holidayItemLabel(h: any): string {
+  const flag = String(h?.holiday ?? "").toUpperCase();
+  const base =
+    flag === "REGULAR"
+      ? "Regular Holiday"
+      : flag === "SPECIAL"
+        ? "Special Holiday"
+        : "Holiday";
 
-  const isDR = isDRPaymentEntry(e);
-  const retro = isRetroPayEntry(e);
-  const shortage = isShortageEntry(e);
-  const savings = isSavingsEntry(e);
+  const isRest = Boolean(h?.is_rest_day);
+  const desc = String(h?.description ?? "").trim();
 
-  const desc = entryDesc(e);
-  const drNo = isDR ? drReceiptNoFromEntry(e) : "";
-  const drDate = isDR ? drPaymentDateFromEntry(e) : "";
-  const drMethod = isDR ? drPaymentMethodFromEntry(e) : "";
-  const drPosted = isDR ? drPostedFromEntry(e) : false;
-
-  const typeLabel = isDR
-    ? "Stock Purchase (DR Payment)"
-    : retro
-      ? "Retro Pay"
-      : savings
-        ? "Coop Savings"
-        : upper(e?.type) === "EARNING"
-          ? "Addition"
-          : shortage
-            ? "Shortage Deduction"
-            : "Deduction";
-
-  const disableEditDelete = isDR && drPosted;
-  const badges = itemizedBadgesForEntry(e);
-
-  const kind: "EARNING" | "DEDUCTION" =
-    upper(e?.type) === "DEDUCTION" ? "DEDUCTION" : "EARNING";
-
-  return (
-    <div
-      className={cn(
-        "group relative rounded-2xl border bg-background p-3 transition hover:bg-muted/10",
-        retro && "border-amber-200/70 bg-amber-50/20",
-        savings && "border-blue-200/70 bg-blue-50/20",
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="truncate text-sm font-semibold">
-              {desc || "Adjustment"}
-            </div>
-
-            {/* ✅ SIMPLIFIED: Only show badge if not retro or savings (avoid redundancy) */}
-            {!retro && !savings && (
-              <Badge variant="outline" className="text-[10px]">
-                {typeLabel}
-              </Badge>
-            )}
-
-            {isDR ? (
-              drPosted ? (
-                <Badge variant="destructive" className="text-[10px]">
-                  POSTED
-                </Badge>
-              ) : (
-                <Badge variant="secondary" className="text-[10px]">
-                  UNPOSTED
-                </Badge>
-              )
-            ) : null}
-          </div>
-
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-            {badges.map((b) => (
-              <Badge key={b.label} variant={b.variant ?? "secondary"}>
-                {b.label}
-              </Badge>
-            ))}
-
-            {retro ? (
-              <span className="font-mono">
-                Retro ID: {String(e?.id ?? e?.retro_id ?? "—")}
-              </span>
-            ) : savings ? (
-              <span className="font-mono">
-                Membership ID: {String(e?.id ?? e?.source_id ?? "—")}
-              </span>
-            ) : (
-              <span className="font-mono">Ref: {safeId(e)}</span>
-            )}
-
-            {isDR && drNo ? (
-              <span className="inline-flex items-center gap-1 font-mono">
-                <Receipt className="h-3.5 w-3.5" />
-                {drNo}
-              </span>
-            ) : null}
-            {isDR && drDate ? (
-              <span className="inline-flex items-center gap-1 font-mono">
-                <CalendarDays className="h-3.5 w-3.5" />
-                {drDate}
-              </span>
-            ) : null}
-            {isDR && drMethod ? (
-              <span className="inline-flex items-center gap-1 font-mono">
-                <Layers className="h-3.5 w-3.5" />
-                {upper(drMethod)}
-              </span>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <MoneyPill
-            amount={formatEntryAmount(e)}
-            kind={kind}
-            accent={retro ? "retro" : savings ? "savings" : "none"}
-          />
-
-          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
-                onEdit(e);
-              }}
-              title={
-                disableEditDelete ? "Cannot edit posted DR payments" : "Edit"
-              }
-              disabled={disableEditDelete}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
-                onDelete(e);
-              }}
-              title={
-                disableEditDelete
-                  ? "Cannot delete posted DR payments"
-                  : "Delete"
-              }
-              disabled={disableEditDelete}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return `${base}${isRest ? " + Rest Day" : ""}${desc ? ` · ${desc}` : ""}`;
 }
+
 function MinimalAdjustmentRow({
   entry,
   onEdit,
@@ -634,17 +495,13 @@ function MinimalAdjustmentRow({
     <div className="group flex items-center justify-between gap-3 border-b px-0 py-2">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          {/* Type: simple text (no badge) */}
           <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             {typeLabel}
           </span>
-
-          {/* Description */}
           <span className="truncate text-sm">{desc}</span>
         </div>
       </div>
 
-      {/* Amount + actions */}
       <div className="flex items-center gap-2">
         <MoneyPill amount={formatEntryAmount(e)} kind={kind} accent={accent} />
 
@@ -711,14 +568,22 @@ export function EmployeeDetailsSheet({
   const allowanceItems =
     ((line as any)?.breakdown_json?.earnings?.allowance_items as any[]) ?? [];
 
-  // ✅ Get coop savings items from breakdown_json (Option B table)
   const coopSavingsItemsFromBreakdown =
     ((line as any)?.breakdown_json?.deductions?.coop_savings_items as any[]) ??
     [];
 
-  // ✅ FIX: Get retro items directly from breakdown_json
   const retroItemsFromBreakdown =
     ((line as any)?.breakdown_json?.earnings?.retro_items as any[]) ?? [];
+
+  // ✅ Holiday itemization from compute.ts
+  const holidayItems =
+    ((line as any)?.breakdown_json?.earnings?.holiday_items as any[]) ?? [];
+
+  const holidayPaidItems = holidayItems.filter(
+    (x: any) => Number(x?.total ?? 0) > 0,
+  );
+
+  const [holidayOpen, setHolidayOpen] = React.useState(false);
 
   const rawEntries = Array.isArray(manualEntries) ? manualEntries : [];
   const entries = rawEntries.map((e) => normalizeEntry(e));
@@ -726,7 +591,6 @@ export function EmployeeDetailsSheet({
   const retroEntries = entries.filter((e) => isRetroPayEntry(e as any));
   const savingsEntries = entries.filter((e) => isSavingsEntry(e as any));
 
-  // ✅ COMBINE: Both manual entries and breakdown retro items
   const allRetroEntries = [
     ...retroEntries,
     ...retroItemsFromBreakdown.map((item: any) => ({
@@ -739,7 +603,6 @@ export function EmployeeDetailsSheet({
     })),
   ];
 
-  // ✅ COMBINE: Both manual savings entries and breakdown coop savings items
   const allSavingsEntries = [
     ...savingsEntries,
     ...coopSavingsItemsFromBreakdown.map((item: any) => ({
@@ -768,16 +631,13 @@ export function EmployeeDetailsSheet({
     return false;
   });
 
-  // ✅ Add all savings entries (manual + breakdown) to deduction list
   const allDeductionEntries = [...deductionEntries, ...allSavingsEntries];
-
-  const drEntries = entries.filter((e) => isDRPaymentEntry(e as any));
-  const shortageEntries = entries.filter((e) => isShortageEntry(e as any));
 
   const retroTotal = allRetroEntries.reduce(
     (sum, e) => sum + readAmount(e as any),
     0,
   );
+
   const manualAddsTotal = nonRetroEarningEntries.reduce(
     (sum, e) => sum + readAmount(e as any),
     0,
@@ -798,6 +658,7 @@ export function EmployeeDetailsSheet({
     (sum, e) => sum + readAmount(e as any),
     0,
   );
+
   const deductionsAdjTotal = allDeductionEntries.reduce(
     (sum, e) => sum + readAmount(e as any),
     0,
@@ -1086,10 +947,118 @@ export function EmployeeDetailsSheet({
                               label="OT Amount"
                               value={formatPHP(line?.ot_amount ?? 0)}
                             />
-                            <Row
-                              label="Holiday Pay"
-                              value={formatPHP(line?.holiday_pay ?? 0)}
-                            />
+
+                            {/* ✅ DROPDOWN: Holiday Pay (shows holiday items) */}
+                            <Collapsible
+                              open={holidayOpen}
+                              onOpenChange={setHolidayOpen}
+                            >
+                              <div className="flex items-center justify-between gap-3 text-sm">
+                                <CollapsibleTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="group inline-flex items-center gap-2 text-muted-foreground hover:text-foreground"
+                                  >
+                                    <span>Holiday Pay</span>
+                                    {holidayPaidItems.length > 0 ? (
+                                      <span className="text-[11px] text-muted-foreground">
+                                        ({holidayPaidItems.length})
+                                      </span>
+                                    ) : null}
+                                    <ChevronDown
+                                      className={cn(
+                                        "h-4 w-4 transition-transform",
+                                        holidayOpen && "rotate-180",
+                                      )}
+                                    />
+                                  </button>
+                                </CollapsibleTrigger>
+
+                                <div className="font-mono tabular-nums">
+                                  {formatPHP(line?.holiday_pay ?? 0)}
+                                </div>
+                              </div>
+
+                              <CollapsibleContent className="pt-2">
+                                {holidayItems.length === 0 ? (
+                                  <div className="pl-6 text-xs text-muted-foreground">
+                                    No holiday items recorded for this cutoff.
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2 pl-6">
+                                    {holidayItems.map((h: any, idx: number) => {
+                                      const total = Number(h?.total ?? 0);
+                                      const isZero = !(total > 0);
+                                      return (
+                                        <div
+                                          key={`hol-${h?.date ?? idx}-${idx}`}
+                                          className={cn(
+                                            "flex items-start justify-between gap-3 rounded-xl border bg-muted/10 px-3 py-2",
+                                            isZero && "opacity-70",
+                                          )}
+                                        >
+                                          <div className="min-w-0">
+                                            <div className="truncate text-sm font-medium">
+                                              {holidayItemLabel(h)}
+                                            </div>
+
+                                            <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                              <span className="font-mono">
+                                                {String(h?.date ?? "—")}
+                                              </span>
+                                              {h?.pay_type ? (
+                                                <>
+                                                  {" "}
+                                                  •{" "}
+                                                  <span className="font-mono">
+                                                    {String(h.pay_type)}
+                                                  </span>
+                                                </>
+                                              ) : null}
+                                              {h?.base_mult != null ? (
+                                                <>
+                                                  {" "}
+                                                  •{" "}
+                                                  <span className="font-mono">
+                                                    Base x
+                                                    {Number(
+                                                      h.base_mult,
+                                                    ).toFixed(2)}
+                                                  </span>
+                                                </>
+                                              ) : null}
+                                              {h?.ot_mult != null ? (
+                                                <>
+                                                  {" "}
+                                                  •{" "}
+                                                  <span className="font-mono">
+                                                    OT x
+                                                    {Number(h.ot_mult).toFixed(
+                                                      2,
+                                                    )}
+                                                  </span>
+                                                </>
+                                              ) : null}
+                                            </div>
+
+                                            {isZero && h?.rule ? (
+                                              <div className="mt-1 text-[11px] text-muted-foreground">
+                                                {String(h.rule)}
+                                              </div>
+                                            ) : null}
+                                          </div>
+
+                                          <div className="shrink-0 font-mono text-xs tabular-nums">
+                                            {formatPHP(total)}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </CollapsibleContent>
+                            </Collapsible>
+
                             <Row
                               label="Rest Day Amount"
                               value={formatPHP(line?.rest_day_amount ?? 0)}
@@ -1098,7 +1067,9 @@ export function EmployeeDetailsSheet({
                               label="Night Diff Amount"
                               value={formatPHP(line?.night_diff_amount ?? 0)}
                             />
+
                             <Separator className="my-2" />
+
                             <Row
                               label="Allowance"
                               value={formatPHP(line?.allowance ?? 0)}
@@ -1113,6 +1084,7 @@ export function EmployeeDetailsSheet({
                                 value={formatPHP(retroTotal)}
                               />
                             ) : null}
+
                             <Separator className="my-2" />
                             <Row
                               label="Total Earnings"
@@ -1125,7 +1097,6 @@ export function EmployeeDetailsSheet({
                           </div>
                         </Section>
 
-                        {/* ✅ MOVED HERE: Loans under Earnings Breakdown */}
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           <Section
                             title="Employee Loans"
@@ -1204,7 +1175,9 @@ export function EmployeeDetailsSheet({
                             label="Other Deductions"
                             value={formatPHP(line?.other_deductions ?? 0)}
                           />
+
                           <Separator className="my-2" />
+
                           <Row
                             label="Benefits (SSS)"
                             value={formatPHP(line?.benefit_sss ?? 0)}
@@ -1217,7 +1190,9 @@ export function EmployeeDetailsSheet({
                             label="Benefits (PAGIBIG)"
                             value={formatPHP(line?.benefit_pagibig ?? 0)}
                           />
+
                           <Separator className="my-2" />
+
                           <Row
                             label="SSS Loan"
                             value={formatPHP(line?.benefit_loan_sss ?? 0)}
@@ -1234,7 +1209,9 @@ export function EmployeeDetailsSheet({
                               </span>
                             }
                           />
+
                           <Separator className="my-2" />
+
                           <Row
                             label="Vale"
                             value={formatPHP(line?.loan_vale ?? 0)}
@@ -1255,14 +1232,18 @@ export function EmployeeDetailsSheet({
                               </span>
                             }
                           />
+
                           <Separator className="my-2" />
+
                           {savingsTotal > 0 ? (
                             <Row
                               label="Coop Savings"
                               value={formatPHP(savingsTotal)}
                             />
                           ) : null}
+
                           <Separator className="my-2" />
+
                           <Row
                             label="Total Deductions"
                             value={
@@ -1337,7 +1318,7 @@ export function EmployeeDetailsSheet({
                       )}
                     </Section>
 
-                    {/* Retro Pay - ✅ UPDATED */}
+                    {/* Retro Pay */}
                     <Section
                       title="Retro Pay"
                       icon={<Coins className="h-5 w-5" />}
@@ -1394,7 +1375,7 @@ export function EmployeeDetailsSheet({
                       )}
                     </Section>
 
-                    {/* Manual Additions (Earnings only, excluding Retro Pay) */}
+                    {/* Manual Additions */}
                     <Section
                       title="Manual Additions"
                       icon={<BadgePercent className="h-5 w-5" />}
@@ -1455,9 +1436,8 @@ export function EmployeeDetailsSheet({
                   </div>
                 </TabsContent>
 
-                {/* ✅ Manual Adjustments (Retro Pay & Coop Savings CRUD shown here) */}
+                {/* Manual Adjustments */}
                 <TabsContent value="adjustments" className="mt-4 space-y-4">
-                  {/* Header */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -1500,11 +1480,9 @@ export function EmployeeDetailsSheet({
                     </Button>
                   </div>
 
-                  {/* Lists */}
                   <div className="space-y-4">
                     {/* ADDITIONS */}
                     <div className="border bg-background">
-                      {/* header */}
                       <div className="flex items-center justify-between px-4 py-2">
                         <div className="text-sm font-bold">ADDITIONS</div>
                         <div className="font-mono text-sm font-bold text-emerald-700">
@@ -1512,7 +1490,6 @@ export function EmployeeDetailsSheet({
                         </div>
                       </div>
 
-                      {/* list */}
                       <div className="px-4">
                         {additionEntries.length === 0 ? (
                           <div className="py-3 text-sm text-muted-foreground">
@@ -1532,7 +1509,6 @@ export function EmployeeDetailsSheet({
                         )}
                       </div>
 
-                      {/* footer total */}
                       <div className="flex items-center justify-between border-t px-4 py-2">
                         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           Total Additions
@@ -1545,7 +1521,6 @@ export function EmployeeDetailsSheet({
 
                     {/* DEDUCTIONS */}
                     <div className="border bg-background">
-                      {/* header */}
                       <div className="flex items-center justify-between px-4 py-2">
                         <div className="text-sm font-bold">DEDUCTIONS</div>
                         <div className="font-mono text-sm font-bold text-destructive">
@@ -1553,7 +1528,6 @@ export function EmployeeDetailsSheet({
                         </div>
                       </div>
 
-                      {/* list */}
                       <div className="px-4">
                         {allDeductionEntries.length === 0 ? (
                           <div className="py-3 text-sm text-muted-foreground">
@@ -1573,7 +1547,6 @@ export function EmployeeDetailsSheet({
                         )}
                       </div>
 
-                      {/* footer total */}
                       <div className="flex items-center justify-between border-t px-4 py-2">
                         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           Total Deductions

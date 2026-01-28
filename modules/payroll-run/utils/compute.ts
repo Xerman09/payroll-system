@@ -188,10 +188,12 @@ type AttendanceNorm = {
 };
 
 function normAttendance(row: any): AttendanceNorm {
+  const date = ymdOrNull(row.date_schedule ?? row.dateSchedule) ?? "";
+
   return {
     approval_id: n(row.approval_id ?? row.approvalId ?? row.id),
     employee_id: n(row.employee_id ?? row.employeeId ?? row.user_id ?? row.userId),
-    date_schedule: s(row.date_schedule ?? row.dateSchedule),
+    date_schedule: date, // ✅ normalized YYYY-MM-DD
     work_minutes: n(row.work_minutes ?? row.workMinutes),
     late_minutes: n(row.late_minutes ?? row.lateMinutes),
     undertime_minutes: n(row.undertime_minutes ?? row.undertimeMinutes),
@@ -200,6 +202,7 @@ function normAttendance(row: any): AttendanceNorm {
     status: String(row.status ?? "approved"),
   };
 }
+
 
 type HolidayKind = "regular" | "special" | "company";
 type HolidayFlag = "NONE" | "REGULAR" | "SPECIAL";
@@ -214,13 +217,14 @@ type HolidayInfo = {
 
 function normHoliday(row: any): HolidayInfo {
   return {
-    date: s(row.holiday_date ?? row.holidayDate ?? row.date ?? row.holiday_date),
+    date: ymdOrNull(row.holiday_date ?? row.holidayDate ?? row.date ?? row.holiday_date) ?? "",
     type: String(row.holiday_type ?? row.holidayType ?? "regular").toLowerCase() as HolidayKind,
     description: s(row.description ?? row.name ?? ""),
     is_paid: n(row.is_paid ?? row.isPaid ?? 1) ? 1 : 0,
     last_working_day: ymdOrNull(row.last_working_day ?? row.lastWorkingDay),
   };
 }
+
 
 function higherHoliday(a: HolidayKind, b: HolidayKind): HolidayKind {
   const rank: Record<HolidayKind, number> = { regular: 3, special: 2, company: 1 };
@@ -908,7 +912,8 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const att = (args.attendance ?? [])
     .map(normAttendance)
     .filter((r) => String(r.status ?? "").toLowerCase() === "approved")
-    .filter((r) => inRange(String(r.date_schedule ?? ""), args.cutoffStart, args.cutoffEnd));
+    .filter((r) => !!r.date_schedule)
+    .filter((r) => inRange(r.date_schedule, args.cutoffStart, args.cutoffEnd));
 
   const holidayMap = new Map<string, HolidayInfo>();
   for (const h of (args.holidays ?? []).map(normHoliday)) {
