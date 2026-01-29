@@ -12,7 +12,7 @@ import PreventBackAfterLogout from "@/components/PreventBackAfterLogout";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { Toaster } from "@/components/ui/sonner";
 
-const DEV_SIGNATURE = "System Developed by CODENAME | 2026";
+const DEV_SIGNATURE = "System Developed by loA_btst | 2026";
 
 export default function DashboardLayout({
   children,

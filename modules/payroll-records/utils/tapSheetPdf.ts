@@ -1,0 +1,438 @@
+// modules/payroll-records/utils/tapSheetPdf.ts
+import jsPDF from "jspdf";
+import type { TapSheetRow } from "../types";
+
+type Totals = { gross: number; adds: number; deds: number; net: number };
+
+let fontInitPromise: Promise<boolean> | null = null;
+
+function toNum(v: any): number {
+  const x = typeof v === "number" ? v : Number(String(v ?? "").replace(/,/g, ""));
+  return Number.isFinite(x) ? x : 0;
+}
+
+/** Format number ONLY (no currency symbol) */
+function formatAmountOnly(n: number) {
+  const x = Number.isFinite(n) ? n : 0;
+  try {
+    return x.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } catch {
+    return x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+}
+
+function arrayBufferToBase64(buf: ArrayBuffer) {
+  const bytes = new Uint8Array(buf);
+  if (typeof btoa === "function") {
+    let binary = "";
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const B: any = (globalThis as any).Buffer;
+  if (B) return B.from(bytes).toString("base64");
+  throw new Error("Base64 encoder not available.");
+}
+
+/**
+ * Loads a font that supports ₱ (Peso sign) so we don't get "±".
+ * Put these files in:
+ *   public/fonts/Inter-Regular.ttf
+ *   public/fonts/Inter-Bold.ttf
+ */
+async function ensurePesoFont(doc: jsPDF): Promise<boolean> {
+  if (fontInitPromise) return fontInitPromise;
+
+  fontInitPromise = (async () => {
+    try {
+      const anyDoc = doc as any;
+      if (!anyDoc.addFileToVFS || !anyDoc.addFont) return false;
+
+      const [regRes, boldRes] = await Promise.all([
+        fetch("/fonts/Inter-Regular.ttf", { cache: "no-store" }),
+        fetch("/fonts/Inter-Bold.ttf", { cache: "no-store" }),
+      ]);
+
+      if (!regRes.ok || !boldRes.ok) return false;
+
+      const [regBuf, boldBuf] = await Promise.all([regRes.arrayBuffer(), boldRes.arrayBuffer()]);
+
+      anyDoc.addFileToVFS("Inter-Regular.ttf", arrayBufferToBase64(regBuf));
+      anyDoc.addFileToVFS("Inter-Bold.ttf", arrayBufferToBase64(boldBuf));
+      anyDoc.addFont("Inter-Regular.ttf", "Inter", "normal");
+      anyDoc.addFont("Inter-Bold.ttf", "Inter", "bold");
+
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  return fontInitPromise;
+}
+
+function fitTextEllipsis(doc: jsPDF, text: string, maxW: number) {
+  const s = (text ?? "").toString();
+  if (!s) return "";
+  if (doc.getTextWidth(s) <= maxW) return s;
+
+  const ell = "…";
+  let lo = 0;
+  let hi = s.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    const candidate = s.slice(0, mid) + ell;
+    if (doc.getTextWidth(candidate) <= maxW) lo = mid;
+    else hi = mid - 1;
+  }
+  return s.slice(0, Math.max(0, lo)) + ell;
+}
+
+function drawRightFitted(args: {
+  doc: jsPDF;
+  text: string;
+  xRight: number;
+  y: number;
+  maxW: number;
+  baseSize: number;
+  minSize?: number;
+  fontFamily: string;
+  fontStyle: "normal" | "bold";
+  color?: { r: number; g: number; b: number };
+}) {
+  const { doc, text, xRight, y, maxW, baseSize, minSize = 6.5, fontFamily, fontStyle, color } = args;
+
+  let size = baseSize;
+  doc.setFont(fontFamily, fontStyle);
+  doc.setFontSize(size);
+  if (color) doc.setTextColor(color.r, color.g, color.b);
+
+  while (doc.getTextWidth(text) > maxW && size > minSize) {
+    size -= 0.5;
+    doc.setFontSize(size);
+  }
+
+  doc.text(text, xRight, y, { align: "right" });
+}
+
+export async function buildTapSheetPdf(args: {
+  departmentName: string;
+  cutoffStart: string;
+  cutoffEnd: string;
+  rows: TapSheetRow[];
+  totals: Totals;
+}) {
+  // LEGAL paper
+  const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "legal" });
+
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+
+  const marginX = 34;
+  const marginTop = 22;
+  const marginBottom = 34;
+
+  // palette
+  const ACCENT = { r: 16, g: 54, b: 98 };
+  const ACCENT_SOFT = { r: 236, g: 242, b: 252 };
+  const GRID = { r: 210, g: 218, b: 230 };
+  const TEXT_MUTED = { r: 70, g: 75, b: 85 };
+
+  // font
+  const fontOk = await ensurePesoFont(doc);
+  const fontFamily = fontOk ? "Inter" : "helvetica";
+  const currencyPrefix = fontOk ? "₱" : "PHP";
+
+  // ABS, no +/- sign
+  const peso = (v: any) => `${currencyPrefix} ${formatAmountOnly(Math.abs(toNum(v)))}`;
+
+  // columns (avoid overflow)
+  const availableW = pageW - marginX * 2;
+
+  let colAmtW = 102; // slightly narrower
+  let colNameW = availableW - colAmtW * 4;
+
+  const minName = 260;
+  const minAmt = 86;
+
+  if (colNameW < minName) {
+    colAmtW = Math.max(minAmt, Math.floor((availableW - minName) / 4));
+    colNameW = availableW - colAmtW * 4;
+  }
+
+  const x0 = marginX;
+  const xName = x0;
+  const xGross = xName + colNameW;
+  const xAdds = xGross + colAmtW;
+  const xDeds = xAdds + colAmtW;
+  const xNet = xDeds + colAmtW;
+  const xEnd = x0 + availableW;
+
+  const headerBandH = 30;
+  const metaY = marginTop + headerBandH + 22;
+  const tableStartY = metaY + 50;
+
+  const rowH = 20; // tighter than before
+
+  const drawFooter = (pageNo: number) => {
+    doc.setFont(fontFamily, "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(TEXT_MUTED.r, TEXT_MUTED.g, TEXT_MUTED.b);
+    doc.text(`Page ${pageNo}`, pageW - marginX, pageH - 18, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+  };
+
+  const drawHeader = () => {
+    doc.setFillColor(ACCENT.r, ACCENT.g, ACCENT.b);
+    doc.rect(0, 0, pageW, headerBandH + 8, "F");
+
+    doc.setFont(fontFamily, "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(255, 255, 255);
+    doc.text("MEN2 MARKETING CORPORATION", pageW / 2, marginTop + 14, { align: "center" });
+
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(pageW / 2 - 62, headerBandH + 14, 124, 20, 8, 8, "F");
+    doc.setTextColor(ACCENT.r, ACCENT.g, ACCENT.b);
+    doc.setFontSize(11);
+    doc.text("TAP SHEET", pageW / 2, headerBandH + 29, { align: "center" });
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFont(fontFamily, "normal");
+    doc.setFontSize(10);
+    doc.text(`Department: ${args.departmentName}`, x0, metaY);
+    doc.text(`Cutoff: ${args.cutoffStart} to ${args.cutoffEnd}`, x0, metaY + 16);
+
+    doc.setDrawColor(GRID.r, GRID.g, GRID.b);
+    doc.setLineWidth(0.8);
+    doc.line(x0, metaY + 28, xEnd, metaY + 28);
+  };
+
+  const drawTableHeader = (y: number) => {
+    doc.setFillColor(ACCENT_SOFT.r, ACCENT_SOFT.g, ACCENT_SOFT.b);
+    doc.setDrawColor(GRID.r, GRID.g, GRID.b);
+    doc.setLineWidth(0.8);
+    doc.rect(x0, y, availableW, rowH, "FD");
+
+    doc.setFont(fontFamily, "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(ACCENT.r, ACCENT.g, ACCENT.b);
+
+    const ty = y + 13;
+    doc.text("EMPLOYEE NAME", xName + 8, ty);
+    doc.text("GROSS", xGross + colAmtW - 8, ty, { align: "right" });
+    doc.text("ADD.", xAdds + colAmtW - 8, ty, { align: "right" });
+    doc.text("DED.", xDeds + colAmtW - 8, ty, { align: "right" });
+    doc.text("NET", xNet + colAmtW - 8, ty, { align: "right" });
+
+    doc.setDrawColor(GRID.r, GRID.g, GRID.b);
+    doc.setLineWidth(0.8);
+    doc.line(xGross, y, xGross, y + rowH);
+    doc.line(xAdds, y, xAdds, y + rowH);
+    doc.line(xDeds, y, xDeds, y + rowH);
+    doc.line(xNet, y, xNet, y + rowH);
+
+    doc.setFont(fontFamily, "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(0, 0, 0);
+
+    return y + rowH;
+  };
+
+  const drawRow = (y: number, r: TapSheetRow, zebra: boolean) => {
+    if (zebra) {
+      doc.setFillColor(250, 252, 255);
+      doc.rect(x0, y, availableW, rowH, "F");
+    }
+
+    doc.setDrawColor(GRID.r, GRID.g, GRID.b);
+    doc.setLineWidth(0.5);
+    doc.rect(x0, y, availableW, rowH);
+
+    doc.line(xGross, y, xGross, y + rowH);
+    doc.line(xAdds, y, xAdds, y + rowH);
+    doc.line(xDeds, y, xDeds, y + rowH);
+    doc.line(xNet, y, xNet, y + rowH);
+
+    const ty = y + 13;
+
+    // name
+    doc.setFont(fontFamily, "normal");
+    doc.setFontSize(8.8);
+    doc.setTextColor(0, 0, 0);
+    const name = fitTextEllipsis(doc, r.name_display ?? "", colNameW - 16);
+    doc.text(name, xName + 8, ty);
+
+    // amounts: smaller font
+    const maxAmtW = colAmtW - 14;
+
+    drawRightFitted({
+      doc,
+      text: peso(r.gross_pay),
+      xRight: xGross + colAmtW - 8,
+      y: ty,
+      maxW: maxAmtW,
+      baseSize: 8,
+      minSize: 6.5,
+      fontFamily,
+      fontStyle: "normal",
+      color: TEXT_MUTED,
+    });
+
+    drawRightFitted({
+      doc,
+      text: peso(r.total_additions),
+      xRight: xAdds + colAmtW - 8,
+      y: ty,
+      maxW: maxAmtW,
+      baseSize: 8,
+      minSize: 6.5,
+      fontFamily,
+      fontStyle: "normal",
+      color: TEXT_MUTED,
+    });
+
+    drawRightFitted({
+      doc,
+      text: peso(r.total_deductions),
+      xRight: xDeds + colAmtW - 8,
+      y: ty,
+      maxW: maxAmtW,
+      baseSize: 8,
+      minSize: 6.5,
+      fontFamily,
+      fontStyle: "normal",
+      color: TEXT_MUTED,
+    });
+
+    // net: bold accent, still small-ish
+    drawRightFitted({
+      doc,
+      text: peso(r.net_pay),
+      xRight: xNet + colAmtW - 8,
+      y: ty,
+      maxW: maxAmtW,
+      baseSize: 8,
+      minSize: 6.5,
+      fontFamily,
+      fontStyle: "bold",
+      color: ACCENT,
+    });
+
+    doc.setTextColor(0, 0, 0);
+  };
+
+  const drawTotals = (y: number) => {
+    doc.setFillColor(ACCENT.r, ACCENT.g, ACCENT.b);
+    doc.rect(x0, y, availableW, rowH + 2, "F");
+
+    doc.setDrawColor(ACCENT.r, ACCENT.g, ACCENT.b);
+    doc.setLineWidth(0.8);
+    doc.line(xGross, y, xGross, y + rowH + 2);
+    doc.line(xAdds, y, xAdds, y + rowH + 2);
+    doc.line(xDeds, y, xDeds, y + rowH + 2);
+    doc.line(xNet, y, xNet, y + rowH + 2);
+
+    doc.setFont(fontFamily, "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(255, 255, 255);
+
+    const ty = y + 14;
+    doc.text("TOTAL", xName + 8, ty);
+
+    const maxAmtW = colAmtW - 14;
+
+    drawRightFitted({
+      doc,
+      text: peso(args.totals.gross),
+      xRight: xGross + colAmtW - 8,
+      y: ty,
+      maxW: maxAmtW,
+      baseSize: 8,
+      minSize: 6.5,
+      fontFamily,
+      fontStyle: "bold",
+      color: { r: 255, g: 255, b: 255 },
+    });
+
+    drawRightFitted({
+      doc,
+      text: peso(args.totals.adds),
+      xRight: xAdds + colAmtW - 8,
+      y: ty,
+      maxW: maxAmtW,
+      baseSize: 8,
+      minSize: 6.5,
+      fontFamily,
+      fontStyle: "bold",
+      color: { r: 255, g: 255, b: 255 },
+    });
+
+    drawRightFitted({
+      doc,
+      text: peso(args.totals.deds),
+      xRight: xDeds + colAmtW - 8,
+      y: ty,
+      maxW: maxAmtW,
+      baseSize: 8,
+      minSize: 6.5,
+      fontFamily,
+      fontStyle: "bold",
+      color: { r: 255, g: 255, b: 255 },
+    });
+
+    drawRightFitted({
+      doc,
+      text: peso(args.totals.net),
+      xRight: xNet + colAmtW - 8,
+      y: ty,
+      maxW: maxAmtW,
+      baseSize: 8,
+      minSize: 6.5,
+      fontFamily,
+      fontStyle: "bold",
+      color: { r: 255, g: 255, b: 255 },
+    });
+
+    doc.setTextColor(0, 0, 0);
+    return y + rowH + 2;
+  };
+
+  const ensureSpace = (y: number, needH: number, pageNoRef: { v: number }) => {
+    const limit = pageH - marginBottom;
+    if (y + needH <= limit) return y;
+
+    drawFooter(pageNoRef.v);
+    doc.addPage();
+    pageNoRef.v += 1;
+
+    drawHeader();
+    let ny = tableStartY;
+    ny = drawTableHeader(ny);
+    return ny;
+  };
+
+  const pageNo = { v: 1 };
+  drawHeader();
+
+  let y = tableStartY;
+  y = drawTableHeader(y);
+
+  let zebra = false;
+  for (const r of args.rows) {
+    y = ensureSpace(y, rowH, pageNo);
+    drawRow(y, r, zebra);
+    zebra = !zebra;
+    y += rowH;
+  }
+
+  y = ensureSpace(y, rowH + 6, pageNo);
+  y = drawTotals(y);
+
+  drawFooter(pageNo.v);
+
+  return doc;
+}
