@@ -530,3 +530,50 @@ export type DRPaymentCreatePayload = {
 export type DRPaymentPatchPayload = Partial<
   Omit<DRPaymentCreatePayload, "employee_id" | "created_by">
 >;
+// =======================================================
+// COOP SAVINGS MEMBERSHIP (coop_savings_membership)
+// =======================================================
+
+export type CoopSavingsMembershipRecord = {
+  id: number;
+  user_id: number;
+
+  membership_id: string;
+
+  monthly_amount: string | number;
+  total_collection: string | number;
+  total_months: number;
+
+  start_date: string; // YYYY-MM-DD
+  end_date: string | null; // YYYY-MM-DD | null
+
+  is_active: 0 | 1 | number;
+
+  created_by: number | null;
+  created_date: string;
+
+  updated_by: number | null;
+  updated_date: string | null;
+};
+
+export type CoopSavingsMembershipCreatePayload = {
+  user_id: number;
+
+  membership_id: string;
+
+  monthly_amount: number;
+  total_collection: number; // keep explicit to avoid Directus schema quirks
+  total_months: number;
+
+  start_date: string; // YYYY-MM-DD
+  end_date: string | null;
+
+  is_active: 0 | 1;
+
+  created_by: number | null;
+  updated_by: number | null;
+};
+
+export type CoopSavingsMembershipPatchPayload = Partial<
+  Omit<CoopSavingsMembershipCreatePayload, "user_id" | "created_by">
+>;

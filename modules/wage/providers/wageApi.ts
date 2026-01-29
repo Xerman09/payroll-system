@@ -27,6 +27,9 @@ import type {
   DRPaymentRecord,
   DRPaymentCreatePayload,
   DRPaymentPatchPayload,
+  CoopSavingsMembershipRecord,
+  CoopSavingsMembershipCreatePayload,
+  CoopSavingsMembershipPatchPayload,
 
 } from "../types";
 
@@ -207,7 +210,7 @@ export async function logWageAccess(openedById: number, userId: number, remarks:
       }),
     });
   } catch (e) {
-    console.error("logWageAccess failed - wageApi.ts:206", e);
+    console.error("logWageAccess failed - wageApi.ts:213", e);
   }
 }
 
@@ -597,6 +600,59 @@ export async function deleteDRPayment(drPaymentId: number) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       path: `/items/dr_payment/${drPaymentId}`,
+    }),
+  });
+}
+// ----------------------------------------------------------------------
+// COOP SAVINGS MEMBERSHIP (CRUD) - coop_savings_membership
+// ----------------------------------------------------------------------
+
+export async function fetchCoopSavingsMembershipByUser(
+  userId: number
+): Promise<CoopSavingsMembershipRecord[]> {
+  const qs = new URLSearchParams({
+    limit: "300",
+    sort: "-start_date",
+    [`filter[user_id][_eq]`]: String(userId),
+  }).toString();
+
+  const json = await apiFetch(`/items/coop_savings_membership?${qs}`);
+  return (json?.data as CoopSavingsMembershipRecord[]) || [];
+}
+
+export async function createCoopSavingsMembership(
+  payload: CoopSavingsMembershipCreatePayload
+) {
+  return apiFetch("/items/coop_savings_membership", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: "/items/coop_savings_membership",
+      payload,
+    }),
+  });
+}
+
+export async function patchCoopSavingsMembership(
+  id: number,
+  payload: CoopSavingsMembershipPatchPayload
+) {
+  return apiFetch(`/items/coop_savings_membership/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: `/items/coop_savings_membership/${id}`,
+      payload,
+    }),
+  });
+}
+
+export async function deleteCoopSavingsMembership(id: number) {
+  return apiFetch(`/items/coop_savings_membership/${id}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: `/items/coop_savings_membership/${id}`,
     }),
   });
 }

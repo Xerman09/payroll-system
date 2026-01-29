@@ -11,6 +11,7 @@ import { AllowanceTab } from "./tabs/AllowanceTab";
 import { BenefitsTab } from "./tabs/BenefitsTab";
 import { OtherADTab } from "./tabs/OtherADTab";
 import { StockPurchaseTab } from "./tabs/StockPurchaseTab";
+import { SavingsTab } from "./tabs/SavingsTab";
 
 import {
   Dialog,
@@ -32,6 +33,7 @@ import {
   ShieldCheck,
   Layers,
   ReceiptText,
+  PiggyBank,
 } from "lucide-react";
 
 import type {
@@ -94,6 +96,19 @@ function getLoggedUserId(): number | null {
   }
 }
 
+const TAB_KEYS = [
+  "wage",
+  "savings",
+  "loans",
+  "retro",
+  "allowance",
+  "benefits",
+  "stock",
+  "other",
+] as const;
+
+type TabKey = (typeof TAB_KEYS)[number];
+
 export default function WageModal({
   open,
   onOpenChange,
@@ -140,13 +155,11 @@ export default function WageModal({
       iconEdit: PAYROLL_ICON_EDIT,
       iconDelete: PAYROLL_ICON_DELETE,
     }),
-    []
+    [],
   );
 
-  // Tabs
-  const [tab, setTab] = React.useState<
-    "wage" | "loans" | "retro" | "allowance" | "benefits" | "stock" | "other"
-  >("wage");
+  // Tabs (✅ include savings)
+  const [tab, setTab] = React.useState<TabKey>("wage");
 
   React.useEffect(() => {
     if (open) setTab("wage");
@@ -211,7 +224,7 @@ export default function WageModal({
       const amt = Number(draft.loan_amount);
       const monthly_payment = computeMonthlyPayment(
         draft.loan_amount,
-        draft.months_to_pay
+        draft.months_to_pay,
       );
 
       if (draft.loan_type === "COOP") {
@@ -233,7 +246,7 @@ export default function WageModal({
         net_amount_released: "0.00",
       };
     },
-    []
+    [],
   );
 
   const loadLoans = React.useCallback(async () => {
@@ -241,7 +254,7 @@ export default function WageModal({
     setLoanLoading(true);
     try {
       const rows = await wageApi.fetchEmployeeLoansByUser(
-        selectedEmployee.user_id
+        selectedEmployee.user_id,
       );
       setLoans(rows);
     } catch (e: any) {
@@ -297,8 +310,8 @@ export default function WageModal({
     const start_date = coop
       ? loanDraft.start_date
       : isYmd(loanDraft.start_date)
-      ? loanDraft.start_date
-      : toLocalYmd(new Date());
+        ? loanDraft.start_date
+        : toLocalYmd(new Date());
 
     const loan_amount = round2(v.loanAmount);
     const months_to_pay = v.monthsToPay;
@@ -386,7 +399,7 @@ export default function WageModal({
 
       setLoanDraft(recomputeLoanDraft(base));
     },
-    [recomputeLoanDraft]
+    [recomputeLoanDraft],
   );
 
   const deleteLoan = React.useCallback(
@@ -430,14 +443,14 @@ export default function WageModal({
         } catch (e2: any) {
           console.error("[WageModal] Cancel fallback failed", e2);
           toast.error(
-            e2?.message || e?.message || "Failed to delete/cancel loan."
+            e2?.message || e?.message || "Failed to delete/cancel loan.",
           );
         }
       } finally {
         setLoanSaving(false);
       }
     },
-    [editingLoanId, loadLoans, resetLoanDraft]
+    [editingLoanId, loadLoans, resetLoanDraft],
   );
 
   // ===================================================
@@ -448,7 +461,7 @@ export default function WageModal({
   const [retroRows, setRetroRows] = React.useState<RetroPayRecord[]>([]);
   const [retroFormOpen, setRetroFormOpen] = React.useState(false);
   const [editingRetroId, setEditingRetroId] = React.useState<number | null>(
-    null
+    null,
   );
 
   const [cutoffsLoading, setCutoffsLoading] = React.useState(false);
@@ -517,7 +530,7 @@ export default function WageModal({
         cutoff_end: c.end_date,
       }));
     },
-    [cutoffs]
+    [cutoffs],
   );
 
   const loadRetroPay = React.useCallback(async () => {
@@ -636,7 +649,7 @@ export default function WageModal({
         is_processed: Number(r.is_processed) === 1 ? 1 : 0,
       });
     },
-    [cutoffs]
+    [cutoffs],
   );
 
   const deleteRetro = React.useCallback(
@@ -655,7 +668,7 @@ export default function WageModal({
 
       if (
         !window.confirm(
-          "Delete this retro pay entry? This action cannot be undone."
+          "Delete this retro pay entry? This action cannot be undone.",
         )
       )
         return;
@@ -678,7 +691,7 @@ export default function WageModal({
         setRetroSaving(false);
       }
     },
-    [editingRetroId, loadRetroPay, resetRetroDraft, retroRows]
+    [editingRetroId, loadRetroPay, resetRetroDraft, retroRows],
   );
 
   // ===================================================
@@ -687,7 +700,7 @@ export default function WageModal({
   const [addLoading, setAddLoading] = React.useState(false);
   const [addSaving, setAddSaving] = React.useState(false);
   const [addRows, setAddRows] = React.useState<PayrollOtherAdditionRecord[]>(
-    []
+    [],
   );
   const [addFormOpen, setAddFormOpen] = React.useState(false);
   const [editingAddId, setEditingAddId] = React.useState<number | null>(null);
@@ -695,7 +708,7 @@ export default function WageModal({
   const [dedLoading, setDedLoading] = React.useState(false);
   const [dedSaving, setDedSaving] = React.useState(false);
   const [dedRows, setDedRows] = React.useState<PayrollOtherDeductionRecord[]>(
-    []
+    [],
   );
   const [dedFormOpen, setDedFormOpen] = React.useState(false);
   const [editingDedId, setEditingDedId] = React.useState<number | null>(null);
@@ -757,7 +770,7 @@ export default function WageModal({
         cutoff_end: c.end_date,
       }));
     },
-    [cutoffs]
+    [cutoffs],
   );
 
   const validateOtherDraft = React.useCallback((d: PayrollOtherADDraft) => {
@@ -790,7 +803,7 @@ export default function WageModal({
     setAddLoading(true);
     try {
       const rows = await wageApi.fetchPayrollOtherAdditionsByUser(
-        selectedEmployee.user_id
+        selectedEmployee.user_id,
       );
       setAddRows(rows);
     } catch (e: any) {
@@ -806,7 +819,7 @@ export default function WageModal({
     setDedLoading(true);
     try {
       const rows = await wageApi.fetchPayrollOtherDeductionsByUser(
-        selectedEmployee.user_id
+        selectedEmployee.user_id,
       );
       setDedRows(rows);
     } catch (e: any) {
@@ -940,7 +953,7 @@ export default function WageModal({
         cutoff_end: end,
       });
     },
-    [cutoffs]
+    [cutoffs],
   );
 
   const startEditOtherDeduction = React.useCallback(
@@ -962,7 +975,7 @@ export default function WageModal({
         cutoff_end: end,
       });
     },
-    [cutoffs]
+    [cutoffs],
   );
 
   const deleteOtherAddition = React.useCallback(
@@ -990,7 +1003,7 @@ export default function WageModal({
         setAddSaving(false);
       }
     },
-    [editingAddId, loadOtherAdditions, resetAddDraft]
+    [editingAddId, loadOtherAdditions, resetAddDraft],
   );
 
   const deleteOtherDeduction = React.useCallback(
@@ -1018,7 +1031,7 @@ export default function WageModal({
         setDedSaving(false);
       }
     },
-    [editingDedId, loadOtherDeductions, resetDedDraft]
+    [editingDedId, loadOtherDeductions, resetDedDraft],
   );
 
   // ===================================================
@@ -1078,7 +1091,7 @@ export default function WageModal({
     };
 
     const daily = num(
-      (wageData as any)?.dailyWage ?? (wageData as any)?.dailyWageInput ?? 0
+      (wageData as any)?.dailyWage ?? (wageData as any)?.dailyWageInput ?? 0,
     );
 
     const sss = num((wageData as any)?.sss);
@@ -1088,11 +1101,11 @@ export default function WageModal({
     const contribTotal = sss + pagibig + philhealth;
 
     const activeLoans = loans.filter(
-      (l) => String((l as any)?.status || "").toUpperCase() === "ACTIVE"
+      (l) => String((l as any)?.status || "").toUpperCase() === "ACTIVE",
     ).length;
 
     const pendingRetro = retroRows.filter(
-      (r) => Number((r as any)?.is_processed) !== 1
+      (r) => Number((r as any)?.is_processed) !== 1,
     ).length;
 
     const addTotal = addRows.reduce((sum, r: any) => sum + num(r?.amount), 0);
@@ -1213,7 +1226,7 @@ export default function WageModal({
             <div className="p-6">
               <Tabs
                 value={tab}
-                onValueChange={(v) => setTab(v as any)}
+                onValueChange={(v) => setTab(v as TabKey)}
                 className="w-full"
               >
                 {/* ✅ Fix: use minmax(0,1fr) so the right pane can shrink without forcing overflow */}
@@ -1245,6 +1258,26 @@ export default function WageModal({
                           </span>
                           <span className="md:hidden text-sm font-medium">
                             Wage
+                          </span>
+                        </TabsTrigger>
+
+                        {/* ✅ Savings (now consistent) */}
+                        <TabsTrigger
+                          value="savings"
+                          className="group w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-left
+                            text-slate-700 dark:text-slate-200
+                            data-[state=active]:bg-persian-blue-800 data-[state=active]:text-white
+                            data-[state=active]:shadow-sm"
+                        >
+                          <PiggyBank className="h-4 w-4 opacity-80 group-data-[state=active]:opacity-100" />
+                          <span className="hidden md:flex md:flex-col md:leading-tight">
+                            <span className="text-sm font-medium">Savings</span>
+                            <span className="text-xs font-normal text-slate-500 group-data-[state=active]:text-white/80">
+                              COOP savings / membership
+                            </span>
+                          </span>
+                          <span className="md:hidden text-sm font-medium">
+                            Savings
                           </span>
                         </TabsTrigger>
 
@@ -1333,9 +1366,9 @@ export default function WageModal({
                         <TabsTrigger
                           value="stock"
                           className="group w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-left
-    text-slate-700 dark:text-slate-200
-    data-[state=active]:bg-persian-blue-800 data-[state=active]:text-white
-    data-[state=active]:shadow-sm"
+                            text-slate-700 dark:text-slate-200
+                            data-[state=active]:bg-persian-blue-800 data-[state=active]:text-white
+                            data-[state=active]:shadow-sm"
                         >
                           <ReceiptText className="h-4 w-4 opacity-80 group-data-[state=active]:opacity-100" />
                           <span className="hidden md:flex md:flex-col md:leading-tight">
@@ -1394,6 +1427,18 @@ export default function WageModal({
                           selectedEmployee={selectedEmployee}
                           wageData={wageData}
                           setWageData={setWageData}
+                        />
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="savings" className="mt-0">
+                      <div
+                        className={`rounded-xl border bg-white p-5 shadow-sm dark:bg-slate-950 ${TABLE_FIT_SCOPE}`}
+                      >
+                        <SavingsTab
+                          ui={ui}
+                          selectedEmployee={selectedEmployee}
+                          open={open}
                         />
                       </div>
                     </TabsContent>
