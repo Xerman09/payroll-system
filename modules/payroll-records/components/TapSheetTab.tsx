@@ -1,4 +1,5 @@
 // modules/payroll-records/components/TapSheetTab.tsx
+// modules/payroll-records/components/TapSheetTab.tsx
 "use client";
 
 import * as React from "react";
@@ -44,13 +45,31 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+/** Handles 1/0, true/false, "1"/"0", and Directus buffer-ish { data: [1] } */
+function isTruthyFlag(v: unknown): boolean {
+  if (v === null || v === undefined) return false;
+
+  if (typeof v === "object") {
+    const anyV = v as any;
+    const d0 = anyV?.data?.[0];
+    if (d0 === 1 || d0 === "1" || d0 === true) return true;
+    if (d0 === 0 || d0 === "0" || d0 === false || d0 == null) return false;
+  }
+
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v === 1;
+  if (typeof v === "string")
+    return v.trim() === "1" || v.trim().toLowerCase() === "true";
+
+  return false;
+}
 
 /** Format number ONLY (no currency symbol) */
 function formatAmountOnly(v: any) {
@@ -95,7 +114,6 @@ export default function TapSheetTab({
   const [exporting, setExporting] = React.useState(false);
   const [rowsRaw, setRowsRaw] = React.useState<any[]>([]);
 
-  // ✅ Preview state
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const [previewFilename, setPreviewFilename] = React.useState<string>("");
@@ -131,7 +149,12 @@ export default function TapSheetTab({
           cutoffEnd: cutoff.end,
           departmentName,
         });
-        setRowsRaw(data);
+
+        // ✅ safety-net filter (backend should already filter, but keep this)
+        const filtered = (Array.isArray(data) ? data : []).filter(
+          (r: any) => !isTruthyFlag(r?.on_hold),
+        );
+        setRowsRaw(filtered);
       } catch (e) {
         console.error(e);
         toast.error("Failed to load tap sheet data.");
@@ -146,7 +169,12 @@ export default function TapSheetTab({
   const tapRows: TapSheetRow[] = React.useMemo(() => {
     if (!cutoff?.start || !cutoff?.end || !departmentName) return [];
 
-    const deduped = dedupeByUserKeepLatestRun(rowsRaw as any);
+    // ✅ safety-net again
+    const safeRaw = (rowsRaw as any[]).filter(
+      (r) => !isTruthyFlag((r as any)?.on_hold),
+    );
+
+    const deduped = dedupeByUserKeepLatestRun(safeRaw as any);
 
     const masters = employees.map((e) => ({
       user_id: e.user_id,
@@ -209,7 +237,6 @@ export default function TapSheetTab({
     );
   }, [tapRows]);
 
-  // ✅ cleanup blob url
   React.useEffect(() => {
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -223,7 +250,6 @@ export default function TapSheetTab({
     return `tap-sheet_${safeDept}_${start}_${end}.pdf`;
   };
 
-  // ✅ Preview PDF (no auto-download)
   const previewPdf = async () => {
     if (!cutoff?.start || !cutoff?.end)
       return toast.error("Please select a cutoff date.");
@@ -237,11 +263,10 @@ export default function TapSheetTab({
         departmentName,
         cutoffStart: cutoff.start,
         cutoffEnd: cutoff.end,
-        rows: tapRows,
+        rows: tapRows, // ✅ already filtered
         totals,
       });
 
-      // release previous url
       if (previewUrl) URL.revokeObjectURL(previewUrl);
 
       const blob = doc.output("blob");

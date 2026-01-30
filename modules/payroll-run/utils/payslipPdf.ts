@@ -151,6 +151,27 @@ function dedupeRows(rows: any[]) {
 }
 
 // =========================
+// ✅ ON-HOLD FILTER (NEW)
+// =========================
+function isRowOnHold(r: any): boolean {
+  const row = r?.data ?? r;
+
+  const raw =
+    row?.on_hold ??
+    row?.onHold ??
+    row?.is_on_hold ??
+    row?.isOnHold ??
+    row?.hold ??
+    row?.onhold ??
+    0;
+
+  const s = safeStr(raw).toLowerCase();
+  if (s === "1" || s === "true" || s === "yes") return true;
+  if (typeof raw === "boolean") return raw;
+  return n(raw) === 1;
+}
+
+// =========================
 // Item extraction (pairs)
 // =========================
 
@@ -240,6 +261,20 @@ function extractRetroPayPairs(b: any): Pair[] {
  *
  * We’ll use these for the 3rd column in the EARNINGS SUMMARY (top area).
  */
+type Entry = { label: string; value: string };
+
+function uniqEntries(rows: Entry[]) {
+  const seen = new Set<string>();
+  const out: Entry[] = [];
+  for (const r of rows) {
+    const k = `${safeStr(r.label).toLowerCase()}|||${safeStr(r.value).toLowerCase()}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(r);
+  }
+  return out;
+}
+
 function extractHolidayDetailEntries(b: any): Entry[] {
   const items =
     b?.earnings?.holiday_items ??
@@ -259,7 +294,14 @@ function extractHolidayDetailEntries(b: any): Entry[] {
     const dateRaw = safeStr(h?.date ?? h?.holiday_date ?? h?.holidayDate ?? "");
     const mmdd = dateRaw && dateRaw.length >= 10 ? dateRaw.slice(5, 10) : "";
 
-    const hol = safeStr(h?.holiday ?? h?.type ?? h?.holiday_type ?? h?.holidayType ?? "").toUpperCase();
+    const hol = safeStr(
+      h?.holiday ??
+      h?.type ??
+      h?.holiday_type ??
+      h?.holidayType ??
+      "",
+    ).toUpperCase();
+
     const holAbbr =
       hol === "REGULAR"
         ? "RH"
@@ -273,9 +315,9 @@ function extractHolidayDetailEntries(b: any): Entry[] {
 
     const desc = safeStr(h?.description ?? h?.name ?? h?.label ?? "");
 
-    // compact: "MM-DD REG+RD Desc"
+    // compact: "MM-DD RH+RD"
     let label = `${mmdd ? `${mmdd} ` : ""}${holAbbr}${isRD ? "+RD" : ""}`;
-    if (desc) label;
+    if (desc) label = label; // keep ultra-compact
     label = label.trim();
 
     out.push({ label, value: fmtMoney(total) });
@@ -399,6 +441,18 @@ function sumEmployeeLoans(
   return total;
 }
 
+function uniqPairs(pairs: Pair[]) {
+  const seen = new Set<string>();
+  const out: Pair[] = [];
+  for (const p of pairs) {
+    const k = `${safeStr(p.label).toLowerCase()}|||${safeStr(p.value).toLowerCase()}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(p);
+  }
+  return out;
+}
+
 function extractEmployeeLoanPairsExcludingCoop(row: any, b: any): Pair[] {
   const items = collectEmployeeLoanItems(b);
 
@@ -421,7 +475,6 @@ function extractEmployeeLoanPairsExcludingCoop(row: any, b: any): Pair[] {
       out.push({ label, value: fmtMoney(amt) });
     }
 
-    // de-dupe
     return uniqPairs(out);
   }
 
@@ -456,23 +509,9 @@ function extractBenefitLoanPairs(b: any): Pair[] {
   return uniqPairs(out);
 }
 
-function uniqPairs(pairs: Pair[]) {
-  const seen = new Set<string>();
-  const out: Pair[] = [];
-  for (const p of pairs) {
-    const k = `${safeStr(p.label).toLowerCase()}|||${safeStr(p.value).toLowerCase()}`;
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(p);
-  }
-  return out;
-}
-
 // =========================
 // Overview entries renderer
 // =========================
-
-type Entry = { label: string; value: string };
 
 function buildEntries(
   items: Array<{ label: string; value: any }>,
@@ -486,18 +525,6 @@ function buildEntries(
       return includeZero ? true : v !== 0;
     })
     .map((x) => ({ label: String(x.label), value: fmtMoney(x.value) }));
-}
-
-function uniqEntries(rows: Entry[]) {
-  const seen = new Set<string>();
-  const out: Entry[] = [];
-  for (const r of rows) {
-    const k = `${safeStr(r.label).toLowerCase()}|||${safeStr(r.value).toLowerCase()}`;
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(r);
-  }
-  return out;
 }
 
 function fitFontSizeToWidth(
@@ -529,8 +556,19 @@ function drawEntriesMultiColumn(args: {
   C_TEXT_DIM: [number, number, number];
   fsBody: number;
 }) {
-  const { doc, x0, y0, w0, maxY, rows, cols, rowH, innerGap, C_TEXT_DIM, fsBody } =
-    args;
+  const {
+    doc,
+    x0,
+    y0,
+    w0,
+    maxY,
+    rows,
+    cols,
+    rowH,
+    innerGap,
+    C_TEXT_DIM,
+    fsBody,
+  } = args;
   if (maxY < y0) return;
 
   const availH = Math.max(0, maxY - y0);
@@ -555,11 +593,11 @@ function drawEntriesMultiColumn(args: {
 
     const it = drawRows[i];
 
-    // If this is a "spacer row" (we use it to push Holiday items to 3rd col)
+    // spacer rows
     const isSpacer = safeStr(it.label) === "" && safeStr(it.value) === "";
     if (isSpacer) continue;
 
-    // ✅ never truncate amount: allocate remaining width to label
+    // never truncate amount: allocate remaining width to label
     doc.setFontSize(fsBody);
     const value = it.value;
     const valueW = doc.getTextWidth(value);
@@ -587,12 +625,10 @@ function drawEntriesMultiColumn(args: {
     doc.setTextColor(C_TEXT_DIM[0], C_TEXT_DIM[1], C_TEXT_DIM[2]);
     doc.text(label, xx, yy);
 
-    // value (right)
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(valueFs);
     textRight(doc, value, xx + colW, yy);
 
-    // restore
     doc.setFontSize(fsBody);
   }
 
@@ -602,6 +638,11 @@ function drawEntriesMultiColumn(args: {
 // =========================
 // Itemization renderer (3-col, amount-safe)
 // =========================
+
+type ItemLine =
+  | { t: "header"; text: string }
+  | { t: "text"; text: string }
+  | { t: "pair"; label: string; value: string; indent?: number; bold?: boolean };
 
 function drawItemLines3ColCompact(args: {
   doc: jsPDF;
@@ -617,8 +658,20 @@ function drawItemLines3ColCompact(args: {
   lines: ItemLine[];
   title: string;
 }) {
-  const { doc, x0, y0, w0, maxY, cols, rowH, innerGap, fsSmall, C_TEXT_DIM, lines, title } =
-    args;
+  const {
+    doc,
+    x0,
+    y0,
+    w0,
+    maxY,
+    cols,
+    rowH,
+    innerGap,
+    fsSmall,
+    C_TEXT_DIM,
+    lines,
+    title,
+  } = args;
   if (maxY < y0) return;
 
   // dashed separator
@@ -719,8 +772,15 @@ export async function downloadPayslipsPdf(args: {
   fileName?: string;
 }) {
   const pageSize: PageSize = args.pageSize ?? "LEGAL";
-  const rows = dedupeRows(Array.isArray(args.rows) ? args.rows : []);
   const fileName = args.fileName ?? "payslips.pdf";
+
+  // ✅ FILTER OUT ON-HOLD ROWS (NEW)
+  const filtered = (Array.isArray(args.rows) ? args.rows : []).filter(
+    (r) => !isRowOnHold(r),
+  );
+
+  // ✅ de-dupe AFTER filtering
+  const rows = dedupeRows(filtered);
 
   const doc = new jsPDF({
     orientation: "p",
@@ -814,10 +874,14 @@ export async function downloadPayslipsPdf(args: {
     const hourlyRate = n(row?.hourly_rate ?? 0);
     const monthlyRate = n(row?.monthly_rate ?? 0);
 
-    const daysWorked = Math.round(n(row?.total_days_worked ?? row?.days_worked ?? 0));
+    const daysWorked = Math.round(
+      n(row?.total_days_worked ?? row?.days_worked ?? 0),
+    );
     const workMinutes = Math.floor(Math.max(0, n(row?.total_work_minutes ?? 0)));
     const lateMin = Math.floor(Math.max(0, n(row?.late_minutes ?? 0)));
-    const undertimeMin = Math.floor(Math.max(0, n(row?.undertime_minutes ?? 0)));
+    const undertimeMin = Math.floor(
+      Math.max(0, n(row?.undertime_minutes ?? 0)),
+    );
     const otMin = Math.floor(Math.max(0, n(row?.overtime_minutes ?? 0)));
     const ndMin = Math.floor(Math.max(0, n(row?.night_diff_minutes ?? 0)));
 
@@ -844,18 +908,24 @@ export async function downloadPayslipsPdf(args: {
     const loanCar = n(row?.loan_car ?? 0);
     const loanCoopLegacy = n(row?.loan_coop ?? 0);
 
-    const loanTotalRaw = n(row?.loan_total ?? (loanVale + loanCar + loanCoopLegacy));
+    const loanTotalRaw = n(
+      row?.loan_total ?? loanVale + loanCar + loanCoopLegacy,
+    );
 
     // ✅ derive COOP loan from breakdown employee-loan items (COOP), fallback to legacy fields
     const employeeLoanItems = collectEmployeeLoanItems(b);
-    const coopLoanFromItems = sumEmployeeLoans(employeeLoanItems, { onlyCoop: true });
+    const coopLoanFromItems = sumEmployeeLoans(employeeLoanItems, {
+      onlyCoop: true,
+    });
     const coopLoanTotal =
       coopLoanFromItems !== 0
         ? coopLoanFromItems
         : n(row?.coop_loan ?? row?.coopLoan ?? b?.deductions?.coop_loan ?? 0);
 
     // total employee loans (prefer row loan_total, else derive from items, else fallback)
-    const empLoansFromItemsAll = employeeLoanItems.length ? sumEmployeeLoans(employeeLoanItems) : 0;
+    const empLoansFromItemsAll = employeeLoanItems.length
+      ? sumEmployeeLoans(employeeLoanItems)
+      : 0;
     const empLoansAll =
       loanTotalRaw !== 0
         ? loanTotalRaw
@@ -878,7 +948,9 @@ export async function downloadPayslipsPdf(args: {
     const benPhil = n(row?.benefit_philhealth ?? 0);
     const benPag = n(row?.benefit_pagibig ?? 0);
 
-    const benefitLoansTotal = n(b?.deductions?.benefit_loans?.total ?? row?.benefit_loan_total ?? 0);
+    const benefitLoansTotal = n(
+      b?.deductions?.benefit_loans?.total ?? row?.benefit_loan_total ?? 0,
+    );
     const manualDedTotal = n(row?.other_deductions ?? 0);
 
     const grossPay = n(row?.gross_pay ?? 0);
@@ -964,7 +1036,11 @@ export async function downloadPayslipsPdf(args: {
     doc.rect(innerX, cy - 9, innerW, 12, "F");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(fsName);
-    doc.text(truncateToWidth(doc, `EMPLOYEE: ${employeeName}`, innerW - 6), innerX + 3, cy);
+    doc.text(
+      truncateToWidth(doc, `EMPLOYEE: ${employeeName}`, innerW - 6),
+      innerX + 3,
+      cy,
+    );
 
     cy += 7.5;
 
@@ -975,20 +1051,34 @@ export async function downloadPayslipsPdf(args: {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(fsBody);
     doc.setTextColor(C_TEXT_DIM[0], C_TEXT_DIM[1], C_TEXT_DIM[2]);
-    doc.text(truncateToWidth(doc, `Department: ${department || "-"}`, leftW), innerX, cy);
-    textRight(doc, truncateToWidth(doc, `ID No.: ${employeeId || "-"}`, rightW), rightX + rightW, cy);
+    doc.text(
+      truncateToWidth(doc, `Department: ${department || "-"}`, leftW),
+      innerX,
+      cy,
+    );
+    textRight(
+      doc,
+      truncateToWidth(doc, `ID No.: ${employeeId || "-"}`, rightW),
+      rightX + rightW,
+      cy,
+    );
 
     doc.setTextColor(0, 0, 0);
     cy += 7.6;
 
     doc.setTextColor(C_TEXT_DIM[0], C_TEXT_DIM[1], C_TEXT_DIM[2]);
-    doc.text(truncateToWidth(doc, `Designation: ${position || "-"}`, leftW), innerX, cy);
+    doc.text(
+      truncateToWidth(doc, `Designation: ${position || "-"}`, leftW),
+      innerX,
+      cy,
+    );
     doc.setTextColor(0, 0, 0);
 
     cy += 7.6;
 
-    const rates = `Rates: ${monthlyRate ? fmtMoney(monthlyRate) : "PHP 0.00"} / ${dailyRate ? fmtMoney(dailyRate) : "PHP 0.00"
-      } / ${hourlyRate ? fmtMoney(hourlyRate) : "PHP 0.00"}`;
+    const rates = `Rates: ${monthlyRate ? fmtMoney(monthlyRate) : "PHP 0.00"
+      } / ${dailyRate ? fmtMoney(dailyRate) : "PHP 0.00"} / ${hourlyRate ? fmtMoney(hourlyRate) : "PHP 0.00"
+      }`;
 
     doc.setTextColor(C_TEXT_DIM[0], C_TEXT_DIM[1], C_TEXT_DIM[2]);
     doc.text(truncateToWidth(doc, rates, innerW), innerX, cy);
@@ -1042,7 +1132,12 @@ export async function downloadPayslipsPdf(args: {
 
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(fsNet);
-    textRight(doc, fmtMoney(netPay), innerX + metricsW + gap2 + netW - 8, cy + 23.5);
+    textRight(
+      doc,
+      fmtMoney(netPay),
+      innerX + metricsW + gap2 + netW - 8,
+      cy + 23.5,
+    );
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(fsBody);
@@ -1076,8 +1171,16 @@ export async function downloadPayslipsPdf(args: {
 
     const eTitle = "EARNINGS";
     const dTitle = "DEDUCTIONS";
-    doc.text(eTitle, earnHalfX + halfW / 2 - doc.getTextWidth(eTitle) / 2, listTopY + 9);
-    doc.text(dTitle, dedHalfX + halfW / 2 - doc.getTextWidth(dTitle) / 2, listTopY + 9);
+    doc.text(
+      eTitle,
+      earnHalfX + halfW / 2 - doc.getTextWidth(eTitle) / 2,
+      listTopY + 9,
+    );
+    doc.text(
+      dTitle,
+      dedHalfX + halfW / 2 - doc.getTextWidth(dTitle) / 2,
+      listTopY + 9,
+    );
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(fsBody);
@@ -1095,7 +1198,6 @@ export async function downloadPayslipsPdf(args: {
     const innerGapCols = 8;
 
     // ✅ push holiday items into the 3rd column of the earnings summary
-    // by padding the first 2 columns (rowsPerCol * 2) with invisible spacer rows.
     let earningsEntries: Entry[] = baseEarningsEntries;
     if (holidayDetailEntries.length) {
       const availH = Math.max(0, mainMaxY - contentTopY);
@@ -1105,10 +1207,7 @@ export async function downloadPayslipsPdf(args: {
       const padded = [...baseEarningsEntries];
       const padCount = Math.max(0, fillTwoCols - padded.length);
 
-      // spacer rows that occupy slots but draw nothing
-      for (let i = 0; i < padCount; i++) {
-        padded.push({ label: "", value: "" });
-      }
+      for (let i = 0; i < padCount; i++) padded.push({ label: "", value: "" });
 
       padded.push(...holidayDetailEntries);
       earningsEntries = padded;
@@ -1238,7 +1337,12 @@ export async function downloadPayslipsPdf(args: {
     doc.setFontSize(fsBody);
 
     doc.text(`Gross: ${fmtMoney(grossPay)}`, innerX + 4, totalsTopY + 12);
-    textRight(doc, `Total Deds: ${fmtMoney(totalDeductions)}`, innerX + innerW - 4, totalsTopY + 12);
+    textRight(
+      doc,
+      `Total Deds: ${fmtMoney(totalDeductions)}`,
+      innerX + innerW - 4,
+      totalsTopY + 12,
+    );
     doc.text(`Net: ${fmtMoney(netPay)}`, innerX + 4, totalsTopY + 23);
 
     doc.setFont("helvetica", "normal");
@@ -1246,9 +1350,10 @@ export async function downloadPayslipsPdf(args: {
     doc.setTextColor(0, 0, 0);
   }
 
+  // ✅ If all rows are on-hold (or empty), show message and exit
   if (rows.length === 0) {
     doc.setFontSize(12);
-    doc.text("No payslip rows to print.", 40, 60);
+    doc.text("No payslip rows to print (on-hold rows excluded).", 40, 60);
     doc.save(fileName);
     return;
   }

@@ -24,9 +24,9 @@ export type CutoffHistoryRow = {
   status: string | null;
   month: number;
   year: number;
-  cutoff_type: string; // FIRST/SECOND
-  start_date: string; // YYYY-MM-DD
-  end_date: string;   // YYYY-MM-DD
+  cutoff_type: string;
+  start_date: string;
+  end_date: string;
   payout_date: string | null;
   period_status: string | null;
 };
@@ -46,6 +46,9 @@ export type PayrollRunEmployeeRow = {
   total_deductions: string | number;
   net_pay: string | number;
   created_at?: string;
+
+  // ✅ REQUIRED for filtering
+  on_hold?: number | boolean | string | { data?: any[] };
 };
 
 export type EmployeeMaster = {
@@ -57,8 +60,8 @@ export type EmployeeMaster = {
 
 export type TapSheetRow = {
   user_id: number;
-  name_display: string;   // "Last, First Middle"
-  name_sort_key: string;  // lower sort key
+  name_display: string;
+  name_sort_key: string;
   gross_pay: number;
   total_additions: number;
   total_deductions: number;

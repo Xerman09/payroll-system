@@ -18,7 +18,7 @@ import {
 import EmployeesTab from "./components/EmployeesTab";
 import TapSheetTab from "./components/TapSheetTab";
 
-export default function PayrollRecords() {
+export default function PayrollRecordsModule() {
   const [activeTab, setActiveTab] = React.useState<"employees" | "tap-sheet">(
     "employees",
   );
