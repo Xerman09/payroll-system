@@ -148,7 +148,10 @@ async function safeList<T>(
   try {
     return await api.listItems<T>(resource, params);
   } catch (e) {
-    console.warn(`[payrollRunService] listItems failed for ${resource} - payrollRunService.ts:151`, e);
+    console.warn(
+      `[payrollRunService] listItems failed for ${resource}`,
+      e,
+    );
     return fallback;
   }
 }
@@ -209,8 +212,7 @@ function formatFinalPayrollRefNo(args: {
   const idTok = toBase36Id(args.payrollRunId) || String(args.payrollRunId ?? "").trim();
 
   let base = String(
-    args.baseRef ??
-    `PR-${dep}-${yyyymmdd(args.cutoffStart)}-${yyyymmdd(args.cutoffEnd)}`,
+    args.baseRef ?? `PR-${dep}-${yyyymmdd(args.cutoffStart)}-${yyyymmdd(args.cutoffEnd)}`,
   )
     .trim()
     .replace(/\s+/g, "-");
@@ -251,6 +253,7 @@ function normalizeUser(row: any): UserRow {
     department_id: row.department_id ?? row.user_department ?? null,
     position: row.position ?? row.user_position ?? null,
     is_deleted: bitToNum(row.is_deleted ?? row.isDeleted),
+    is_card: bitToNum(row.is_card ?? row.isCard), // ✅ NEW
     ...row,
   } as UserRow;
 }
@@ -258,8 +261,7 @@ function normalizeUser(row: any): UserRow {
 function normalizeWage(row: any): WageProfile {
   const daily = n(row.daily_wage);
   const hourly = row.hourly_wage != null ? n(row.hourly_wage) : daily > 0 ? daily / 8 : 0;
-  const monthly =
-    row.monthly_wage != null ? n(row.monthly_wage) : daily > 0 ? daily * 26 : 0;
+  const monthly = row.monthly_wage != null ? n(row.monthly_wage) : daily > 0 ? daily * 26 : 0;
 
   return {
     id: n(row.id),
@@ -605,7 +607,8 @@ export async function createDraftRun(args: {
     // If POSTED and no holds → rerun blocked (same as before)
     if (!hasHold) {
       throw new Error(
-        `Payroll already POSTED and no on-hold employees remain. Rerun blocked. (Ref: ${posted.payroll_ref_no || posted.payroll_run_id})`,
+        `Payroll already POSTED and no on-hold employees remain. Rerun blocked. (Ref: ${posted.payroll_ref_no || posted.payroll_run_id
+        })`,
       );
     }
 
@@ -621,7 +624,6 @@ export async function createDraftRun(args: {
     basePayrollRefNo: args.payrollRefNo,
   });
 }
-
 
 // ------------------------------
 // workspace load + compute
@@ -714,8 +716,7 @@ export async function loadWorkspace(args: {
 
   for (const [uid, rows] of wageProrationLogs.entries()) {
     rows.sort((a, b) => {
-      if (a.effective_date !== b.effective_date)
-        return a.effective_date < b.effective_date ? -1 : 1;
+      if (a.effective_date !== b.effective_date) return a.effective_date < b.effective_date ? -1 : 1;
       const ca = String(a.created_at ?? "");
       const cb = String(b.created_at ?? "");
       if (ca !== cb) return ca < cb ? -1 : 1;
@@ -910,8 +911,7 @@ export async function loadWorkspace(args: {
         }),
       )[0];
 
-    benefitMultipliers[code] =
-      effectiveSetting && effectiveSetting.cutoff === cutoff.cutoff_type ? 1 : 0;
+    benefitMultipliers[code] = effectiveSetting && effectiveSetting.cutoff === cutoff.cutoff_type ? 1 : 0;
   }
 
   const rawLoans = userIds.length
@@ -995,9 +995,7 @@ export async function loadWorkspace(args: {
     allowances.get(a.user_id)!.push(a);
   }
 
-  const activeEmployees = employees.filter((u) =>
-    isActiveByDeletedFlags({ user: u, wage: wages.get(u.id) ?? null }),
-  );
+  const activeEmployees = employees.filter((u) => isActiveByDeletedFlags({ user: u, wage: wages.get(u.id) ?? null }));
 
   return {
     cutoff,
@@ -1080,6 +1078,9 @@ export function computeRegister(args: {
       coopSavingsMemberships: coop,
     });
 
+    // ❌ REMOVE THIS (it overrides compute.ts “hard rule”)
+    // (line as any).is_card = bitToNum((u as any)?.is_card ?? (u as any)?.isCard ?? 0);
+
     lines.push(line);
 
     if (!onHold) {
@@ -1121,8 +1122,7 @@ export function isEmployeeOnHold(user: UserRow): boolean {
 
 export function isLineOnHold(line: PayrollComputedLine, holdMap?: Map<number, boolean>): boolean {
   const l: any = line ?? {};
-  const userId =
-    n(l.user_id ?? l.userId ?? l.employee_id ?? l.employeeId ?? l.id) || 0;
+  const userId = n(l.user_id ?? l.userId ?? l.employee_id ?? l.employeeId ?? l.id) || 0;
 
   const fromMap = holdMap ? Boolean(holdMap.get(userId)) : false;
   const fromLine = bitToNum(l.on_hold ?? l.onHold ?? l.hold ?? l.is_on_hold ?? 0) === 1;
@@ -1155,17 +1155,23 @@ function holdMapEquals(a: Map<number, boolean>, b: Map<number, boolean>): boolea
   return true;
 }
 
-async function loadPersistedHoldMap(payrollRunId: number): Promise<Map<number, boolean>> {
+/**
+ * ✅ NEW: load persisted on_hold + is_card flags for a run
+ */
+async function loadPersistedHoldAndCardMaps(
+  payrollRunId: number,
+): Promise<{ hold: Map<number, boolean>; card: Map<number, boolean> }> {
   const pid = n(payrollRunId);
-  const map = new Map<number, boolean>();
-  if (!pid) return map;
+  const hold = new Map<number, boolean>();
+  const card = new Map<number, boolean>();
+  if (!pid) return { hold, card };
 
   const rows = await safeList<any>(
     RES.payrollLines,
     {
       "filter[payroll_run_id][_eq]": pid,
       limit: 50000,
-      fields: "user_id,on_hold",
+      fields: "user_id,on_hold,is_card",
       sort: "user_id",
     },
     [],
@@ -1174,10 +1180,11 @@ async function loadPersistedHoldMap(payrollRunId: number): Promise<Map<number, b
   for (const r of rows ?? []) {
     const uid = n(r?.user_id);
     if (!uid) continue;
-    map.set(uid, bitToNum(r?.on_hold) === 1);
+    hold.set(uid, bitToNum(r?.on_hold) === 1);
+    card.set(uid, bitToNum(r?.is_card) === 1);
   }
 
-  return map;
+  return { hold, card };
 }
 
 /**
@@ -1217,9 +1224,27 @@ export async function enforceOnHoldEmployeesAndMaybeRerun(args: {
   const payslipLines = filterPayslipLines(computed.lines, desiredHold);
   const holdUserIds = userIds.filter((id) => Boolean(desiredHold.get(id)));
 
-  // Load persisted holds to determine whether a POSTED run is "unfinished"
-  const persistedHold = await loadPersistedHoldMap(payrollRunId);
-  const persistedHoldNormalized = normalizeHoldMapForUsers(userIds, persistedHold);
+  // ✅ NEW: compute desired is_card map (from computed lines)
+  const desiredCard = new Map<number, boolean>();
+  for (const ln of computed.lines ?? []) {
+    const uid =
+      n((ln as any)?.user_id) ||
+      n((ln as any)?.employee_id) ||
+      n((ln as any)?.userId) ||
+      n((ln as any)?.employeeId) ||
+      0;
+
+    if (!uid) continue;
+
+    desiredCard.set(uid, bitToNum((ln as any)?.is_card ?? (ln as any)?.isCard ?? 0) === 1);
+  }
+  const desiredCardNormalized = normalizeHoldMapForUsers(userIds, desiredCard);
+
+  // ✅ Load persisted holds + card to determine whether a POSTED run is "unfinished"
+  const persisted = await loadPersistedHoldAndCardMaps(payrollRunId);
+  const persistedHoldNormalized = normalizeHoldMapForUsers(userIds, persisted.hold);
+  const persistedCardNormalized = normalizeHoldMapForUsers(userIds, persisted.card);
+
   const postedHadHolds = Array.from(persistedHoldNormalized.values()).some(Boolean);
 
   // ✅ POSTED runs are only rerunnable if they are "unfinished"
@@ -1234,6 +1259,7 @@ export async function enforceOnHoldEmployeesAndMaybeRerun(args: {
   }
 
   const holdChanged = !holdMapEquals(desiredHold, persistedHoldNormalized);
+  const cardChanged = !holdMapEquals(desiredCardNormalized, persistedCardNormalized);
 
   const totalsMismatch =
     n(args.payrollRun.headcount) !== n(computed.summary.headcount) ||
@@ -1241,7 +1267,7 @@ export async function enforceOnHoldEmployeesAndMaybeRerun(args: {
     Math.abs(n(args.payrollRun.total_deductions) - n(computed.summary.total_deductions)) > 0.005 ||
     Math.abs(n(args.payrollRun.total_net) - n(computed.summary.total_net)) > 0.005;
 
-  const rerunNeeded = holdChanged || totalsMismatch;
+  const rerunNeeded = holdChanged || cardChanged || totalsMismatch;
   const persist = args.persist !== false;
 
   if (persist && rerunNeeded) {
@@ -1268,9 +1294,13 @@ export async function enforceOnHoldEmployeesAndMaybeRerun(args: {
         ? status === "POSTED"
           ? "POSTED run (unfinished) updated: on-hold flags changed."
           : "On-hold flags changed."
-        : status === "POSTED"
-          ? "POSTED run (unfinished) updated: header totals/headcount mismatch."
-          : "Header totals/headcount mismatch.",
+        : cardChanged
+          ? status === "POSTED"
+            ? "POSTED run (unfinished) updated: payment mode (is_card) changed."
+            : "Payment mode (is_card) changed."
+          : status === "POSTED"
+            ? "POSTED run (unfinished) updated: header totals/headcount mismatch."
+            : "Header totals/headcount mismatch.",
     };
   }
 
@@ -1561,8 +1591,7 @@ function buildPayrollRunEmployeePayload(args: {
   const netPay = n(l?.net_pay) || round2(grossPay - totalDeductions);
 
   const previousNet = n(l?.previous_net_pay ?? l?.previousNetPay ?? 0);
-  const varianceAmount =
-    n(l?.variance_amount) || round2(n(l?.variance_amount_ui) || (netPay - previousNet));
+  const varianceAmount = n(l?.variance_amount) || round2(n(l?.variance_amount_ui) || (netPay - previousNet));
 
   const prorationJson = normalizeJsonOrNull(l?.proration_json ?? l?.prorationJson);
   const breakdownJson = normalizeJsonOrNull(l?.breakdown_json ?? l?.breakdownJson);
@@ -1592,9 +1621,7 @@ function buildPayrollRunEmployeePayload(args: {
     cutoff_id: n(args.cutoff.id) || null,
 
     daily_rate: n(l?.daily_rate ?? l?.daily_wage ?? l?.dailyRate ?? 0),
-    basic_daily_rate: n(
-      l?.basic_daily_rate ?? l?.basicDailyRate ?? l?.daily_rate ?? l?.daily_wage ?? 0,
-    ),
+    basic_daily_rate: n(l?.basic_daily_rate ?? l?.basicDailyRate ?? l?.daily_rate ?? l?.daily_wage ?? 0),
     hourly_rate: n(l?.hourly_rate ?? l?.hourly_wage ?? l?.hourlyRate ?? 0),
     monthly_rate: n(l?.monthly_rate ?? l?.monthly_wage ?? l?.monthlyRate ?? 0),
 
@@ -1663,6 +1690,9 @@ function buildPayrollRunEmployeePayload(args: {
     variance_flag: bitToNum(l?.variance_flag ?? 0),
 
     on_hold: onHold,
+
+    // ✅ NEW
+    is_card: bitToNum(l?.is_card ?? l?.isCardFinal ?? 0),
   };
 }
 
@@ -1873,8 +1903,7 @@ function buildItemPayloadsFromBreakdown(args: {
         : "MANUAL_DEDUCTION";
 
     const isDR = cat === "DR_PAYMENT";
-    const sourceTable =
-      isDR ? "dr_payment" : it?.source_table != null ? s(it.source_table) : "manual";
+    const sourceTable = isDR ? "dr_payment" : it?.source_table != null ? s(it.source_table) : "manual";
 
     out.push({
       ...base,
@@ -1886,9 +1915,7 @@ function buildItemPayloadsFromBreakdown(args: {
       amount,
       source_table: sourceTable,
       source_id: sourceId > 0 ? sourceId : null,
-      meta: normalizeJsonOrNull(
-        isDR ? { ...(it?.meta ?? null), original_source_id: sourceIdRaw } : it?.meta ?? null,
-      ),
+      meta: normalizeJsonOrNull(isDR ? { ...(it?.meta ?? null), original_source_id: sourceIdRaw } : it?.meta ?? null),
     });
   }
 
@@ -1896,11 +1923,7 @@ function buildItemPayloadsFromBreakdown(args: {
   for (const [idx, it] of arr<any>(deductions?.coop_savings_items).entries()) {
     const membershipId = it?.membership_id != null ? s(it.membership_id) : "";
     const sourceId = n(it?.source_id ?? it?.id ?? 0);
-    const key = membershipId
-      ? `CSM:${membershipId}`
-      : sourceId
-        ? `CSM:${sourceId}`
-        : `CSM:IDX${idx + 1}`;
+    const key = membershipId ? `CSM:${membershipId}` : sourceId ? `CSM:${sourceId}` : `CSM:IDX${idx + 1}`;
 
     const amount = round2(n(it?.amount ?? 0));
     if (amount === 0) continue;
@@ -1986,7 +2009,7 @@ async function syncLineItemsForEmployee(args: {
     });
     await runWithConcurrency(tasks, 10);
   } catch (e) {
-    console.warn("[payrollRunService] syncLineItems failed - payrollRunService.ts:1989", e);
+    console.warn("[payrollRunService] syncLineItems failed - payrollRunService.ts:2012", e);
   }
 }
 
@@ -2124,7 +2147,6 @@ export async function postRun(args: { payrollRunId: number; postedBy: number }):
   });
 }
 
-
 // ✅ persist computed totals to payroll_run header
 export async function updateRunTotals(args: {
   payrollRunId: number;
@@ -2135,7 +2157,7 @@ export async function updateRunTotals(args: {
   total_deductions?: number;
   total_net?: number;
   variance_alert_count?: number;
-
+  is_card?: number;
   totalNet?: number;
   activeHeadcount?: number;
   varianceAlerts?: number;

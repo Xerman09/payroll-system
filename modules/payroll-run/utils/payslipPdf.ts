@@ -49,10 +49,7 @@ function fmtMoney(v: any): string {
 
 function pickPeriodText(r: any, fallbackLabel: string) {
   const cutoffLabel = safeStr(r?.cutoff_label ?? r?.cutoffLabel ?? "");
-  const cutoffStart = safeStr(r?.cutoff_start ?? r?.cutoffStart ?? "").slice(
-    0,
-    10,
-  );
+  const cutoffStart = safeStr(r?.cutoff_start ?? r?.cutoffStart ?? "").slice(0, 10);
   const cutoffEnd = safeStr(r?.cutoff_end ?? r?.cutoffEnd ?? "").slice(0, 10);
 
   return (
@@ -82,20 +79,6 @@ function truncateToWidth(doc: jsPDF, txt: string, maxW: number): string {
   return s.length ? s + ell : ell;
 }
 
-function uniqLines(lines: string[]) {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const s of lines) {
-    const k = safeStr(s);
-    if (!k) continue;
-    const kk = k.toLowerCase();
-    if (seen.has(kk)) continue;
-    seen.add(kk);
-    out.push(k);
-  }
-  return out;
-}
-
 function setFill(doc: jsPDF, rgb: [number, number, number]) {
   doc.setFillColor(rgb[0], rgb[1], rgb[2]);
 }
@@ -105,12 +88,7 @@ function setDraw(doc: jsPDF, rgb: [number, number, number]) {
 }
 
 function payslipKey(r: any): string | null {
-  const preId =
-    r?.id ??
-    r?.payroll_run_employee_id ??
-    r?.payrollRunEmployeeId ??
-    r?.pre_id ??
-    null;
+  const preId = r?.id ?? r?.payroll_run_employee_id ?? r?.payrollRunEmployeeId ?? r?.pre_id ?? null;
 
   if (preId !== null && preId !== undefined && String(preId).trim() !== "") {
     return `pre:${String(preId)}`;
@@ -151,7 +129,7 @@ function dedupeRows(rows: any[]) {
 }
 
 // =========================
-// ✅ ON-HOLD FILTER (NEW)
+// ✅ ON-HOLD FILTER
 // =========================
 function isRowOnHold(r: any): boolean {
   const row = r?.data ?? r;
@@ -172,9 +150,45 @@ function isRowOnHold(r: any): boolean {
 }
 
 // =========================
+// Pay method resolver (NEW)
+// =========================
+function boolMaybe(v: any): boolean | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v === 1 ? true : v === 0 ? false : null;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (!s) return null;
+    if (s === "1" || s === "true" || s === "yes" || s === "y") return true;
+    if (s === "0" || s === "false" || s === "no" || s === "n") return false;
+    return null;
+  }
+  return null;
+}
+
+function resolveIsCardRaw(row: any, b: any): boolean | null {
+  const candidates = [
+    row?.is_card,
+    row?.isCard,
+    row?.is_card_employee,
+    b?.profile?.is_card,
+    b?.profile?.isCard,
+    b?.profile?.is_card_raw,
+    b?.flags?.is_card,
+    b?.flags?.isCard,
+  ];
+
+  for (const c of candidates) {
+    const v = boolMaybe(c);
+    if (v !== null) return v;
+  }
+
+  return null;
+}
+
+// =========================
 // Item extraction (pairs)
 // =========================
-
 type Pair = { label: string; value: string };
 type ItemLine =
   | { t: "header"; text: string }
@@ -237,11 +251,6 @@ function extractManualAdditionPairs(b: any): Pair[] {
   });
 }
 
-/**
- * ✅ Retro Pay items from compute.ts:
- * - breakdown_json.earnings.retro_items (canonical)
- * - breakdown_json.earnings.retro_pay_items (backward compat)
- */
 function extractRetroPayPairs(b: any): Pair[] {
   const items =
     b?.earnings?.retro_items ??
@@ -255,12 +264,6 @@ function extractRetroPayPairs(b: any): Pair[] {
   });
 }
 
-/**
- * ✅ Holiday items from compute.ts:
- * breakdown_json.earnings.holiday_items (canonical)
- *
- * We’ll use these for the 3rd column in the EARNINGS SUMMARY (top area).
- */
 type Entry = { label: string; value: string };
 
 function uniqEntries(rows: Entry[]) {
@@ -294,31 +297,15 @@ function extractHolidayDetailEntries(b: any): Entry[] {
     const dateRaw = safeStr(h?.date ?? h?.holiday_date ?? h?.holidayDate ?? "");
     const mmdd = dateRaw && dateRaw.length >= 10 ? dateRaw.slice(5, 10) : "";
 
-    const hol = safeStr(
-      h?.holiday ??
-      h?.type ??
-      h?.holiday_type ??
-      h?.holidayType ??
-      "",
-    ).toUpperCase();
+    const hol = safeStr(h?.holiday ?? h?.type ?? h?.holiday_type ?? h?.holidayType ?? "").toUpperCase();
 
     const holAbbr =
-      hol === "REGULAR"
-        ? "RH"
-        : hol === "SPECIAL"
-          ? "SH"
-          : hol
-            ? hol.slice(0, 3)
-            : "HOL";
+      hol === "REGULAR" ? "RH" : hol === "SPECIAL" ? "SH" : hol ? hol.slice(0, 3) : "HOL";
 
     const isRD = !!(h?.is_rest_day ?? h?.isRestDay ?? false);
 
-    const desc = safeStr(h?.description ?? h?.name ?? h?.label ?? "");
-
     // compact: "MM-DD RH+RD"
-    let label = `${mmdd ? `${mmdd} ` : ""}${holAbbr}${isRD ? "+RD" : ""}`;
-    if (desc) label = label; // keep ultra-compact
-    label = label.trim();
+    let label = `${mmdd ? `${mmdd} ` : ""}${holAbbr}${isRD ? "+RD" : ""}`.trim();
 
     out.push({ label, value: fmtMoney(total) });
   }
@@ -326,24 +313,12 @@ function extractHolidayDetailEntries(b: any): Entry[] {
   return uniqEntries(out);
 }
 
-/**
- * ✅ Manual deduction items (base only) from compute.ts:
- * breakdown_json.deductions.manual_deduction_items
- */
-function extractManualDeductionGroupsPairs(b: any): {
-  sh: Pair[];
-  dr: Pair[];
-  md: Pair[];
-} {
-  const items =
-    b?.deductions?.manual_deduction_items ?? b?.deductions?.manual_deductions ?? [];
-
+function extractManualDeductionGroupsPairs(b: any): { sh: Pair[]; dr: Pair[]; md: Pair[] } {
+  const items = b?.deductions?.manual_deduction_items ?? b?.deductions?.manual_deductions ?? [];
   if (!Array.isArray(items)) return { sh: [], dr: [], md: [] };
 
   const sh = moneyPairsFromItems(
-    items.filter(
-      (x: any) => String(x?.category ?? "").toUpperCase() === "SHORTAGE",
-    ),
+    items.filter((x: any) => String(x?.category ?? "").toUpperCase() === "SHORTAGE"),
     {
       defaultLabel: "Shortage",
       descKeyCandidates: ["description", "label", "name"],
@@ -352,9 +327,7 @@ function extractManualDeductionGroupsPairs(b: any): {
   );
 
   const dr = moneyPairsFromItems(
-    items.filter(
-      (x: any) => String(x?.category ?? "").toUpperCase() === "DR_PAYMENT",
-    ),
+    items.filter((x: any) => String(x?.category ?? "").toUpperCase() === "DR_PAYMENT"),
     {
       defaultLabel: "DR Payment",
       descKeyCandidates: ["description", "label", "name"],
@@ -377,14 +350,6 @@ function extractManualDeductionGroupsPairs(b: any): {
   return { sh, dr, md };
 }
 
-/**
- * Employee loans can come from:
- * - deductions.employee_loan_items
- * - deductions.employee_loans.items
- * - deductions.items (unified)
- * - items (unified)
- * - deductions.manual_deduction_items (some implementations push everything here)
- */
 function collectEmployeeLoanItems(b: any): any[] {
   const buckets: any[] = [];
   const candidates = [
@@ -400,7 +365,6 @@ function collectEmployeeLoanItems(b: any): any[] {
     if (Array.isArray(arr)) buckets.push(...arr);
   }
 
-  // filter likely loan rows
   return buckets.filter((x: any) => {
     const cat = String(x?.category ?? "").toUpperCase();
     const itemKey = safeStr(x?.item_key ?? x?.itemKey ?? "");
@@ -413,20 +377,11 @@ function collectEmployeeLoanItems(b: any): any[] {
 }
 
 function loanTypeUpper(x: any): string {
-  const code = safeStr(
-    x?.meta?.loan_type ??
-    x?.loan_type ??
-    x?.meta?.loanType ??
-    x?.code ??
-    "",
-  );
+  const code = safeStr(x?.meta?.loan_type ?? x?.loan_type ?? x?.meta?.loanType ?? x?.code ?? "");
   return code.toUpperCase();
 }
 
-function sumEmployeeLoans(
-  items: any[],
-  opts?: { onlyCoop?: boolean; excludeCoop?: boolean },
-) {
+function sumEmployeeLoans(items: any[], opts?: { onlyCoop?: boolean; excludeCoop?: boolean }) {
   const onlyCoop = !!opts?.onlyCoop;
   const excludeCoop = !!opts?.excludeCoop;
 
@@ -464,10 +419,9 @@ function extractEmployeeLoanPairsExcludingCoop(row: any, b: any): Pair[] {
 
       const t = loanTypeUpper(x);
       const isCoop = t === "COOP" || /COOP/i.test(safeStr(x?.description ?? ""));
-      if (isCoop) continue; // ✅ COOP moved to overview as CL
+      if (isCoop) continue;
 
       let label = t || "LOAN";
-      // ultra-compact loan labels
       if (label === "CAR LOAN" || label === "CAR") label = "CAR";
       else if (label === "VALE") label = "VA";
       else if (label.length > 10) label = label.slice(0, 10);
@@ -478,7 +432,6 @@ function extractEmployeeLoanPairsExcludingCoop(row: any, b: any): Pair[] {
     return uniqPairs(out);
   }
 
-  // fallback (exclude coop)
   const loanVale = Math.max(0, n(row?.loan_vale ?? 0));
   const loanCar = Math.max(0, n(row?.loan_car ?? 0));
   const out: Pair[] = [];
@@ -488,22 +441,16 @@ function extractEmployeeLoanPairsExcludingCoop(row: any, b: any): Pair[] {
 }
 
 function extractBenefitLoanPairs(b: any): Pair[] {
-  const items =
-    b?.deductions?.benefit_loans?.items ?? b?.deductions?.benefit_loan_items ?? [];
-
+  const items = b?.deductions?.benefit_loans?.items ?? b?.deductions?.benefit_loan_items ?? [];
   if (!Array.isArray(items)) return [];
 
   const out: Pair[] = [];
   for (const x of items) {
     const code = safeStr(x?.benefit_code ?? x?.code ?? "").toUpperCase();
-    const amt = n(
-      x?.amount_this_cutoff ?? x?.amortization_amount ?? x?.amount ?? 0,
-    );
+    const amt = n(x?.amount_this_cutoff ?? x?.amortization_amount ?? x?.amount ?? 0);
     if (!code || amt === 0) continue;
 
-    // ultra-compact labels
-    const label =
-      code === "SSS" ? "SSS" : code === "PAGIBIG" ? "PGB" : code.slice(0, 3);
+    const label = code === "SSS" ? "SSS" : code === "PAGIBIG" ? "PGB" : code.slice(0, 3);
     out.push({ label, value: fmtMoney(amt) });
   }
   return uniqPairs(out);
@@ -512,7 +459,6 @@ function extractBenefitLoanPairs(b: any): Pair[] {
 // =========================
 // Overview entries renderer
 // =========================
-
 function buildEntries(
   items: Array<{ label: string; value: any }>,
   opts?: { includeZero?: boolean },
@@ -527,13 +473,7 @@ function buildEntries(
     .map((x) => ({ label: String(x.label), value: fmtMoney(x.value) }));
 }
 
-function fitFontSizeToWidth(
-  doc: jsPDF,
-  txt: string,
-  maxW: number,
-  fsStart: number,
-  fsMin: number,
-) {
+function fitFontSizeToWidth(doc: jsPDF, txt: string, maxW: number, fsStart: number, fsMin: number) {
   let fs = fsStart;
   doc.setFontSize(fs);
   while (fs > fsMin && doc.getTextWidth(txt) > maxW) {
@@ -556,19 +496,7 @@ function drawEntriesMultiColumn(args: {
   C_TEXT_DIM: [number, number, number];
   fsBody: number;
 }) {
-  const {
-    doc,
-    x0,
-    y0,
-    w0,
-    maxY,
-    rows,
-    cols,
-    rowH,
-    innerGap,
-    C_TEXT_DIM,
-    fsBody,
-  } = args;
+  const { doc, x0, y0, w0, maxY, rows, cols, rowH, innerGap, C_TEXT_DIM, fsBody } = args;
   if (maxY < y0) return;
 
   const availH = Math.max(0, maxY - y0);
@@ -592,12 +520,9 @@ function drawEntriesMultiColumn(args: {
     if (yy > maxY) continue;
 
     const it = drawRows[i];
-
-    // spacer rows
     const isSpacer = safeStr(it.label) === "" && safeStr(it.value) === "";
     if (isSpacer) continue;
 
-    // never truncate amount: allocate remaining width to label
     doc.setFontSize(fsBody);
     const value = it.value;
     const valueW = doc.getTextWidth(value);
@@ -605,13 +530,7 @@ function drawEntriesMultiColumn(args: {
 
     let valueFs = fsBody;
     if (valueW > colW - 2) {
-      valueFs = fitFontSizeToWidth(
-        doc,
-        value,
-        colW - 2,
-        fsBody,
-        Math.max(4.8, fsBody - 1.2),
-      );
+      valueFs = fitFontSizeToWidth(doc, value, colW - 2, fsBody, Math.max(4.8, fsBody - 1.2));
     } else {
       doc.setFontSize(fsBody);
     }
@@ -636,14 +555,8 @@ function drawEntriesMultiColumn(args: {
 }
 
 // =========================
-// Itemization renderer (3-col, amount-safe)
+// Itemization renderer
 // =========================
-
-type ItemLine =
-  | { t: "header"; text: string }
-  | { t: "text"; text: string }
-  | { t: "pair"; label: string; value: string; indent?: number; bold?: boolean };
-
 function drawItemLines3ColCompact(args: {
   doc: jsPDF;
   x0: number;
@@ -658,23 +571,9 @@ function drawItemLines3ColCompact(args: {
   lines: ItemLine[];
   title: string;
 }) {
-  const {
-    doc,
-    x0,
-    y0,
-    w0,
-    maxY,
-    cols,
-    rowH,
-    innerGap,
-    fsSmall,
-    C_TEXT_DIM,
-    lines,
-    title,
-  } = args;
+  const { doc, x0, y0, w0, maxY, cols, rowH, innerGap, fsSmall, C_TEXT_DIM, lines, title } = args;
   if (maxY < y0) return;
 
-  // dashed separator
   doc.setLineDash([1.5, 2], 0);
   doc.line(x0, y0 - 8, x0 + w0, y0 - 8);
   doc.setLineDash([], 0);
@@ -720,7 +619,6 @@ function drawItemLines3ColCompact(args: {
     if (ln.t === "pair") {
       const indent = Math.max(0, ln.indent ?? 8);
 
-      // amount-safe rendering
       const value = ln.value;
       doc.setFont("helvetica", ln.bold ? "bold" : "normal");
       doc.setFontSize(fsSmall);
@@ -728,13 +626,7 @@ function drawItemLines3ColCompact(args: {
       let valueFs = fsSmall;
       const valueW0 = doc.getTextWidth(value);
       if (valueW0 > colW - 2) {
-        valueFs = fitFontSizeToWidth(
-          doc,
-          value,
-          colW - 2,
-          fsSmall,
-          Math.max(4.6, fsSmall - 1.2),
-        );
+        valueFs = fitFontSizeToWidth(doc, value, colW - 2, fsSmall, Math.max(4.6, fsSmall - 1.2));
       } else {
         doc.setFontSize(fsSmall);
       }
@@ -764,7 +656,6 @@ function drawItemLines3ColCompact(args: {
 // =========================
 // main export
 // =========================
-
 export async function downloadPayslipsPdf(args: {
   rows: any[];
   payrollPeriodLabel: string;
@@ -774,10 +665,8 @@ export async function downloadPayslipsPdf(args: {
   const pageSize: PageSize = args.pageSize ?? "LEGAL";
   const fileName = args.fileName ?? "payslips.pdf";
 
-  // ✅ FILTER OUT ON-HOLD ROWS (NEW)
-  const filtered = (Array.isArray(args.rows) ? args.rows : []).filter(
-    (r) => !isRowOnHold(r),
-  );
+  // ✅ FILTER OUT ON-HOLD ROWS
+  const filtered = (Array.isArray(args.rows) ? args.rows : []).filter((r) => !isRowOnHold(r));
 
   // ✅ de-dupe AFTER filtering
   const rows = dedupeRows(filtered);
@@ -805,7 +694,6 @@ export async function downloadPayslipsPdf(args: {
   const usableH = pageH - marginY * 2 - gap * (slipsPerPage - 1);
   const slipH = usableH / slipsPerPage;
 
-  // slightly tighter
   const pad = 6;
 
   const C_BORDER: [number, number, number] = [0, 0, 0];
@@ -848,15 +736,8 @@ export async function downloadPayslipsPdf(args: {
     );
     const employeeName = (employeeNameRaw || "(NO NAME)").toUpperCase();
 
-    const position = safeStr(
-      row?.position_name ?? row?.position ?? row?.positionName ?? "",
-    );
-    const department = safeStr(
-      row?.department_name_snapshot ??
-      row?.department_name ??
-      row?.departmentName ??
-      "",
-    );
+    const position = safeStr(row?.position_name ?? row?.position ?? row?.positionName ?? "");
+    const department = safeStr(row?.department_name_snapshot ?? row?.department_name ?? row?.departmentName ?? "");
 
     const employeeId = safeStr(
       row?.employee_no ??
@@ -874,14 +755,10 @@ export async function downloadPayslipsPdf(args: {
     const hourlyRate = n(row?.hourly_rate ?? 0);
     const monthlyRate = n(row?.monthly_rate ?? 0);
 
-    const daysWorked = Math.round(
-      n(row?.total_days_worked ?? row?.days_worked ?? 0),
-    );
+    const daysWorked = Math.round(n(row?.total_days_worked ?? row?.days_worked ?? 0));
     const workMinutes = Math.floor(Math.max(0, n(row?.total_work_minutes ?? 0)));
     const lateMin = Math.floor(Math.max(0, n(row?.late_minutes ?? 0)));
-    const undertimeMin = Math.floor(
-      Math.max(0, n(row?.undertime_minutes ?? 0)),
-    );
+    const undertimeMin = Math.floor(Math.max(0, n(row?.undertime_minutes ?? 0)));
     const otMin = Math.floor(Math.max(0, n(row?.overtime_minutes ?? 0)));
     const ndMin = Math.floor(Math.max(0, n(row?.night_diff_minutes ?? 0)));
 
@@ -894,38 +771,27 @@ export async function downloadPayslipsPdf(args: {
     const allowanceTotal = n(row?.allowance ?? 0);
     const manualAdditions = n(row?.manual_additions ?? 0);
 
-    const retroPayTotal = n(
-      row?.retro_pay ?? row?.retroPay ?? b?.earnings?.retro_pay ?? 0,
-    );
+    const retroPayTotal = n(row?.retro_pay ?? row?.retroPay ?? b?.earnings?.retro_pay ?? 0);
 
     const lateDed = n(row?.late_deduction ?? 0);
     const undertimeDed = n(row?.undertime_deduction ?? 0);
     const shortageDed = n(row?.shortage_deduction ?? 0);
     const drDed = n(row?.dr_deduction ?? 0);
 
-    // employee loan totals (raw)
     const loanVale = n(row?.loan_vale ?? 0);
     const loanCar = n(row?.loan_car ?? 0);
     const loanCoopLegacy = n(row?.loan_coop ?? 0);
 
-    const loanTotalRaw = n(
-      row?.loan_total ?? loanVale + loanCar + loanCoopLegacy,
-    );
+    const loanTotalRaw = n(row?.loan_total ?? loanVale + loanCar + loanCoopLegacy);
 
-    // ✅ derive COOP loan from breakdown employee-loan items (COOP), fallback to legacy fields
     const employeeLoanItems = collectEmployeeLoanItems(b);
-    const coopLoanFromItems = sumEmployeeLoans(employeeLoanItems, {
-      onlyCoop: true,
-    });
+    const coopLoanFromItems = sumEmployeeLoans(employeeLoanItems, { onlyCoop: true });
     const coopLoanTotal =
       coopLoanFromItems !== 0
         ? coopLoanFromItems
         : n(row?.coop_loan ?? row?.coopLoan ?? b?.deductions?.coop_loan ?? 0);
 
-    // total employee loans (prefer row loan_total, else derive from items, else fallback)
-    const empLoansFromItemsAll = employeeLoanItems.length
-      ? sumEmployeeLoans(employeeLoanItems)
-      : 0;
+    const empLoansFromItemsAll = employeeLoanItems.length ? sumEmployeeLoans(employeeLoanItems) : 0;
     const empLoansAll =
       loanTotalRaw !== 0
         ? loanTotalRaw
@@ -933,7 +799,6 @@ export async function downloadPayslipsPdf(args: {
           ? empLoansFromItemsAll
           : loanVale + loanCar + loanCoopLegacy;
 
-    // ✅ EL shown without COOP (COOP goes to overview as CL)
     const empLoansExCoop = Math.max(0, empLoansAll - coopLoanTotal);
 
     const coopSavingsTotal = n(
@@ -948,28 +813,23 @@ export async function downloadPayslipsPdf(args: {
     const benPhil = n(row?.benefit_philhealth ?? 0);
     const benPag = n(row?.benefit_pagibig ?? 0);
 
-    const benefitLoansTotal = n(
-      b?.deductions?.benefit_loans?.total ?? row?.benefit_loan_total ?? 0,
-    );
+    const benefitLoansTotal = n(b?.deductions?.benefit_loans?.total ?? row?.benefit_loan_total ?? 0);
     const manualDedTotal = n(row?.other_deductions ?? 0);
 
     const grossPay = n(row?.gross_pay ?? 0);
     const totalDeductions = n(row?.total_deductions ?? 0);
     const netPay = n(row?.net_pay ?? 0);
 
-    // ✅ item pairs (compact)
     const allowancePairs = extractAllowancePairs(b);
     const manualAdditionPairs = extractManualAdditionPairs(b);
     const retroPairs = extractRetroPayPairs(b);
 
     const { sh, dr, md } = extractManualDeductionGroupsPairs(b);
-    const employeeLoanPairs = extractEmployeeLoanPairsExcludingCoop(row, b); // ✅ excludes coop
+    const employeeLoanPairs = extractEmployeeLoanPairsExcludingCoop(row, b);
     const benefitLoanPairs = extractBenefitLoanPairs(b);
 
-    // ✅ Holiday detail entries (for 3rd column of earnings summary)
     const holidayDetailEntries = extractHolidayDetailEntries(b);
 
-    // ✅ ultra-compact overview labels
     const baseEarningsEntries = buildEntries(
       [
         { label: "BASIC PAY", value: basicPay },
@@ -992,7 +852,7 @@ export async function downloadPayslipsPdf(args: {
         { label: "DR PAY", value: drDed },
         { label: "ELoans", value: empLoansExCoop },
         { label: "CSavings", value: coopSavingsTotal },
-        { label: "CLoans", value: coopLoanTotal }, // ✅ COOP employee-loan sum lives here
+        { label: "CLoans", value: coopLoanTotal },
         { label: "SSS", value: benSSS },
         { label: "PHILHEALTH", value: benPhil },
         { label: "PAG-IBIG", value: benPag },
@@ -1002,13 +862,13 @@ export async function downloadPayslipsPdf(args: {
       { includeZero: true },
     );
 
-    // ultra-compact fonts
     const fsCorp = 9.6;
     const fsName = 8.4;
     const fsBody = 6.1;
     const fsSmall = 5.3;
     const fsNet = 9.4;
 
+    const fsPayMethod = fsBody + 1.2; // ✅ bigger
     const rowH = 8.1;
     const flatRowH = 7.6;
 
@@ -1036,11 +896,7 @@ export async function downloadPayslipsPdf(args: {
     doc.rect(innerX, cy - 9, innerW, 12, "F");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(fsName);
-    doc.text(
-      truncateToWidth(doc, `EMPLOYEE: ${employeeName}`, innerW - 6),
-      innerX + 3,
-      cy,
-    );
+    doc.text(truncateToWidth(doc, `EMPLOYEE: ${employeeName}`, innerW - 6), innerX + 3, cy);
 
     cy += 7.5;
 
@@ -1048,34 +904,27 @@ export async function downloadPayslipsPdf(args: {
     const rightW = innerW - leftW - 8;
     const rightX = innerX + leftW + 8;
 
+    // Line 1: Department + ID No.
     doc.setFont("helvetica", "normal");
     doc.setFontSize(fsBody);
     doc.setTextColor(C_TEXT_DIM[0], C_TEXT_DIM[1], C_TEXT_DIM[2]);
-    doc.text(
-      truncateToWidth(doc, `Department: ${department || "-"}`, leftW),
-      innerX,
-      cy,
-    );
-    textRight(
-      doc,
-      truncateToWidth(doc, `ID No.: ${employeeId || "-"}`, rightW),
-      rightX + rightW,
-      cy,
-    );
+
+    doc.text(truncateToWidth(doc, `Department: ${department || "-"}`, leftW), innerX, cy);
+    textRight(doc, truncateToWidth(doc, `ID No.: ${employeeId || "-"}`, rightW), rightX + rightW, cy);
 
     doc.setTextColor(0, 0, 0);
     cy += 7.6;
 
+    // Line 2: Designation + PAY METHOD (✅ moved here to be LOWER + equal top/bottom spacing)
     doc.setTextColor(C_TEXT_DIM[0], C_TEXT_DIM[1], C_TEXT_DIM[2]);
-    doc.text(
-      truncateToWidth(doc, `Designation: ${position || "-"}`, leftW),
-      innerX,
-      cy,
-    );
-    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(fsBody);
+    doc.text(truncateToWidth(doc, `Designation: ${position || "-"}`, leftW), innerX, cy);
+
 
     cy += 7.6;
 
+    // Line 3: Rates
     const rates = `Rates: ${monthlyRate ? fmtMoney(monthlyRate) : "PHP 0.00"
       } / ${dailyRate ? fmtMoney(dailyRate) : "PHP 0.00"} / ${hourlyRate ? fmtMoney(hourlyRate) : "PHP 0.00"
       }`;
@@ -1083,6 +932,22 @@ export async function downloadPayslipsPdf(args: {
     doc.setTextColor(C_TEXT_DIM[0], C_TEXT_DIM[1], C_TEXT_DIM[2]);
     doc.text(truncateToWidth(doc, rates, innerW), innerX, cy);
     doc.setTextColor(0, 0, 0);
+    const isCardRaw = resolveIsCardRaw(row, b);
+    const payMethodTxt =
+      isCardRaw === null ? "" : `PAYMENT METHOD: ${isCardRaw ? "BANK" : "CASH"}`;
+
+    if (payMethodTxt) {
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(fsPayMethod);
+      textRight(doc, truncateToWidth(doc, payMethodTxt, rightW), rightX + rightW, cy);
+      // restore
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(fsBody);
+      doc.setTextColor(0, 0, 0);
+    } else {
+      doc.setTextColor(0, 0, 0);
+    }
 
     cy += 7.6;
 
@@ -1132,12 +997,7 @@ export async function downloadPayslipsPdf(args: {
 
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(fsNet);
-    textRight(
-      doc,
-      fmtMoney(netPay),
-      innerX + metricsW + gap2 + netW - 8,
-      cy + 23.5,
-    );
+    textRight(doc, fmtMoney(netPay), innerX + metricsW + gap2 + netW - 8, cy + 23.5);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(fsBody);
@@ -1171,16 +1031,8 @@ export async function downloadPayslipsPdf(args: {
 
     const eTitle = "EARNINGS";
     const dTitle = "DEDUCTIONS";
-    doc.text(
-      eTitle,
-      earnHalfX + halfW / 2 - doc.getTextWidth(eTitle) / 2,
-      listTopY + 9,
-    );
-    doc.text(
-      dTitle,
-      dedHalfX + halfW / 2 - doc.getTextWidth(dTitle) / 2,
-      listTopY + 9,
-    );
+    doc.text(eTitle, earnHalfX + halfW / 2 - doc.getTextWidth(eTitle) / 2, listTopY + 9);
+    doc.text(dTitle, dedHalfX + halfW / 2 - doc.getTextWidth(dTitle) / 2, listTopY + 9);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(fsBody);
@@ -1197,7 +1049,6 @@ export async function downloadPayslipsPdf(args: {
     const cols: 1 | 2 | 3 = 3;
     const innerGapCols = 8;
 
-    // ✅ push holiday items into the 3rd column of the earnings summary
     let earningsEntries: Entry[] = baseEarningsEntries;
     if (holidayDetailEntries.length) {
       const availH = Math.max(0, mainMaxY - contentTopY);
@@ -1241,26 +1092,20 @@ export async function downloadPayslipsPdf(args: {
       fsBody,
     });
 
-    // ======================
-    // ITEMIZATION (ULTRA COMPACT)
-    // ======================
-
+    // ITEMIZATION
     const earnLines: ItemLine[] = [];
 
     if (allowancePairs.length) {
       earnLines.push({ t: "text", text: "ALLOWANCE:" });
-      for (const p of allowancePairs)
-        earnLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
+      for (const p of allowancePairs) earnLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
     }
     if (retroPairs.length) {
       earnLines.push({ t: "text", text: "RETRO:" });
-      for (const p of retroPairs)
-        earnLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
+      for (const p of retroPairs) earnLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
     }
     if (manualAdditionPairs.length) {
       earnLines.push({ t: "text", text: "MANUAL ADDS:" });
-      for (const p of manualAdditionPairs)
-        earnLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
+      for (const p of manualAdditionPairs) earnLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
     }
     if (!earnLines.length) earnLines.push({ t: "text", text: "(none)" });
 
@@ -1268,32 +1113,27 @@ export async function downloadPayslipsPdf(args: {
 
     if (sh.length) {
       dedLines.push({ t: "text", text: "SHORTAGE:" });
-      for (const p of sh)
-        dedLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
+      for (const p of sh) dedLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
     }
     if (dr.length) {
       dedLines.push({ t: "text", text: "DR:" });
-      for (const p of dr)
-        dedLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
+      for (const p of dr) dedLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
     }
     if (md.length) {
       dedLines.push({ t: "text", text: "MANUAL DEDS:" });
-      for (const p of md)
-        dedLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
+      for (const p of md) dedLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
     }
 
     // ✅ NO COOP SAVINGS ITEMIZATION (requested)
 
     if (employeeLoanPairs.length) {
       dedLines.push({ t: "text", text: "ELOANS:" });
-      for (const p of employeeLoanPairs)
-        dedLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
+      for (const p of employeeLoanPairs) dedLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
     }
 
     if (benefitLoanPairs.length) {
       dedLines.push({ t: "text", text: "BLOANS:" });
-      for (const p of benefitLoanPairs)
-        dedLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
+      for (const p of benefitLoanPairs) dedLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
     }
 
     if (!dedLines.length) dedLines.push({ t: "text", text: "(none)" });
@@ -1337,12 +1177,7 @@ export async function downloadPayslipsPdf(args: {
     doc.setFontSize(fsBody);
 
     doc.text(`Gross: ${fmtMoney(grossPay)}`, innerX + 4, totalsTopY + 12);
-    textRight(
-      doc,
-      `Total Deds: ${fmtMoney(totalDeductions)}`,
-      innerX + innerW - 4,
-      totalsTopY + 12,
-    );
+    textRight(doc, `Total Deds: ${fmtMoney(totalDeductions)}`, innerX + innerW - 4, totalsTopY + 12);
     doc.text(`Net: ${fmtMoney(netPay)}`, innerX + 4, totalsTopY + 23);
 
     doc.setFont("helvetica", "normal");

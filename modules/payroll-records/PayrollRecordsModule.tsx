@@ -61,7 +61,7 @@ export default function PayrollRecordsModule() {
           <p className="text-sm text-muted-foreground mt-1">
             {activeTab === "employees"
               ? "Manage employee records and payroll information."
-              : "Generate a final Tap Sheet per department and cutoff."}
+              : "Generate a final Top Sheet per department and cutoff."}
           </p>
         </div>
       </div>
@@ -77,7 +77,7 @@ export default function PayrollRecordsModule() {
           >
             <TabsList className="grid grid-cols-2 w-full mb-4">
               <TabsTrigger value="employees">Employees</TabsTrigger>
-              <TabsTrigger value="tap-sheet">Tap Sheet</TabsTrigger>
+              <TabsTrigger value="tap-sheet">Top Sheet</TabsTrigger>
             </TabsList>
 
             <TabsContent value="employees" className="mt-0">

@@ -157,7 +157,7 @@ export default function TapSheetTab({
         setRowsRaw(filtered);
       } catch (e) {
         console.error(e);
-        toast.error("Failed to load tap sheet data.");
+        toast.error("Failed to load Top Sheet data.");
         setRowsRaw([]);
       } finally {
         setLoading(false);
@@ -254,7 +254,7 @@ export default function TapSheetTab({
     if (!cutoff?.start || !cutoff?.end)
       return toast.error("Please select a cutoff date.");
     if (!departmentName) return toast.error("Please select a department.");
-    if (!tapRows.length) return toast.error("No tap sheet rows to preview.");
+    if (!tapRows.length) return toast.error("No Top Sheet rows to preview.");
 
     try {
       setExporting(true);
@@ -276,7 +276,7 @@ export default function TapSheetTab({
       setPreviewUrl(url);
       setPreviewOpen(true);
 
-      toast.success("Tap Sheet ready for preview.");
+      toast.success("Top Sheet ready for preview.");
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message ?? "Failed to generate PDF preview.");
@@ -289,7 +289,7 @@ export default function TapSheetTab({
     <div className="space-y-6">
       <CardHeader className="px-0 space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <CardTitle>Tap Sheet</CardTitle>
+          <CardTitle>Top Sheet</CardTitle>
 
           <Button
             onClick={previewPdf}
@@ -396,7 +396,7 @@ export default function TapSheetTab({
             {loading && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading tap sheet...
+                Loading Top Sheet...
               </div>
             )}
           </div>
@@ -430,7 +430,7 @@ export default function TapSheetTab({
                   colSpan={5}
                   className="py-10 text-center text-muted-foreground"
                 >
-                  Select a cutoff date and department to generate the Tap Sheet.
+                  Select a cutoff date and department to generate the Top Sheet.
                 </TableCell>
               </TableRow>
             ) : loading ? (
@@ -510,7 +510,7 @@ export default function TapSheetTab({
           <DialogHeader className="px-4 py-3 border-b">
             <div className="flex items-center justify-between gap-3">
               <DialogTitle className="text-base">
-                Tap Sheet PDF Preview
+                Top Sheet PDF Preview
               </DialogTitle>
 
               <div className="flex items-center gap-2">
@@ -539,7 +539,7 @@ export default function TapSheetTab({
           <div className="h-[80vh] bg-muted/20">
             {previewUrl ? (
               <iframe
-                title="Tap Sheet PDF Preview"
+                title="Top Sheet PDF Preview"
                 src={previewUrl}
                 className="w-full h-full"
               />

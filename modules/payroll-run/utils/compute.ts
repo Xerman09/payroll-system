@@ -203,7 +203,6 @@ function normAttendance(row: any): AttendanceNorm {
   };
 }
 
-
 type HolidayKind = "regular" | "special" | "company";
 type HolidayFlag = "NONE" | "REGULAR" | "SPECIAL";
 
@@ -224,7 +223,6 @@ function normHoliday(row: any): HolidayInfo {
     last_working_day: ymdOrNull(row.last_working_day ?? row.lastWorkingDay),
   };
 }
-
 
 function higherHoliday(a: HolidayKind, b: HolidayKind): HolidayKind {
   const rank: Record<HolidayKind, number> = { regular: 3, special: 2, company: 1 };
@@ -363,7 +361,14 @@ function allowanceAmountForCutoff(args: {
     if (!a.is_active) continue;
     if (a.pay_cycle === "N/A") continue;
 
-    if (!overlapsWindow({ cutoffStart: args.cutoffStart, cutoffEnd: args.cutoffEnd, start: a.start_date, end: a.end_date }))
+    if (
+      !overlapsWindow({
+        cutoffStart: args.cutoffStart,
+        cutoffEnd: args.cutoffEnd,
+        start: a.start_date,
+        end: a.end_date,
+      })
+    )
       continue;
 
     if (a.pay_cycle === "PER_CUTOFF") {
@@ -752,9 +757,7 @@ export function buildManualItemizationsForBreakdown(manualEntries: any[]): {
     const drPosted = isDR ? drPostedFromEntry(m) : false;
 
     // ✅ remove "DR Payment:" prefix for display (backward compatible)
-    const displayDesc = isDR
-      ? (extractDRReceiptNo(rawDesc) || drNo || "DR Payment")
-      : rawDesc;
+    const displayDesc = isDR ? extractDRReceiptNo(rawDesc) || drNo || "DR Payment" : rawDesc;
 
     return {
       item_key: manualStableKey("MD", m, idx),
@@ -775,7 +778,6 @@ export function buildManualItemizationsForBreakdown(manualEntries: any[]): {
         : m?.meta ?? null,
     };
   });
-
 
   const shortage_total = round2(
     manual_deduction_items.filter((x) => x.category === "SHORTAGE").reduce((sum, x) => sum + n(x.amount), 0),
@@ -889,6 +891,96 @@ function dedupeByItemKey<T extends { item_key: string }>(items: T[]): T[] {
   return out;
 }
 
+/* ------------------------ PATCH: is_card from user_wage_management ------------------------ */
+
+type TinyInt01 = 0 | 1;
+
+function toTinyInt01(v: any): TinyInt01 {
+  if (v === true) return 1;
+  if (v === false) return 0;
+  if (v == null) return 0;
+
+  if (typeof v === "number") return Number.isFinite(v) && v > 0 ? 1 : 0;
+
+  if (typeof v === "string") {
+    const t = v.trim().toLowerCase();
+    if (t === "1" || t === "true" || t === "yes" || t === "y") return 1;
+    return 0;
+  }
+
+  return n(v) > 0 ? 1 : 0;
+}
+
+function unwrapRel(v: any): any[] {
+  if (Array.isArray(v)) return v.filter(Boolean);
+  if (v && typeof v === "object") return [v];
+  return [];
+}
+
+function pickDefined(obj: any, keys: string[]): any {
+  if (!obj || typeof obj !== "object") return undefined;
+  for (const k of keys) {
+    if (Object.prototype.hasOwnProperty.call(obj, k)) return (obj as any)[k];
+  }
+  return undefined;
+}
+
+/**
+ * ✅ HARD RULE:
+ * Prefer the isCard flag from user_wage_management (since that’s what you asked).
+ * We try common Directus relationship shapes on BOTH args.wage and args.user.
+ */
+function resolveIsCardFromUserWageManagement(args: ComputeArgs): { raw: TinyInt01; source: string } {
+  const keys = ["isCard", "is_card", "is_card_raw", "isCardRaw"];
+
+  const wageAny: any = args.wage ?? {};
+  const userAny: any = args.user ?? {};
+
+  // 1) user_wage_management relation on wage (common Directus shapes)
+  const wageRelCandidates: Array<[any, string]> = [
+    [wageAny.user_wage_management, "wage.user_wage_management"],
+    [wageAny.userWageManagement, "wage.userWageManagement"],
+    [wageAny.user_wage_management_id, "wage.user_wage_management_id"],
+    [wageAny.userWageManagementId, "wage.userWageManagementId"],
+    [wageAny.user_wage_management_rel, "wage.user_wage_management_rel"],
+    [wageAny.userWageManagementRel, "wage.userWageManagementRel"],
+  ];
+
+  for (const [rel, label] of wageRelCandidates) {
+    for (const obj of unwrapRel(rel)) {
+      const v = pickDefined(obj, keys);
+      if (v !== undefined) return { raw: toTinyInt01(v), source: `${label}.isCard` };
+    }
+  }
+
+  // 2) user_wage_management relation on user (also common)
+  const userRelCandidates: Array<[any, string]> = [
+    [userAny.user_wage_management, "user.user_wage_management"],
+    [userAny.userWageManagement, "user.userWageManagement"],
+    [userAny.user_wage_management_id, "user.user_wage_management_id"],
+    [userAny.userWageManagementId, "user.userWageManagementId"],
+    [userAny.user_wage_management_rel, "user.user_wage_management_rel"],
+    [userAny.userWageManagementRel, "user.userWageManagementRel"],
+  ];
+
+  for (const [rel, label] of userRelCandidates) {
+    for (const obj of unwrapRel(rel)) {
+      const v = pickDefined(obj, keys);
+      if (v !== undefined) return { raw: toTinyInt01(v), source: `${label}.isCard` };
+    }
+  }
+
+  // 3) fallback: if args.wage itself is actually the user_wage_management row
+  const vSelf = pickDefined(wageAny, keys);
+  if (vSelf !== undefined) return { raw: toTinyInt01(vSelf), source: "wage.isCard" };
+
+  // 4) fallback: if args.user row contains it directly
+  const vUser = pickDefined(userAny, keys);
+  if (vUser !== undefined) return { raw: toTinyInt01(vUser), source: "user.isCard" };
+
+  return { raw: 0, source: "default(0)" };
+}
+
 /* -------------------------------- Compute -------------------------------- */
 
 export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
@@ -907,6 +999,11 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     wage: args.wage,
     wageProrationLogs: (args.wageProrationLogs ?? []) as any[],
   });
+
+  // ✅ FIX: always use user_wage_management.isCard as the source of truth
+  const isCardResolved = resolveIsCardFromUserWageManagement(args);
+  const isCardRaw: TinyInt01 = isCardResolved.raw;
+  const isCard = isCardRaw === 1;
 
   // ✅ attendance is cutoff-scoped and approved
   const att = (args.attendance ?? [])
@@ -1000,8 +1097,6 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     }
 
     if (bucket === "NORMAL") {
-
-
       if (lm > 0 && dayHourly > 0) lateDeduction += round2((lm / 60) * dayHourly);
       if (um > 0 && dayHourly > 0) undertimeDeduction += round2((um / 60) * dayHourly);
 
@@ -1135,8 +1230,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
       .join(" ");
 
   const isRetroRow = (m: any) =>
-    manualKind(m) === "EARNING" &&
-    matchesAny(manualText(m), ["retro_pay", "retro pay", "retro", "backpay", "back pay"]);
+    manualKind(m) === "EARNING" && matchesAny(manualText(m), ["retro_pay", "retro pay", "retro", "backpay", "back pay"]);
 
   const isCoopSavingsRow = (m: any) =>
     manualKind(m) === "DEDUCTION" &&
@@ -1156,9 +1250,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const coopSavingsRowsManual = manualRows.filter(isCoopSavingsRow);
   const coopLoanRows = manualRows.filter((m) => isCoopLoanRow(m) && !isCoopSavingsRow(m));
 
-  const baseManualRows = manualRows.filter(
-    (m) => !isRetroRow(m) && !isCoopSavingsRow(m) && !isCoopLoanRow(m),
-  );
+  const baseManualRows = manualRows.filter((m) => !isRetroRow(m) && !isCoopSavingsRow(m) && !isCoopLoanRow(m));
 
   const itemizedBase = buildManualItemizationsForBreakdown(baseManualRows);
   const retroItemizedManual = buildManualItemizationsForBreakdown(retroRows);
@@ -1186,7 +1278,14 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const retro_items_table: BreakdownItem[] = retroTableRows
     .filter((r) => r.amount > 0)
     .filter((r) => r.is_processed !== 1)
-    .filter((r) => overlapsWindow({ cutoffStart: args.cutoffStart, cutoffEnd: args.cutoffEnd, start: r.cutoff_start, end: r.cutoff_end }))
+    .filter((r) =>
+      overlapsWindow({
+        cutoffStart: args.cutoffStart,
+        cutoffEnd: args.cutoffEnd,
+        start: r.cutoff_start,
+        end: r.cutoff_end,
+      }),
+    )
     .map((r, idx) => {
       const rid = r.retro_id;
       const key = rid ? `RP:${rid}` : `RP:IDX:${idx + 1}`;
@@ -1240,11 +1339,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     )
     .map((r, idx) => {
       const amountThisCutoff = monthlySplitPerCutoff(r.monthly_amount);
-      const key = r.membership_id
-        ? `CSM:${r.membership_id}`
-        : r.id
-          ? `CSM:${r.id}`
-          : `CSM:IDX:${idx + 1}`;
+      const key = r.membership_id ? `CSM:${r.membership_id}` : r.id ? `CSM:${r.id}` : `CSM:IDX:${idx + 1}`;
 
       return {
         item_key: key,
@@ -1266,10 +1361,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     })
     .filter((x) => n(x.amount) > 0);
 
-  const coop_savings_items = dedupeByItemKey<BreakdownItem>([
-    ...coop_savings_items_manual,
-    ...coop_savings_items_table,
-  ]);
+  const coop_savings_items = dedupeByItemKey<BreakdownItem>([...coop_savings_items_manual, ...coop_savings_items_table]);
 
   const coopSavings = round2(coop_savings_items.reduce((sum, x) => sum + n(x.amount), 0));
 
@@ -1386,8 +1478,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const isProrated = prorationEventsInCutoff.length > 0;
   const prorationJson = isProrated
     ? {
-      policy:
-        "is_prorated=1 when at least one wage proration event effective_date falls within the cutoff window.",
+      policy: "is_prorated=1 when at least one wage proration event effective_date falls within the cutoff window.",
       cutoff: { start: args.cutoffStart, end: args.cutoffEnd },
       events_in_cutoff: prorationEventsInCutoff,
       all_events_used_chain: rate.events ?? [],
@@ -1432,9 +1523,9 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     hourly_rate: round2(hourlyBase),
     monthly_rate: round2(monthlyBase),
 
-    total_days_worked: new Set(att.filter((x) => n(x.work_minutes) > 0).map((x) => x.date_schedule)).size,
+    total_days_worked: totalDaysWorked,
     total_work_minutes: totalWorkMinutes,
-    total_hours_worked: round2(totalWorkMinutes / 60),
+    total_hours_worked: totalHoursWorked,
 
     late_minutes: lateMinutes,
     undertime_minutes: undertimeMinutes,
@@ -1444,9 +1535,12 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     basic_pay: round2(basicPay),
     ot_amount: round2(otAmount),
 
+    // ✅ top-level DB flag (0/1) — forced from user_wage_management.isCard
+    is_card: isCardRaw,
+
     holiday: round2(holidayPay),
     holiday_pay: round2(holidayPay),
-    holiday_days: round2(holidayItems.filter((x) => n(x?.total) > 0).length),
+    holiday_days: holidayDays,
 
     rest_day_amount: round2(restDayAmount),
     night_diff_amount: round2(nightDiffAmount),
@@ -1480,9 +1574,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     other_deductions: round2(otherDeductions),
     manual_deductions: round2(manualDeductions),
 
-    total_additions: round2(
-      manualAdds + allowance + retroPay + holidayPay + restDayAmount + nightDiffAmount + otAmount,
-    ),
+    total_additions: round2(manualAdds + allowance + retroPay + holidayPay + restDayAmount + nightDiffAmount + otAmount),
     total_deductions: round2(totalDeductions),
     gross_pay: round2(grossPay),
     net_pay: round2(netPay),
@@ -1498,6 +1590,17 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     proration_json: prorationJson,
 
     breakdown_json: {
+      profile: {
+        wage_profile_id: (args.wage as any)?.id != null ? n((args.wage as any).id) : null,
+
+        // ✅ derived flags (always aligned)
+        is_card: isCard,
+        is_card_raw: isCardRaw,
+
+        // ✅ debug info so you can verify it’s pulling the right place
+        is_card_source: isCardResolved.source,
+      },
+
       rates: {
         base_daily: round2(rate.baseDaily),
         base_hourly: round2(rate.baseDaily > 0 ? rate.baseDaily / 8 : 0),
@@ -1506,11 +1609,12 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
           daily: round2(dailyBase),
           hourly: round2(hourlyBase),
           monthly: round2(monthlyBase),
+          is_card: isCard,
         },
         daily_rate_events: rate.events,
-        policy:
-          "Per-date daily/hourly/minute rate derived from wage proration logs when available; otherwise wage profile.",
+        policy: "Per-date daily/hourly/minute rate derived from wage proration logs when available; otherwise wage profile.",
       },
+
       earnings: {
         basic_pay: round2(basicPay),
         ot_amount: round2(otAmount),
@@ -1521,25 +1625,21 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         allowance_total: round2(allowance),
         allowance_items: allowanceItems,
 
-        // ✅ base manual additions (retro excluded)
         manual_additions: round2(manualAdds),
         manual_addition_items: itemizedBase.manual_addition_items,
 
-        // ✅ retro pay (multiple per cutoff supported)
         retro_pay: round2(retroPay),
 
-        // NEW canonical field for payroll_run_employee_item sync
         retro_items: retro_items_all.map((x) => ({
           item_key: x.item_key,
           amount: x.amount,
           description: x.description,
-          label: x.description, // compatibility with older consumers
+          label: x.description,
           source_table: x.source_table ?? "retro_pay",
           source_id: x.source_id ?? null,
           meta: x.meta ?? null,
         })),
 
-        // Backward-compat (your older UI may be reading this)
         retro_pay_items: retro_pay_items.map((x) => ({
           item_key: x.item_key,
           amount: x.amount,
@@ -1553,6 +1653,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         holiday_items: holidayItems,
         rest_day_items: restDayItems,
       },
+
       deductions: {
         late_deduction: round2(lateDeduction),
         undertime_deduction: round2(undertimeDeduction),
@@ -1576,6 +1677,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
           total: round2(benefitLoanTotal),
           items: bLoanItems,
         },
+
         benefits: {
           rule: "benefit_cutoff_settings",
           multipliers: { SSS: multSSS, PHILHEALTH: multPhil, PAGIBIG: multPagibig },
@@ -1586,14 +1688,11 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
         other_deductions: round2(otherDeductions),
 
-        // ✅ manual deductions total includes coop savings/loan
         manual_deductions: round2(manualDeductions),
 
-        // ✅ base manual deduction items (coop excluded)
         manual_deduction_items: itemizedBase.manual_deduction_items,
         manual_deduction_summary: itemizedBase.manual_deduction_summary,
 
-        // ✅ coop savings membership (now comes from Option B table)
         coop_savings: round2(coopSavings),
         coop_savings_items: coop_savings_items.map((x) => ({
           item_key: x.item_key,
@@ -1618,17 +1717,21 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         total_deductions: round2(totalDeductions),
         net_pay: round2(netPay),
       },
+
       cutoff: {
         start: args.cutoffStart,
         end: args.cutoffEnd,
         type: args.cutoffType,
         id: args.cutoffId,
       },
-      flags: { on_hold: Boolean(args.onHold), variance_flag: Boolean(varianceFlag) },
+
+      flags: { on_hold: Boolean(args.onHold), variance_flag: Boolean(varianceFlag), is_card: isCard },
+
       policies: {
         unworked_holiday_pay_rule:
           "Pay unworked holiday ONLY if holiday.last_working_day is within cutoff and employee has approved attendance on that last_working_day.",
       },
+
       proration: {
         is_prorated: Boolean(isProrated),
         events_in_cutoff: prorationEventsInCutoff,

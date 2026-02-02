@@ -21,6 +21,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { MoreVertical } from "lucide-react";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 import {
   Pencil,
@@ -492,7 +500,11 @@ function MinimalAdjustmentRow({
   const disableEditDelete = isDR && drPostedFromEntry(e);
 
   return (
-    <div className="group flex items-center justify-between gap-3 border-b px-0 py-2">
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 px-0 py-2 border-b last:border-b-0",
+      )}
+    >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -505,41 +517,54 @@ function MinimalAdjustmentRow({
       <div className="flex items-center gap-2">
         <MoneyPill amount={formatEntryAmount(e)} kind={kind} accent={accent} />
 
-        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={(ev) => {
-              ev.preventDefault();
-              ev.stopPropagation();
-              onEdit(e);
-            }}
-            disabled={disableEditDelete}
-            title={
-              disableEditDelete ? "Cannot edit posted DR payments" : "Edit"
-            }
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
+        {/* ✅ Always-visible kebab actions */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-xl"
+              disabled={disableEditDelete}
+              title={
+                disableEditDelete
+                  ? "Cannot edit/delete posted DR payments"
+                  : "Actions"
+              }
+              onClick={(ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+              }}
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={(ev) => {
-              ev.preventDefault();
-              ev.stopPropagation();
-              onDelete(e);
-            }}
-            disabled={disableEditDelete}
-            title={
-              disableEditDelete ? "Cannot delete posted DR payments" : "Delete"
-            }
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem
+              disabled={disableEditDelete}
+              className="cursor-pointer gap-2"
+              onSelect={(ev) => {
+                ev.preventDefault();
+                onEdit(e);
+              }}
+            >
+              <Pencil className="h-4 w-4" />
+              <span>Edit</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              disabled={disableEditDelete}
+              className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+              onSelect={(ev) => {
+                ev.preventDefault();
+                onDelete(e);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+              <span>Delete</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

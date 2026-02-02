@@ -46,16 +46,41 @@ function normalizeText(v: any) {
   return String(v ?? "").trim();
 }
 
+function humanizeCutoffType(v: any) {
+  const raw = normalizeText(v).toLowerCase();
+  if (!raw) return "";
+
+  // Common variants we’ve seen in payroll systems:
+  if (raw === "first" || raw === "1" || raw === "1st" || raw === "a")
+    return "First cutoff";
+  if (raw === "second" || raw === "2" || raw === "2nd" || raw === "b")
+    return "Second cutoff";
+
+  // If backend sends something like FIRST_CUTOFF / SECOND_CUTOFF / first_cutoff
+  const cleaned = raw.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  if (cleaned === "first cutoff") return "First cutoff";
+  if (cleaned === "second cutoff") return "Second cutoff";
+
+  // Generic title-case fallback (e.g. "third cutoff" -> "Third Cutoff")
+  return cleaned.replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
 function cutoffLabel(c: CutoffSetting) {
-  // try common label fields; fallback to id
+  // try common label fields; fallback to cutoff_type (First cutoff / Second cutoff)
   const anyC = c as any;
+
+  const typeText = humanizeCutoffType(
+    anyC.cutoff_type ?? anyC.cutoffType ?? anyC.type,
+  );
+
   return (
     normalizeText(anyC.label) ||
     normalizeText(anyC.name) ||
     normalizeText(anyC.cutoff_name) ||
     normalizeText(anyC.cutoff_label) ||
     normalizeText(anyC.cutoff_code) ||
-    `Cutoff #${String(anyC.id ?? "")}`
+    typeText ||
+    "Cutoff"
   );
 }
 
