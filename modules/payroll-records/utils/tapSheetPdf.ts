@@ -152,20 +152,21 @@ export async function buildTapSheetPdf(args: {
   // columns (avoid overflow)
   const availableW = pageW - marginX * 2;
 
-  let colAmtW = 102; // slightly narrower
-  let colNameW = availableW - colAmtW * 4;
+  let colAmtW = 90; // reduced to fit Payment Type
+  let colTypeW = 50;
+  let colNameW = availableW - colTypeW - colAmtW * 4;
 
-  const minName = 260;
-  const minAmt = 86;
+  const minName = 200;
 
   if (colNameW < minName) {
-    colAmtW = Math.max(minAmt, Math.floor((availableW - minName) / 4));
-    colNameW = availableW - colAmtW * 4;
+    colAmtW = 80;
+    colNameW = availableW - colTypeW - colAmtW * 4;
   }
 
   const x0 = marginX;
   const xName = x0;
-  const xGross = xName + colNameW;
+  const xType = xName + colNameW;
+  const xGross = xType + colTypeW;
   const xAdds = xGross + colAmtW;
   const xDeds = xAdds + colAmtW;
   const xNet = xDeds + colAmtW;
@@ -175,7 +176,7 @@ export async function buildTapSheetPdf(args: {
   const metaY = marginTop + headerBandH + 22;
   const tableStartY = metaY + 50;
 
-  const rowH = 20; // tighter than before
+  const rowH = 20;
 
   const drawFooter = (pageNo: number) => {
     doc.setFont(fontFamily, "normal");
@@ -198,13 +199,17 @@ export async function buildTapSheetPdf(args: {
     doc.roundedRect(pageW / 2 - 62, headerBandH + 14, 124, 20, 8, 8, "F");
     doc.setTextColor(ACCENT.r, ACCENT.g, ACCENT.b);
     doc.setFontSize(11);
-    doc.text("TAP SHEET", pageW / 2, headerBandH + 29, { align: "center" });
+    doc.text("Top Sheet", pageW / 2, headerBandH + 29, { align: "center" });
 
     doc.setTextColor(0, 0, 0);
     doc.setFont(fontFamily, "normal");
     doc.setFontSize(10);
     doc.text(`Department: ${args.departmentName}`, x0, metaY);
     doc.text(`Cutoff: ${args.cutoffStart} to ${args.cutoffEnd}`, x0, metaY + 16);
+
+    // Total Employees
+    const count = args.rows.length;
+    doc.text(`Total Employees: ${count}`, xEnd, metaY, { align: "right" });
 
     doc.setDrawColor(GRID.r, GRID.g, GRID.b);
     doc.setLineWidth(0.8);
@@ -223,6 +228,7 @@ export async function buildTapSheetPdf(args: {
 
     const ty = y + 13;
     doc.text("EMPLOYEE NAME", xName + 8, ty);
+    doc.text("TYPE", xType + 4, ty); // NEW
     doc.text("GROSS", xGross + colAmtW - 8, ty, { align: "right" });
     doc.text("ADD.", xAdds + colAmtW - 8, ty, { align: "right" });
     doc.text("DED.", xDeds + colAmtW - 8, ty, { align: "right" });
@@ -230,6 +236,7 @@ export async function buildTapSheetPdf(args: {
 
     doc.setDrawColor(GRID.r, GRID.g, GRID.b);
     doc.setLineWidth(0.8);
+    doc.line(xType, y, xType, y + rowH); // NEW
     doc.line(xGross, y, xGross, y + rowH);
     doc.line(xAdds, y, xAdds, y + rowH);
     doc.line(xDeds, y, xDeds, y + rowH);
@@ -252,6 +259,7 @@ export async function buildTapSheetPdf(args: {
     doc.setLineWidth(0.5);
     doc.rect(x0, y, availableW, rowH);
 
+    doc.line(xType, y, xType, y + rowH); // NEW
     doc.line(xGross, y, xGross, y + rowH);
     doc.line(xAdds, y, xAdds, y + rowH);
     doc.line(xDeds, y, xDeds, y + rowH);
@@ -265,6 +273,11 @@ export async function buildTapSheetPdf(args: {
     doc.setTextColor(0, 0, 0);
     const name = fitTextEllipsis(doc, r.name_display ?? "", colNameW - 16);
     doc.text(name, xName + 8, ty);
+
+    // type
+    doc.setFontSize(8);
+    const type = r.payment_type === "BANK" ? "BANK" : "CASH";
+    doc.text(type, xType + 4, ty);
 
     // amounts: smaller font
     const maxAmtW = colAmtW - 14;
@@ -331,6 +344,7 @@ export async function buildTapSheetPdf(args: {
 
     doc.setDrawColor(ACCENT.r, ACCENT.g, ACCENT.b);
     doc.setLineWidth(0.8);
+    doc.line(xType, y, xType, y + rowH + 2); // NEW
     doc.line(xGross, y, xGross, y + rowH + 2);
     doc.line(xAdds, y, xAdds, y + rowH + 2);
     doc.line(xDeds, y, xDeds, y + rowH + 2);
@@ -342,6 +356,9 @@ export async function buildTapSheetPdf(args: {
 
     const ty = y + 14;
     doc.text("TOTAL", xName + 8, ty);
+    // Count in footer total? Optional. User just said "include total of employees", I put it in header.
+    // But I can also add text here.
+    doc.text(`${args.rows.length}`, xType + 4, ty);
 
     const maxAmtW = colAmtW - 14;
 
@@ -401,6 +418,7 @@ export async function buildTapSheetPdf(args: {
     return y + rowH + 2;
   };
 
+  // ... rest of logic
   const ensureSpace = (y: number, needH: number, pageNoRef: { v: number }) => {
     const limit = pageH - marginBottom;
     if (y + needH <= limit) return y;

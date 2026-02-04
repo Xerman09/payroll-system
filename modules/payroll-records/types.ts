@@ -49,6 +49,7 @@ export type PayrollRunEmployeeRow = {
 
   // ✅ REQUIRED for filtering
   on_hold?: number | boolean | string | { data?: any[] };
+  is_card?: number | boolean | string | { data?: any[] };
 };
 
 export type EmployeeMaster = {
@@ -62,6 +63,7 @@ export type TapSheetRow = {
   user_id: number;
   name_display: string;
   name_sort_key: string;
+  payment_type: "BANK" | "CASH";
   gross_pay: number;
   total_additions: number;
   total_deductions: number;

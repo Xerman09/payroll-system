@@ -117,6 +117,7 @@ export default function TapSheetTab({
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const [previewFilename, setPreviewFilename] = React.useState<string>("");
+  const [pdfFilter, setPdfFilter] = React.useState<"ALL" | "BANK" | "CASH">("ALL");
 
   React.useEffect(() => {
     if (!selectedCutoff && uniqueCutoffs.length) {
@@ -157,7 +158,7 @@ export default function TapSheetTab({
         setRowsRaw(filtered);
       } catch (e) {
         console.error(e);
-        toast.error("Failed to load tap sheet data.");
+        toast.error("Failed to load Top Sheet data.");
         setRowsRaw([]);
       } finally {
         setLoading(false);
@@ -243,73 +244,100 @@ export default function TapSheetTab({
     };
   }, [previewUrl]);
 
-  const buildSafeFilename = () => {
+  const buildSafeFilename = (filter: string) => {
     const safeDept = (departmentName || "dept").replace(/[^\w\-]+/g, "_");
     const start = cutoff?.start ?? "start";
     const end = cutoff?.end ?? "end";
-    return `tap-sheet_${safeDept}_${start}_${end}.pdf`;
+    return `tap-sheet_${filter}_${safeDept}_${start}_${end}.pdf`;
   };
 
-  const previewPdf = async () => {
+  const generatePdfBlob = async (filter: "ALL" | "BANK" | "CASH") => {
+    if (!cutoff?.start || !cutoff?.end || !departmentName) return null;
+
+    let filteredRows = tapRows;
+    if (filter === "BANK") {
+      filteredRows = tapRows.filter(r => r.payment_type === "BANK");
+    } else if (filter === "CASH") {
+      filteredRows = tapRows.filter(r => r.payment_type === "CASH");
+    }
+
+    // Recalculate totals for PDF
+    const pdfTotals = filteredRows.reduce(
+      (acc, r) => {
+        acc.gross += Math.abs(toNumberSafe(r.gross_pay));
+        acc.adds += Math.abs(toNumberSafe(r.total_additions));
+        acc.deds += Math.abs(toNumberSafe(r.total_deductions));
+        acc.net += Math.abs(toNumberSafe(r.net_pay));
+        return acc;
+      },
+      { gross: 0, adds: 0, deds: 0, net: 0 }
+    );
+
+    const doc = await buildTapSheetPdf({
+      departmentName,
+      cutoffStart: cutoff.start,
+      cutoffEnd: cutoff.end,
+      rows: filteredRows,
+      totals: pdfTotals,
+    });
+    return doc.output("blob");
+  };
+
+  const openPreview = async () => {
     if (!cutoff?.start || !cutoff?.end)
       return toast.error("Please select a cutoff date.");
     if (!departmentName) return toast.error("Please select a department.");
-    if (!tapRows.length) return toast.error("No tap sheet rows to preview.");
+    if (!tapRows.length) return toast.error("No Top Sheet rows to preview.");
 
-    try {
-      setExporting(true);
-
-      const doc = await buildTapSheetPdf({
-        departmentName,
-        cutoffStart: cutoff.start,
-        cutoffEnd: cutoff.end,
-        rows: tapRows, // ✅ already filtered
-        totals,
-      });
-
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-
-      const blob = doc.output("blob");
-      const url = URL.createObjectURL(blob);
-
-      setPreviewFilename(buildSafeFilename());
-      setPreviewUrl(url);
-      setPreviewOpen(true);
-
-      toast.success("Tap Sheet ready for preview.");
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e?.message ?? "Failed to generate PDF preview.");
-    } finally {
-      setExporting(false);
-    }
+    setPdfFilter("ALL");
+    setPreviewOpen(true);
+    // Effects will handle generation
   };
+
+  React.useEffect(() => {
+    if (!previewOpen) return;
+    
+    let active = true;
+    (async () => {
+       setExporting(true);
+       try {
+         const blob = await generatePdfBlob(pdfFilter);
+         if (!active) return;
+         if (blob) {
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            const url = URL.createObjectURL(blob);
+            setPreviewUrl(url);
+            setPreviewFilename(buildSafeFilename(pdfFilter));
+         }
+       } catch (e) {
+         console.error(e);
+         toast.error("Failed to generate PDF.");
+       } finally {
+         if (active) setExporting(false);
+       }
+    })();
+    return () => { active = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewOpen, pdfFilter]);
+
 
   return (
     <div className="space-y-6">
       <CardHeader className="px-0 space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <CardTitle>Tap Sheet</CardTitle>
+          <CardTitle>Top Sheet</CardTitle>
 
           <Button
-            onClick={previewPdf}
-            disabled={loading || exporting || tapRows.length === 0}
+            onClick={openPreview}
+            disabled={loading || tapRows.length === 0}
             className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
           >
-            {exporting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Eye className="mr-2 h-4 w-4" />
-                Preview & Download PDF
-              </>
-            )}
+             <Eye className="mr-2 h-4 w-4" />
+             Preview & Download PDF
           </Button>
         </div>
 
+        {/* ... filters ... */}
         {/* Header Filters */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="space-y-2">
@@ -396,7 +424,7 @@ export default function TapSheetTab({
             {loading && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading tap sheet...
+                Loading Top Sheet...
               </div>
             )}
           </div>
@@ -416,6 +444,7 @@ export default function TapSheetTab({
           <TableHeader>
             <TableRow>
               <TableHead className="min-w-[260px]">Employee Name</TableHead>
+              <TableHead>Payment Type</TableHead>
               <TableHead className="text-right">Gross Pay</TableHead>
               <TableHead className="text-right">Total Additions</TableHead>
               <TableHead className="text-right">Total Deductions</TableHead>
@@ -427,16 +456,16 @@ export default function TapSheetTab({
             {!departmentName || !cutoff ? (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={6}
                   className="py-10 text-center text-muted-foreground"
                 >
-                  Select a cutoff date and department to generate the Tap Sheet.
+                  Select a cutoff date and department to generate the Top Sheet.
                 </TableCell>
               </TableRow>
             ) : loading ? (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={6}
                   className="py-10 text-center text-muted-foreground"
                 >
                   Loading...
@@ -445,7 +474,7 @@ export default function TapSheetTab({
             ) : tapRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={6}
                   className="py-10 text-center text-muted-foreground"
                 >
                   No records found for the selected cutoff and department.
@@ -457,6 +486,9 @@ export default function TapSheetTab({
                   <TableRow key={r.user_id} className="border-b">
                     <TableCell className="font-medium">
                       {r.name_display}
+                    </TableCell>
+                    <TableCell>
+                      {r.payment_type}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {peso(r.gross_pay)}
@@ -475,6 +507,7 @@ export default function TapSheetTab({
 
                 <TableRow className="bg-muted/40">
                   <TableCell className="font-bold">TOTAL</TableCell>
+                  <TableCell />
                   <TableCell className="text-right font-bold tabular-nums">
                     {peso(totals.gross)}
                   </TableCell>
@@ -506,25 +539,47 @@ export default function TapSheetTab({
           }
         }}
       >
-        <DialogContent className="max-w-5xl p-0 overflow-hidden">
-          <DialogHeader className="px-4 py-3 border-b">
-            <div className="flex items-center justify-between gap-3">
-              <DialogTitle className="text-base">
-                Tap Sheet PDF Preview
-              </DialogTitle>
+        <DialogContent className="w-full max-w-[95vw] sm:max-w-7xl h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 py-4 border-b bg-background">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                 <DialogTitle className="text-lg">
+                   Top Sheet PDF Preview
+                 </DialogTitle>
+                 
+                 <div className="flex items-center gap-2">
+                   <Label className="text-sm font-medium">Payment Type:</Label>
+                   <Select value={pdfFilter} onValueChange={(v: any) => setPdfFilter(v)}>
+                     <SelectTrigger className="h-8 w-[140px]">
+                        <SelectValue />
+                     </SelectTrigger>
+                     <SelectContent>
+                        <SelectItem value="ALL">All Mixed</SelectItem>
+                        <SelectItem value="BANK">Bank Only</SelectItem>
+                        <SelectItem value="CASH">Cash Only</SelectItem>
+                     </SelectContent>
+                   </Select>
+                 </div>
+              </div>
 
               <div className="flex items-center gap-2">
-                {previewUrl && (
+                {exporting && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Generating...
+                    </div>
+                )}
+                {previewUrl && !exporting && (
                   <>
                     {/* Optional: open in new tab */}
                     <Button variant="outline" size="sm" asChild>
                       <a href={previewUrl} target="_blank" rel="noreferrer">
-                        Open
+                        Open in Tab
                       </a>
                     </Button>
 
                     {/* Optional: download from preview */}
-                    <Button variant="outline" size="sm" asChild>
+                    <Button variant="default" size="sm" asChild>
                       <a href={previewUrl} download={previewFilename}>
                         <FileDown className="mr-2 h-4 w-4" />
                         Download
@@ -536,11 +591,18 @@ export default function TapSheetTab({
             </div>
           </DialogHeader>
 
-          <div className="h-[80vh] bg-muted/20">
-            {previewUrl ? (
+          <div className="flex-1 bg-muted/20 w-full h-full relative">
+            {exporting ? (
+               <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="flex flex-col items-center gap-3">
+                     <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                     <p className="text-sm text-muted-foreground">Rendering PDF...</p>
+                  </div>
+               </div>
+            ) : previewUrl ? (
               <iframe
-                title="Tap Sheet PDF Preview"
-                src={previewUrl}
+                title="Top Sheet PDF Preview"
+                src={`${previewUrl}#toolbar=0&view=FitH`}
                 className="w-full h-full"
               />
             ) : (

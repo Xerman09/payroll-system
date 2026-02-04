@@ -77,10 +77,13 @@ export function buildTapSheetRows(
       ? buildNameSortKey(emp)
       : (pr.employee_name ?? `user #${pr.user_id}`).trim().toLowerCase();
 
+    const isCard = isTruthyFlag(pr.is_card);
+
     return {
       user_id: pr.user_id,
       name_display,
       name_sort_key,
+      payment_type: isCard ? "BANK" : "CASH",
       gross_pay: toNumberSafe(pr.gross_pay),
       total_additions: toNumberSafe(pr.total_additions),
       total_deductions: toNumberSafe(pr.total_deductions),

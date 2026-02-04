@@ -142,7 +142,7 @@ export async function GET(req: NextRequest) {
       return json(r.body);
     }
 
-    // ✅ Tap Sheet (exclude on_hold)
+    // ✅ Top Sheet (exclude on_hold)
     if (type === "tap-sheet") {
       const qp = new URLSearchParams();
       qp.set("limit", "-1");
@@ -166,6 +166,7 @@ export async function GET(req: NextRequest) {
           "net_pay",
           "created_at",
           "on_hold", // ✅ MUST BE INCLUDED
+          "is_card", // ✅ MUST BE INCLUDED for Payment Type
         ].join(","),
       );
 
