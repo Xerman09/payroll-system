@@ -1248,7 +1248,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
       return {
         item_key: key,
-        type: "DEDUCTION",
+        type: "DEDUCTION" as const,
         category: "COOP_SAVINGS_MEMBERSHIP",
         description: "COOP Savings Membership",
         amount: round2(amountThisCutoff),
@@ -1493,6 +1493,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     variance_flag: Boolean(varianceFlag),
 
     on_hold: Boolean(args.onHold),
+    is_card: n((args.wage as any)?.isCard ?? (args.wage as any)?.is_card),
 
     is_prorated: Boolean(isProrated),
     proration_json: prorationJson,
@@ -1625,6 +1626,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         id: args.cutoffId,
       },
       flags: { on_hold: Boolean(args.onHold), variance_flag: Boolean(varianceFlag) },
+      is_card: n((args.wage as any)?.isCard ?? (args.wage as any)?.is_card),
       policies: {
         unworked_holiday_pay_rule:
           "Pay unworked holiday ONLY if holiday.last_working_day is within cutoff and employee has approved attendance on that last_working_day.",

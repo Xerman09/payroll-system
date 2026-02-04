@@ -12,6 +12,7 @@ import {
   PlayCircle,
   RefreshCcw,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import type {
   CutoffSetting,
@@ -260,6 +261,54 @@ export default function PayrollRunModule() {
 
   const busy = loadingMaster || loadingWs || step === 3;
   const canPost = Boolean(run) && run?.status !== "POSTED" && step === 4;
+
+  if (loadingMaster) {
+    return (
+      <DashboardLayout>
+        <div className="mx-auto w-full max-w-7xl space-y-6 px-2 pb-10 sm:px-4">
+          <Card className="p-6">
+            <div className="space-y-4">
+              <Skeleton className="h-8 w-[200px]" />
+              <Skeleton className="h-4 w-[400px]" />
+              <div className="flex gap-2 pt-2">
+                 <Skeleton className="h-6 w-[80px] rounded-lg" />
+                 <Skeleton className="h-6 w-[120px] rounded-lg" />
+              </div>
+            </div>
+            <div className="flex justify-end pt-4">
+               <Skeleton className="h-10 w-[120px]" />
+            </div>
+          </Card>
+          
+          <Card className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                 <div className="space-y-2">
+                    <Skeleton className="h-4 w-[100px]" />
+                    <Skeleton className="h-3 w-[180px]" />
+                 </div>
+                 <div className="flex gap-2">
+                    <Skeleton className="h-6 w-[100px] rounded-full" />
+                    <Skeleton className="h-6 w-[100px] rounded-full" />
+                 </div>
+              </div>
+              <div className="flex justify-between px-10">
+                 <Skeleton className="h-10 w-10 rounded-full" />
+                 <Skeleton className="h-10 w-10 rounded-full" />
+                 <Skeleton className="h-10 w-10 rounded-full" />
+                 <Skeleton className="h-10 w-10 rounded-full" />
+              </div>
+          </Card>
+
+           <Card className="h-[400px] p-6">
+              <div className="space-y-6">
+                 <Skeleton className="h-10 w-full" />
+                 <Skeleton className="h-[200px] w-full" />
+              </div>
+           </Card>
+        </div>
+      </DashboardLayout>
+    )
+  }
 
   return (
     <DashboardLayout>

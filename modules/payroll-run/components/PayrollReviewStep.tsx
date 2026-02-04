@@ -24,6 +24,13 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+
+import { Loader2, CheckCircle2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -238,6 +245,28 @@ function dedupeRowsClient(rows: any[]) {
 export function PayrollReviewStep(props: PayrollReviewStepProps) {
   const lines = React.useMemo(() => resolveLines(props), [props]);
 
+  const [isPostSuccess, setIsPostSuccess] = React.useState(false);
+
+  const handlePostPayroll = async () => {
+    if (!props.onPost) return;
+    try {
+      await props.onPost();
+      setIsPostSuccess(true);
+      
+      // Delay before proceeding (redirect/finalize)
+      setTimeout(() => {
+        window.scrollTo(0, 0);
+        if (props.onFinalize) {
+          props.onFinalize();
+        } else if (props.onStartOver) {
+          props.onStartOver();
+        }
+      }, 1500);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to post payroll");
+    }
+  };
+
   const [deptLookups, setDeptLookups] = React.useState<{
     deptNameByDeptId: Record<string, string>;
     deptNameByUserId: Record<string, string>;
@@ -411,9 +440,15 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
 
       rowsToPrint = dedupeRowsClient(rowsToPrint);
 
-      rowsToPrint.sort((a, b) =>
-        String(getRowName(a)).localeCompare(String(getRowName(b))),
-      );
+      rowsToPrint.sort((a, b) => {
+        // Sort by Payment Method (Bank=1 first, Cash=0 last)
+        const isCardA = n(a?.is_card ?? (a as any)?.isCard ?? a?.breakdown_json?.is_card ?? 0);
+        const isCardB = n(b?.is_card ?? (b as any)?.isCard ?? b?.breakdown_json?.is_card ?? 0);
+        if (isCardA !== isCardB) return isCardB - isCardA; // 1 -> 0
+
+        // Then by name
+        return String(getRowName(a)).localeCompare(String(getRowName(b)));
+      });
 
       await downloadPayslipsPdf({
         rows: rowsToPrint,
@@ -538,8 +573,9 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
 
             {finalizeHandler ? (
               <Button
-                onClick={finalizeHandler}
-                disabled={props.isBusy || summary.count === 0}
+                onClick={handlePostPayroll}
+                disabled={props.isBusy || summary.count === 0 || isPostSuccess}
+                className={props.onPost ? "bg-green-600 hover:bg-green-700 text-white" : ""}
               >
                 {props.onPost ? "Post Payroll" : "Finalize"}
               </Button>
@@ -654,6 +690,21 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
           </CardContent>
         </Card>
       </Card>
+
+      <Dialog open={isPostSuccess} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md [&>button]:hidden">
+          <div className="flex flex-col items-center justify-center space-y-4 py-6 text-center">
+            <div className="rounded-full bg-green-100 p-3">
+              <CheckCircle2 className="h-12 w-12 text-green-600" />
+            </div>
+            <div className="space-y-2">
+              <DialogTitle className="text-xl font-bold text-green-700">Payroll Posted!</DialogTitle>
+              <p className="text-sm text-muted-foreground">Redirecting...</p>
+            </div>
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

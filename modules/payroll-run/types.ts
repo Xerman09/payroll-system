@@ -126,6 +126,7 @@ export interface WageProfile {
   monthly_wage: number;
 
   is_deleted?: number; // 0/1
+  isCard?: number; // 0/1
 
   // optional stored monthly contributions (employee share)
   sss_employee?: number;
@@ -439,6 +440,7 @@ export type BreakdownItem = {
 };
 
 export type PayrollBreakdownJson = {
+  is_card?: number;
   flags?: Record<string, any>;
   rates?: Record<string, any>;
 
@@ -542,6 +544,7 @@ export interface PayrollComputedLine {
 
   // hold
   on_hold: boolean;
+  is_card?: number;
 
   // proration
   is_prorated?: boolean;

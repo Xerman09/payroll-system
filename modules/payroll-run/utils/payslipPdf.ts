@@ -1084,6 +1084,19 @@ export async function downloadPayslipsPdf(args: {
     doc.text(truncateToWidth(doc, rates, innerW), innerX, cy);
     doc.setTextColor(0, 0, 0);
 
+    // ✅ Payment Method (is_card=1 -> BANK, 0 -> CASH)
+    // Check row top-level first (based on user screenshot), then breakdown
+    const isCardRaw = row?.is_card ?? row?.isCard ?? b?.is_card ?? 0;
+    const isCard = Number(isCardRaw) === 1;
+    const payMethod = `Payment Method: ${isCard ? "BANK" : "CASH"}`;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(fsName); // same as employee name size
+    textRight(doc, payMethod, innerX + innerW, cy);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(fsBody); // restore
+
     cy += 7.6;
 
     // METRICS + NET PAY

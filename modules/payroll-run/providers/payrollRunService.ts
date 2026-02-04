@@ -1663,6 +1663,7 @@ function buildPayrollRunEmployeePayload(args: {
     variance_flag: bitToNum(l?.variance_flag ?? 0),
 
     on_hold: onHold,
+    is_card: bitToNum(l?.is_card ?? 0),
   };
 }
 
