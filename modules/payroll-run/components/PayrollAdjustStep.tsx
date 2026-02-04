@@ -55,10 +55,14 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { EmployeeDetailsSheet } from "./EmployeeDetailsSheet";
-import {
+import { // Turbo: Import delete functions
   AddEmployeeAdjustmentsDialog,
   type ManualEntryExt,
-} from "./AddEmployeeAdjustmentsDialog";
+} from "./AddEmployeeAdjustmentsDialog"; // Turbo
+import { // Turbo
+  deleteRetroPay, // Turbo
+  deleteCoopSavingsMembership, // Turbo
+} from "../providers/payrollAdjustmentsService"; // Turbo
 
 /* ------------------------------ Helpers ------------------------------ */
 
@@ -427,7 +431,7 @@ export function PayrollAdjustStep({
   async function deleteAdjustment(entry: ManualEntry) {
     const ext = entry as ManualEntryExt;
     const id = Number((ext as any)?.id);
-    const src = (ext as any)?.__source as "ADD" | "DED" | "DR" | undefined;
+    const src = (ext as any)?.__source as "ADD" | "DED" | "DR" | "RETRO" | "COOP" | undefined;
 
     if (!id || !src) {
       toast.error("Cannot delete: missing source/id.");
@@ -437,14 +441,21 @@ export function PayrollAdjustStep({
     const label =
       src === "DR"
         ? "Delete this DR payment record?"
-        : "Delete this adjustment?";
+        : src === "RETRO"
+          ? "Delete this Retro Pay record?"
+          : src === "COOP"
+            ? "Delete this Coop Savings record?"
+            : "Delete this adjustment?";
+
     const ok = window.confirm(label);
     if (!ok) return;
 
     try {
       if (src === "ADD") await deleteOtherAddition(id);
       else if (src === "DED") await deleteOtherDeduction(id);
-      else await deleteDRPayment(id);
+      else if (src === "DR") await deleteDRPayment(id);
+      else if (src === "RETRO") await deleteRetroPay(id);
+      else if (src === "COOP") await deleteCoopSavingsMembership(id);
 
       toast.success("Deleted.");
       await refreshManualEntries();

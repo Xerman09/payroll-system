@@ -142,7 +142,7 @@ export async function GET(req: NextRequest) {
       return json(r.body);
     }
 
-    // ✅ Top Sheet (exclude on_hold)
+    // ✅ Tap Sheet (exclude on_hold)
     if (type === "tap-sheet") {
       const qp = new URLSearchParams();
       qp.set("limit", "-1");

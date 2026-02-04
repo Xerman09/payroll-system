@@ -198,7 +198,7 @@ export async function buildTapSheetPdf(args: {
     doc.roundedRect(pageW / 2 - 62, headerBandH + 14, 124, 20, 8, 8, "F");
     doc.setTextColor(ACCENT.r, ACCENT.g, ACCENT.b);
     doc.setFontSize(11);
-    doc.text("Top Sheet", pageW / 2, headerBandH + 29, { align: "center" });
+    doc.text("TAP SHEET", pageW / 2, headerBandH + 29, { align: "center" });
 
     doc.setTextColor(0, 0, 0);
     doc.setFont(fontFamily, "normal");

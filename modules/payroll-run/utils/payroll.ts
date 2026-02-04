@@ -1,4 +1,3 @@
-// modules/payroll-run/utils/payroll.ts
 import type {
   Adjustment,
   EmployeeRow,
@@ -145,7 +144,6 @@ export function computeEmployeePayroll(
     variance_pct: variancePct,
     variance_flag: varianceAlert,
     on_hold: false,
-    is_card: 0,
   } as unknown as PayrollComputedLine;
 }
 
@@ -182,3 +180,5 @@ export function computePayrollRegister(
     summary: { total_net: totalNet, total_gross: totalGross, total_deductions: totalDeductions, headcount, variance_alerts: varianceAlerts },
   };
 }
+// modules/payroll-run/utils/payroll.ts
+export * from "./compute";

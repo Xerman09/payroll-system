@@ -111,12 +111,6 @@ export interface UserRow {
   department_id?: number | null;
   position?: string | null;
 
-  /**
-   * canonical normalized payment mode bit (0/1)
-   * - payrollRunService.normalizeUser writes this
-   * - compute.ts reads this
-   */
-
   is_deleted?: number; // 0/1
 
   // allow passthrough fields from Directus
@@ -137,7 +131,7 @@ export interface WageProfile {
   sss_employee?: number;
   philhealth_employee?: number;
   pagibig_employee?: number;
-  isCard: number; // 0/1
+
   [k: string]: any;
 }
 
@@ -169,11 +163,7 @@ export interface AttendanceApproval {
   [k: string]: any;
 }
 
-export type HolidayType =
-  | "REGULAR"
-  | "SPECIAL"
-  | "SPECIAL_NON_WORKING"
-  | string;
+export type HolidayType = "REGULAR" | "SPECIAL" | "SPECIAL_NON_WORKING" | string;
 
 export interface HolidayRow {
   id: number;
@@ -302,7 +292,6 @@ export interface AllowanceAppliedItem {
   amount_raw: number;
   amount_this_cutoff: number;
 }
-
 export interface RetroPayRow {
   retro_id: number; // PK
   user_id: number;
@@ -442,6 +431,7 @@ export interface PayrollWorkspace {
   [k: string]: any;
 }
 
+
 export type BreakdownItem = {
   label: string;
   amount: number;
@@ -464,6 +454,7 @@ export type PayrollBreakdownJson = {
     coop_loan_items?: BreakdownItem[];
   };
 };
+
 
 // ------------------------------
 // Computed breakdown per employee
@@ -551,7 +542,6 @@ export interface PayrollComputedLine {
 
   // hold
   on_hold: boolean;
-  is_card: number; // 0 | 1
 
   // proration
   is_prorated?: boolean;
@@ -561,25 +551,5 @@ export interface PayrollComputedLine {
   breakdown_json?: PayrollBreakdownJson;
 
   // allow future fields without breaking
-  [k: string]: any;
-}
-
-/**
- * Optional line-item table (Option A)
- * Keep wide to avoid TS friction if schema evolves.
- */
-export type PayrollLineItemType = "EARNING" | "DEDUCTION";
-export interface PayrollRunEmployeeItemRow {
-  id?: number;
-  payroll_run_id: number;
-  user_id: number;
-  item_key: string;
-  type: PayrollLineItemType;
-  category?: string | null;
-  description: string;
-  amount: number;
-  source_table?: string | null;
-  source_id?: string | number | null;
-  meta?: any;
   [k: string]: any;
 }
