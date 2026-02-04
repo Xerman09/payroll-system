@@ -454,7 +454,9 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
         rows: rowsToPrint,
         payrollPeriodLabel,
         pageSize: "LEGAL",
-        fileName: "Payslips-Legal-5perPage.pdf",
+        fileName: "Payslips-Legal.pdf",
+        payrollRefNo: (props as any)?.run?.payroll_ref_no,
+        postedAt: (props as any)?.run?.posted_at,
       });
 
       toast.success("Payslips PDF generated.");

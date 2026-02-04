@@ -770,6 +770,8 @@ export async function downloadPayslipsPdf(args: {
   payrollPeriodLabel: string;
   pageSize?: PageSize;
   fileName?: string;
+  payrollRefNo?: string;
+  postedAt?: string;
 }) {
   const pageSize: PageSize = args.pageSize ?? "LEGAL";
   const fileName = args.fileName ?? "payslips.pdf";
@@ -832,12 +834,16 @@ export async function downloadPayslipsPdf(args: {
     const b = parseJsonMaybe(row?.breakdown_json ?? row?.breakdownJson) ?? {};
 
     const payrollId = safeStr(
+      args.payrollRefNo ??
+      row?.payroll_ref_no ??
       row?.payroll_run_employee_id ??
       row?.payrollRunEmployeeId ??
       row?.pre_id ??
       row?.id ??
       "-",
     );
+
+    const payrollDate = safeStr(args.postedAt ?? row?.posted_at ?? "-").slice(0, 10);
 
     const employeeNameRaw = safeStr(
       row?.employee_name ??
@@ -1025,8 +1031,10 @@ export async function downloadPayslipsPdf(args: {
     doc.setFontSize(fsBody);
     doc.setTextColor(C_TEXT_DIM[0], C_TEXT_DIM[1], C_TEXT_DIM[2]);
 
-    doc.text(`Payroll ID: ${payrollId || "-"}`, innerX, cy);
-    textRight(doc, `Period: ${periodText}`, innerX + innerW, cy);
+    doc.text(`Payroll ID: ${payrollId}`, innerX, cy);
+    if (payrollDate && payrollDate !== "-") {
+      textRight(doc, `Payroll Date: ${payrollDate}`, innerX + innerW, cy);
+    }
 
     doc.setTextColor(0, 0, 0);
     cy += 11;
@@ -1068,8 +1076,14 @@ export async function downloadPayslipsPdf(args: {
 
     doc.setTextColor(C_TEXT_DIM[0], C_TEXT_DIM[1], C_TEXT_DIM[2]);
     doc.text(
-      truncateToWidth(doc, `Designation: ${position || "-"}`, leftW),
+      truncateToWidth(doc, `Job Title: ${position || "-"}`, leftW),
       innerX,
+      cy,
+    );
+    textRight(
+      doc,
+      truncateToWidth(doc, `${periodText}`, innerW - leftW),
+      innerX + innerW,
       cy,
     );
     doc.setTextColor(0, 0, 0);
@@ -1357,6 +1371,8 @@ export async function downloadPayslipsPdf(args: {
       totalsTopY + 12,
     );
     doc.text(`Net: ${fmtMoney(netPay)}`, innerX + 4, totalsTopY + 23);
+
+    doc.setTextColor(0, 0, 0);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(fsBody);

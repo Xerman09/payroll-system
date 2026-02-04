@@ -279,6 +279,7 @@ export default function TapSheetTab({
       cutoffEnd: cutoff.end,
       rows: filteredRows,
       totals: pdfTotals,
+      filterType: filter, // Pass the filter type
     });
     return doc.output("blob");
   };
@@ -540,7 +541,7 @@ export default function TapSheetTab({
         }}
       >
         <DialogContent className="w-full max-w-[95vw] sm:max-w-7xl h-[90vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="px-6 py-4 border-b bg-background">
+          <DialogHeader className="pl-6 pr-12 py-4 border-b bg-background">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                  <DialogTitle className="text-lg">
@@ -554,7 +555,7 @@ export default function TapSheetTab({
                         <SelectValue />
                      </SelectTrigger>
                      <SelectContent>
-                        <SelectItem value="ALL">All Mixed</SelectItem>
+                        <SelectItem value="ALL">All</SelectItem>
                         <SelectItem value="BANK">Bank Only</SelectItem>
                         <SelectItem value="CASH">Cash Only</SelectItem>
                      </SelectContent>

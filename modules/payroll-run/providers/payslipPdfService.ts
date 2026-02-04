@@ -1,6 +1,6 @@
 // modules/payroll-run/utils/payslipPdf.ts
 import jsPDF from "jspdf";
-import { formatPHP } from "./compute";
+import { formatPHP } from "../utils/compute";
 
 type PageSize = "LEGAL" | "LONG";
 
@@ -618,7 +618,8 @@ export async function downloadPayslipsPdf(args: {
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(fsBody);
-    textRight(doc, `Period: ${periodText}`, innerX + innerW, cy);
+    // Period text moved below
+    // textRight(doc, `${periodText}`, innerX + innerW, cy);
 
     cy += 13;
 
@@ -637,6 +638,11 @@ export async function downloadPayslipsPdf(args: {
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(fsBody);
+    doc.text(
+      truncateToWidth(doc, `Department: ${department || "-"}`, innerW * 0.62),
+      innerX,
+      cy,
+    );
     textRight(
       doc,
       truncateToWidth(doc, `ID No.: ${employeeId || "-"}`, innerW * 0.28),
@@ -647,13 +653,13 @@ export async function downloadPayslipsPdf(args: {
     cy += 11;
 
     doc.text(
-      truncateToWidth(doc, `Department: ${department || "-"}`, innerW * 0.62),
+      truncateToWidth(doc, `Job Title: ${position || "-"}`, innerW * 0.5),
       innerX,
       cy,
     );
     textRight(
       doc,
-      truncateToWidth(doc, `Designation: ${position || "-"}`, innerW * 0.38),
+      truncateToWidth(doc, `${periodText}`, innerW * 0.5),
       innerX + innerW,
       cy,
     );

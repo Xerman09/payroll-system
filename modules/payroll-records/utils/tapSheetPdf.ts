@@ -124,6 +124,7 @@ export async function buildTapSheetPdf(args: {
   cutoffEnd: string;
   rows: TapSheetRow[];
   totals: Totals;
+  filterType: "ALL" | "BANK" | "CASH";
 }) {
   // LEGAL paper
   const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "legal" });
@@ -149,11 +150,14 @@ export async function buildTapSheetPdf(args: {
   // ABS, no +/- sign
   const peso = (v: any) => `${currencyPrefix} ${formatAmountOnly(Math.abs(toNum(v)))}`;
 
+  // Conditional Column Logic
+  const showTypeCol = args.filterType === "ALL";
+
   // columns (avoid overflow)
   const availableW = pageW - marginX * 2;
 
-  let colAmtW = 90; // reduced to fit Payment Type
-  let colTypeW = 50;
+  let colAmtW = 90;
+  let colTypeW = showTypeCol ? 50 : 0;
   let colNameW = availableW - colTypeW - colAmtW * 4;
 
   const minName = 200;
@@ -165,7 +169,7 @@ export async function buildTapSheetPdf(args: {
 
   const x0 = marginX;
   const xName = x0;
-  const xType = xName + colNameW;
+  const xType = xName + colNameW; // if colTypeW is 0, this is start of Gross
   const xGross = xType + colTypeW;
   const xAdds = xGross + colAmtW;
   const xDeds = xAdds + colAmtW;
@@ -199,21 +203,30 @@ export async function buildTapSheetPdf(args: {
     doc.roundedRect(pageW / 2 - 62, headerBandH + 14, 124, 20, 8, 8, "F");
     doc.setTextColor(ACCENT.r, ACCENT.g, ACCENT.b);
     doc.setFontSize(11);
-    doc.text("Top Sheet", pageW / 2, headerBandH + 29, { align: "center" });
+    doc.text("TOP SHEET", pageW / 2, headerBandH + 29, { align: "center" });
 
     doc.setTextColor(0, 0, 0);
-    doc.setFont(fontFamily, "normal");
+    doc.setFont(fontFamily, "bold");
     doc.setFontSize(10);
-    doc.text(`Department: ${args.departmentName}`, x0, metaY);
-    doc.text(`Cutoff: ${args.cutoffStart} to ${args.cutoffEnd}`, x0, metaY + 16);
+    doc.text(`DEPARTMENT: ${args.departmentName.toUpperCase()}`, x0, metaY);
+    doc.setFont(fontFamily, "normal");
 
-    // Total Employees
+    doc.text(`Cutoff Period: ${args.cutoffStart} to ${args.cutoffEnd}`, x0, metaY + 16);
+
+    // Total Employees (Bold)
     const count = args.rows.length;
-    doc.text(`Total Employees: ${count}`, xEnd, metaY, { align: "right" });
+    doc.setFont(fontFamily, "bold");
+    doc.text(`TOTAL EMPLOYEES: ${count}`, xEnd, metaY, { align: "right" });
+
+    // Conditional Header for Payment Method (Right aligned, below Total Employees)
+    if (!showTypeCol) {
+      doc.text(`PAYMENT METHOD: ${args.filterType}`, xEnd, metaY + 14, { align: "right" });
+    }
+    doc.setFont(fontFamily, "normal");
 
     doc.setDrawColor(GRID.r, GRID.g, GRID.b);
     doc.setLineWidth(0.8);
-    doc.line(x0, metaY + 28, xEnd, metaY + 28);
+    doc.line(x0, metaY + 36, xEnd, metaY + 36);
   };
 
   const drawTableHeader = (y: number) => {
@@ -228,15 +241,23 @@ export async function buildTapSheetPdf(args: {
 
     const ty = y + 13;
     doc.text("EMPLOYEE NAME", xName + 8, ty);
-    doc.text("TYPE", xType + 4, ty); // NEW
-    doc.text("GROSS", xGross + colAmtW - 8, ty, { align: "right" });
-    doc.text("ADD.", xAdds + colAmtW - 8, ty, { align: "right" });
-    doc.text("DED.", xDeds + colAmtW - 8, ty, { align: "right" });
-    doc.text("NET", xNet + colAmtW - 8, ty, { align: "right" });
+
+    if (showTypeCol) {
+      doc.text("TYPE", xType + 4, ty);
+    }
+
+    doc.text("GROSS PAY", xGross + colAmtW - 8, ty, { align: "right" });
+    doc.text("ADDITIONS", xAdds + colAmtW - 8, ty, { align: "right" });
+    doc.text("DEDUCTIONS", xDeds + colAmtW - 8, ty, { align: "right" });
+    doc.text("NET PAY", xNet + colAmtW - 8, ty, { align: "right" });
 
     doc.setDrawColor(GRID.r, GRID.g, GRID.b);
     doc.setLineWidth(0.8);
-    doc.line(xType, y, xType, y + rowH); // NEW
+
+    if (showTypeCol) {
+      doc.line(xType, y, xType, y + rowH);
+    }
+
     doc.line(xGross, y, xGross, y + rowH);
     doc.line(xAdds, y, xAdds, y + rowH);
     doc.line(xDeds, y, xDeds, y + rowH);
@@ -259,7 +280,10 @@ export async function buildTapSheetPdf(args: {
     doc.setLineWidth(0.5);
     doc.rect(x0, y, availableW, rowH);
 
-    doc.line(xType, y, xType, y + rowH); // NEW
+    if (showTypeCol) {
+      doc.line(xType, y, xType, y + rowH);
+    }
+
     doc.line(xGross, y, xGross, y + rowH);
     doc.line(xAdds, y, xAdds, y + rowH);
     doc.line(xDeds, y, xDeds, y + rowH);
@@ -275,9 +299,11 @@ export async function buildTapSheetPdf(args: {
     doc.text(name, xName + 8, ty);
 
     // type
-    doc.setFontSize(8);
-    const type = r.payment_type === "BANK" ? "BANK" : "CASH";
-    doc.text(type, xType + 4, ty);
+    if (showTypeCol) {
+      doc.setFontSize(8);
+      const type = r.payment_type === "BANK" ? "BANK" : "CASH";
+      doc.text(type, xType + 4, ty);
+    }
 
     // amounts: smaller font
     const maxAmtW = colAmtW - 14;
@@ -344,7 +370,11 @@ export async function buildTapSheetPdf(args: {
 
     doc.setDrawColor(ACCENT.r, ACCENT.g, ACCENT.b);
     doc.setLineWidth(0.8);
-    doc.line(xType, y, xType, y + rowH + 2); // NEW
+
+    if (showTypeCol) {
+      doc.line(xType, y, xType, y + rowH + 2);
+    }
+
     doc.line(xGross, y, xGross, y + rowH + 2);
     doc.line(xAdds, y, xAdds, y + rowH + 2);
     doc.line(xDeds, y, xDeds, y + rowH + 2);
@@ -356,9 +386,7 @@ export async function buildTapSheetPdf(args: {
 
     const ty = y + 14;
     doc.text("TOTAL", xName + 8, ty);
-    // Count in footer total? Optional. User just said "include total of employees", I put it in header.
-    // But I can also add text here.
-    doc.text(`${args.rows.length}`, xType + 4, ty);
+    // Removed count from footer per user request
 
     const maxAmtW = colAmtW - 14;
 
