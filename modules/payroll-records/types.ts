@@ -33,7 +33,9 @@ export type CutoffHistoryRow = {
 
 export type PayrollRunEmployeeRow = {
   id: number;
-  payroll_run_id: number;
+  payroll_run_id: number | { payroll_ref_no?: string; posted_at?: string };
+  payroll_ref_no?: string;
+  posted_at?: string;
   user_id: number;
   employee_name: string | null;
   department_name: string | null;
@@ -68,6 +70,8 @@ export type TapSheetRow = {
   total_additions: number;
   total_deductions: number;
   net_pay: number;
+  payroll_ref_no?: string;
+  posted_at?: string;
 };
 
 export type TapSortKey = "name" | "gross" | "adds" | "deds" | "net";

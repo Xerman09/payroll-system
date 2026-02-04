@@ -280,6 +280,8 @@ export default function TapSheetTab({
       rows: filteredRows,
       totals: pdfTotals,
       filterType: filter, // Pass the filter type
+      payrollRefNo: filteredRows.find(r => r.payroll_ref_no)?.payroll_ref_no,
+      postedAt: filteredRows.find(r => r.posted_at)?.posted_at,
     });
     return doc.output("blob");
   };

@@ -125,6 +125,8 @@ export async function buildTapSheetPdf(args: {
   rows: TapSheetRow[];
   totals: Totals;
   filterType: "ALL" | "BANK" | "CASH";
+  payrollRefNo?: string;
+  postedAt?: string;
 }) {
   // LEGAL paper
   const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "legal" });
@@ -211,22 +213,30 @@ export async function buildTapSheetPdf(args: {
     doc.text(`DEPARTMENT: ${args.departmentName.toUpperCase()}`, x0, metaY);
     doc.setFont(fontFamily, "normal");
 
-    doc.text(`Cutoff Period: ${args.cutoffStart} to ${args.cutoffEnd}`, x0, metaY + 16);
+    doc.text(`Cutoff Period: ${args.cutoffStart} to ${args.cutoffEnd}`, x0, metaY + 14);
 
     // Total Employees (Bold)
     const count = args.rows.length;
     doc.setFont(fontFamily, "bold");
     doc.text(`TOTAL EMPLOYEES: ${count}`, xEnd, metaY, { align: "right" });
+    doc.setFont(fontFamily, "normal");
 
-    // Conditional Header for Payment Method (Right aligned, below Total Employees)
+    // Payment Method (Line 2 Right)
     if (!showTypeCol) {
       doc.text(`PAYMENT METHOD: ${args.filterType}`, xEnd, metaY + 14, { align: "right" });
     }
-    doc.setFont(fontFamily, "normal");
+
+    // Line 3: Payroll ID (Left) and Payroll Date (Right)
+    doc.setTextColor(TEXT_MUTED.r, TEXT_MUTED.g, TEXT_MUTED.b);
+    doc.setFontSize(9);
+    doc.text(`PAYROLL ID: ${args.payrollRefNo || "-"}`, x0, metaY + 28);
+    const pDate = args.postedAt ? args.postedAt.slice(0, 10) : "-";
+    doc.text(`PAYROLL DATE: ${pDate}`, xEnd, metaY + 28, { align: "right" });
+    doc.setTextColor(0, 0, 0);
 
     doc.setDrawColor(GRID.r, GRID.g, GRID.b);
     doc.setLineWidth(0.8);
-    doc.line(x0, metaY + 36, xEnd, metaY + 36);
+    doc.line(x0, metaY + 38, xEnd, metaY + 38);
   };
 
   const drawTableHeader = (y: number) => {

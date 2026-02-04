@@ -47,11 +47,26 @@ export function dedupeByUserKeepLatestRun(rows: PayrollRunEmployeeRow[]): Payrol
 
   for (const r of rows) {
     const prev = map.get(r.user_id);
-    if (!prev) {
-      map.set(r.user_id, r);
-      continue;
+
+    // Robust extraction of the numeric payroll_run_id
+    const rVal = r.payroll_run_id;
+    let rId: number = 0;
+    if (typeof rVal === "number") {
+      rId = rVal;
+    } else if (rVal && typeof rVal === "object") {
+      // Directus sometimes nests the ID as 'id' or 'payroll_run_id' depending on the query
+      rId = (rVal as any).id || (rVal as any).payroll_run_id || 0;
     }
-    if ((r.payroll_run_id ?? 0) >= (prev.payroll_run_id ?? 0)) {
+
+    const prevVal = prev?.payroll_run_id;
+    let prevId: number = 0;
+    if (typeof prevVal === "number") {
+      prevId = prevVal;
+    } else if (prevVal && typeof prevVal === "object") {
+      prevId = (prevVal as any).id || (prevVal as any).payroll_run_id || 0;
+    }
+
+    if (!prev || rId >= prevId) {
       map.set(r.user_id, r);
     }
   }
@@ -79,6 +94,16 @@ export function buildTapSheetRows(
 
     const isCard = isTruthyFlag(pr.is_card);
 
+    // Robust extraction of nested metadata
+    let ref = pr.payroll_ref_no;
+    let posted = pr.posted_at;
+
+    if (pr.payroll_run_id && typeof pr.payroll_run_id === "object") {
+      const runObj = pr.payroll_run_id as any;
+      if (!ref) ref = runObj.payroll_ref_no;
+      if (!posted) posted = runObj.posted_at;
+    }
+
     return {
       user_id: pr.user_id,
       name_display,
@@ -88,6 +113,8 @@ export function buildTapSheetRows(
       total_additions: toNumberSafe(pr.total_additions),
       total_deductions: toNumberSafe(pr.total_deductions),
       net_pay: toNumberSafe(pr.net_pay),
+      payroll_ref_no: ref,
+      posted_at: posted,
     };
   });
 }

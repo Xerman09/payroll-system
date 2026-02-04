@@ -152,7 +152,8 @@ export async function GET(req: NextRequest) {
         "fields",
         [
           "id",
-          "payroll_run_id",
+          "payroll_run_id.payroll_ref_no",
+          "payroll_run_id.posted_at",
           "user_id",
           "employee_name",
           "department_name",
