@@ -196,6 +196,84 @@ export async function GET(req: NextRequest) {
       return json({ ...body, data: rows });
     }
 
+    // ✅ Company-wide Payroll Summary (Multi-DB Aggregator)
+    if (type === "summary") {
+      const cutoffStart = searchParams.get("cutoff_start");
+      const cutoffEnd = searchParams.get("cutoff_end");
+
+      if (!cutoffStart || !cutoffEnd) {
+        return json({ error: "cutoff_start and cutoff_end are required" }, { status: 400 });
+      }
+
+      const APIS = [
+        { name: "Dummy", url: process.env.API_BASE || process.env.NEXT_PUBLIC_API_BASE }, // 8056
+        { name: "Vertex", url: process.env.API_I }, // 8090
+        { name: "Men2", url: process.env.API_II }, // 8091
+        { name: "Hanvin", url: process.env.API_III }, // 8092
+      ].filter((x) => !!x.url);
+
+      async function fetchFromApi(baseUrl: string, path: string) {
+        const url = `${baseUrl}${path}`;
+        const res = await fetch(url, { headers: authHeaders(), cache: "no-store" });
+        if (!res.ok) return null;
+        return res.json().then((p) => pickArray(p));
+      }
+
+      // 1. Find the PREVIOUS cutoff from the source (8056)
+      const sourceUrl = APIS[0].url!;
+      const histPath = `/items/cutoff_settings_history?sort=-event_at` +
+        `&filter[start_date][_lt]=${cutoffStart}` +
+        `&limit=1`;
+      const prevHist = await fetchFromApi(sourceUrl, histPath);
+      const prevCutoff = prevHist?.[0];
+
+      // 2. Fetch all data concurrently
+      const results = await Promise.all(
+        APIS.map(async (api) => {
+          const baseUrl = api.url!;
+
+          // Runs
+          const runPath = `/items/payroll_run?filter[cutoff_start][_eq]=${cutoffStart}&filter[cutoff_end][_eq]=${cutoffEnd}&filter[status][_eq]=POSTED`;
+          const currentRunArr = await fetchFromApi(baseUrl, runPath);
+          const currentRun = currentRunArr?.[0];
+
+          let prevRun = null;
+          if (prevCutoff) {
+            const prevRunPath = `/items/payroll_run?filter[cutoff_start][_eq]=${prevCutoff.start_date}&filter[cutoff_end][_eq]=${prevCutoff.end_date}&filter[status][_eq]=POSTED`;
+            const prevRunArr = await fetchFromApi(baseUrl, prevRunPath);
+            prevRun = prevRunArr?.[0];
+          }
+
+          // Employees (Current)
+          const currEmpPath = `/items/payroll_run_employee?limit=-1&filter[cutoff_start][_eq]=${cutoffStart}&filter[cutoff_end][_eq]=${cutoffEnd}&filter[on_hold][_neq]=true`;
+          const currEmps = (await fetchFromApi(baseUrl, currEmpPath)) || [];
+
+          // Employees (Previous)
+          let prevEmps: any[] = [];
+          if (prevCutoff) {
+            const prevEmpPath = `/items/payroll_run_employee?limit=-1&filter[cutoff_start][_eq]=${prevCutoff.start_date}&filter[cutoff_end][_eq]=${prevCutoff.end_date}&filter[on_hold][_neq]=true`;
+            prevEmps = (await fetchFromApi(baseUrl, prevEmpPath)) || [];
+          }
+
+          return {
+            companyName: api.name,
+            currentRun,
+            prevRun,
+            currEmps,
+            prevEmps,
+          };
+        }),
+      );
+
+      return json({
+        data: results,
+        meta: {
+          currentCutoff: { start: cutoffStart, end: cutoffEnd },
+          prevCutoff: prevCutoff ? { start: prevCutoff.start_date, end: prevCutoff.end_date } : null,
+        },
+      });
+    }
+
     return json({ error: "Invalid type parameter." }, { status: 400 });
   } catch (error) {
     console.error("Payroll Records proxy error: - route.ts:199", error);

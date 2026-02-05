@@ -120,7 +120,7 @@ function getPublicApiBase(): string {
   const base =
     process.env.NEXT_PUBLIC_API_BASE ||
     process.env.API_BASE ||
-    "http://100.110.197.61:8056";
+    "";
   return String(base).replace(/\/+$/, "");
 }
 

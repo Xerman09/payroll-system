@@ -1,12 +1,27 @@
 // app/api/cutoff-settings/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
-type HttpMethod = "GET" | "POST" | "PATCH";
+type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
+
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+}
+
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: corsHeaders(),
+  });
+}
 
 const API_BASE =
   process.env.API_BASE ||
   process.env.NEXT_PUBLIC_API_BASE ||
-  "http://100.110.197.61:8056";
+  "";
 
 const DIRECTUS_TOKEN =
   process.env.DIRECTUS_TOKEN ||
@@ -142,6 +157,66 @@ function buildCutoffSettingsQuery(month?: string | null, year?: string | null) {
 }
 
 /**
+ * Logs history to cutoff_settings_history
+ */
+async function logHistory(
+  eventType: "INSERT" | "UPDATE" | "DELETE",
+  data: any,
+  changedBy: string | null
+) {
+  try {
+    const historyData = {
+      cutoff_setting_id: data.id,
+      event_type: eventType,
+      event_at: new Date().toISOString(),
+      changed_by: changedBy || data.updated_by || data.created_by,
+      status: data.status,
+      source_date_created: data.date_created,
+      source_date_updated: data.date_updated,
+      month: data.month,
+      year: data.year,
+      cutoff_type: data.cutoff_type,
+      start_date: data.start_date,
+      end_date: data.end_date,
+      payout_date: data.payout_date,
+      period_status: data.period_status,
+      created_by: data.created_by,
+      updated_by: data.updated_by,
+      raw_payload: data,
+    };
+
+    await directusFetchAuth("POST", "/items/cutoff_settings_history", historyData);
+  } catch (error) {
+    console.error("Failed to log history:", error);
+  }
+}
+
+/**
+ * Checks if relevant fields have changed between old and new data
+ */
+function hasChanged(oldData: any, newData: any) {
+  const fieldsToCompare = [
+    "status",
+    "month",
+    "year",
+    "cutoff_type",
+    "start_date",
+    "end_date",
+    "payout_date",
+    "period_status",
+    "created_by",
+    "updated_by",
+  ];
+
+  return fieldsToCompare.some((field) => {
+    const oldVal = oldData?.[field];
+    const newVal = newData?.[field];
+    // Simple comparison; adjust if needed for dates/json
+    return oldVal !== newVal;
+  });
+}
+
+/**
  * Builds query for /items/user.
  * If ids are provided: filters by OR(id in ids, user_id in ids).
  */
@@ -192,7 +267,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    return NextResponse.json(result.data, { status: 200 });
+    return NextResponse.json(result.data, {
+      status: 200,
+      headers: corsHeaders(),
+    });
   }
 
   // Cutoff settings proxy (token-based if available)
@@ -205,11 +283,14 @@ export async function GET(req: NextRequest) {
   if (!result.ok) {
     return NextResponse.json(
       { error: result.error, raw: result.raw },
-      { status: result.status }
+      { status: result.status, headers: corsHeaders() }
     );
   }
 
-  return NextResponse.json(result.data, { status: 200 });
+  return NextResponse.json(result.data, {
+    status: 200,
+    headers: corsHeaders(),
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -230,11 +311,20 @@ export async function POST(req: NextRequest) {
   if (!result.ok) {
     return NextResponse.json(
       { error: result.error, raw: result.raw },
-      { status: result.status }
+      { status: result.status, headers: corsHeaders() }
     );
   }
 
-  return NextResponse.json(result.data, { status: 200 });
+  // Log History for INSERT
+  const newData = (result.data as any)?.data || result.data;
+  if (newData) {
+    await logHistory("INSERT", newData, newData.created_by);
+  }
+
+  return NextResponse.json(result.data, {
+    status: 200,
+    headers: corsHeaders(),
+  });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -257,6 +347,10 @@ export async function PATCH(req: NextRequest) {
     const id = item?.id;
 
     if (id) {
+      // Fetch OLD data for comparison if needed
+      const oldRes = await directusFetchAuth("GET", `/items/cutoff_settings/${id}`);
+      const oldData = oldRes.ok ? (oldRes.data as any)?.data || oldRes.data : null;
+
       const { id: _id, ...patchBody } = item;
       const r = await directusFetchAuth(
         "PATCH",
@@ -267,26 +361,80 @@ export async function PATCH(req: NextRequest) {
       if (!r.ok) {
         return NextResponse.json(
           { error: r.error, raw: r.raw },
-          { status: r.status }
+          { status: r.status, headers: corsHeaders() }
         );
       }
 
-      results.push((r.data as any)?.data ?? r.data);
+      const newData = (r.data as any)?.data || r.data;
+      if (newData && oldData && hasChanged(oldData, newData)) {
+        await logHistory("UPDATE", newData, newData.updated_by);
+      }
+
+      results.push(newData);
     } else {
       const r = await directusFetchAuth("POST", `/items/cutoff_settings`, item);
 
       if (!r.ok) {
         return NextResponse.json(
           { error: r.error, raw: r.raw },
-          { status: r.status }
+          { status: r.status, headers: corsHeaders() }
         );
       }
 
-      results.push((r.data as any)?.data ?? r.data);
+      const newData = (r.data as any)?.data || r.data;
+      if (newData) {
+        await logHistory("INSERT", newData, newData.created_by);
+      }
+
+      results.push(newData);
     }
   }
 
-  return NextResponse.json({ data: results }, { status: 200 });
+  return NextResponse.json(
+    { data: results },
+    { status: 200, headers: corsHeaders() }
+  );
+}
+
+export async function DELETE(req: NextRequest) {
+  if (!API_BASE) {
+    return NextResponse.json(
+      { error: "API base not configured" },
+      { status: 500, headers: corsHeaders() }
+    );
+  }
+
+  const url = new URL(req.url);
+  const id = url.searchParams.get("id");
+
+  if (!id) {
+    return NextResponse.json(
+      { error: "Missing ID for deletion" },
+      { status: 400, headers: corsHeaders() }
+    );
+  }
+
+  // Fetch data BEFORE deletion for history
+  const getOld = await directusFetchAuth("GET", `/items/cutoff_settings/${id}`);
+  const oldData = getOld.ok ? (getOld.data as any)?.data || getOld.data : null;
+
+  const result = await directusFetchAuth("DELETE" as any, `/items/cutoff_settings/${id}`);
+
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.error, raw: result.raw },
+      { status: result.status, headers: corsHeaders() }
+    );
+  }
+
+  if (oldData) {
+    await logHistory("DELETE", oldData, oldData.updated_by);
+  }
+
+  return NextResponse.json(
+    { message: "Deleted successfully" },
+    { status: 200, headers: corsHeaders() }
+  );
 }
 
 // Testable helpers

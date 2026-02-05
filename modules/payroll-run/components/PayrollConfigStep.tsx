@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import type { CutoffSetting, Department, PayrollConfigState } from "../types";
+import { formatCutoffLabel } from "../utils/payroll";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -46,18 +47,6 @@ function normalizeText(v: any) {
   return String(v ?? "").trim();
 }
 
-function cutoffLabel(c: CutoffSetting) {
-  // try common label fields; fallback to id
-  const anyC = c as any;
-  return (
-    normalizeText(anyC.label) ||
-    normalizeText(anyC.name) ||
-    normalizeText(anyC.cutoff_name) ||
-    normalizeText(anyC.cutoff_label) ||
-    normalizeText(anyC.cutoff_code) ||
-    `Cutoff #${String(anyC.id ?? "")}`
-  );
-}
 
 function cutoffRangeHint(c: CutoffSetting) {
   // optional: show start/end if present (won't break if absent)
@@ -103,13 +92,13 @@ export function PayrollConfigStep({
   const [openDept, setOpenDept] = React.useState(false);
 
   const cutoffText = selectedCutoff
-    ? cutoffLabel(selectedCutoff)
+    ? formatCutoffLabel(selectedCutoff)
     : "Select cutoff…";
   const deptText = selectedDepartment
     ? deptLabel(selectedDepartment)
-    : "All departments";
+    : "Select department…";
 
-  const canProceed = Boolean(config.cutoffId);
+  const canProceed = Boolean(config.cutoffId) && Boolean(config.departmentId);
 
   return (
     <div className="space-y-6">
@@ -119,7 +108,7 @@ export function PayrollConfigStep({
           Configuration
         </div>
         <div className="text-sm text-muted-foreground">
-          Choose the cutoff and scope (department) for this payroll run.
+          Choose the cutoff and department for this payroll run.
         </div>
       </div>
 
@@ -179,7 +168,7 @@ export function PayrollConfigStep({
                         return (
                           <CommandItem
                             key={c.id}
-                            value={`${cutoffLabel(c)} ${hint} ${c.id}`}
+                            value={`${formatCutoffLabel(c)} ${hint} ${c.id}`}
                             onSelect={() => {
                               onChange({ cutoffId: c.id });
                               setOpenCutoff(false);
@@ -204,17 +193,13 @@ export function PayrollConfigStep({
 
                             <span className="flex min-w-0 flex-1 flex-col">
                               <span className="truncate text-sm">
-                                {cutoffLabel(c)}
+                                {formatCutoffLabel(c)}
                               </span>
                               {hint ? (
                                 <span className="truncate text-xs text-muted-foreground">
                                   {hint}
                                 </span>
                               ) : null}
-                            </span>
-
-                            <span className="ml-auto text-xs text-muted-foreground">
-                              #{c.id}
                             </span>
                           </CommandItem>
                         );
@@ -229,11 +214,7 @@ export function PayrollConfigStep({
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-muted-foreground">Selected:</span>
                     <span className="font-medium">
-                      {cutoffLabel(selectedCutoff)}
-                    </span>
-                    <span className="text-muted-foreground">•</span>
-                    <span className="font-mono text-muted-foreground">
-                      #{selectedCutoff.id}
+                      {formatCutoffLabel(selectedCutoff)}
                     </span>
                   </div>
                   {cutoffRangeHint(selectedCutoff) ? (
@@ -249,11 +230,16 @@ export function PayrollConfigStep({
 
         {/* Department */}
         <Card className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
-          <div className="mb-3 space-y-0.5">
-            <Label className="text-sm">Department</Label>
-            <div className="text-xs text-muted-foreground">
-              Optional. Choose “All departments” to compute for everyone.
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="space-y-0.5">
+              <Label className="text-sm">Department</Label>
+              <div className="text-xs text-muted-foreground">
+                Required. Choose a department to scope the payroll run.
+              </div>
             </div>
+            <Badge variant="secondary" className="rounded-full">
+              Required
+            </Badge>
           </div>
 
           {loading && !departments.length ? (
@@ -288,36 +274,6 @@ export function PayrollConfigStep({
                   <CommandInput placeholder="Search department…" />
                   <CommandList>
                     <CommandEmpty>No department found.</CommandEmpty>
-
-                    <CommandGroup heading="Scope">
-                      <CommandItem
-                        value="All departments"
-                        onSelect={() => {
-                          onChange({ departmentId: null });
-                          setOpenDept(false);
-                        }}
-                        className="flex items-center gap-2"
-                      >
-                        <span
-                          className={cn(
-                            "inline-flex h-5 w-5 items-center justify-center rounded-md border",
-                            config.departmentId == null
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-background",
-                          )}
-                        >
-                          <Check
-                            className={cn(
-                              "h-3.5 w-3.5",
-                              config.departmentId == null
-                                ? "opacity-100"
-                                : "opacity-0",
-                            )}
-                          />
-                        </span>
-                        <span className="text-sm">All departments</span>
-                      </CommandItem>
-                    </CommandGroup>
 
                     <CommandGroup heading="Departments">
                       {departments.map((d) => {
@@ -367,7 +323,7 @@ export function PayrollConfigStep({
                   <span className="font-medium">
                     {selectedDepartment
                       ? deptLabel(selectedDepartment)
-                      : "All departments"}
+                      : "Not selected"}
                   </span>
                   {selectedDepartment ? (
                     <>
@@ -402,7 +358,7 @@ export function PayrollConfigStep({
               onClick={() => onChange({ departmentId: null })}
               className="rounded-xl"
             >
-              Clear Department
+              Clear Selection
             </Button>
 
             <Button
@@ -423,7 +379,7 @@ export function PayrollConfigStep({
           <div className="rounded-xl border bg-muted/20 p-3">
             <div className="font-medium text-foreground">Cutoff</div>
             <div className="mt-1">
-              {selectedCutoff ? cutoffLabel(selectedCutoff) : "Not selected"}
+              {selectedCutoff ? formatCutoffLabel(selectedCutoff) : "Not selected"}
             </div>
           </div>
           <div className="rounded-xl border bg-muted/20 p-3">
@@ -431,7 +387,7 @@ export function PayrollConfigStep({
             <div className="mt-1">
               {selectedDepartment
                 ? deptLabel(selectedDepartment)
-                : "All departments"}
+                : "Not selected"}
             </div>
           </div>
         </div>

@@ -25,6 +25,7 @@ import {
 } from "../utils/tapSheet";
 import { toNumberSafe } from "../utils/money";
 import { buildTapSheetPdf } from "../utils/tapSheetPdf";
+import { buildPayrollSummaryPdf } from "../utils/payrollSummaryPdf";
 
 import { CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -286,6 +287,26 @@ export default function TapSheetTab({
     return doc.output("blob");
   };
 
+  const [generatingSummary, setGeneratingSummary] = React.useState(false);
+  const handleDownloadSummary = async () => {
+    if (!cutoff?.start || !cutoff?.end) return;
+    setGeneratingSummary(true);
+    try {
+      const res = await fetch(`/api/payroll-records?type=summary&cutoff_start=${cutoff.start}&cutoff_end=${cutoff.end}`);
+      if (!res.ok) throw new Error("Failed to fetch summary data");
+      const json = await res.json();
+      await buildPayrollSummaryPdf({
+        data: json.data,
+        meta: json.meta
+      });
+    } catch (err) {
+      console.error("Summary error:", err);
+      toast.error("Failed to generate payroll summary: " + (err as any).message);
+    } finally {
+      setGeneratingSummary(false);
+    }
+  };
+
   const openPreview = async () => {
     if (!cutoff?.start || !cutoff?.end)
       return toast.error("Please select a cutoff date.");
@@ -328,16 +349,38 @@ export default function TapSheetTab({
     <div className="space-y-6">
       <CardHeader className="px-0 space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <CardTitle>Top Sheet</CardTitle>
+          <div className="flex flex-col gap-2">
+            <h1 className="text-2xl font-bold">Payroll Records</h1>
+            <p className="text-sm text-muted-foreground">
+              Generate a final Top Sheet per department and cutoff.
+            </p>
+          </div>
 
-          <Button
-            onClick={openPreview}
-            disabled={loading || tapRows.length === 0}
-            className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
-          >
-             <Eye className="mr-2 h-4 w-4" />
-             Preview & Download PDF
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+               variant="outline" 
+               className="border-red-500 text-red-500 hover:bg-red-50"
+               onClick={handleDownloadSummary}
+               disabled={generatingSummary || !cutoff?.start}
+            >
+              {generatingSummary ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                "Payroll Summary"
+              )}
+            </Button>
+            <Button
+              onClick={openPreview}
+              disabled={loading || tapRows.length === 0}
+              className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+            >
+               <Eye className="mr-2 h-4 w-4" />
+               Preview & Download PDF
+            </Button>
+          </div>
         </div>
 
         {/* ... filters ... */}

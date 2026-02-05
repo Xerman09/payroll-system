@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 const RAW_DIRECTUS_URL =
   process.env.DIRECTUS_URL ||
   process.env.API_BASE ||
-  "http://100.110.197.61:8056";
+  "";
 
 const DIRECTUS_BASE = RAW_DIRECTUS_URL.replace(/\/+$/, "");
 

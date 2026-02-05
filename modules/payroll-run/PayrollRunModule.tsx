@@ -30,6 +30,7 @@ import { PayrollProcessStep } from "./components/PayrollProcessStep";
 import { PayrollReviewStep } from "./components/PayrollReviewStep";
 
 import * as svc from "./providers/payrollRunService";
+import { formatCutoffLabel } from "./utils/payroll";
 
 const DEFAULT_CONFIG: PayrollConfigState = {
   cutoffId: null,
@@ -358,16 +359,14 @@ export default function PayrollRunModule() {
                       <span className="rounded-lg border bg-background/70 px-2 py-1">
                         Cutoff:{" "}
                         <span className="font-medium text-foreground">
-                          {String(
-                            (selectedCutoff as any)?.label ?? selectedCutoff.id,
-                          )}
+                          {formatCutoffLabel(selectedCutoff)}
                         </span>
                       </span>
                     ) : null}
                     <span className="rounded-lg border bg-background/70 px-2 py-1">
                       Department:{" "}
                       <span className="font-medium text-foreground">
-                        {selectedDepartment ? selectedDepartment.name : "All"}
+                        {selectedDepartment ? selectedDepartment.name : "None selected"}
                       </span>
                     </span>
                   </div>

@@ -1,5 +1,6 @@
 import type {
   Adjustment,
+  CutoffSetting,
   EmployeeRow,
   PayrollComputedLine,
   PayrollCutoffOption,
@@ -15,6 +16,16 @@ import type {
 export function parseCutoffValue(value: string): { start: string; end: string } {
   const parts = value.split("_");
   return { start: parts[0] ?? "", end: parts[1] ?? "" };
+}
+
+/**
+ * Formats a cutoff label based on its type (FIRST/SECOND).
+ */
+export function formatCutoffLabel(c: CutoffSetting | { cutoff_type: string; id: number }): string {
+  const type = String(c.cutoff_type ?? "").toUpperCase();
+  if (type === "FIRST") return "First Cutoff";
+  if (type === "SECOND") return "Second Cutoff";
+  return `Cutoff #${String(c.id ?? "")}`;
 }
 
 /**
