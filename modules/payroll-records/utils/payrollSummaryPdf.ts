@@ -1,14 +1,6 @@
 // modules/payroll-records/utils/payrollSummaryPdf.ts
 import jsPDF from "jspdf";
 
-type Totals = {
-  bank: { emp: number; net: number; add: number; remove: number };
-  cash: { emp: number; net: number; add: number; remove: number };
-  grand: { emp: number; net: number; add: number; remove: number };
-  prevBank: { net: number };
-  prevCash: { net: number };
-};
-
 type CompanySummary = {
   name: string;
   prevNet: number;
@@ -21,311 +13,618 @@ type DeptSummary = {
   cash: { prevEmp: number; currEmp: number; prevNet: number; currNet: number; add: number; remove: number };
 };
 
-export async function buildPayrollSummaryPdf(args: {
-  data: any[];
-  meta: any;
-}) {
-  // LEGAL Landscape
-  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "legal" });
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const marginX = 40;
-  const marginTop = 40;
+type RGB = { r: number; g: number; b: number };
 
-  const ACCENT = { r: 0, g: 0, b: 0 }; // Professional Black
-  const GRID = { r: 200, g: 200, b: 200 };
+export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
+  // ✅ Portrait + Legal (one page only)
+  const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "legal" });
+  const pageW = doc.internal.pageSize.getWidth();  // ~612
+  const pageH = doc.internal.pageSize.getHeight(); // ~1008
 
-  const fmt = (n: number) => {
-    return (n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Layout
+  const M = 28;
+  const innerW = pageW - M * 2;
+  const footerH = 22;
+
+  // Theme (blue-800)
+  const BLUE_800: RGB = { r: 30, g: 64, b: 175 };
+  const BLUE_900: RGB = { r: 30, g: 58, b: 138 };
+  const BLUE_50: RGB = { r: 239, g: 246, b: 255 };
+  const SLATE_900: RGB = { r: 15, g: 23, b: 42 };
+  const SLATE_600: RGB = { r: 71, g: 85, b: 105 };
+  const GRAY_200: RGB = { r: 226, g: 232, b: 240 };
+  const GRAY_300: RGB = { r: 203, g: 213, b: 225 };
+  const WHITE: RGB = { r: 255, g: 255, b: 255 };
+  const ROW_ZEBRA: RGB = { r: 248, g: 250, b: 252 };
+
+  const setFill = (c: RGB) => doc.setFillColor(c.r, c.g, c.b);
+  const setDraw = (c: RGB) => doc.setDrawColor(c.r, c.g, c.b);
+  const setText = (c: RGB) => doc.setTextColor(c.r, c.g, c.b);
+
+  const safeStr = (v: any, fb = "") => {
+    const s = String(v ?? "").trim();
+    return s ? s : fb;
   };
 
-  // --- 1. PROCESS DATA ---
+  const fmtMoney = (n: number) =>
+    (Number(n || 0) || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const fmtInt = (n: number) =>
+    (Number(n || 0) || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 });
+
+  const dashIfZero = (n: number) => (Number(n || 0) > 0 ? String(n) : "—");
+
+  const ellipsize = (text: string, maxW: number) => {
+    const raw = safeStr(text, "—");
+    if (doc.getTextWidth(raw) <= maxW) return raw;
+    let t = raw;
+    while (t.length > 0 && doc.getTextWidth(`${t}…`) > maxW) t = t.slice(0, -1);
+    return t.length ? `${t}…` : "—";
+  };
+
+  // Card helpers
+  const drawCard = (x: number, y: number, w: number, h: number) => {
+    setFill(WHITE);
+    setDraw(GRAY_200);
+    doc.setLineWidth(1);
+    doc.roundedRect(x, y, w, h, 10, 10, "FD");
+  };
+
+  const drawPill = (x: number, y: number, text: string) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+
+    const padX = 10;
+    const padY = 6;
+    const tw = doc.getTextWidth(text);
+    const w = tw + padX * 2;
+    const h = 20;
+
+    setFill(BLUE_50);
+    setDraw(GRAY_200);
+    doc.roundedRect(x, y - 14, w, h, 10, 10, "FD");
+
+    setText(BLUE_900);
+    doc.text(text, x + padX, y);
+    return w;
+  };
+
+  const sectionTitle = (x: number, y: number, t: string) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    setText(SLATE_900);
+    doc.text(t, x, y);
+  };
+
+  // Simple table drawer (NO page breaks — one page only)
+  type Col = { key: string; label: string; w: number; align?: "left" | "right" | "center" };
+
+  const drawTable = (opts: {
+    x: number;
+    y: number;
+    w: number;
+    cols: Col[];
+    rows: any[];
+    maxRows: number;
+    headerH?: number;
+    rowH?: number;
+    fontSize?: number;
+    headerFontSize?: number;
+    highlightLastRow?: boolean;
+  }) => {
+    const x = opts.x;
+    let y = opts.y;
+    const w = opts.w;
+    const headerH = opts.headerH ?? 20;
+    const rowH = opts.rowH ?? 18;
+    const fontSize = opts.fontSize ?? 7.5;
+    const headerFontSize = opts.headerFontSize ?? 8;
+
+    // Scale columns
+    const sumW = opts.cols.reduce((total, c) => total + c.w, 0);
+    if (sumW !== w) {
+      const ratio = w / sumW;
+      let running = 0;
+      for (let i = 0; i < opts.cols.length; i++) {
+        const nw = i === opts.cols.length - 1 ? w - running : Math.max(24, Math.floor(opts.cols[i].w * ratio));
+        opts.cols[i].w = nw;
+        running += nw;
+      }
+    }
+
+    // Header Background (Flat)
+    setFill(BLUE_50);
+    doc.rect(x + 1, y, w - 2, headerH, "F");
+
+    // Header Text
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(headerFontSize);
+    setText(BLUE_900);
+
+    let cx = x;
+    for (const c of opts.cols) {
+      const tx =
+        c.align === "right" ? cx + c.w - 8 : c.align === "center" ? cx + c.w / 2 : cx + 8;
+      doc.text(c.label, tx, y + 13, {
+        align: c.align === "right" ? "right" : c.align === "center" ? "center" : "left",
+      });
+      cx += c.w;
+    }
+
+    // Sub-header Divider
+    setDraw(GRAY_200);
+    doc.setLineWidth(0.5);
+    doc.line(x + 1, y + headerH, x + w - 1, y + headerH);
+
+    y += headerH;
+
+    // rows (truncate)
+    const rows = opts.rows.slice(0, Math.max(0, opts.maxRows));
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(fontSize);
+
+    for (let i = 0; i < rows.length; i++) {
+      // zebra
+      if (i % 2 === 0) {
+        setFill(ROW_ZEBRA);
+        doc.rect(x + 1, y, w - 2, rowH, "F");
+      }
+
+      const isLast = opts.highlightLastRow && i === rows.length - 1;
+      if (isLast) {
+        setFill(BLUE_50);
+        doc.rect(x + 1, y, w - 2, rowH, "F");
+        doc.setFont("helvetica", "bold");
+      } else {
+        doc.setFont("helvetica", "normal");
+      }
+
+      cx = x;
+      for (const c of opts.cols) {
+        const raw = rows[i]?.[c.key] ?? "—";
+
+        const tx =
+          c.align === "right" ? cx + c.w - 8 : c.align === "center" ? cx + c.w / 2 : cx + 8;
+
+        setText(SLATE_900);
+        doc.text(raw, tx, y + 12, {
+          align: c.align === "right" ? "right" : c.align === "center" ? "center" : "left",
+        });
+
+        cx += c.w;
+      }
+
+      // row line (even subtler)
+      setDraw(GRAY_200);
+      doc.setLineWidth(0.5);
+      doc.line(x + 8, y + rowH, x + w - 8, y + rowH);
+
+      y += rowH;
+    }
+
+    return y;
+  };
+
+  // ─────────────────────────────────────────────
+  // 1) PROCESS DATA (Aggregate across ALL companies)
+  // ─────────────────────────────────────────────
   const companySums: CompanySummary[] = [];
   const deptMap = new Map<string, DeptSummary>();
 
   let bankAdd = 0, bankRemove = 0, bankPrevNet = 0, bankCurrNet = 0, bankCurrEmp = 0;
   let cashAdd = 0, cashRemove = 0, cashPrevNet = 0, cashCurrNet = 0, cashCurrEmp = 0;
 
-  // Table 2 uses all companies
-  for (const c of args.data) {
+  for (const c of args.data || []) {
     companySums.push({
-      name: c.companyName,
-      prevNet: Number(c.prevRun?.total_net || 0),
-      currNet: Number(c.currentRun?.total_net || 0),
+      name: safeStr(c?.companyName, "—"),
+      prevNet: Number(c?.prevRun?.total_net || 0),
+      currNet: Number(c?.currentRun?.total_net || 0),
     });
   }
 
-  // Tables 1, 3, and 4 use ONLY the first company (Dummy / 8056)
-  const dummyData = args.data[0];
-  if (dummyData) {
-    const currIds = new Set(dummyData.currEmps.map((e: any) => e.user_id));
-    const prevIds = new Set(dummyData.prevEmps.map((e: any) => e.user_id));
+  // ─────────────────────────────────────────────
+  // 1.1) PROCESS DATA FOR SUMMARIES (Main Company ONLY - 8056)
+  // ─────────────────────────────────────────────
+  const mainDeptMap = new Map<string, DeptSummary>();
+  const mainCompany = (args.data || []).find(c => c.companyName?.includes("8056")) || (args.data || [])[0];
 
-    // Stats for Table 1
-    dummyData.currEmps.forEach((e: any) => {
+  if (mainCompany) {
+    const mCurrEmps = mainCompany.currEmps || [];
+    const mPrevEmps = mainCompany.prevEmps || [];
+    const mCurrIds = new Set(mCurrEmps.map((e: any) => e.user_id));
+    const mPrevIds = new Set(mPrevEmps.map((e: any) => e.user_id));
+
+    // Aggregate BANK/CASH totals from Main Company
+    mCurrEmps.forEach((e: any) => {
       const isCard = Number(e.is_card) === 1;
       if (isCard) {
         bankCurrNet += Number(e.net_pay);
         bankCurrEmp++;
-        if (!prevIds.has(e.user_id)) bankAdd++;
+        if (!mPrevIds.has(e.user_id)) bankAdd++;
       } else {
         cashCurrNet += Number(e.net_pay);
         cashCurrEmp++;
-        if (!prevIds.has(e.user_id)) cashAdd++;
+        if (!mPrevIds.has(e.user_id)) cashAdd++;
       }
     });
 
-    dummyData.prevEmps.forEach((e: any) => {
+    mPrevEmps.forEach((e: any) => {
       const isCard = Number(e.is_card) === 1;
       if (isCard) {
         bankPrevNet += Number(e.net_pay);
-        if (!currIds.has(e.user_id)) bankRemove++;
+        if (!mCurrIds.has(e.user_id)) bankRemove++;
       } else {
         cashPrevNet += Number(e.net_pay);
-        if (!currIds.has(e.user_id)) cashRemove++;
+        if (!mCurrIds.has(e.user_id)) cashRemove++;
       }
     });
 
-    // Dept Map for Tables 3 & 4
-    const allDepts = Array.from(new Set([
-      ...dummyData.currEmps.map((e: any) => (e.department_name_snapshot || e.department_name || "Unknown")),
-      ...dummyData.prevEmps.map((e: any) => (e.department_name_snapshot || e.department_name || "Unknown"))
+    // Populate Department Map
+    const depts = Array.from(new Set([
+      ...mCurrEmps.map((e: any) => e.department_name_snapshot || e.department_name || "Unknown"),
+      ...mPrevEmps.map((e: any) => e.department_name_snapshot || e.department_name || "Unknown"),
     ]));
 
-    allDepts.forEach(dName => {
-      let d = deptMap.get(dName);
-      if (!d) {
-        d = {
-          name: dName,
-          bank: { prevEmp: 0, currEmp: 0, prevNet: 0, currNet: 0, add: 0, remove: 0 },
-          cash: { prevEmp: 0, currEmp: 0, prevNet: 0, currNet: 0, add: 0, remove: 0 },
-        };
-        deptMap.set(dName, d);
-      }
+    depts.forEach(dName => {
+      const d: DeptSummary = {
+        name: dName,
+        bank: { prevEmp: 0, currEmp: 0, prevNet: 0, currNet: 0, add: 0, remove: 0 },
+        cash: { prevEmp: 0, currEmp: 0, prevNet: 0, currNet: 0, add: 0, remove: 0 },
+      };
 
-      const cDepts = dummyData.currEmps.filter((e: any) => (e.department_name_snapshot || e.department_name) === dName);
-      const pDepts = dummyData.prevEmps.filter((e: any) => (e.department_name_snapshot || e.department_name) === dName);
-      const cIds = new Set(cDepts.map((e: any) => e.user_id));
-      const pIds = new Set(pDepts.map((e: any) => e.user_id));
+      const cIn = mCurrEmps.filter((e: any) => (e.department_name_snapshot || e.department_name || "Unknown") === dName);
+      const pIn = mPrevEmps.filter((e: any) => (e.department_name_snapshot || e.department_name || "Unknown") === dName);
 
-      cDepts.forEach((e: any) => {
+      cIn.forEach((e: any) => {
         const isCard = Number(e.is_card) === 1;
-        if (isCard) {
-          d!.bank.currEmp++;
-          d!.bank.currNet += Number(e.net_pay);
-          if (!pIds.has(e.user_id)) d!.bank.add++;
-        } else {
-          d!.cash.currEmp++;
-          d!.cash.currNet += Number(e.net_pay);
-          if (!pIds.has(e.user_id)) d!.cash.add++;
-        }
+        const target = isCard ? d.bank : d.cash;
+        target.currEmp++;
+        target.currNet += Number(e.net_pay);
+        if (!mPrevIds.has(e.user_id)) target.add++;
       });
-
-      pDepts.forEach((e: any) => {
+      pIn.forEach((e: any) => {
         const isCard = Number(e.is_card) === 1;
-        if (isCard) {
-          d!.bank.prevEmp++;
-          d!.bank.prevNet += Number(e.net_pay);
-          if (!cIds.has(e.user_id)) d!.bank.remove++;
-        } else {
-          d!.cash.prevEmp++;
-          d!.cash.prevNet += Number(e.net_pay);
-          if (!cIds.has(e.user_id)) d!.cash.remove++;
-        }
+        const target = isCard ? d.bank : d.cash;
+        target.prevEmp++;
+        target.prevNet += Number(e.net_pay);
+        if (!mCurrIds.has(e.user_id)) target.remove++;
       });
+      mainDeptMap.set(dName, d);
     });
   }
 
-  // --- 2. DRAWING ---
+  const grandPrevNet = bankPrevNet + cashPrevNet;
+  const grandCurrNet = bankCurrNet + cashCurrNet;
+  const grandCurrEmp = bankCurrEmp + cashCurrEmp;
+
+  const reportCompany =
+    safeStr(args?.meta?.companyName) ||
+    (args?.data?.length > 0 ? safeStr(args?.data?.[0]?.companyName, "Company Name") : "All Companies");
+
+  const cutoffLabel = args?.meta?.currentCutoff
+    ? `${args.meta.currentCutoff.start} to ${args.meta.currentCutoff.end}`
+    : "All";
+
+  const createdAt =
+    args?.meta?.createdAt ||
+    new Date().toLocaleString("en-PH", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  // ─────────────────────────────────────────────
+  // 2) DRAW (ONE PAGE ONLY)
+  // ─────────────────────────────────────────────
+  const HEADER_H = 70;
+
+  // Header bar
+  setFill(BLUE_800);
+  doc.rect(0, 0, pageW, HEADER_H, "F");
+
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
-  doc.text("PAYROLL SUMMARY", pageW / 2, marginTop, { align: "center" });
+  setText(WHITE);
+  doc.text("Payroll Summary Report", M, 30);
 
-  doc.setFontSize(12);
-  doc.text("Company Name", pageW / 2, marginTop + 20, { align: "center" });
-
-  const cutoffLabel = args.meta.currentCutoff
-    ? `Cutoff: ${args.meta.currentCutoff.start} to ${args.meta.currentCutoff.end}`
-    : "Cutoff: All";
   doc.setFont("helvetica", "normal");
-  doc.text(cutoffLabel, pageW / 2, marginTop + 36, { align: "center" });
+  doc.setFontSize(10);
+  setText(WHITE);
+  doc.text(`${reportCompany} • Cutoff: ${cutoffLabel}`, M, 50);
+  doc.text(`Created: ${createdAt}`, pageW - M, 50, { align: "right" });
 
-  let cy = marginTop + 70;
+  setDraw(GRAY_300);
+  doc.setLineWidth(1);
+  doc.line(M, HEADER_H, pageW - M, HEADER_H);
 
-  // TABLE 1: SUMMARY
-  const drawTable1 = () => {
-    const colW = [60, 100, 100, 50, 60, 100];
-    const x0 = marginX;
-    const headers = ["", "Total Employee", "Prev. Cutoff", "ADD", "REMOVE", "Current Cutoff"];
-    const subHeaders = ["", "(No. of Employees)", "(Total Net)", "", "", "(Total Net)"];
+  let y = HEADER_H + 14;
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
+  // Ribbon
+  const ribbonH = 24;
+  setFill(BLUE_900);
+  doc.roundedRect(M, y, innerW, ribbonH, 8, 8, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  setText(WHITE);
+  doc.text(`Report Totals for: ${cutoffLabel}`, M + 12, y + 16);
+  y += ribbonH + 12;
 
-    // Header
-    let cx = x0;
-    headers.forEach((h, i) => {
-      doc.text(h, cx + colW[i] / 2, cy, { align: "center" });
-      doc.setFontSize(8);
-      doc.text(subHeaders[i], cx + colW[i] / 2, cy + 10, { align: "center" });
-      doc.setFontSize(10);
-      cx += colW[i];
-    });
+  // KPI row (smaller to save space)
+  {
+    const gap = 10;
+    const cardW = (innerW - gap * 2) / 3;
+    const cardH = 58;
 
-    cy += 20;
-    doc.line(x0, cy, x0 + 470, cy);
-    cy += 15;
+    const drawKpi = (x: number, title: string, value: string, sub?: string) => {
+      drawCard(x, y, cardW, cardH);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      setText(SLATE_600);
+      doc.text(title, x + 12, y + 18);
 
-    const rows = [
-      { label: "BANK", emp: bankCurrEmp, prev: bankPrevNet, add: bankAdd, rem: bankRemove, curr: bankCurrNet },
-      { label: "CASH", emp: cashCurrEmp, prev: cashPrevNet, add: cashAdd, rem: cashRemove, curr: cashCurrNet },
-      {
-        label: "TOTAL:",
-        emp: bankCurrEmp + cashCurrEmp,
-        prev: bankPrevNet + cashPrevNet,
-        add: bankAdd + cashAdd,
-        rem: bankRemove + cashRemove,
-        curr: bankCurrNet + cashCurrNet
-      },
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      setText(SLATE_900);
+      doc.text(value, x + 12, y + 40);
+
+      if (sub) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+        setText(SLATE_600);
+        doc.text(sub, x + 12, y + 54);
+      }
+    };
+
+    drawKpi(M, "Total Employees (Current)", fmtInt(grandCurrEmp), `Add: ${fmtInt(bankAdd + cashAdd)}  •  Remove: ${fmtInt(bankRemove + cashRemove)}`);
+    drawKpi(M + cardW + gap, "Previous Cutoff • Total Net", `PHP ${fmtMoney(bankPrevNet + cashPrevNet)}`);
+    drawKpi(M + (cardW + gap) * 2, "Current Cutoff • Total Net", `PHP ${fmtMoney(bankCurrNet + cashCurrNet)}`);
+
+    y += cardH + 12;
+  }
+
+  // Two-column row: Payment + Company totals (to save vertical space)
+  {
+    const gap = 12;
+    const colW = Math.floor((innerW - gap) / 2);
+    const leftX = M;
+    const rightX = M + colW + gap;
+
+    const cardH = 190;
+
+    // LEFT: Payment Method Summary (compact columns so it NEVER overflows)
+    drawCard(leftX, y, colW, cardH);
+    sectionTitle(leftX + 14, y + 24, "Payment Method Summary");
+
+    const pillText = "BANK vs CASH";
+    const pillW = doc.getTextWidth(pillText) + 20;
+    drawPill(leftX + colW - pillW - 12, y + 24, pillText); // align with tablePad
+
+    const tablePad = 12;
+    const tX = leftX + tablePad;
+    const tW = colW - tablePad * 2;
+    let tY = y + 38;
+
+    const payCols: Col[] = [
+      { key: "m", label: "Method", w: 50, align: "left" },
+      { key: "emp", label: "Employees", w: 50, align: "right" },
+      { key: "add", label: "+", w: 20, align: "right" },
+      { key: "rem", label: "-", w: 20, align: "right" },
+      { key: "prev", label: "Previous Net", w: (tW - 140) / 2, align: "right" },
+      { key: "net", label: "Current Net", w: (tW - 140) / 2, align: "right" },
     ];
 
-    rows.forEach((r, idx) => {
-      if (idx === 2) doc.setFont("helvetica", "bold");
-      else doc.setFont("helvetica", "normal");
+    const payRows = [
+      { m: "BANK", emp: fmtInt(bankCurrEmp), add: dashIfZero(bankAdd), rem: dashIfZero(bankRemove), prev: fmtMoney(bankPrevNet), net: fmtMoney(bankCurrNet) },
+      { m: "CASH", emp: fmtInt(cashCurrEmp), add: dashIfZero(cashAdd), rem: dashIfZero(cashRemove), prev: fmtMoney(cashPrevNet), net: fmtMoney(cashCurrNet) },
+      { m: "TOTAL", emp: fmtInt(grandCurrEmp), add: dashIfZero(bankAdd + cashAdd), rem: dashIfZero(bankRemove + cashRemove), prev: fmtMoney(grandPrevNet), net: fmtMoney(grandCurrNet) },
+    ];
 
-      cx = x0;
-      doc.text(r.label, cx, cy);
-      doc.text(String(r.emp), cx + colW[0] + colW[1] / 2, cy, { align: "center" });
-      doc.text(fmt(r.prev), cx + colW[0] + colW[1] + colW[2] / 2, cy, { align: "center" });
-      doc.text(r.add > 0 ? String(r.add) : "-", cx + colW[0] + colW[1] + colW[2] + colW[3] / 2, cy, { align: "center" });
-      doc.text(r.rem > 0 ? String(r.rem) : "-", cx + colW[0] + colW[1] + colW[2] + colW[3] + colW[4] / 2, cy, { align: "center" });
-      doc.text(fmt(r.curr), cx + colW[0] + colW[1] + colW[2] + colW[3] + colW[4] + colW[5] / 2, cy, { align: "center" });
-      cy += 15;
+    drawTable({
+      x: tX,
+      y: tY,
+      w: tW,
+      cols: payCols,
+      rows: payRows,
+      maxRows: 3,
+      highlightLastRow: true,
     });
 
-    // Bottom border of Table 1
-    doc.line(x0, cy - 5, x0 + 470, cy - 5);
-  };
+    // RIGHT: Company Totals (compact + truncation)
+    drawCard(rightX, y, colW, cardH);
+    sectionTitle(rightX + 14, y + 24, "Company Totals");
 
-  // TABLE 2: COMPANY LIST
-  const drawTable2 = () => {
-    const table2X = pageW - marginX - 250;
-    let ty = marginTop + 70;
-    const colW = [110, 70, 70];
+    const compPill = `${companySums.length} Companies`;
+    const compPillW = doc.getTextWidth(compPill) + 20;
+    drawPill(rightX + colW - compPillW - 12, y + 24, compPill);
 
-    doc.setFont("helvetica", "bold");
-    doc.text("Company Name", table2X + colW[0] / 2, ty, { align: "center" });
-    doc.text("Prev. Cutoff", table2X + colW[0] + colW[1] / 2, ty, { align: "center" });
-    doc.text("Current Cutoff", table2X + colW[0] + colW[1] + colW[2] / 2, ty, { align: "center" });
+    const ctX = rightX + tablePad;
+    const ctW = colW - tablePad * 2;
+    const ctY = y + 38;
 
-    ty += 12;
-    doc.setFontSize(8);
-    doc.text("Net", table2X + colW[0] + colW[1] / 2, ty, { align: "center" });
-    doc.text("Net", table2X + colW[0] + colW[1] + colW[2] / 2, ty, { align: "center" });
+    const compSorted = [...companySums].sort((a, b) => Math.abs(b.currNet) - Math.abs(a.currNet));
+    const totalPrevAll = compSorted.reduce((a, c) => a + (c.prevNet || 0), 0);
+    const totalCurrAll = compSorted.reduce((a, c) => a + (c.currNet || 0), 0);
 
-    ty += 8;
-    doc.line(table2X, ty, table2X + 250, ty);
-    ty += 15;
+    // rows that fit inside this card
+    // available height for rows = cardH - (top padding area ~ 38) - headerH - bottom padding (~18)
+    const headerH = 20;
+    const rowH = 18;
+    const availableRows = Math.max(3, Math.floor((cardH - 38 - headerH - 18) / rowH));
+    // reserve 1 row for TOTAL
+    const usable = Math.max(1, availableRows - 1);
 
-    let tPrev = 0;
-    let tCurr = 0;
+    const rowsShown = compSorted.slice(0, usable);
+    const remaining = Math.max(0, compSorted.length - rowsShown.length);
 
-    companySums.forEach(c => {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.text(c.name, table2X, ty);
-      doc.text(fmt(c.prevNet), table2X + colW[0] + colW[1] / 2, ty, { align: "center" });
-      doc.text(fmt(c.currNet), table2X + colW[0] + colW[1] + colW[2] / 2, ty, { align: "center" });
-      tPrev += c.prevNet;
-      tCurr += c.currNet;
-      ty += 15;
+    const compCols: Col[] = [
+      { key: "c", label: "Company", w: Math.floor(ctW * 0.40), align: "left" },
+      { key: "prev", label: "Previous Net", w: Math.floor(ctW * 0.30), align: "right" },
+      { key: "net", label: "Current Net", w: ctW - Math.floor(ctW * 0.40) - Math.floor(ctW * 0.30), align: "right" },
+    ];
+
+    const compRows: Record<string, string>[] = rowsShown.map((c) => ({
+      c: ellipsize(c.name, compCols[0].w - 16),
+      prev: fmtMoney(c.prevNet),
+      net: fmtMoney(c.currNet),
+    }));
+
+    if (remaining > 0 && compRows.length > 0) {
+      // replace last company row with “+X more” if tight
+      compRows[compRows.length - 1] = { c: `… +${remaining} more`, prev: "—", net: "—" };
+    }
+
+    // append TOTAL row always
+    compRows.push({ c: "TOTAL", prev: fmtMoney(totalPrevAll), net: fmtMoney(totalCurrAll) });
+
+    drawTable({
+      x: ctX,
+      y: ctY,
+      w: ctW,
+      cols: compCols,
+      rows: compRows,
+      maxRows: rowsShown.length + 1,
+      highlightLastRow: true,
     });
 
-    doc.setFont("helvetica", "bold");
-    doc.text("Total =", table2X, ty);
-    doc.text(fmt(tPrev), table2X + colW[0] + colW[1] / 2, ty, { align: "center" });
-    doc.text(fmt(tCurr), table2X + colW[0] + colW[1] + colW[2] / 2, ty, { align: "center" });
+    y += cardH + 12;
+  }
 
-    doc.line(table2X, ty + 5, table2X + 250, ty + 5);
-  };
+  // Department Breakdown (BANK + CASH) — INCLUDED ON FIRST PAGE (one page only)
+  {
+    const cardH = pageH - M - footerH - y; // fill remaining space
+    drawCard(M, y, innerW, cardH);
 
-  drawTable1();
-  drawTable2();
+    sectionTitle(M + 14, y + 24, "Department Breakdown");
 
-  cy += 40;
+    const breakdownPill = safeStr(mainCompany?.companyName, "Company");
+    const breakdownPillW = doc.getTextWidth(breakdownPill) + 20;
+    drawPill(M + innerW - breakdownPillW - 12, y + 24, breakdownPill);
 
-  const drawDeptTable = (title: string, isBank: boolean) => {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text(title, marginX, cy);
-    cy += 15;
+    const pad = 12;
+    const sectionGap = 16;
 
-    const colW = [140, 80, 80, 50, 60, 80, 80];
-    const headers = ["Department", "Total Employees", "Prev. Cutoff", "Add", "Remove", "Total Employees", "Current Cutoff"];
+    const innerX = M + pad;
+    let currentY = y + 42;
+    const innerW2 = innerW - pad * 2;
 
-    doc.setFontSize(8.5);
-    let cx = marginX;
-    headers.forEach((h, i) => {
-      doc.text(h, cx + colW[i] / 2, cy, { align: "center" });
-      cx += colW[i];
-    });
-    cy += 10;
-    doc.setFontSize(7.5);
-    cx = marginX + colW[0] + colW[1];
-    doc.text("Total Net", cx + colW[2] / 2, cy, { align: "center" });
-    cx += colW[2] + colW[3] + colW[4] + colW[5];
-    doc.text("Total Net", cx + colW[6] / 2, cy, { align: "center" });
+    const drawDeptSection = (label: "BANK" | "CASH", sx: number, sy: number, sw: number) => {
+      const allDepts = Array.from(mainDeptMap.values());
 
-    cy += 5;
-    doc.line(marginX, cy, pageW - marginX, cy);
-    cy += 15;
+      // build rows
+      const rowsRaw = allDepts
+        .map((d) => {
+          const data = label === "BANK" ? d.bank : d.cash;
+          if (data.prevEmp === 0 && data.currEmp === 0) return null;
+          return {
+            dept: d.name,
+            prevEmp: data.prevEmp,
+            prevNet: data.prevNet,
+            add: data.add,
+            rem: data.remove,
+            currEmp: data.currEmp,
+            currNet: data.currNet,
+          };
+        })
+        .filter(Boolean) as any[];
 
-    let tPrevEmp = 0, tCurrEmp = 0, tPrevNet = 0, tCurrNet = 0, tAdd = 0, tRem = 0;
+      if (rowsRaw.length === 0) return sy;
 
-    const depts = Array.from(deptMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-    depts.forEach(d => {
-      const data = isBank ? d.bank : d.cash;
-      if (data.currEmp === 0 && data.prevEmp === 0) return;
+      // section label
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      setText(BLUE_900);
+      doc.text(label, sx, sy);
 
-      doc.setFont("helvetica", "normal");
-      cx = marginX;
-      doc.text(d.name, cx, cy);
-      doc.text(String(data.prevEmp), cx + colW[0] + colW[1] / 2, cy, { align: "center" });
-      doc.text(fmt(data.prevNet), cx + colW[0] + colW[1] + colW[2] / 2, cy, { align: "center" });
-      doc.text(data.add > 0 ? String(data.add) : "-", cx + colW[0] + colW[1] + colW[2] + colW[3] / 2, cy, { align: "center" });
-      doc.text(data.remove > 0 ? String(data.remove) : "-", cx + colW[0] + colW[1] + colW[2] + colW[3] + colW[4] / 2, cy, { align: "center" });
-      doc.text(String(data.currEmp), cx + colW[0] + colW[1] + colW[2] + colW[3] + colW[4] + colW[5] / 2, cy, { align: "center" });
-      doc.text(fmt(data.currNet), cx + colW[0] + colW[1] + colW[2] + colW[3] + colW[4] + colW[5] + colW[6] / 2, cy, { align: "center" });
+      const tableTop = sy + 6;
+      const tableW = sw;
 
-      tPrevEmp += data.prevEmp;
-      tCurrEmp += data.currEmp;
-      tPrevNet += data.prevNet;
-      tCurrNet += data.currNet;
-      tAdd += data.add;
-      tRem += data.remove;
-      cy += 15;
-    });
+      const deptCols: Col[] = [
+        { key: "d", label: "Department", w: 0, align: "left" }, // computed below
+        { key: "pEmp", label: "Previous Employee", w: 85, align: "right" },
+        { key: "pNet", label: "Previous Net", w: 85, align: "right" },
+        { key: "add", label: "+", w: 25, align: "right" },
+        { key: "rem", label: "-", w: 25, align: "right" },
+        { key: "cEmp", label: "Current Employee", w: 85, align: "right" },
+        { key: "cNet", label: "Current Net", w: 85, align: "right" },
+      ];
 
-    doc.setFont("helvetica", "bold");
-    doc.text("Total =", marginX, cy);
-    cx = marginX + colW[0];
-    doc.text(String(tPrevEmp), cx + colW[1] / 2, cy, { align: "center" });
-    doc.text(fmt(tPrevNet), cx + colW[1] + colW[2] / 2, cy, { align: "center" });
-    doc.text(tAdd > 0 ? String(tAdd) : "-", cx + colW[1] + colW[2] + colW[3] / 2, cy, { align: "center" });
-    doc.text(tRem > 0 ? String(tRem) : "-", cx + colW[1] + colW[2] + colW[3] + colW[4] / 2, cy, { align: "center" });
-    doc.text(String(tCurrEmp), cx + colW[1] + colW[2] + colW[3] + colW[4] + colW[5] / 2, cy, { align: "center" });
-    doc.text(fmt(tCurrNet), cx + colW[1] + colW[2] + colW[3] + colW[4] + colW[5] + colW[6] / 2, cy, { align: "center" });
+      const fixed = deptCols.slice(1).reduce((a, c) => a + c.w, 0);
+      deptCols[0].w = tableW - fixed;
 
-    cy += 5;
-    doc.line(marginX, cy, pageW - marginX, cy);
-    cy += 30;
-  };
+      // sort by currNet desc
+      rowsRaw.sort((a, b) => Math.abs(b.currNet) - Math.abs(a.currNet));
 
-  const dummyName = dummyData?.companyName || "Company";
-  drawDeptTable(`${dummyName} [BANK]`, true);
-  if (cy > pageH - 100) { doc.addPage(); cy = marginTop; }
-  drawDeptTable(`${dummyName} [CASH]`, false);
+      const totals = rowsRaw.reduce(
+        (acc, r) => {
+          acc.pEmp += r.prevEmp;
+          acc.pNet += r.prevNet;
+          acc.add += r.add;
+          acc.rem += r.rem;
+          acc.cEmp += r.currEmp;
+          acc.cNet += r.currNet;
+          return acc;
+        },
+        { pEmp: 0, pNet: 0, add: 0, rem: 0, cEmp: 0, cNet: 0 },
+      );
 
-  const fileName = `Payroll_Summary_${args.meta.currentCutoff?.start || "All"}.pdf`;
+      const headerH = 20;
+      const rowH = 18;
+
+      const rows: Record<string, string>[] = rowsRaw.map((r) => ({
+        d: ellipsize(r.dept, deptCols[0].w - 16),
+        pEmp: fmtInt(r.prevEmp),
+        pNet: fmtMoney(r.prevNet),
+        add: dashIfZero(r.add),
+        rem: dashIfZero(r.rem),
+        cEmp: fmtInt(r.currEmp),
+        cNet: fmtMoney(r.currNet),
+      }));
+
+      // TOTAL row always
+      rows.push({
+        d: "TOTAL",
+        pEmp: fmtInt(totals.pEmp),
+        pNet: fmtMoney(totals.pNet),
+        add: dashIfZero(totals.add),
+        rem: dashIfZero(totals.rem),
+        cEmp: fmtInt(totals.cEmp),
+        cNet: fmtMoney(totals.cNet),
+      });
+
+      const nextY = drawTable({
+        x: sx + pad,
+        y: sy + 10,
+        w: sw - pad * 2,
+        cols: deptCols,
+        rows: rows,
+        maxRows: 100,
+        highlightLastRow: true,
+      });
+
+      return nextY + 20; // added small margin before next section label
+    };
+
+    currentY = drawDeptSection("BANK", innerX, currentY, innerW2);
+    currentY = drawDeptSection("CASH", innerX, currentY, innerW2);
+  }
+
+  // Footer (Page 1 of 1)
+  {
+    const fy = pageH - M + 2;
+    setDraw(GRAY_200);
+    doc.setLineWidth(1);
+    doc.line(M, fy - 10, pageW - M, fy - 10);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    setText(SLATE_600);
+    doc.text("VOS • Payroll Summary", M, fy);
+    doc.text("Page 1 of 1", pageW - M, fy, { align: "right" });
+  }
+
+  const fileName = `Payroll_Summary_${args?.meta?.currentCutoff?.start || "All"}.pdf`;
   doc.save(fileName);
 }

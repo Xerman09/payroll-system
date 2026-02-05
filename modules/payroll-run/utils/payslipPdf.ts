@@ -639,11 +639,6 @@ function drawEntriesMultiColumn(args: {
 // Itemization renderer (3-col, amount-safe)
 // =========================
 
-type ItemLine =
-  | { t: "header"; text: string }
-  | { t: "text"; text: string }
-  | { t: "pair"; label: string; value: string; indent?: number; bold?: boolean };
-
 function drawItemLines3ColCompact(args: {
   doc: jsPDF;
   x0: number;
@@ -675,9 +670,9 @@ function drawItemLines3ColCompact(args: {
   if (maxY < y0) return;
 
   // dashed separator
-  doc.setLineDash([1.5, 2], 0);
+  (doc as any).setLineDash([1.5, 2], 0);
   doc.line(x0, y0 - 8, x0 + w0, y0 - 8);
-  doc.setLineDash([], 0);
+  (doc as any).setLineDash([], 0);
 
   const availH = Math.max(0, maxY - y0);
   const rowsPerCol = Math.max(0, Math.floor(availH / rowH) + 1);
@@ -765,16 +760,14 @@ function drawItemLines3ColCompact(args: {
 // main export
 // =========================
 
-export async function downloadPayslipsPdf(args: {
+export async function buildPayslipsPdf(args: {
   rows: any[];
   payrollPeriodLabel: string;
   pageSize?: PageSize;
-  fileName?: string;
   payrollRefNo?: string;
   postedAt?: string;
 }) {
   const pageSize: PageSize = args.pageSize ?? "LEGAL";
-  const fileName = args.fileName ?? "payslips.pdf";
 
   // ✅ FILTER OUT ON-HOLD ROWS (NEW)
   const filtered = (Array.isArray(args.rows) ? args.rows : []).filter(
@@ -1383,8 +1376,7 @@ export async function downloadPayslipsPdf(args: {
   if (rows.length === 0) {
     doc.setFontSize(12);
     doc.text("No payslip rows to print (on-hold rows excluded).", 40, 60);
-    doc.save(fileName);
-    return;
+    return doc;
   }
 
   // Explicit paging: no blank first/last pages
@@ -1404,5 +1396,18 @@ export async function downloadPayslipsPdf(args: {
     drawSlip(rows[i], x, y);
   }
 
+  return doc;
+}
+
+export async function downloadPayslipsPdf(args: {
+  rows: any[];
+  payrollPeriodLabel: string;
+  pageSize?: PageSize;
+  fileName?: string;
+  payrollRefNo?: string;
+  postedAt?: string;
+}) {
+  const fileName = args.fileName ?? "payslips.pdf";
+  const doc = await buildPayslipsPdf(args);
   doc.save(fileName);
 }

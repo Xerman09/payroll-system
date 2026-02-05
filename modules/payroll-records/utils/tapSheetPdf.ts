@@ -210,7 +210,7 @@ export async function buildTapSheetPdf(args: {
     doc.setTextColor(0, 0, 0);
     doc.setFont(fontFamily, "bold");
     doc.setFontSize(10);
-    doc.text(`DEPARTMENT: ${args.departmentName.toUpperCase()}`, x0, metaY);
+    doc.text(`DEPARTMENT: ${(args.departmentName || "ALL DEPARTMENTS").toUpperCase()}`, x0, metaY);
     doc.setFont(fontFamily, "normal");
 
     doc.text(`Cutoff Period: ${args.cutoffStart} to ${args.cutoffEnd}`, x0, metaY + 14);

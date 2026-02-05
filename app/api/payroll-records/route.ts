@@ -206,7 +206,7 @@ export async function GET(req: NextRequest) {
       }
 
       const APIS = [
-        { name: "Dummy", url: process.env.API_BASE || process.env.NEXT_PUBLIC_API_BASE }, // 8056
+        { name: "Company Name", url: process.env.API_BASE || process.env.NEXT_PUBLIC_API_BASE }, // 8056
         { name: "Vertex", url: process.env.API_I }, // 8090
         { name: "Men2", url: process.env.API_II }, // 8091
         { name: "Hanvin", url: process.env.API_III }, // 8092
@@ -228,40 +228,58 @@ export async function GET(req: NextRequest) {
       const prevCutoff = prevHist?.[0];
 
       // 2. Fetch all data concurrently
+      console.log(`[Summary] Fetching data for cutoff: ${cutoffStart} to ${cutoffEnd}`);
+      console.log(`[Summary] Previous cutoff detected: ${prevCutoff ? `${prevCutoff.start_date} to ${prevCutoff.end_date}` : "None"}`);
+
       const results = await Promise.all(
         APIS.map(async (api) => {
           const baseUrl = api.url!;
+          console.log(`[Summary] Processing API: ${api.name} (${baseUrl})`);
 
-          // Runs
-          const runPath = `/items/payroll_run?filter[cutoff_start][_eq]=${cutoffStart}&filter[cutoff_end][_eq]=${cutoffEnd}&filter[status][_eq]=POSTED`;
-          const currentRunArr = await fetchFromApi(baseUrl, runPath);
-          const currentRun = currentRunArr?.[0];
+          try {
+            const runPath = `/items/payroll_run?filter[cutoff_start][_eq]=${cutoffStart}&filter[cutoff_end][_eq]=${cutoffEnd}&filter[status][_eq]=POSTED`;
+            const currEmpPath = `/items/payroll_run_employee?limit=-1&filter[cutoff_start][_eq]=${cutoffStart}&filter[cutoff_end][_eq]=${cutoffEnd}&filter[on_hold][_neq]=true`;
 
-          let prevRun = null;
-          if (prevCutoff) {
-            const prevRunPath = `/items/payroll_run?filter[cutoff_start][_eq]=${prevCutoff.start_date}&filter[cutoff_end][_eq]=${prevCutoff.end_date}&filter[status][_eq]=POSTED`;
-            const prevRunArr = await fetchFromApi(baseUrl, prevRunPath);
-            prevRun = prevRunArr?.[0];
+            let prevRunPath = null;
+            let prevEmpPath = null;
+            if (prevCutoff) {
+              prevRunPath = `/items/payroll_run?filter[cutoff_start][_eq]=${prevCutoff.start_date}&filter[cutoff_end][_eq]=${prevCutoff.end_date}&filter[status][_eq]=POSTED`;
+              prevEmpPath = `/items/payroll_run_employee?limit=-1&filter[cutoff_start][_eq]=${prevCutoff.start_date}&filter[cutoff_end][_eq]=${prevCutoff.end_date}&filter[on_hold][_neq]=true`;
+            }
+
+            // Parallelize WITHIN the company too
+            const [currentRunArr, prevRunArr, currEmpsArr, prevEmpsArr] = await Promise.all([
+              fetchFromApi(baseUrl, runPath),
+              prevRunPath ? fetchFromApi(baseUrl, prevRunPath) : Promise.resolve([]),
+              fetchFromApi(baseUrl, currEmpPath),
+              prevEmpPath ? fetchFromApi(baseUrl, prevEmpPath) : Promise.resolve([]),
+            ]);
+
+            const currentRun = currentRunArr?.[0];
+            const prevRun = prevRunArr?.[0];
+            const currEmps = currEmpsArr || [];
+            const prevEmps = prevEmpsArr || [];
+
+            console.log(`[Summary] ${api.name}: CurrentRun=${currentRun ? "Y" : "N"}, PrevRun=${prevRun ? "Y" : "N"}, CurrEmps=${currEmps.length}, PrevEmps=${prevEmps.length}`);
+
+            return {
+              companyName: api.name,
+              currentRun,
+              prevRun,
+              currEmps,
+              prevEmps,
+            };
+          } catch (e) {
+            console.error(`[Summary] Error fetching from ${api.name}:`, e);
+            return {
+              companyName: api.name,
+              currentRun: null,
+              prevRun: null,
+              currEmps: [],
+              prevEmps: [],
+              error: e instanceof Error ? e.message : String(e),
+            };
           }
-
-          // Employees (Current)
-          const currEmpPath = `/items/payroll_run_employee?limit=-1&filter[cutoff_start][_eq]=${cutoffStart}&filter[cutoff_end][_eq]=${cutoffEnd}&filter[on_hold][_neq]=true`;
-          const currEmps = (await fetchFromApi(baseUrl, currEmpPath)) || [];
-
-          // Employees (Previous)
-          let prevEmps: any[] = [];
-          if (prevCutoff) {
-            const prevEmpPath = `/items/payroll_run_employee?limit=-1&filter[cutoff_start][_eq]=${prevCutoff.start_date}&filter[cutoff_end][_eq]=${prevCutoff.end_date}&filter[on_hold][_neq]=true`;
-            prevEmps = (await fetchFromApi(baseUrl, prevEmpPath)) || [];
-          }
-
-          return {
-            companyName: api.name,
-            currentRun,
-            prevRun,
-            currEmps,
-            prevEmps,
-          };
         }),
       );
 
@@ -276,7 +294,13 @@ export async function GET(req: NextRequest) {
 
     return json({ error: "Invalid type parameter." }, { status: 400 });
   } catch (error) {
-    console.error("Payroll Records proxy error: - route.ts:199", error);
-    return json({ error: "Failed to fetch external data" }, { status: 500 });
+    console.error("Payroll Records proxy error:", error);
+    return json(
+      {
+        error: "Failed to fetch external data",
+        details: error instanceof Error ? error.message : String(error)
+      },
+      { status: 500 }
+    );
   }
 }

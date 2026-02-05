@@ -97,15 +97,20 @@ export default function TapSheetTab({
   employees,
   departments,
   cutoffs,
+  selectedCutoff,
+  setSelectedCutoff,
+  deptId,
+  setDeptId,
 }: {
   employees: Employee[];
   departments: Department[];
   cutoffs: CutoffHistoryRow[];
+  selectedCutoff: string;
+  setSelectedCutoff: (v: string) => void;
+  deptId: number | null;
+  setDeptId: (v: number | null) => void;
 }) {
   const uniqueCutoffs = React.useMemo(() => uniqCutoffs(cutoffs), [cutoffs]);
-
-  const [selectedCutoff, setSelectedCutoff] = React.useState<string>("");
-  const [deptId, setDeptId] = React.useState<number | null>(null);
 
   const [search, setSearch] = React.useState("");
   const [sortKey, setSortKey] = React.useState<TapSortKey>("name");
@@ -129,7 +134,7 @@ export default function TapSheetTab({
   }, [selectedCutoff, uniqueCutoffs]);
 
   const departmentName = React.useMemo(() => {
-    if (!deptId) return "";
+    if (!deptId || deptId === -1) return "";
     return (
       departments.find((d) => d.department_id === deptId)?.department_name ?? ""
     );
@@ -142,7 +147,8 @@ export default function TapSheetTab({
 
   React.useEffect(() => {
     const run = async () => {
-      if (!cutoff?.start || !cutoff?.end || !departmentName) return;
+      if (!cutoff?.start || !cutoff?.end) return;
+      if (deptId !== -1 && !departmentName) return;
 
       try {
         setLoading(true);
@@ -169,7 +175,8 @@ export default function TapSheetTab({
   }, [cutoff?.start, cutoff?.end, departmentName]);
 
   const tapRows: TapSheetRow[] = React.useMemo(() => {
-    if (!cutoff?.start || !cutoff?.end || !departmentName) return [];
+    if (!cutoff?.start || !cutoff?.end) return [];
+    if (deptId !== -1 && !departmentName) return [];
 
     // ✅ safety-net again
     const safeRaw = (rowsRaw as any[]).filter(
@@ -246,14 +253,15 @@ export default function TapSheetTab({
   }, [previewUrl]);
 
   const buildSafeFilename = (filter: string) => {
-    const safeDept = (departmentName || "dept").replace(/[^\w\-]+/g, "_");
+    const safeDept = (deptId === -1 ? "all_depts" : departmentName || "dept").replace(/[^\w\-]+/g, "_");
     const start = cutoff?.start ?? "start";
     const end = cutoff?.end ?? "end";
     return `tap-sheet_${filter}_${safeDept}_${start}_${end}.pdf`;
   };
 
   const generatePdfBlob = async (filter: "ALL" | "BANK" | "CASH") => {
-    if (!cutoff?.start || !cutoff?.end || !departmentName) return null;
+    if (!cutoff?.start || !cutoff?.end) return null;
+    if (deptId !== -1 && !departmentName) return null;
 
     let filteredRows = tapRows;
     if (filter === "BANK") {
@@ -287,35 +295,14 @@ export default function TapSheetTab({
     return doc.output("blob");
   };
 
-  const [generatingSummary, setGeneratingSummary] = React.useState(false);
-  const handleDownloadSummary = async () => {
-    if (!cutoff?.start || !cutoff?.end) return;
-    setGeneratingSummary(true);
-    try {
-      const res = await fetch(`/api/payroll-records?type=summary&cutoff_start=${cutoff.start}&cutoff_end=${cutoff.end}`);
-      if (!res.ok) throw new Error("Failed to fetch summary data");
-      const json = await res.json();
-      await buildPayrollSummaryPdf({
-        data: json.data,
-        meta: json.meta
-      });
-    } catch (err) {
-      console.error("Summary error:", err);
-      toast.error("Failed to generate payroll summary: " + (err as any).message);
-    } finally {
-      setGeneratingSummary(false);
-    }
-  };
-
   const openPreview = async () => {
     if (!cutoff?.start || !cutoff?.end)
       return toast.error("Please select a cutoff date.");
-    if (!departmentName) return toast.error("Please select a department.");
+    if (deptId !== -1 && !departmentName) return toast.error("Please select a department.");
     if (!tapRows.length) return toast.error("No Top Sheet rows to preview.");
 
     setPdfFilter("ALL");
     setPreviewOpen(true);
-    // Effects will handle generation
   };
 
   React.useEffect(() => {
@@ -357,21 +344,6 @@ export default function TapSheetTab({
           </div>
 
           <div className="flex items-center gap-2">
-            <Button 
-               variant="outline" 
-               className="border-red-500 text-red-500 hover:bg-red-50"
-               onClick={handleDownloadSummary}
-               disabled={generatingSummary || !cutoff?.start}
-            >
-              {generatingSummary ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                "Payroll Summary"
-              )}
-            </Button>
             <Button
               onClick={openPreview}
               disabled={loading || tapRows.length === 0}
@@ -408,13 +380,14 @@ export default function TapSheetTab({
           <div className="space-y-2">
             <Label>Select Department</Label>
             <Select
-              value={deptId ? String(deptId) : ""}
+              value={String(deptId ?? "")}
               onValueChange={(v) => setDeptId(v ? Number(v) : null)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select department..." />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="-1">All Departments</SelectItem>
                 {departments.map((d) => (
                   <SelectItem
                     key={d.department_id}
@@ -499,7 +472,7 @@ export default function TapSheetTab({
           </TableHeader>
 
           <TableBody>
-            {!departmentName || !cutoff ? (
+            {!cutoff || (deptId !== -1 && !departmentName) ? (
               <TableRow>
                 <TableCell
                   colSpan={6}

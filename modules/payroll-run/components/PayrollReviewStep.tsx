@@ -12,23 +12,21 @@ import type {
 
 import { formatPHP } from "../utils/compute";
 import { getDepartmentLookups } from "../providers/directusMasterData";
-
 import {
   fetchPayrollRunEmployeesForPrint,
   rowsHaveBreakdown,
 } from "../providers/payslipPrintProvider";
-
-import { downloadPayslipsPdf } from "../utils/payslipPdf";
+import { downloadPayslipsPdf, buildPayslipsPdf } from "../utils/payslipPdf";
+import { Eye, FileDown, Loader2, CheckCircle2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-
-import { Loader2, CheckCircle2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -246,6 +244,14 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
   const lines = React.useMemo(() => resolveLines(props), [props]);
 
   const [isPostSuccess, setIsPostSuccess] = React.useState(false);
+  const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   const handlePostPayroll = async () => {
     if (!props.onPost) return;
@@ -450,22 +456,25 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
         return String(getRowName(a)).localeCompare(String(getRowName(b)));
       });
 
-      await downloadPayslipsPdf({
+      const doc = await buildPayslipsPdf({
         rows: rowsToPrint,
         payrollPeriodLabel,
         pageSize: "LEGAL",
-        fileName: "Payslips-Legal.pdf",
         payrollRefNo: (props as any)?.run?.payroll_ref_no,
         postedAt: (props as any)?.run?.posted_at,
       });
 
-      toast.success("Payslips PDF generated.");
+      const blob = doc.output("blob");
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      const url = URL.createObjectURL(blob);
+      setPreviewUrl(url);
+      setPreviewOpen(true);
       setIsPrinting(false);
     } catch (e: any) {
       toast.error(e?.message || "Failed to generate payslips PDF");
       setIsPrinting(false);
     }
-  }, [summary.count, displayLines, runId, payrollPeriodLabel]);
+  }, [summary.count, displayLines, runId, payrollPeriodLabel, previewUrl]);
 
   const backHandler = props.onBack ?? props.onBackToAdjust;
   const finalizeHandler =
@@ -539,8 +548,9 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
               disabled={props.isBusy || isPrinting || summary.count === 0}
             >
               {isPrinting
-                ? "Generating PDF..."
-                : "Download Payslips (PDF, Legal, 5/Page)"}
+                ? "Generating Preview..."
+                : "Download Payslips"}
+              <Eye className="ml-2 h-4 w-4" />
             </Button>
 
             {props.onExport ? (
@@ -577,7 +587,7 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
               <Button
                 onClick={handlePostPayroll}
                 disabled={props.isBusy || summary.count === 0 || isPostSuccess}
-                className={props.onPost ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+                className={props.onPost ? "bg-primary hover:bg-primary/90 text-primary-foreground" : ""}
               >
                 {props.onPost ? "Post Payroll" : "Finalize"}
               </Button>
@@ -704,6 +714,53 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
               <p className="text-sm text-muted-foreground">Redirecting...</p>
             </div>
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog 
+        open={previewOpen} 
+        onOpenChange={(open) => {
+          setPreviewOpen(open);
+          if (!open && previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+            setPreviewUrl(null);
+          }
+        }}
+      >
+        <DialogContent className="w-full max-w-[95vw] sm:max-w-7xl h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="pl-6 pr-12 py-4 border-b bg-background">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <DialogTitle className="text-lg">Payslips PDF Preview</DialogTitle>
+                <div className="text-xs text-muted-foreground">
+                  Review the generated payslips before downloading.
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {previewUrl && (
+                  <Button variant="default" size="sm" asChild>
+                    <a href={previewUrl} download="Payslips-Legal.pdf">
+                      <FileDown className="mr-2 h-4 w-4" />
+                      Download PDF
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="flex-1 bg-muted/20 w-full h-full relative">
+            {previewUrl ? (
+              <iframe
+                title="Payslips PDF Preview"
+                src={`${previewUrl}#toolbar=0&view=FitH`}
+                className="w-full h-full"
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                No preview available.
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
