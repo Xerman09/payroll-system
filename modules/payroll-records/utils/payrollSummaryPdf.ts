@@ -219,8 +219,8 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
   const companySums: CompanySummary[] = [];
   const deptMap = new Map<string, DeptSummary>();
 
-  let bankAdd = 0, bankRemove = 0, bankPrevNet = 0, bankCurrNet = 0, bankCurrEmp = 0;
-  let cashAdd = 0, cashRemove = 0, cashPrevNet = 0, cashCurrNet = 0, cashCurrEmp = 0;
+  let bankAdd = 0, bankRemove = 0, bankPrevNet = 0, bankCurrNet = 0, bankCurrEmp = 0, bankPrevEmp = 0;
+  let cashAdd = 0, cashRemove = 0, cashPrevNet = 0, cashCurrNet = 0, cashCurrEmp = 0, cashPrevEmp = 0;
 
   for (const c of args.data || []) {
     companySums.push({
@@ -260,9 +260,11 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
       const isCard = Number(e.is_card) === 1;
       if (isCard) {
         bankPrevNet += Number(e.net_pay);
+        bankPrevEmp++;
         if (!mCurrIds.has(e.user_id)) bankRemove++;
       } else {
         cashPrevNet += Number(e.net_pay);
+        cashPrevEmp++;
         if (!mCurrIds.has(e.user_id)) cashRemove++;
       }
     });
@@ -304,10 +306,11 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
   const grandPrevNet = bankPrevNet + cashPrevNet;
   const grandCurrNet = bankCurrNet + cashCurrNet;
   const grandCurrEmp = bankCurrEmp + cashCurrEmp;
+  const grandPrevEmp = bankPrevEmp + cashPrevEmp;
 
   const reportCompany =
     safeStr(args?.meta?.companyName) ||
-    (args?.data?.length > 0 ? safeStr(args?.data?.[0]?.companyName, "Company Name") : "All Companies");
+    (args?.data?.length > 0 ? safeStr(args?.data?.[0]?.companyName, "Men2 Marketing Corporation") : "All Companies");
 
   const cutoffLabel = args?.meta?.currentCutoff
     ? `${fmtDate(args.meta.currentCutoff.start)} to ${fmtDate(args.meta.currentCutoff.end)}`
@@ -385,7 +388,7 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
       }
     };
 
-    drawKpi(M, "Total Employees (Current)", fmtInt(grandCurrEmp), `Add: ${fmtInt(bankAdd + cashAdd)}  •  Remove: ${fmtInt(bankRemove + cashRemove)}`);
+    drawKpi(M, "Total Employees", `${fmtInt(grandCurrEmp)} / ${fmtInt(grandPrevEmp)}`, `Add: ${fmtInt(bankAdd + cashAdd)}  •  Remove: ${fmtInt(bankRemove + cashRemove)}`);
     drawKpi(M + cardW + gap, "Previous Cutoff • Total Net", `PHP ${fmtMoney(bankPrevNet + cashPrevNet)}`);
     drawKpi(M + (cardW + gap) * 2, "Current Cutoff • Total Net", `PHP ${fmtMoney(bankCurrNet + cashCurrNet)}`);
 
@@ -395,38 +398,40 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
   // Two-column row: Payment + Company totals (to save vertical space)
   {
     const gap = 12;
-    const colW = Math.floor((innerW - gap) / 2);
+    const colWLeft = Math.floor(innerW * 0.56); // ~62% for payment summary
+    const colWRight = innerW - gap - colWLeft;
     const leftX = M;
-    const rightX = M + colW + gap;
+    const rightX = M + colWLeft + gap;
 
     const cardH = 190;
 
-    // LEFT: Payment Method Summary (compact columns so it NEVER overflows)
-    drawCard(leftX, y, colW, cardH);
+    // LEFT: Payment Method Summary (expanded)
+    drawCard(leftX, y, colWLeft, cardH);
     sectionTitle(leftX + 14, y + 24, "Payment Method Summary");
 
     const pillText = "BANK vs CASH";
     const pillW = doc.getTextWidth(pillText) + 20;
-    drawPill(leftX + colW - pillW - 12, y + 24, pillText); // align with tablePad
+    drawPill(leftX + colWLeft - pillW - 12, y + 24, pillText); // align with tablePad
 
     const tablePad = 12;
     const tX = leftX + tablePad;
-    const tW = colW - tablePad * 2;
+    const tW = colWLeft - tablePad * 2;
     let tY = y + 38;
 
     const payCols: Col[] = [
-      { key: "m", label: "Method", w: 50, align: "left" },
-      { key: "emp", label: "Employees", w: 50, align: "right" },
+      { key: "m", label: "Method", w: 45, align: "left" },
+      { key: "pEmp", label: "Prev Emp", w: 45, align: "right" },
+      { key: "cEmp", label: "Curr Emp", w: 45, align: "right" },
       { key: "add", label: "+", w: 20, align: "right" },
       { key: "rem", label: "-", w: 20, align: "right" },
-      { key: "prev", label: "Previous Net", w: (tW - 140) / 2, align: "right" },
-      { key: "net", label: "Current Net", w: (tW - 140) / 2, align: "right" },
+      { key: "prev", label: "Previous Net", w: (tW - 175) / 2, align: "right" },
+      { key: "net", label: "Current Net", w: (tW - 175) / 2, align: "right" },
     ];
 
     const payRows = [
-      { m: "BANK", emp: fmtInt(bankCurrEmp), add: dashIfZero(bankAdd), rem: dashIfZero(bankRemove), prev: fmtMoney(bankPrevNet), net: fmtMoney(bankCurrNet) },
-      { m: "CASH", emp: fmtInt(cashCurrEmp), add: dashIfZero(cashAdd), rem: dashIfZero(cashRemove), prev: fmtMoney(cashPrevNet), net: fmtMoney(cashCurrNet) },
-      { m: "TOTAL", emp: fmtInt(grandCurrEmp), add: dashIfZero(bankAdd + cashAdd), rem: dashIfZero(bankRemove + cashRemove), prev: fmtMoney(grandPrevNet), net: fmtMoney(grandCurrNet) },
+      { m: "BANK", pEmp: fmtInt(bankPrevEmp), cEmp: fmtInt(bankCurrEmp), add: dashIfZero(bankAdd), rem: dashIfZero(bankRemove), prev: fmtMoney(bankPrevNet), net: fmtMoney(bankCurrNet) },
+      { m: "CASH", pEmp: fmtInt(cashPrevEmp), cEmp: fmtInt(cashCurrEmp), add: dashIfZero(cashAdd), rem: dashIfZero(cashRemove), prev: fmtMoney(cashPrevNet), net: fmtMoney(cashCurrNet) },
+      { m: "TOTAL", pEmp: fmtInt(grandPrevEmp), cEmp: fmtInt(grandCurrEmp), add: dashIfZero(bankAdd + cashAdd), rem: dashIfZero(bankRemove + cashRemove), prev: fmtMoney(grandPrevNet), net: fmtMoney(grandCurrNet) },
     ];
 
     drawTable({
@@ -439,16 +444,16 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
       highlightLastRow: true,
     });
 
-    // RIGHT: Company Totals (compact + truncation)
-    drawCard(rightX, y, colW, cardH);
+    // RIGHT: Company Totals (narrower card)
+    drawCard(rightX, y, colWRight, cardH);
     sectionTitle(rightX + 14, y + 24, "Company Totals");
 
-    const compPill = `${companySums.length} Companies`;
+    const compPill = `${companySums.length} Cos`;
     const compPillW = doc.getTextWidth(compPill) + 20;
-    drawPill(rightX + colW - compPillW - 12, y + 24, compPill);
+    drawPill(rightX + colWRight - compPillW - 12, y + 24, compPill);
 
     const ctX = rightX + tablePad;
-    const ctW = colW - tablePad * 2;
+    const ctW = colWRight - tablePad * 2;
     const ctY = y + 38;
 
     const compSorted = [...companySums].sort((a, b) => Math.abs(b.currNet) - Math.abs(a.currNet));
@@ -468,12 +473,12 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
 
     const compCols: Col[] = [
       { key: "c", label: "Company", w: Math.floor(ctW * 0.40), align: "left" },
-      { key: "prev", label: "Previous Net", w: Math.floor(ctW * 0.30), align: "right" },
-      { key: "net", label: "Current Net", w: ctW - Math.floor(ctW * 0.40) - Math.floor(ctW * 0.30), align: "right" },
+      { key: "prev", label: "Prev. Net", w: Math.floor(ctW * 0.30), align: "right" },
+      { key: "net", label: "Curr. Net", w: ctW - Math.floor(ctW * 0.40) - Math.floor(ctW * 0.30), align: "right" },
     ];
 
     const compRows: Record<string, string>[] = rowsShown.map((c) => ({
-      c: ellipsize(c.name, compCols[0].w - 16),
+      c: ellipsize(c.name, compCols[0].w - 8),
       prev: fmtMoney(c.prevNet),
       net: fmtMoney(c.currNet),
     }));
@@ -581,7 +586,7 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
       const rowH = 18;
 
       const rows: Record<string, string>[] = rowsRaw.map((r) => ({
-        d: ellipsize(r.dept, deptCols[0].w - 16),
+        d: ellipsize(r.dept, deptCols[0].w - 8),
         pEmp: fmtInt(r.prevEmp),
         pNet: fmtMoney(r.prevNet),
         add: dashIfZero(r.add),
@@ -628,7 +633,7 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     setText(SLATE_600);
-    doc.text("VOS • Payroll Summary", M, fy);
+    doc.text("Men2 Market Corps • Payroll Summary", M, fy);
     doc.text("Page 1 of 1", pageW - M, fy, { align: "right" });
   }
 
