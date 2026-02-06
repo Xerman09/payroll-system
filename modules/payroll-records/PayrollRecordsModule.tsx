@@ -8,7 +8,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, FileDown } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 import type { CutoffHistoryRow, Department, Employee } from "./types";
 import {
@@ -34,6 +41,11 @@ export default function PayrollRecordsModule() {
   const [deptId, setDeptId] = React.useState<number | null>(-1);
   const [loading, setLoading] = React.useState(true);
   const [generatingSummary, setGeneratingSummary] = React.useState(false);
+
+  // Preview state
+  const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+  const [previewFilename, setPreviewFilename] = React.useState("");
 
   React.useEffect(() => {
     const run = async () => {
@@ -70,10 +82,17 @@ export default function PayrollRecordsModule() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.details || json.error || "Failed to fetch summary data");
 
-      await buildPayrollSummaryPdf({
+      const doc = await buildPayrollSummaryPdf({
         data: json.data,
         meta: json.meta
       });
+
+      const blob = doc.output("blob");
+      const url = URL.createObjectURL(blob);
+      setPreviewUrl(url);
+      setPreviewFilename(`Payroll_Summary_${cutoff.start}.pdf`);
+      setPreviewOpen(true);
+      
       toast.success("Payroll Summary generated.");
     } catch (err) {
       console.error("Summary error:", err);
@@ -82,6 +101,12 @@ export default function PayrollRecordsModule() {
       setGeneratingSummary(false);
     }
   };
+
+  React.useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -113,7 +138,10 @@ export default function PayrollRecordsModule() {
                   Generating...
                 </>
               ) : (
-                "Payroll Summary"
+                <>
+                  <Eye className="mr-2 h-5 w-5" />
+                  Payroll Summary
+                </>
               )}
             </Button>
           )}
@@ -153,6 +181,62 @@ export default function PayrollRecordsModule() {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* PDF Preview Dialog */}
+      <Dialog
+        open={previewOpen}
+        onOpenChange={(open) => {
+          setPreviewOpen(open);
+          if (!open && previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+            setPreviewUrl(null);
+            setPreviewFilename("");
+          }
+        }}
+      >
+        <DialogContent className="w-full max-w-[95vw] sm:max-w-7xl h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="pl-6 pr-12 py-4 border-b bg-background">
+            <div className="flex items-center justify-between gap-4">
+              <DialogTitle className="text-lg">
+                Payroll Summary PDF Preview
+              </DialogTitle>
+
+              <div className="flex items-center gap-2">
+                {previewUrl && (
+                  <>
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={previewUrl} target="_blank" rel="noreferrer">
+                        Open in Tab
+                      </a>
+                    </Button>
+
+                    <Button variant="default" size="sm" asChild>
+                      <a href={previewUrl} download={previewFilename}>
+                        <FileDown className="mr-2 h-4 w-4" />
+                        Download
+                      </a>
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 bg-muted/20 w-full h-full relative">
+            {previewUrl ? (
+              <iframe
+                title="Payroll Summary PDF Preview"
+                src={`${previewUrl}#toolbar=0&view=FitH`}
+                className="w-full h-full"
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                No preview available.
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

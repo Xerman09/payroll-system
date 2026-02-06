@@ -247,14 +247,120 @@ export async function deleteBenefitLoan(loanId: number) {
 }
 
 // --------------------
-// Benefit Logs (NEW) - VIEW ONLY
+// Benefit Logs (REFECTORED) - VIEW ONLY
 // --------------------
 export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
-  const json = await apiFetch("/items/benefit_logs?limit=5000&sort=-created_date");
+  const fields = [
+    "*",
+    "user_id.user_fname",
+    "user_id.user_lname",
+    "user_id.user_sss",
+    "user_id.user_philhealth",
+    "user_id.user_pagibig",
+    "payroll_run_id.payroll_ref_no",
+    "payroll_run_id.posted_at",
+  ].join(",");
+
+  const path = `/items/payroll_run_employee?limit=5000&filter[payroll_run_id][status][_eq]=POSTED&sort=-created_at&fields=${fields}`;
+  const json = await apiFetch(path);
   const rows = (json.data || []) as any[];
-  return rows.map((r) => ({
-    ...r,
-    source_amount: toNum(r.source_amount),
-    deducted_amount: toNum(r.deducted_amount),
-  })) as BenefitLogRow[];
+
+  const logs: BenefitLogRow[] = [];
+
+  for (const r of rows) {
+    const user = r.user_id || {};
+    const pr = r.payroll_run_id || {};
+
+    const common = {
+      cutoff_id: r.cutoff_id,
+      user_id: r.user_id?.user_id || r.user_id,
+      employee_name: fullnameFromUser(user),
+      payroll_run_id: r.payroll_run_id?.payroll_run_id || r.payroll_run_id,
+      payroll_ref_no: pr.payroll_ref_no || "N/A",
+      posted_at: pr.posted_at || null,
+      created_date: r.created_at,
+      note: null,
+    };
+
+    // Contributions
+    if (toNum(r.benefit_sss) > 0) {
+      logs.push({
+        ...common,
+        benefit_log_id: `CONTRI-SSS-${r.id}`,
+        benefit_code: "SSS",
+        benefit_name: "SSS",
+        log_type: "CONTRIBUTION",
+        loan_id: null,
+        source_amount: 0, // Not explicitly in payroll_run_employee as separate source for contri
+        deducted_amount: toNum(r.benefit_sss),
+      });
+    }
+    if (toNum(r.benefit_philhealth) > 0) {
+      logs.push({
+        ...common,
+        benefit_log_id: `CONTRI-PH-${r.id}`,
+        benefit_code: "PHILHEALTH",
+        benefit_name: "PhilHealth",
+        log_type: "CONTRIBUTION",
+        loan_id: null,
+        source_amount: 0,
+        deducted_amount: toNum(r.benefit_philhealth),
+      });
+    }
+
+    if (toNum(r.benefit_pagibig) > 0) {
+      logs.push({
+        ...common,
+        benefit_log_id: `CONTRI-HDMF-${r.id}`,
+        benefit_code: "PAGIBIG",
+        benefit_name: "Pag-IBIG",
+        log_type: "CONTRIBUTION",
+        loan_id: null,
+        source_amount: 0,
+        deducted_amount: toNum(r.benefit_pagibig),
+      });
+    }
+
+    // Loans
+    if (toNum(r.benefit_loan_sss) > 0) {
+      logs.push({
+        ...common,
+        benefit_log_id: `LOAN-SSS-${r.id}`,
+        benefit_code: "SSS",
+        benefit_name: "SSS",
+        log_type: "LOAN",
+        loan_id: null,
+        source_amount: 0,
+        deducted_amount: toNum(r.benefit_loan_sss),
+      });
+    }
+    if (toNum(r.benefit_loan_pagibig) > 0) {
+      logs.push({
+        ...common,
+        benefit_log_id: `LOAN-HDMF-${r.id}`,
+        benefit_code: "PAGIBIG",
+        benefit_name: "Pag-IBIG",
+        log_type: "LOAN",
+        loan_id: null,
+        source_amount: 0,
+        deducted_amount: toNum(r.benefit_loan_pagibig),
+      });
+    }
+  }
+
+  // Final pass to set correct account_no based on benefit_code
+  for (const log of logs) {
+    const rawRow = rows.find(r => (r.user_id?.user_id || r.user_id) === log.user_id);
+    const u = rawRow?.user_id || {};
+
+    if (log.benefit_code === "SSS") {
+      log.account_no = u.user_sss || null;
+    } else if (log.benefit_code === "PHILHEALTH") {
+      log.account_no = u.user_philhealth || null;
+    } else if (log.benefit_code === "PAGIBIG") {
+      log.account_no = u.user_pagibig || null;
+    }
+  }
+
+  return logs;
 }

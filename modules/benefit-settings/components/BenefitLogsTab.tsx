@@ -22,6 +22,7 @@ import {
   type BenefitLogsPaperSize,
 } from "./benefitLogsPdf";
 import { BenefitTableSkeleton } from "./BenefitSettingsSkeleton";
+import BenefitExportPreviewDialog from "./BenefitExportPreviewDialog";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,6 +84,9 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
   // Summary modal
   const [summaryOpen, setSummaryOpen] = React.useState(false);
 
+  // Export Preview
+  const [previewOpen, setPreviewOpen] = React.useState(false);
+
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
@@ -125,10 +129,15 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
       if (type !== "ALL" && r.log_type !== type) return false;
 
       if (!needle) return true;
-      const name = userName(users, r.user_id).toLowerCase();
+      const name = (r.employee_name || userName(users, r.user_id)).toLowerCase();
+      const account = (r.account_no ?? "").toLowerCase();
+      const payrollId = (r.payroll_ref_no ?? "").toLowerCase();
       const note = (r.note ?? "").toLowerCase();
+
       return (
         name.includes(needle) ||
+        account.includes(needle) ||
+        payrollId.includes(needle) ||
         note.includes(needle) ||
         String(r.user_id).includes(needle)
       );
@@ -150,39 +159,13 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
     return sumBy;
   }, [filtered]);
 
-  const onExportPdf = React.useCallback(async () => {
-    if (filtered.length === 0) {
-      toast.error("No rows to export (check filters).");
+  const onOpenExportPreview = React.useCallback(() => {
+    if (rows.length === 0) {
+      toast.error("No data available to export.");
       return;
     }
-
-    setExporting(true);
-    try {
-      await exportBenefitLogsPdf({
-        paper,
-        companyName: "Vertex Technology Corps.",
-        title: "Benefit Logs (Deduction Report)",
-        users,
-        cutoffs,
-        cutoffId,
-        benefit,
-        type,
-        search: q,
-        rows: filtered, // IMPORTANT: already filtered
-      });
-      toast.success("PDF exported.");
-    } catch (e: any) {
-      // Most common failure is missing deps.
-      const msg = e?.message ?? "Failed to export PDF.";
-      toast.error(
-        msg.includes("Cannot find module")
-          ? "Missing PDF deps. Install: jspdf + jspdf-autotable"
-          : msg
-      );
-    } finally {
-      setExporting(false);
-    }
-  }, [filtered, paper, users, cutoffs, cutoffId, benefit, type, q]);
+    setPreviewOpen(true);
+  }, [rows]);
 
   return (
     <div className="space-y-4">
@@ -283,11 +266,11 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
 
             <Button
               className="h-9"
-              onClick={onExportPdf}
-              disabled={exporting || loading || filtered.length === 0}
+              onClick={onOpenExportPreview}
+              disabled={loading || rows.length === 0}
             >
               <FileDown className="mr-2 h-4 w-4" />
-              {exporting ? "Exporting…" : "Export PDF"}
+              Export PDF
             </Button>
 
             <Button
@@ -311,13 +294,12 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
           <TableHeader>
             <TableRow className="bg-slate-50">
               <TableHead>Employee</TableHead>
-              <TableHead>Cutoff</TableHead>
-              <TableHead>Benefit</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="text-right">Source</TableHead>
+              <TableHead>Account #</TableHead>
               <TableHead className="text-right">Deducted</TableHead>
-              <TableHead>Posted</TableHead>
-              <TableHead>Note</TableHead>
+              <TableHead>Payroll ID</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Posted Date</TableHead>
+              <TableHead>Benefit</TableHead>
             </TableRow>
           </TableHeader>
 
@@ -336,43 +318,58 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
             ) : (
               filtered.map((r) => {
                 const c = cutoffMap.get(r.cutoff_id);
+                const postedDate = r.posted_at
+                  ? new Date(r.posted_at).toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "2-digit",
+                    })
+                  : "—";
+
                 return (
                   <TableRow
                     key={r.benefit_log_id}
                     className="hover:bg-slate-50/60"
                   >
                     <TableCell className="font-medium">
-                      {userName(users, r.user_id)}
+                      {r.employee_name || userName(users, r.user_id)}
                     </TableCell>
-                    <TableCell className="text-sm">
-                      {c ? cutoffLabel(c) : `Cutoff #${r.cutoff_id}`}
+                    <TableCell className="font-mono text-xs text-slate-600">
+                      {r.account_no || "—"}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold text-slate-900">
+                      {formatMoney(r.deducted_amount)}
+                    </TableCell>
+                    <TableCell className="text-sm font-medium text-blue-600">
+                      {r.payroll_ref_no || "—"}
+                    </TableCell>
+                    <TableCell>
+                      {r.log_type === "LOAN" ? (
+                        <Badge
+                          variant="secondary"
+                          className="bg-amber-50 text-amber-700 border-amber-200"
+                        >
+                          Loan
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          Contribution
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-500">
+                      {postedDate}
                     </TableCell>
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className="font-mono text-[10px]"
+                        className="font-mono text-[10px] uppercase bg-slate-50"
                       >
                         {r.benefit_code}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {r.log_type === "LOAN" ? (
-                        <Badge variant="secondary">Loan</Badge>
-                      ) : (
-                        <Badge variant="outline">Contribution</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatMoney(r.source_amount)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">
-                      {formatMoney(r.deducted_amount)}
-                    </TableCell>
-                    <TableCell className="text-xs text-slate-500">
-                      PR#{r.payroll_run_id}
-                    </TableCell>
-                    <TableCell className="text-sm text-slate-600">
-                      {r.note || "—"}
                     </TableCell>
                   </TableRow>
                 );
@@ -453,6 +450,19 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Export Preview */}
+      <BenefitExportPreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        allRows={rows}
+        users={users}
+        cutoffs={cutoffs}
+        initialCutoffId={cutoffId}
+        initialBenefit={benefit}
+        initialType={type}
+        initialPaper={paper}
+      />
     </div>
   );
 }

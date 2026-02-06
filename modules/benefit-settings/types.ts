@@ -69,16 +69,19 @@ export interface BenefitLoan {
   updated_date: string | null;
 }
 
-// === Benefit Logs (NEW; VIEW ONLY) ===
+// === Benefit Logs (REFECTORED; VIEW ONLY) ===
 export type BenefitLogType = "CONTRIBUTION" | "LOAN";
 
 export interface BenefitLogRow {
-  benefit_log_id: number;
+  benefit_log_id: string | number; // unique key for UI
 
   cutoff_id: number;
   user_id: number;
+  employee_name?: string;
+  account_no?: string | null;
 
   benefit_code: BenefitCode;
+  benefit_name?: string;
 
   log_type: BenefitLogType;
   loan_id: number | null;
@@ -87,7 +90,8 @@ export interface BenefitLogRow {
   deducted_amount: number;
 
   payroll_run_id: number;
-  payroll_detail_id: number | null;
+  payroll_ref_no?: string;
+  posted_at?: string | null;
 
   note: string | null;
   created_date: string;

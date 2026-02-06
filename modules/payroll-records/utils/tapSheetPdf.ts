@@ -21,6 +21,14 @@ function formatAmountOnly(n: number) {
   }
 }
 
+/** Format date to MMM D, YYYY */
+function fmtDate(iso: string) {
+  if (!iso || iso === "-") return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 function arrayBufferToBase64(buf: ArrayBuffer) {
   const bytes = new Uint8Array(buf);
   if (typeof btoa === "function") {
@@ -179,8 +187,7 @@ export async function buildTapSheetPdf(args: {
   const xEnd = x0 + availableW;
 
   const headerBandH = 30;
-  const metaY = marginTop + headerBandH + 22;
-  const tableStartY = metaY + 50;
+  const tableStartY = 160;
 
   const rowH = 20;
 
@@ -193,50 +200,73 @@ export async function buildTapSheetPdf(args: {
   };
 
   const drawHeader = () => {
+    // 1. Primary Header Band (Accent Blue)
     doc.setFillColor(ACCENT.r, ACCENT.g, ACCENT.b);
-    doc.rect(0, 0, pageW, headerBandH + 8, "F");
+    doc.rect(0, 0, pageW, headerBandH + 10, "F");
 
     doc.setFont(fontFamily, "bold");
-    doc.setFontSize(12);
+    doc.setFontSize(14);
     doc.setTextColor(255, 255, 255);
     doc.text("MEN2 MARKETING CORPORATION", pageW / 2, marginTop + 14, { align: "center" });
 
-    doc.setFillColor(255, 255, 255);
-    doc.roundedRect(pageW / 2 - 62, headerBandH + 14, 124, 20, 8, 8, "F");
+    // 2. Document Title (Subtle Ribbon)
+    const titleY = headerBandH + 18;
+    doc.setFillColor(ACCENT_SOFT.r, ACCENT_SOFT.g, ACCENT_SOFT.b);
+    doc.setDrawColor(GRID.r, GRID.g, GRID.b);
+    doc.roundedRect(pageW / 2 - 80, titleY, 160, 22, 2, 2, "FD");
+
     doc.setTextColor(ACCENT.r, ACCENT.g, ACCENT.b);
     doc.setFontSize(11);
-    doc.text("TOP SHEET", pageW / 2, headerBandH + 29, { align: "center" });
+    doc.setFont(fontFamily, "bold");
+    doc.text("TOP SHEET REPORT", pageW / 2, titleY + 15, { align: "center" });
 
+    // 3. Metadata Grid
+    const gridY = titleY + 44;
     doc.setTextColor(0, 0, 0);
+
+    // Left Column: Core Identity
     doc.setFont(fontFamily, "bold");
     doc.setFontSize(10);
-    doc.text(`DEPARTMENT: ${(args.departmentName || "ALL DEPARTMENTS").toUpperCase()}`, x0, metaY);
+    doc.text("DEPARTMENT:", x0, gridY);
     doc.setFont(fontFamily, "normal");
+    doc.setFontSize(11);
+    const deptDisplayName = (args.departmentName || "ALL DEPARTMENTS").toUpperCase();
+    doc.text(deptDisplayName, x0 + 75, gridY);
 
-    doc.text(`Cutoff Period: ${args.cutoffStart} to ${args.cutoffEnd}`, x0, metaY + 14);
-
-    // Total Employees (Bold)
-    const count = args.rows.length;
+    const cutoffLabel = `PERIOD: ${fmtDate(args.cutoffStart)} — ${fmtDate(args.cutoffEnd)}`;
     doc.setFont(fontFamily, "bold");
-    doc.text(`TOTAL EMPLOYEES: ${count}`, xEnd, metaY, { align: "right" });
-    doc.setFont(fontFamily, "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(TEXT_MUTED.r, TEXT_MUTED.g, TEXT_MUTED.b);
+    doc.text(cutoffLabel, x0, gridY + 18);
 
-    // Payment Method (Line 2 Right)
+    // Right Column: Summary Stats
+    doc.setFont(fontFamily, "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.text("TOTAL EMPLOYEES:", xEnd - 12, gridY, { align: "right" });
+    doc.setFontSize(12);
+    doc.text(String(args.rows.length), xEnd, gridY, { align: "right" });
+
+    // Payment Filter (if single)
     if (!showTypeCol) {
-      doc.text(`PAYMENT METHOD: ${args.filterType}`, xEnd, metaY + 14, { align: "right" });
+      doc.setFont(fontFamily, "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(TEXT_MUTED.r, TEXT_MUTED.g, TEXT_MUTED.b);
+      doc.text(`MODE: ${args.filterType.toUpperCase()}`, xEnd, gridY + 16, { align: "right" });
     }
 
-    // Line 3: Payroll ID (Left) and Payroll Date (Right)
-    doc.setTextColor(TEXT_MUTED.r, TEXT_MUTED.g, TEXT_MUTED.b);
-    doc.setFontSize(9);
-    doc.text(`PAYROLL ID: ${args.payrollRefNo || "-"}`, x0, metaY + 28);
-    const pDate = args.postedAt ? args.postedAt.slice(0, 10) : "-";
-    doc.text(`PAYROLL DATE: ${pDate}`, xEnd, metaY + 28, { align: "right" });
-    doc.setTextColor(0, 0, 0);
+    // 4. Administrative Footer (Small/Muted)
+    const adminY = gridY + 34;
+    doc.setFont(fontFamily, "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(TEXT_MUTED.r * 1.2, TEXT_MUTED.g * 1.2, TEXT_MUTED.b * 1.2);
+    doc.text(`PAYROLL ID: ${args.payrollRefNo || "N/A"}`, x0, adminY);
+    doc.text(`POSTED ON: ${fmtDate(args.postedAt || "-")}`, xEnd, adminY, { align: "right" });
 
+    // Main separator
     doc.setDrawColor(GRID.r, GRID.g, GRID.b);
-    doc.setLineWidth(0.8);
-    doc.line(x0, metaY + 38, xEnd, metaY + 38);
+    doc.setLineWidth(1);
+    doc.line(x0, adminY + 8, xEnd, adminY + 8);
   };
 
   const drawTableHeader = (y: number) => {

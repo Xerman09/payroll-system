@@ -52,6 +52,13 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
   const fmtInt = (n: number) =>
     (Number(n || 0) || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 });
 
+  const fmtDate = (iso: string) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
+
   const dashIfZero = (n: number) => (Number(n || 0) > 0 ? String(n) : "—");
 
   const ellipsize = (text: string, maxW: number) => {
@@ -303,7 +310,7 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
     (args?.data?.length > 0 ? safeStr(args?.data?.[0]?.companyName, "Company Name") : "All Companies");
 
   const cutoffLabel = args?.meta?.currentCutoff
-    ? `${args.meta.currentCutoff.start} to ${args.meta.currentCutoff.end}`
+    ? `${fmtDate(args.meta.currentCutoff.start)} to ${fmtDate(args.meta.currentCutoff.end)}`
     : "All";
 
   const createdAt =
@@ -625,6 +632,7 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
     doc.text("Page 1 of 1", pageW - M, fy, { align: "right" });
   }
 
-  const fileName = `Payroll_Summary_${args?.meta?.currentCutoff?.start || "All"}.pdf`;
-  doc.save(fileName);
+  // const fileName = `Payroll_Summary_${args?.meta?.currentCutoff?.start || "All"}.pdf`;
+  // doc.save(fileName);
+  return doc;
 }
