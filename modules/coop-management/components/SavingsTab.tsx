@@ -19,6 +19,7 @@ import { listItems, deleteItem } from "../providers/coopApi";
 import { SortableHeader } from "./SortableHeader";
 import { AddEmployeeModal } from "./modals/AddEmployeeModal";
 import { EditEmployeeModal } from "./modals/EditEmployeeModal";
+import { CoopTableSkeleton } from "./CoopTableSkeleton";
 
 export function SavingsTab({
   searchTerm,
@@ -272,16 +273,7 @@ export function SavingsTab({
 
           <TableBody>
             {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell
-                    colSpan={10}
-                    className="h-12 text-center text-gray-400"
-                  >
-                    Loading...
-                  </TableCell>
-                </TableRow>
-              ))
+              <CoopTableSkeleton type="savings" />
             ) : processedRows.length === 0 ? (
               <TableRow>
                 <TableCell

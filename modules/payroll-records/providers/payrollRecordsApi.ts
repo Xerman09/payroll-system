@@ -46,7 +46,7 @@ export async function fetchTapSheet(args: {
   departmentName: string;
 }): Promise<PayrollRunEmployeeRow[]> {
   const qs = new URLSearchParams({
-    type: "tap-sheet",
+    type: "top-sheet",
     cutoff_start: args.cutoffStart,
     cutoff_end: args.cutoffEnd,
     department_name: args.departmentName,

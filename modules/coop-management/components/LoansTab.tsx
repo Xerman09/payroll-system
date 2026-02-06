@@ -26,6 +26,7 @@ import { listItems, deleteItem } from "../providers/coopApi";
 import { SortableHeader } from "./SortableHeader";
 import { AddLoanModal } from "./modals/AddLoanModal";
 import { EditLoanModal } from "./modals/EditLoanModal";
+import { CoopTableSkeleton } from "./CoopTableSkeleton";
 
 export function LoansTab({
   searchTerm,
@@ -266,16 +267,7 @@ export function LoansTab({
 
           <TableBody>
             {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell
-                    colSpan={8}
-                    className="h-12 text-center text-gray-400"
-                  >
-                    Loading...
-                  </TableCell>
-                </TableRow>
-              ))
+              <CoopTableSkeleton type="loans" />
             ) : processedRows.length === 0 ? (
               <TableRow>
                 <TableCell

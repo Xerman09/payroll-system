@@ -23,11 +23,15 @@ import {
   TableHead,
 } from "@/components/ui/table";
 import SortableTableHead from "./SortableTableHead";
+import PayslipHistoryModal from "./PayslipHistoryModal";
+import { PayrollRecordsSkeleton } from "./PayrollRecordsSkeleton";
 
 export default function EmployeesTab({
+  loading,
   employees,
   departments,
 }: {
+  loading: boolean;
   employees: Employee[];
   departments: Department[];
 }) {
@@ -37,6 +41,9 @@ export default function EmployeesTab({
     key: "id" | "fname" | "lname" | "department";
     direction: "asc" | "desc";
   }>({ key: "id", direction: "asc" });
+
+  const [historyModalOpen, setHistoryModalOpen] = React.useState(false);
+  const [selectedEmployee, setSelectedEmployee] = React.useState<Employee | null>(null);
 
   const handleSort = (key: "id" | "fname" | "lname" | "department") => {
     setSortConfig((prev) =>
@@ -191,54 +198,74 @@ export default function EmployeesTab({
                 label="Employee ID"
                 sortKey="id"
                 currentSort={sortConfig}
-                onSort={handleSort}
+                onSort={handleSort as any}
               />
               <SortableTableHead
                 label="Name"
                 sortKey="fname"
                 currentSort={sortConfig}
-                onSort={handleSort}
+                onSort={handleSort as any}
               />
               <SortableTableHead
                 label="Department"
                 sortKey="department"
                 currentSort={sortConfig}
-                onSort={handleSort}
+                onSort={handleSort as any}
               />
               <TableHead>Action</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
-            {paginatedEmployees.map((emp) => {
-              const deptName =
-                departments.find((d) => d.department_id === emp.user_department)
-                  ?.department_name ?? "N/A";
+            {loading ? (
+              <PayrollRecordsSkeleton type="employees" />
+            ) : paginatedEmployees.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center py-10 text-muted-foreground">
+                  No employees found matching the filters.
+                </TableCell>
+              </TableRow>
+            ) : (
+              paginatedEmployees.map((emp) => {
+                const deptName =
+                  departments.find((d) => d.department_id === emp.user_department)
+                    ?.department_name ?? "N/A";
 
-              return (
-                <TableRow key={emp.user_id} className="border-b">
-                  <TableCell>{emp.user_id}</TableCell>
-                  <TableCell>
-                    {`${emp.user_fname} ${emp.user_mname ?? ""} ${emp.user_lname}`}
-                  </TableCell>
-                  <TableCell>{deptName}</TableCell>
-                  <TableCell className="flex gap-2">
-                    <Button
-                      size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={() =>
-                        toast.info("Generate Summary (wire later)")
-                      }
-                    >
-                      Generate Summary
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+                return (
+                  <TableRow key={emp.user_id} className="border-b">
+                    <TableCell>{emp.user_id}</TableCell>
+                    <TableCell>
+                      {`${emp.user_fname} ${emp.user_mname ?? ""} ${emp.user_lname}`}
+                    </TableCell>
+                    <TableCell>{deptName}</TableCell>
+                    <TableCell className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={() => {
+                          setSelectedEmployee(emp);
+                          setHistoryModalOpen(true);
+                        }}
+                      >
+                        View Payslip History
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </div>
+
+      <PayslipHistoryModal 
+        isOpen={historyModalOpen} 
+        onClose={() => {
+          setHistoryModalOpen(false);
+          setSelectedEmployee(null);
+        }}
+        employee={selectedEmployee}
+      />
 
       {/* Pagination */}
       <div className="flex justify-between items-center mt-4">

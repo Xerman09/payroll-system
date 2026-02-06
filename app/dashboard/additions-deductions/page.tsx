@@ -41,6 +41,7 @@ import {
   Calendar as CalendarIcon,
   User as UserIcon,
 } from "lucide-react";
+import AdditionsDeductionsSkeleton from "@/modules/additions-deductions/components/AdditionsDeductionsSkeleton";
 
 // --- TYPES ---
 type User = {
@@ -524,30 +525,32 @@ export default function AdditionsDeductionsPage() {
   // --- RENDER ---
   return (
     <DashboardLayout>
-      <div className="flex justify-between items-center p-6 pb-2">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-            Additions & Deductions
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage employee additions and deductions for payroll processing.
-          </p>
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        {/* Header Section */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+              Additions & Deductions
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage employee additions and deductions for payroll processing.
+            </p>
+          </div>
+          <Button
+            onClick={() => {
+              setNewMode(activeTab === "additions" ? "addition" : "deduction");
+              setShowAddModal(true);
+            }}
+            className="bg-blue-700 hover:bg-blue-800 text-white"
+          >
+            + Add {activeTab === "additions" ? "Addition" : "Deduction"}
+          </Button>
         </div>
-        <Button
-          onClick={() => {
-            setNewMode(activeTab === "additions" ? "addition" : "deduction");
-            setShowAddModal(true);
-          }}
-          className="bg-blue-700 hover:bg-blue-800 text-white"
-        >
-          + Add {activeTab === "additions" ? "Addition" : "Deduction"}
-        </Button>
-      </div>
-      <div className="space-y-6 p-4">
+
         <Separator />
 
-        <Card>
-          <CardContent>
+        <Card className="shadow-sm border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+          <CardContent className="p-6">
             {/* SEARCH & FILTERS ROW */}
             <div className="flex flex-col xl:flex-row gap-4 mb-6 pb-2 pt-6">
               <div className="flex-1 space-y-2">
@@ -644,11 +647,7 @@ export default function AdditionsDeductionsPage() {
                   </TableHeader>
                   <TableBody>
                     {loadingAdd || loadingDed ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center h-24">
-                          Loading data...
-                        </TableCell>
-                      </TableRow>
+                      <AdditionsDeductionsSkeleton />
                     ) : pagedData.length === 0 ? (
                       <TableRow>
                         <TableCell
@@ -765,7 +764,7 @@ export default function AdditionsDeductionsPage() {
             </Tabs>
           </CardContent>
         </Card>
-
+      </div>
         {/* --- ADD MODAL REFACTORED TO MATCH IMAGES --- */}
         <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
           <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden bg-white gap-0">
@@ -932,7 +931,7 @@ export default function AdditionsDeductionsPage() {
           record={editingRecord.record}
           onSave={handleSaveEdit}
         />
-      </div>
+
     </DashboardLayout>
   );
 }

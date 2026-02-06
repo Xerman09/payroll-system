@@ -23,7 +23,7 @@ import EmployeesTab from "./components/EmployeesTab";
 import TapSheetTab from "./components/TapSheetTab";
 
 export default function PayrollRecordsModule() {
-  const [activeTab, setActiveTab] = React.useState<"employees" | "tap-sheet">(
+  const [activeTab, setActiveTab] = React.useState<"employees" | "top-sheet">(
     "employees",
   );
 
@@ -32,6 +32,7 @@ export default function PayrollRecordsModule() {
   const [cutoffs, setCutoffs] = React.useState<CutoffHistoryRow[]>([]);
   const [selectedCutoff, setSelectedCutoff] = React.useState<string>("");
   const [deptId, setDeptId] = React.useState<number | null>(-1);
+  const [loading, setLoading] = React.useState(true);
   const [generatingSummary, setGeneratingSummary] = React.useState(false);
 
   React.useEffect(() => {
@@ -49,9 +50,8 @@ export default function PayrollRecordsModule() {
         setEmployees(activeEmployees);
         setDepartments(depts);
         setCutoffs(cuts);
-      } catch (e) {
-        console.error(e);
-        toast.error("Failed to load payroll records data.");
+      } finally {
+        setLoading(false);
       }
     };
     run();
@@ -99,7 +99,7 @@ export default function PayrollRecordsModule() {
         </div>
 
         <div className="flex items-center gap-2">
-          {activeTab === "tap-sheet" && (
+          {activeTab === "top-sheet" && (
             <Button
               variant="default"
               size="lg"
@@ -131,15 +131,16 @@ export default function PayrollRecordsModule() {
           >
             <TabsList className="grid grid-cols-2 w-full mb-4">
               <TabsTrigger value="employees">Employees</TabsTrigger>
-              <TabsTrigger value="tap-sheet">Top Sheet</TabsTrigger>
+              <TabsTrigger value="top-sheet">Top Sheet</TabsTrigger>
             </TabsList>
 
             <TabsContent value="employees" className="mt-0">
-              <EmployeesTab employees={employees} departments={departments} />
+              <EmployeesTab loading={loading} employees={employees} departments={departments} />
             </TabsContent>
 
-            <TabsContent value="tap-sheet" className="mt-0">
+            <TabsContent value="top-sheet" className="mt-0">
               <TapSheetTab
+                loading={loading}
                 employees={employees}
                 departments={departments}
                 cutoffs={cutoffs}

@@ -20,6 +20,7 @@ import {
 
 import BenefitLoansTab from "./components/BenefitLoansTab";
 import BenefitLogsTab from "./components/BenefitLogsTab";
+import { BenefitCardSkeleton } from "./components/BenefitSettingsSkeleton";
 
 function makeDefaultSetting(code: BenefitCode, name: string): BenefitSetting {
   return {
@@ -166,22 +167,23 @@ export default function BenefitSettingsModule() {
           <Separator className="my-4" />
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {BENEFITS.map((b) => (
-              <BenefitCard
-                key={b.code}
-                name={b.name}
-                code={b.code}
-                setting={settings[b.code]}
-                getUserName={getUserName}
-                onCutoff={onCutoff}
-                onDateChange={onDateChange}
-              />
-            ))}
+            {loading ? (
+              <BenefitCardSkeleton />
+            ) : (
+              BENEFITS.map((b) => (
+                <BenefitCard
+                  key={b.code}
+                  name={b.name}
+                  code={b.code}
+                  setting={settings[b.code]}
+                  getUserName={getUserName}
+                  onCutoff={onCutoff}
+                  onDateChange={onDateChange}
+                />
+              ))
+            )}
           </div>
 
-          {loading ? (
-            <div className="mt-4 text-xs text-slate-500">Loading…</div>
-          ) : null}
         </div>
 
         {/* Bottom: Tabs (Loans + Logs) */}

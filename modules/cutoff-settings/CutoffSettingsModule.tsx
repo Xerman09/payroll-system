@@ -24,6 +24,7 @@ import { Separator } from "@/components/ui/separator";
 
 import CutoffSettingsTable from "./components/CutoffSettingsTable";
 import CutoffSettingsModal from "./components/CutoffSettingsModal";
+import CutoffSettingsSkeleton from "./components/CutoffSettingsSkeleton";
 
 function samePeriod(a: PeriodKey, b: PeriodKey) {
   return a.month === b.month && a.year === b.year;
@@ -180,13 +181,10 @@ export default function CutoffSettingsModule() {
             </div>
           </div>
         </div>
-
         <Separator />
 
         {loading ? (
-          <div className="text-sm text-muted-foreground">
-            Loading cutoff settings…
-          </div>
+          <CutoffSettingsSkeleton />
         ) : (
           <CutoffSettingsTable
             first={first}

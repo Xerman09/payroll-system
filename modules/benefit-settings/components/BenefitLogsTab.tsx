@@ -21,6 +21,7 @@ import {
   exportBenefitLogsPdf,
   type BenefitLogsPaperSize,
 } from "./benefitLogsPdf";
+import { BenefitTableSkeleton } from "./BenefitSettingsSkeleton";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -322,14 +323,7 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
 
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={8}
-                  className="py-10 text-center text-sm text-slate-500"
-                >
-                  Loading logs…
-                </TableCell>
-              </TableRow>
+              <BenefitTableSkeleton columns={8} />
             ) : filtered.length === 0 ? (
               <TableRow>
                 <TableCell

@@ -37,7 +37,7 @@ function isTruthyFlag(v: unknown): boolean {
 
 function json(data: any, init?: ResponseInit) {
   const res = NextResponse.json(data, init);
-  res.headers.set("X-Payroll-Records-Route", "tap-sheet-onhold-filter-boolean-v4");
+  res.headers.set("X-Payroll-Records-Route", "top-sheet-onhold-filter-boolean-v4");
   return res;
 }
 
@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ✅ Top Sheet (exclude on_hold)
-    if (type === "tap-sheet") {
+    if (type === "top-sheet") {
       const qp = new URLSearchParams();
       qp.set("limit", "-1");
       qp.set("sort", "-payroll_run_id,-id");

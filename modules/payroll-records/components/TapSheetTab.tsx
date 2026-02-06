@@ -53,6 +53,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+import { PayrollRecordsSkeleton } from "./PayrollRecordsSkeleton";
+
 /** Handles 1/0, true/false, "1"/"0", and Directus buffer-ish { data: [1] } */
 function isTruthyFlag(v: unknown): boolean {
   if (v === null || v === undefined) return false;
@@ -94,6 +96,7 @@ function peso(v: any) {
 }
 
 export default function TapSheetTab({
+  loading: isInitialLoading,
   employees,
   departments,
   cutoffs,
@@ -102,6 +105,7 @@ export default function TapSheetTab({
   deptId,
   setDeptId,
 }: {
+  loading: boolean;
   employees: Employee[];
   departments: Department[];
   cutoffs: CutoffHistoryRow[];
@@ -256,7 +260,7 @@ export default function TapSheetTab({
     const safeDept = (deptId === -1 ? "all_depts" : departmentName || "dept").replace(/[^\w\-]+/g, "_");
     const start = cutoff?.start ?? "start";
     const end = cutoff?.end ?? "end";
-    return `tap-sheet_${filter}_${safeDept}_${start}_${end}.pdf`;
+    return `top-sheet_${filter}_${safeDept}_${start}_${end}.pdf`;
   };
 
   const generatePdfBlob = async (filter: "ALL" | "BANK" | "CASH") => {
@@ -481,15 +485,8 @@ export default function TapSheetTab({
                   Select a cutoff date and department to generate the Top Sheet.
                 </TableCell>
               </TableRow>
-            ) : loading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="py-10 text-center text-muted-foreground"
-                >
-                  Loading...
-                </TableCell>
-              </TableRow>
+            ) : (isInitialLoading || loading) ? (
+              <PayrollRecordsSkeleton type="top-sheet" />
             ) : tapRows.length === 0 ? (
               <TableRow>
                 <TableCell

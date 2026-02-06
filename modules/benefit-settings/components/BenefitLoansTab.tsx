@@ -53,6 +53,7 @@ import {
 
 import BenefitLoanModal from "./BenefitLoanModal";
 import LoanScheduleDialog from "./LoanScheduleDialog";
+import { BenefitTableSkeleton } from "./BenefitSettingsSkeleton";
 
 function userName(users: UserData[], userId: number) {
   const u = users.find((x) => x.user_id === userId);
@@ -255,14 +256,7 @@ export default function BenefitLoansTab({ users }: { users: UserData[] }) {
 
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={9}
-                  className="py-10 text-center text-sm text-slate-500"
-                >
-                  Loading loans…
-                </TableCell>
-              </TableRow>
+              <BenefitTableSkeleton columns={9} />
             ) : filtered.length === 0 ? (
               <TableRow>
                 <TableCell

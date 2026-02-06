@@ -20,11 +20,13 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Separator } from "@/components/ui/separator";
 
 import type { Holiday, CalendarUser as UserType } from "./types";
+import { CalendarManagementSkeleton } from "./components/CalendarManagementSkeleton";
 
 export function CalendarManagementModule() {
   // ---------------------- State & Logic ----------------------
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [users, setUsers] = useState<UserType[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Calendar Navigation State
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -172,9 +174,15 @@ export function CalendarManagementModule() {
     ];
 
     const mockUsers: UserType[] = [{ user_id: 1, user_fname: "Zarina", user_lname: "Carcha" }];
+    
+    // Simulate API loading
+    const timer = setTimeout(() => {
+      setHolidays(mockHolidays);
+      setUsers(mockUsers);
+      setLoading(false);
+    }, 1000);
 
-    setHolidays(mockHolidays);
-    setUsers(mockUsers);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -415,6 +423,14 @@ export function CalendarManagementModule() {
       </div>
     );
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <CalendarManagementSkeleton />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

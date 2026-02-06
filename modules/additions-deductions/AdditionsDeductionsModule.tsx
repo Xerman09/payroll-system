@@ -52,6 +52,7 @@ import type {
 import * as api from "./providers/additionsDeductionsApi";
 import EmployeeNameInternal from "./components/EmployeeNameInternal";
 import EditModal from "./components/EditModal";
+import AdditionsDeductionsSkeleton from "./components/AdditionsDeductionsSkeleton";
 
 function messageOf(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -569,11 +570,7 @@ export default function AdditionsDeductionsModule() {
 
                 <TableBody>
                   {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center h-24">
-                        Loading data...
-                      </TableCell>
-                    </TableRow>
+                    <AdditionsDeductionsSkeleton />
                   ) : pagedData.length === 0 ? (
                     <TableRow>
                       <TableCell

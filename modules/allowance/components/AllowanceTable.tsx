@@ -20,6 +20,8 @@ import {
   fullnameFromUser,
 } from "../providers/allowanceApi";
 
+import AllowanceTableSkeleton from "./AllowanceTableSkeleton";
+
 interface Props {
   mode: AllowanceMode;
 
@@ -81,14 +83,7 @@ export default function AllowanceTable({
 
         <TableBody>
           {loading ? (
-            <TableRow>
-              <TableCell
-                colSpan={mode === "one_time" ? 7 : 9}
-                className="h-24 text-center"
-              >
-                Loading records...
-              </TableCell>
-            </TableRow>
+            <AllowanceTableSkeleton mode={mode} />
           ) : data.length === 0 ? (
             <TableRow>
               <TableCell
