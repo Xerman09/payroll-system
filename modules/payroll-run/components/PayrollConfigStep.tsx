@@ -32,6 +32,11 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type Props = {
@@ -100,8 +105,31 @@ export function PayrollConfigStep({
 
   const canProceed = Boolean(config.cutoffId) && Boolean(config.departmentId);
 
+  // Show modal loader only if we are loading but already have data (meaning "Continue" was pressed)
+  // If we don't have cutoffs yet, we use skeletons.
+  const showModalLoader = loading && cutoffs.length > 0;
+
   return (
     <div className="space-y-6">
+      <Dialog open={showModalLoader} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md [&>button]:hidden" showCloseButton={false}>
+          <div className="flex flex-col items-center justify-center space-y-4 py-8 text-center">
+            <div className="relative">
+              <div className="h-16 w-16 animate-spin rounded-full border-4 border-muted border-t-primary" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="h-8 w-8 animate-pulse rounded-full bg-primary/20" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <DialogTitle className="text-xl font-bold tracking-tight">Initializing Workspace</DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                Please wait while we prepare the payroll data and adjustments.
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Top header */}
       <div className="flex flex-col gap-1">
         <div className="text-base font-semibold tracking-tight">

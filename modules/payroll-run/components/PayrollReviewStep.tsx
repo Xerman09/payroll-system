@@ -243,6 +243,7 @@ function dedupeRowsClient(rows: any[]) {
 export function PayrollReviewStep(props: PayrollReviewStepProps) {
   const lines = React.useMemo(() => resolveLines(props), [props]);
 
+  const [isPosting, setIsPosting] = React.useState(false);
   const [isPostSuccess, setIsPostSuccess] = React.useState(false);
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
@@ -256,7 +257,9 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
   const handlePostPayroll = async () => {
     if (!props.onPost) return;
     try {
+      setIsPosting(true);
       await props.onPost();
+      setIsPosting(false);
       setIsPostSuccess(true);
       
       // Delay before proceeding (redirect/finalize)
@@ -269,6 +272,7 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
         }
       }, 1500);
     } catch (e: any) {
+      setIsPosting(false);
       toast.error(e?.message || "Failed to post payroll");
     }
   };
@@ -586,10 +590,15 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
             {finalizeHandler ? (
               <Button
                 onClick={handlePostPayroll}
-                disabled={props.isBusy || summary.count === 0 || isPostSuccess}
+                disabled={props.isBusy || summary.count === 0 || isPostSuccess || isPosting}
                 className={props.onPost ? "bg-primary hover:bg-primary/90 text-primary-foreground" : ""}
               >
-                {props.onPost ? "Post Payroll" : "Finalize"}
+                {isPosting ? (
+                   <>
+                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                     Posting...
+                   </>
+                ) : props.onPost ? "Post Payroll" : "Finalize"}
               </Button>
             ) : null}
           </div>
@@ -703,17 +712,48 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
         </Card>
       </Card>
 
-      <Dialog open={isPostSuccess} onOpenChange={() => {}}>
-        <DialogContent className="sm:max-w-md [&>button]:hidden">
-          <div className="flex flex-col items-center justify-center space-y-4 py-6 text-center">
-            <div className="rounded-full bg-green-100 p-3">
-              <CheckCircle2 className="h-12 w-12 text-green-600" />
+      <Dialog open={isPosting} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md [&>button]:hidden" showCloseButton={false}>
+          <div className="flex flex-col items-center justify-center space-y-4 py-8 text-center">
+            <div className="relative">
+              <div className="h-16 w-16 animate-spin rounded-full border-4 border-muted border-t-primary" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="h-8 w-8 animate-pulse rounded-full bg-primary/20" />
+              </div>
             </div>
             <div className="space-y-2">
-              <DialogTitle className="text-xl font-bold text-green-700">Payroll Posted!</DialogTitle>
-              <p className="text-sm text-muted-foreground">Redirecting...</p>
+              <DialogTitle className="text-xl font-bold tracking-tight">Posting Payroll</DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                Finalizing the register and archiving this payroll run.
+              </p>
             </div>
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPostSuccess} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md [&>button]:hidden" showCloseButton={false}>
+          <div className="flex flex-col items-center justify-center space-y-4 py-8 text-center">
+            <div className="relative">
+               <div className="rounded-full bg-green-100 p-4">
+                  <CheckCircle2 className="h-10 w-10 text-green-600" />
+               </div>
+               <div className="absolute -top-1 -right-1">
+                  <div className="h-4 w-4 animate-ping rounded-full bg-green-400 opacity-75" />
+               </div>
+            </div>
+            <div className="space-y-2">
+              <DialogTitle className="text-xl font-bold text-green-700 tracking-tight">Payroll Posted!</DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                The register is now locked. Redirecting to workspace...
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+               <div className="h-1 w-12 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full bg-green-500 animate-[loading-bar_1.5s_ease-in-out]" />
+               </div>
+               Please wait
+            </div>
           </div>
         </DialogContent>
       </Dialog>
