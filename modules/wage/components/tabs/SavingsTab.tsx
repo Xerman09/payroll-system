@@ -52,6 +52,7 @@ type SavingsDraft = {
   monthly_amount: string;
   start_date: string; // YYYY-MM-DD
   end_date: string; // YYYY-MM-DD or ""
+  total_collection: string;
   is_active: boolean;
 };
 
@@ -180,10 +181,11 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
   const defaultDraft = React.useCallback((): SavingsDraft => {
     const today = toLocalYmd(new Date());
     return {
-      membership_id: generateMembershipId(new Date()),
+      membership_id: generateMembershipId(),
       monthly_amount: "0.00",
-      start_date: today,
+      start_date: toLocalYmd(new Date()),
       end_date: "",
+      total_collection: "0.00",
       is_active: true,
     };
   }, []);
@@ -334,6 +336,7 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
       monthly_amount: money(r.monthly_amount),
       start_date: (r.start_date || "").substring(0, 10),
       end_date: (r.end_date || "").substring(0, 10),
+      total_collection: money(r.total_collection || 0),
       is_active: flagToBool(r.is_active),
     });
   }, []);
@@ -576,6 +579,38 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
                   }
                   className="h-10 pl-6"
                 />
+              </div>
+            </div>
+
+            {/* Total Collected */}
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                Total Collected
+              </label>
+              <div className="relative">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">
+                  ₱
+                </span>
+                <Input
+                  type="text"
+                  value={draft.total_collection || ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!/^\d*\.?\d*$/.test(v)) return;
+                    setDraft((p) => ({ ...p, total_collection: v }));
+                  }}
+                  onBlur={() =>
+                    setDraft((p) => ({
+                      ...p,
+                      total_collection: money(p.total_collection || "0"),
+                    }))
+                  }
+                  className="h-10 pl-6"
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Total amount collected from payroll so far
               </div>
             </div>
 

@@ -28,8 +28,10 @@ import { PayrollConfigStep } from "./components/PayrollConfigStep";
 import { PayrollAdjustStep } from "./components/PayrollAdjustStep";
 import { PayrollProcessStep } from "./components/PayrollProcessStep";
 import { PayrollReviewStep } from "./components/PayrollReviewStep";
+import PasswordDialog from "./components/PasswordDialog";
 
 import * as svc from "./providers/payrollRunService";
+import * as api from "./providers/payrollApi";
 import { formatCutoffLabel } from "./utils/payroll";
 
 const DEFAULT_CONFIG: PayrollConfigState = {
@@ -81,6 +83,9 @@ export default function PayrollRunModule() {
   // hold/exclude
   const [holdMap, setHoldMap] = useState<Map<number, boolean>>(new Map());
 
+  // password dialog
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+
   // computed register
   const computed = useMemo(() => {
     if (!ws) return null;
@@ -123,6 +128,45 @@ export default function PayrollRunModule() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleContinueClick = () => {
+    if (!selectedCutoff) {
+      toast.error("Please select a cutoff.");
+      return;
+    }
+    setPasswordDialogOpen(true);
+  };
+
+  const handlePasswordSubmit = async (passwordInput: string) => {
+    try {
+      const session = sessionStorage.getItem("user");
+      if (!session) return alert("User not logged in.");
+      const logged = JSON.parse(session);
+
+      const apiUser = await api.fetchUserById(logged.user_id);
+      if (!apiUser) return alert("User record not found.");
+      if (passwordInput !== apiUser.user_password)
+        return alert("Incorrect password.");
+
+      const ts = new Date().toISOString();
+      const deptName = selectedDepartment ? selectedDepartment.name : "All Departments";
+      const cutoffLabel = selectedCutoff ? formatCutoffLabel(selectedCutoff) : "Unknown";
+      const remarks = `Accessed payroll run for ${cutoffLabel} - ${deptName} at ${ts}`;
+      
+      await api.logPayrollRunAccess(
+        logged.user_id,
+        selectedCutoff!.id,
+        config.departmentId,
+        remarks
+      );
+
+      setPasswordDialogOpen(false);
+      await loadOrCreateRunAndWorkspace();
+    } catch (e) {
+      console.error(e);
+      alert("Error verifying password. Try again.");
+    }
+  };
 
   async function loadOrCreateRunAndWorkspace() {
     if (!selectedCutoff) {
@@ -433,6 +477,13 @@ export default function PayrollRunModule() {
           <PayrollStepper activeStep={step} />
         </Card>
 
+        {/* Password Dialog */}
+        <PasswordDialog
+          open={passwordDialogOpen}
+          onOpenChange={setPasswordDialogOpen}
+          onSubmit={handlePasswordSubmit}
+        />
+
         {/* Step body */}
         <div className="space-y-6">
           {step === 1 ? (
@@ -444,7 +495,7 @@ export default function PayrollRunModule() {
                   cutoffs={cutoffs}
                   departments={departments}
                   onChange={(patch) => setConfig((c) => ({ ...c, ...patch }))}
-                  onNext={loadOrCreateRunAndWorkspace}
+                  onNext={handleContinueClick}
                 />
               </div>
             </Card>

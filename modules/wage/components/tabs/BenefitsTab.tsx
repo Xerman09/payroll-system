@@ -92,6 +92,8 @@ type Draft = {
   deduct_on: DeductOn;
   start_cutoff_id: string; // int
 
+  accumulated_amount: string;
+
   status: BenefitLoanStatus;
   remarks: string;
 };
@@ -309,6 +311,7 @@ export function BenefitsTab({
       terms_installments: "12",
       deduct_on: "BOTH",
       start_cutoff_id: "",
+      accumulated_amount: "0.00",
       status: "ACTIVE",
       remarks: "",
     };
@@ -606,7 +609,9 @@ export function BenefitsTab({
         deduct_on: (r.deduct_on ?? "BOTH") as DeductOn,
         start_cutoff_id: String(r.start_cutoff_id ?? ""),
 
-        status: (r.status ?? "ACTIVE") as BenefitLoanStatus,
+        accumulated_amount: fmtMoneyPlain(r.accumulated_amount || 0),
+
+        status: r.status,
         remarks: r.remarks ?? "",
       });
 
@@ -1032,6 +1037,30 @@ export function BenefitsTab({
                       readOnly
                       value={fmtMoneyPlain(computed.remaining)}
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs">Accumulated Amount</Label>
+                    <Input
+                      className="h-9"
+                      inputMode="decimal"
+                      value={draft.accumulated_amount || ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!/^\d*\.?\d*$/.test(v)) return;
+                        setDraft((p) => ({ ...p, accumulated_amount: v }));
+                      }}
+                      onBlur={() =>
+                        setDraft((p) => ({
+                          ...p,
+                          accumulated_amount: fmtMoneyPlain(p.accumulated_amount || 0),
+                        }))
+                      }
+                      placeholder="0.00"
+                    />
+                    <div className="text-xs text-gray-500">
+                      Total amount deducted from payroll so far
+                    </div>
                   </div>
 
                   <div className="space-y-2 sm:col-span-2">

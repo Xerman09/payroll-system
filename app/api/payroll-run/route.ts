@@ -22,6 +22,7 @@ type ResourceKey =
   | "payroll_run_employee_item"
   | "retro_pay"
   | "coop_savings_membership"
+  | "payroll_run_access_log"
   ;
 
 const ALLOWED: Record<ResourceKey, true> = {
@@ -45,6 +46,7 @@ const ALLOWED: Record<ResourceKey, true> = {
   payroll_run_employee_item: true,
   retro_pay: true,
   coop_savings_membership: true,
+  payroll_run_access_log: true,
 };
 
 function baseUrl() {

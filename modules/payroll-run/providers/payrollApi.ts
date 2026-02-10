@@ -76,3 +76,47 @@ export async function deleteItem(resource: string, id: number): Promise<void> {
   const query = qs({ resource, id });
   await apiFetch(`${BASE}?${query}`, { method: "DELETE" });
 }
+
+// ----------------------------------------------------------------------
+// USER AUTHENTICATION & ACCESS LOGGING
+// ----------------------------------------------------------------------
+
+export async function fetchUserById(userId: number) {
+  const query = qs({ resource: "user", id: userId });
+  const json = await apiFetch<DirectusSingle<any>>(`${BASE}?${query}`, {
+    method: "GET",
+  });
+  return json.data;
+}
+
+export async function logPayrollRunAccess(
+  openedById: number,
+  cutoffId: number,
+  departmentId: number | null,
+  remarks: string
+) {
+  try {
+    const query = qs({ resource: "payroll_run_access_log" });
+    return await apiFetch(`${BASE}?${query}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        payload: {
+          opened_by: openedById,
+          cutoff_id: cutoffId,
+          department_id: departmentId,
+          remarks,
+        },
+      }),
+    });
+  } catch (e: any) {
+    console.error("logPayrollRunAccess failed - payrollApi.ts", e);
+    console.error("Error details:", {
+      message: e?.message,
+      stack: e?.stack,
+      openedById,
+      cutoffId,
+      departmentId,
+    });
+  }
+}
