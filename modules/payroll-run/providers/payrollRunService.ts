@@ -1567,8 +1567,8 @@ function buildPayrollRunEmployeePayload(args: {
   const prorationJson = normalizeJsonOrNull(l?.proration_json ?? l?.prorationJson);
   const breakdownJson = normalizeJsonOrNull(l?.breakdown_json ?? l?.breakdownJson);
 
-  const sssLoan = n(l?.benefit_sss_loan ?? l?.benefit_loan_sss ?? 0);
-  const pagibigLoan = n(l?.benefit_pagibig_loan ?? l?.benefit_loan_pagibig ?? 0);
+  const sssLoan = n(l?.benefit_loan_sss ?? 0);
+  const pagibigLoan = n(l?.benefit_loan_pagibig ?? 0);
 
   return {
     payroll_run_id: args.payrollRunId,
@@ -1634,9 +1634,7 @@ function buildPayrollRunEmployeePayload(args: {
     loan_coop: n(l?.loan_coop ?? 0),
     loan_total: n(l?.loan_total ?? l?.loans_total ?? 0),
 
-    benefit_sss_loan: sssLoan,
     benefit_loan_sss: sssLoan,
-    benefit_pagibig_loan: pagibigLoan,
     benefit_loan_pagibig: pagibigLoan,
     benefit_loan_total: n(l?.benefit_loan_total ?? l?.benefit_loans_total ?? 0),
 
@@ -2109,21 +2107,330 @@ export async function postRun(args: { payrollRunId: number; postedBy: number }):
   const pid = n(args.payrollRunId);
   if (!pid) return;
 
-  // ✅ do not touch an already POSTED run (prevents repost side-effects)
+  // ✅ Fetch payroll run to get payroll_ref_no
+  let payrollRefNo: string | null = null;
   try {
-    const cur = await api.getItem<any>(RES.payrollRun, pid, { fields: "payroll_run_id,status" });
-    const st = String(cur?.status ?? "").toUpperCase();
-    if (st === "POSTED") return;
+    const cur = await api.getItem<any>(RES.payrollRun, pid, { fields: "payroll_run_id,payroll_ref_no" });
+    payrollRefNo = cur?.payroll_ref_no ? String(cur.payroll_ref_no) : null;
   } catch {
     // if read fails, fall through and try patch (existing behavior)
   }
 
+  if (!payrollRefNo) {
+    throw new Error("Cannot post payroll: payroll_ref_no not found");
+  }
+
+  // ✅ Update accumulations before marking as POSTED
+  // Note: Idempotency is handled within each function using payroll_ref_no + user_id tracking
+  try {
+    await updateEmployeeLoanAccumulations({ payrollRunId: pid, payrollRefNo });
+  } catch (e: any) {
+    throw new Error(`Failed to update employee loan accumulations: ${e.message}`);
+  }
+
+  try {
+    await updateBenefitLoanAccumulations({ payrollRunId: pid, payrollRefNo });
+  } catch (e: any) {
+    throw new Error(`Failed to update benefit loan accumulations: ${e.message}`);
+  }
+
+  try {
+    await updateCoopSavingsAccumulations({ payrollRunId: pid, payrollRefNo });
+  } catch (e: any) {
+    throw new Error(`Failed to update coop savings accumulations: ${e.message}`);
+  }
+
+  // Mark as POSTED
   await api.patchItem(RES.payrollRun, pid, {
     status: "POSTED",
     posted_by: args.postedBy,
     posted_at: new Date().toISOString().slice(0, 19).replace("T", " "),
   });
 }
+
+/**
+ * Update accumulated amounts for employee loans based on payroll deductions.
+ * Also validates that accumulated amount doesn't exceed loan amount and auto-closes fully paid loans.
+ * Uses payroll_ref_no-based idempotency via last_paid_cutoff_id.
+ */
+async function updateEmployeeLoanAccumulations(args: { payrollRunId: number; payrollRefNo: string }): Promise<void> {
+  const payrollRefNo = args.payrollRefNo;
+
+  // 1. Fetch all payroll_run_employee records for this run (excluding on-hold)
+  const employees = await safeList<any>(
+    RES.payrollLines,
+    {
+      "filter[payroll_run_id][_eq]": args.payrollRunId,
+      "filter[on_hold][_neq]": 1,
+      fields: "user_id,breakdown_json,on_hold",
+      limit: 5000,
+    },
+    [],
+  );
+
+  // 2. Extract employee_loan_items from breakdown_json.deductions
+  const updates: Array<{ loan_id: number; amount: number }> = [];
+
+  for (const emp of employees) {
+    const breakdown = normalizeJsonOrNull(emp.breakdown_json);
+    const deductions = breakdown?.deductions ?? {};
+    const loanItems = arr(deductions?.employee_loan_items ?? []);
+
+    for (const item of loanItems) {
+      if (item.source_table === "employee_loan" && item.source_id) {
+        updates.push({
+          loan_id: n(item.source_id),
+          amount: n(item.amount),
+        });
+      }
+    }
+  }
+
+  // 3. Group by loan_id and sum amounts (in case same loan appears multiple times)
+  const grouped = new Map<number, number>();
+  for (const u of updates) {
+    grouped.set(u.loan_id, (grouped.get(u.loan_id) || 0) + u.amount);
+  }
+
+  // 4. Update each loan's accumulated_amount with validation and auto-close
+  for (const [loanId, deductedAmount] of grouped.entries()) {
+    try {
+      // Read current loan data
+      const loan = await api.getItem<any>(RES.employeeLoans, loanId, {
+        fields: "loan_id,accumulated_amount,loan_amount,interest_amount,status,last_paid_cutoff_id",
+      });
+
+      // ✅ Idempotency check: skip if already processed for this payroll
+      const lastPaidCutoffId = loan.last_paid_cutoff_id ? String(loan.last_paid_cutoff_id) : null;
+      if (lastPaidCutoffId === payrollRefNo) {
+        continue;
+      }
+
+      const currentAccumulated = n(loan.accumulated_amount);
+      const loanAmount = n(loan.loan_amount);
+      const interestAmount = n(loan.interest_amount);
+      const totalPayable = round2(loanAmount + interestAmount);
+
+      // Calculate new accumulated amount
+      let newAccumulated = round2(currentAccumulated + deductedAmount);
+
+      // ✅ Validation: ensure accumulated doesn't exceed total payable
+      if (newAccumulated > totalPayable) {
+        newAccumulated = totalPayable;
+      }
+
+      // ✅ Auto-close logic: if fully paid, mark as PAID
+      const shouldClose = newAccumulated >= totalPayable;
+      const newStatus = shouldClose ? "PAID" : loan.status;
+
+      await api.patchItem(RES.employeeLoans, loanId, {
+        accumulated_amount: newAccumulated,
+        status: newStatus,
+        last_paid_cutoff_id: payrollRefNo,
+      });
+    } catch (e: any) {
+      console.error(`[updateEmployeeLoanAccumulations] Failed to update loan ${loanId}:`, e);
+      throw e;
+    }
+  }
+}
+
+/**
+ * Update accumulated amounts for benefit loans (SSS, PAGIBIG).
+ * Also validates and auto-closes fully paid loans.
+ * Uses payroll_ref_no-based idempotency via last_paid_cutoff_id.
+ */
+async function updateBenefitLoanAccumulations(args: { payrollRunId: number; payrollRefNo: string }): Promise<void> {
+  const payrollRefNo = args.payrollRefNo;
+
+  // 1. Fetch all payroll_run_employee records (excluding on-hold)
+  const employees = await safeList<any>(
+    RES.payrollLines,
+    {
+      "filter[payroll_run_id][_eq]": args.payrollRunId,
+      "filter[on_hold][_neq]": 1,
+      fields: "user_id,benefit_loan_sss,benefit_loan_pagibig,on_hold",
+      limit: 5000,
+    },
+    [],
+  );
+
+  // 2. Extract benefit loan amounts
+  const updates: Array<{ user_id: number; benefit_code: string; amount: number }> = [];
+
+  for (const emp of employees) {
+    const userId = n(emp.user_id);
+    const sssAmount = n(emp.benefit_loan_sss);
+    const pagibigAmount = n(emp.benefit_loan_pagibig);
+
+    if (sssAmount > 0) {
+      updates.push({ user_id: userId, benefit_code: "SSS", amount: sssAmount });
+    }
+    if (pagibigAmount > 0) {
+      updates.push({ user_id: userId, benefit_code: "PAGIBIG", amount: pagibigAmount });
+    }
+  }
+
+  // 3. Find and update each benefit loan
+  for (const u of updates) {
+    try {
+      // Find active benefit loan for this user and benefit code
+      const loans = await safeList<any>(
+        RES.benefitLoans,
+        {
+          "filter[user_id][_eq]": u.user_id,
+          "filter[benefit_code][_eq]": u.benefit_code,
+          "filter[status][_eq]": "ACTIVE",
+          limit: 1,
+        },
+        [],
+      );
+
+      if (loans.length === 0) {
+        continue;
+      }
+
+      const loan = loans[0];
+      const loanId = n(loan.loan_id ?? loan.id);
+
+      // ✅ Idempotency check: skip if already processed for this payroll
+      const lastPaidCutoffId = loan.last_paid_cutoff_id ? String(loan.last_paid_cutoff_id) : null;
+      if (lastPaidCutoffId === payrollRefNo) {
+        continue;
+      }
+
+      const currentAccumulated = n(loan.accumulated_amount);
+      const totalPayable = n(loan.total_payable);
+      const currentRemaining = n(loan.remaining_balance);
+      const paidInstallments = n(loan.paid_installments);
+
+      // Calculate new values
+      let newAccumulated = round2(currentAccumulated + u.amount);
+      let newRemaining = round2(currentRemaining - u.amount);
+
+      // ✅ Validation: ensure accumulated doesn't exceed total payable
+      if (newAccumulated > totalPayable) {
+        console.warn(
+          `[updateBenefitLoanAccumulations] Loan ${loanId}: accumulated (${newAccumulated}) would exceed total payable (${totalPayable}). Capping at total payable.`,
+        );
+        newAccumulated = totalPayable;
+        newRemaining = 0;
+      }
+
+      // Ensure remaining balance doesn't go negative
+      newRemaining = Math.max(0, newRemaining);
+
+      // ✅ Auto-close logic: if fully paid, mark as CLOSED
+      const shouldClose = newAccumulated >= totalPayable || newRemaining <= 0;
+      const newStatus = shouldClose ? "CLOSED" : "ACTIVE";
+
+      await api.patchItem(RES.benefitLoans, loanId, {
+        accumulated_amount: newAccumulated,
+        remaining_balance: newRemaining,
+        paid_installments: paidInstallments + 1,
+        status: newStatus,
+        last_paid_cutoff_id: payrollRefNo,
+      });
+    } catch (e: any) {
+      console.error(
+        `[updateBenefitLoanAccumulations] Failed to update ${u.benefit_code} loan for user ${u.user_id}:`,
+        e,
+      );
+      throw e;
+    }
+  }
+}
+
+/**
+ * Update total collection for coop savings memberships.
+ * Uses payroll_ref_no-based idempotency via last_paid_cutoff_id.
+ */
+async function updateCoopSavingsAccumulations(args: { payrollRunId: number; payrollRefNo: string }): Promise<void> {
+  const payrollRefNo = args.payrollRefNo;
+
+  // 1. Fetch all payroll_run_employee records (excluding on-hold)
+  const employees = await safeList<any>(
+    RES.payrollLines,
+    {
+      "filter[payroll_run_id][_eq]": args.payrollRunId,
+      "filter[on_hold][_neq]": 1,
+      fields: "user_id,breakdown_json,on_hold",
+      limit: 5000,
+    },
+    [],
+  );
+
+  // 2. Extract coop_savings_items from breakdown_json.deductions
+  const updates: Array<{ membership_id: string; amount: number }> = [];
+
+  for (const emp of employees) {
+    const breakdown = normalizeJsonOrNull(emp.breakdown_json);
+    const deductions = breakdown?.deductions ?? {};
+    const coopItems = arr(deductions?.coop_savings_items ?? []);
+
+    for (const item of coopItems) {
+      if (item.source_table === "coop_savings_membership" && item.membership_id) {
+        updates.push({
+          membership_id: String(item.membership_id),
+          amount: n(item.amount),
+        });
+      }
+    }
+  }
+
+  // 3. Group by membership_id and sum amounts
+  const grouped = new Map<string, number>();
+  for (const u of updates) {
+    grouped.set(u.membership_id, (grouped.get(u.membership_id) || 0) + u.amount);
+  }
+
+  // 4. Update each membership's total_collection
+  for (const [membershipId, amount] of grouped.entries()) {
+    try {
+      // Find membership by membership_id
+      const memberships = await safeList<any>(
+        RES.coop_savings,
+        {
+          "filter[membership_id][_eq]": membershipId,
+          limit: 1,
+        },
+        [],
+      );
+
+      if (memberships.length === 0) {
+        continue;
+      }
+
+      const membership = memberships[0];
+      const id = n(membership.id);
+
+      // ✅ Idempotency check: skip if already processed for this payroll
+      const lastPaidCutoffId = membership.last_paid_cutoff_id ? String(membership.last_paid_cutoff_id) : null;
+      if (lastPaidCutoffId === payrollRefNo) {
+        continue;
+      }
+
+      const currentCollection = n(membership.total_collection);
+      const currentMonths = n(membership.total_months);
+
+      const newCollection = round2(currentCollection + amount);
+      const newMonths = currentMonths + 1;
+
+      await api.patchItem(RES.coop_savings, id, {
+        total_collection: newCollection,
+        total_months: newMonths,
+        last_paid_cutoff_id: payrollRefNo,
+      });
+    } catch (e: any) {
+      console.error(
+        `[updateCoopSavingsAccumulations] Failed to update membership ${membershipId}:`,
+        e,
+      );
+      throw e;
+    }
+  }
+}
+
 
 
 // ✅ persist computed totals to payroll_run header

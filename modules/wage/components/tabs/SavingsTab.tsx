@@ -701,26 +701,26 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
         <Table>
           <TableHeader className="bg-gray-50 dark:bg-gray-800">
             <TableRow>
-              <TableHead className="text-gray-600 font-semibold">
+              <TableHead className="text-gray-600 font-semibold text-xs">
                 Membership ID
               </TableHead>
-              <TableHead className="text-gray-600 font-semibold">
+              <TableHead className="text-gray-600 font-semibold text-xs">
                 Monthly
               </TableHead>
-              <TableHead className="text-gray-600 font-semibold">
+              <TableHead className="text-gray-600 font-semibold text-xs">
                 Start
               </TableHead>
-              <TableHead className="text-gray-600 font-semibold">End</TableHead>
-              <TableHead className="text-gray-600 font-semibold">
+              <TableHead className="text-gray-600 font-semibold text-xs">End</TableHead>
+              <TableHead className="text-gray-600 font-semibold text-xs">
                 Total Collected
               </TableHead>
-              <TableHead className="text-gray-600 font-semibold">
+              <TableHead className="text-gray-600 font-semibold text-xs">
                 Months
               </TableHead>
-              <TableHead className="text-gray-600 font-semibold">
+              <TableHead className="text-gray-600 font-semibold text-xs">
                 Active
               </TableHead>
-              <TableHead className="text-gray-600 font-semibold text-right">
+              <TableHead className="text-gray-600 font-semibold text-xs text-right">
                 Actions
               </TableHead>
             </TableRow>
@@ -731,7 +731,7 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
               <TableRow>
                 <TableCell
                   colSpan={8}
-                  className="h-12 text-center text-gray-500"
+                  className="h-12 text-center text-gray-500 text-sm"
                 >
                   Loading savings memberships...
                 </TableCell>
@@ -740,7 +740,7 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
               <TableRow>
                 <TableCell
                   colSpan={8}
-                  className="h-12 text-center text-gray-500"
+                  className="h-12 text-center text-gray-500 text-sm"
                 >
                   No savings memberships found.
                 </TableCell>
@@ -749,7 +749,7 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
               <TableRow>
                 <TableCell
                   colSpan={8}
-                  className="h-12 text-center text-gray-500"
+                  className="h-12 text-center text-gray-500 text-sm"
                 >
                   No results{q ? ` for "${q}"` : ""}.
                 </TableCell>
@@ -760,20 +760,20 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
                   key={r.id}
                   className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
                 >
-                  <TableCell className="font-medium font-mono">
+                  <TableCell className="font-medium font-mono text-sm">
                     {r.membership_id || (
                       <span className="text-gray-400">—</span>
                     )}
                   </TableCell>
-                  <TableCell>₱ {money(r.monthly_amount)}</TableCell>
+                  <TableCell className="text-sm">₱ {money(r.monthly_amount)}</TableCell>
                   <TableCell className="text-sm text-gray-700 dark:text-gray-200">
                     {(r.start_date || "").substring(0, 10) || "—"}
                   </TableCell>
                   <TableCell className="text-sm text-gray-700 dark:text-gray-200">
                     {(r.end_date || "").substring(0, 10) || "—"}
                   </TableCell>
-                  <TableCell>₱ {money(r.total_collection)}</TableCell>
-                  <TableCell>{Number(r.total_months || 0)}</TableCell>
+                  <TableCell className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">₱ {money(r.total_collection)}</TableCell>
+                  <TableCell className="text-sm">{Number(r.total_months || 0)}</TableCell>
                   <TableCell>{activeBadge(flagToBool(r.is_active))}</TableCell>
 
                   <TableCell className="text-right">

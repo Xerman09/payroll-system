@@ -47,15 +47,21 @@ type PayrollUiTokens = {
 };
 
 type LoanDraft = {
-  loan_amount: string;
   loan_type: LoanType;
+  loan_amount: string;
   months_to_pay: string;
-  start_date: string;
-
   monthly_payment: string;
+
+  start_date: string;
+  end_date: string;
+
   interest_rate: string;
   interest_amount: string;
   net_amount_released: string;
+
+  accumulated_amount: string;
+
+  status: string;
 };
 
 function statusPill(statusRaw: any) {
@@ -467,7 +473,71 @@ export function LoansTab({
                     Net Amount Released = Loan Amount − Interest Amount
                   </div>
                 </div>
+
+                <div className="flex flex-col col-span-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                    Accumulated Amount
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">
+                      ₱
+                    </span>
+                    <Input
+                      type="text"
+                      value={loanDraft.accumulated_amount || ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!/^\d*\.?\d*$/.test(v)) return;
+                        setLoanDraft((p) => ({ ...p, accumulated_amount: v }));
+                      }}
+                      onBlur={() =>
+                        setLoanDraft((p) => ({
+                          ...p,
+                          accumulated_amount: money(p.accumulated_amount),
+                        }))
+                      }
+                      className="h-10 pl-6"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Total amount deducted from payroll so far
+                  </div>
+                </div>
               </>
+            )}
+
+            {loanDraft.loan_type !== "COOP" && (
+              <div className="flex flex-col col-span-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                  Accumulated Amount
+                </label>
+                <div className="relative">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">
+                    ₱
+                  </span>
+                  <Input
+                    type="text"
+                    value={loanDraft.accumulated_amount || ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (!/^\d*\.?\d*$/.test(v)) return;
+                      setLoanDraft((p) => ({ ...p, accumulated_amount: v }));
+                    }}
+                    onBlur={() =>
+                      setLoanDraft((p) => ({
+                        ...p,
+                        accumulated_amount: money(p.accumulated_amount),
+                      }))
+                    }
+                    className="h-10 pl-6"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  Total amount deducted from payroll so far
+                </div>
+              </div>
             )}
           </div>
 
@@ -562,29 +632,26 @@ export function LoansTab({
         <Table>
           <TableHeader className="bg-gray-50 dark:bg-gray-800">
             <TableRow>
-              <TableHead className="text-gray-600 font-semibold">
+              <TableHead className="text-gray-600 font-semibold text-xs">
                 Type
               </TableHead>
-              <TableHead className="text-gray-600 font-semibold">
+              <TableHead className="text-gray-600 font-semibold text-xs">
                 Amount
               </TableHead>
-              <TableHead className="text-gray-600 font-semibold">
-                Monthly
-              </TableHead>
-              <TableHead className="text-gray-600 font-semibold">
+              <TableHead className="text-gray-600 font-semibold text-xs">
                 Months
               </TableHead>
-              <TableHead className="text-gray-600 font-semibold">
-                Interest
+              <TableHead className="text-gray-600 font-semibold text-xs">Net</TableHead>
+              <TableHead className="text-gray-600 font-semibold text-xs">
+                Accumulated
               </TableHead>
-              <TableHead className="text-gray-600 font-semibold">Net</TableHead>
-              <TableHead className="text-gray-600 font-semibold">
+              <TableHead className="text-gray-600 font-semibold text-xs">
                 Start
               </TableHead>
-              <TableHead className="text-gray-600 font-semibold">
+              <TableHead className="text-gray-600 font-semibold text-xs">
                 Status
               </TableHead>
-              <TableHead className="text-gray-600 font-semibold text-right">
+              <TableHead className="text-gray-600 font-semibold text-xs text-right">
                 Actions
               </TableHead>
             </TableRow>
@@ -594,8 +661,8 @@ export function LoansTab({
             {loanLoading ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
-                  className="h-12 text-center text-gray-500"
+                  colSpan={8}
+                  className="h-12 text-center text-gray-500 text-sm"
                 >
                   Loading loans...
                 </TableCell>
@@ -603,8 +670,8 @@ export function LoansTab({
             ) : loans.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
-                  className="h-12 text-center text-gray-500"
+                  colSpan={8}
+                  className="h-12 text-center text-gray-500 text-sm"
                 >
                   No loans found.
                 </TableCell>
@@ -612,8 +679,8 @@ export function LoansTab({
             ) : totalFiltered === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
-                  className="h-12 text-center text-gray-500"
+                  colSpan={8}
+                  className="h-12 text-center text-gray-500 text-sm"
                 >
                   No results{q ? ` for "${q}"` : ""}.
                 </TableCell>
@@ -624,23 +691,18 @@ export function LoansTab({
                   key={l.loan_id}
                   className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
                 >
-                  <TableCell className="font-medium">{l.loan_type}</TableCell>
-                  <TableCell>₱ {money(l.loan_amount)}</TableCell>
-                  <TableCell>₱ {money(l.monthly_payment)}</TableCell>
-                  <TableCell>{l.months_to_pay}</TableCell>
-                  <TableCell>
-                    {Number(l.interest_rate || 0) > 0
-                      ? `${money(l.interest_rate)}% (₱ ${money(
-                          l.interest_amount
-                        )})`
-                      : "—"}
-                  </TableCell>
-                  <TableCell>
+                  <TableCell className="font-medium text-sm">{l.loan_type}</TableCell>
+                  <TableCell className="text-sm">₱ {money(l.loan_amount)}</TableCell>
+                  <TableCell className="text-sm">{l.months_to_pay}</TableCell>
+                  <TableCell className="text-sm">
                     {Number(l.net_amount_released || 0) > 0
                       ? `₱ ${money(l.net_amount_released)}`
                       : "—"}
                   </TableCell>
-                  <TableCell>{(l.start_date || "").substring(0, 10)}</TableCell>
+                  <TableCell className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                    ₱ {money(l.accumulated_amount || 0)}
+                  </TableCell>
+                  <TableCell className="text-sm">{(l.start_date || "").substring(0, 10)}</TableCell>
 
                   <TableCell>
                     {(() => {

@@ -103,6 +103,8 @@ export type EmployeeLoanRecord = {
   interest_amount: string | number;
   net_amount_released: string | number;
 
+  accumulated_amount: string | number;
+
   status: string;
 
   created_by: number | null;
@@ -125,6 +127,8 @@ export type EmployeeLoanCreatePayload = {
   interest_rate: number;
   interest_amount: number;
   net_amount_released: number;
+
+  accumulated_amount: number;
 
   status: string;
 
@@ -378,6 +382,7 @@ export type BenefitLoanRecord = {
   principal_amount: string | number;
   interest_amount: string | number;
   total_payable: string | number;
+  accumulated_amount: string | number;
 
   amortization_amount: string | number;
   terms_installments: number;

@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import SortableTableHead from "./SortableTableHead";
 import PayslipHistoryModal from "./PayslipHistoryModal";
+import BenefitHistoryModal from "./BenefitHistoryModal";
 import { PayrollRecordsSkeleton } from "./PayrollRecordsSkeleton";
 
 export default function EmployeesTab({
@@ -43,7 +44,13 @@ export default function EmployeesTab({
   }>({ key: "id", direction: "asc" });
 
   const [historyModalOpen, setHistoryModalOpen] = React.useState(false);
+  const [benefitModalOpen, setBenefitModalOpen] = React.useState(false);
   const [selectedEmployee, setSelectedEmployee] = React.useState<Employee | null>(null);
+
+  const handleViewBenefitsHistory = (emp: Employee) => {
+    setSelectedEmployee(emp);
+    setBenefitModalOpen(true);
+  };
 
   const handleSort = (key: "id" | "fname" | "lname" | "department") => {
     setSortConfig((prev) =>
@@ -199,20 +206,23 @@ export default function EmployeesTab({
                 sortKey="id"
                 currentSort={sortConfig}
                 onSort={handleSort as any}
+                className="w-1/4"
               />
               <SortableTableHead
                 label="Name"
                 sortKey="fname"
                 currentSort={sortConfig}
                 onSort={handleSort as any}
+                className="w-1/4"
               />
               <SortableTableHead
                 label="Department"
                 sortKey="department"
                 currentSort={sortConfig}
                 onSort={handleSort as any}
+                className="w-1/4"
               />
-              <TableHead>Action</TableHead>
+              <TableHead className="w-1/4">Action</TableHead>
             </TableRow>
           </TableHeader>
 
@@ -238,7 +248,7 @@ export default function EmployeesTab({
                       {`${emp.user_fname} ${emp.user_mname ?? ""} ${emp.user_lname}`}
                     </TableCell>
                     <TableCell>{deptName}</TableCell>
-                    <TableCell className="flex gap-2">
+                    <TableCell className="flex gap-2 justify-end">
                       <Button
                         size="sm"
                         className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -248,6 +258,13 @@ export default function EmployeesTab({
                         }}
                       >
                         View Payslip History
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={() => handleViewBenefitsHistory(emp)}
+                      >
+                        View Benefits History
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -262,6 +279,15 @@ export default function EmployeesTab({
         isOpen={historyModalOpen} 
         onClose={() => {
           setHistoryModalOpen(false);
+          setSelectedEmployee(null);
+        }}
+        employee={selectedEmployee}
+      />
+
+      <BenefitHistoryModal
+        isOpen={benefitModalOpen}
+        onClose={() => {
+          setBenefitModalOpen(false);
           setSelectedEmployee(null);
         }}
         employee={selectedEmployee}

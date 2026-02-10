@@ -251,14 +251,17 @@ export async function deleteBenefitLoan(loanId: number) {
 // --------------------
 export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
   const fields = [
-    "*",
-    "user_id.user_fname",
-    "user_id.user_lname",
-    "user_id.user_sss",
-    "user_id.user_philhealth",
-    "user_id.user_pagibig",
+    "id",
+    "cutoff_id",
+    "user_id.*",
+    "benefit_sss",
+    "benefit_philhealth",
+    "benefit_pagibig",
+    "benefit_loan_sss",
+    "benefit_loan_pagibig",
     "payroll_run_id.payroll_ref_no",
     "payroll_run_id.posted_at",
+    "created_at"
   ].join(",");
 
   const path = `/items/payroll_run_employee?limit=5000&filter[payroll_run_id][status][_eq]=POSTED&sort=-created_at&fields=${fields}`;

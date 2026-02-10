@@ -20,7 +20,7 @@ import {
 import {
   exportBenefitLogsPdf,
   type BenefitLogsPaperSize,
-} from "./benefitLogsPdf";
+} from "../utils/benefitLogsPdf";
 import { BenefitTableSkeleton } from "./BenefitSettingsSkeleton";
 import BenefitExportPreviewDialog from "./BenefitExportPreviewDialog";
 

@@ -134,10 +134,6 @@ export function toPayrollRunEmployeeInsert(args: {
     benefit_loan_pagibig: round2(n((line as any).benefit_loan_pagibig)),
     benefit_loan_total: round2(n((line as any).benefit_loan_total)),
 
-    // legacy duplicates if your DB still has them; keep mirrored to prevent reporting drift
-    benefit_sss_loan: round2(n((line as any).benefit_loan_sss)),
-    benefit_pagibig_loan: round2(n((line as any).benefit_loan_pagibig)),
-
     // other deductions
     dr_deduction: round2(n((line as any).dr_deduction)),
     other_deductions: round2(n((line as any).other_deductions)),

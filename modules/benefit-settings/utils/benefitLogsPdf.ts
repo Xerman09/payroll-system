@@ -75,17 +75,13 @@ export async function exportBenefitLogsPdf(args: {
   const marginX = 40;
   const headerH = 72;
 
-  // --- Branding Colors (Persian Blue System) ---
-  const colors = {
-    primary: [4, 72, 255] as [number, number, number],   // Persian Blue 600
-    secondary: [0, 60, 219] as [number, number, number], // Persian Blue 800
-    dark: [7, 31, 95] as [number, number, number],      // Persian Blue 950
-    accent: [79, 159, 255] as [number, number, number],  // Persian Blue 400
-    border: [226, 232, 240] as [number, number, number],
-    slate600: [71, 85, 105] as [number, number, number],
-  };
+  // --- Branding Colors (Premium System) ---
+  const DARK_BLUE = [11, 19, 43] as [number, number, number];
+  const CYAN = [0, 180, 216] as [number, number, number];
+  const LIGHT_BLUE = [144, 224, 239] as [number, number, number];
 
-  const footerH = 40;
+  const setFill = (rgb: number[]) => doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+  const setText = (rgb: number[]) => doc.setTextColor(rgb[0], rgb[1], rgb[2]);
 
   // --- Dynamic Title based on selection ---
   const getBenefitLabel = (code: string) => {
@@ -107,41 +103,46 @@ export async function exportBenefitLogsPdf(args: {
     type === "ALL" ? "Logs" : type === "CONTRIBUTION" ? "Contributions" : "Loans";
 
   const displayTitle = `${actualBenefit === "Benefit" ? "Benefit" : getBenefitLabel(actualBenefit)} ${typeLabel}`;
+  const footerH = 50;
 
   const renderHeader = (isFirstPage: boolean) => {
-    const headerY = 20;
-    const sidebarW = 120;
-    const barH = 32;
+    // --- HEADER RIBBON (Top Left) ---
+    setFill(DARK_BLUE);
+    doc.triangle(0, 0, 180, 0, 0, 80, "F");
+    setFill(CYAN);
+    doc.triangle(0, 15, 120, 15, 0, 65, "F");
+    setFill(LIGHT_BLUE);
+    doc.triangle(0, 30, 80, 30, 0, 55, "F");
+    setFill(DARK_BLUE);
+    doc.rect(180, 0, pageW - 180, 15, "F");
 
-    // 1. Sidebar (Persian Blue 950)
-    doc.setFillColor(...colors.dark);
-    doc.roundedRect(0, headerY, sidebarW, barH * 2.5, 0, 30, "F");
-
-    // 2. Icon placeholder (Geometric Accent)
-    doc.setDrawColor(...colors.accent);
-    doc.setLineWidth(1.5);
-    doc.rect(sidebarW / 2 - 12, headerY + 25, 24, 24);
-    doc.rect(sidebarW / 2 - 8, headerY + 29, 16, 16);
-
-    // 3. Company Bar (Persian Blue 600)
-    doc.setFillColor(...colors.primary);
-    doc.rect(sidebarW - 20, headerY + 10, pageW - (sidebarW - 20), barH, "F");
-
-    doc.setTextColor(255, 255, 255);
+    // --- COMPANY LOGO & NAME ---
+    let headerY = 50;
+    setText(DARK_BLUE);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setCharSpace(1);
-    doc.text("MEN2 MARKETING CORPORATIONS", sidebarW + (pageW - sidebarW) / 2, headerY + 30, { align: "center" });
+    doc.setFontSize(22);
+    doc.text("MEN2 MARKETING", pageW - marginX, headerY, { align: "right" });
 
-    // 4. Title Bar (Persian Blue 800)
-    doc.setFillColor(...colors.secondary);
-    doc.rect(sidebarW - 10, headerY + 10 + barH, pageW - (sidebarW - 10), barH - 8, "F");
-
-    doc.setTextColor(255, 255, 255);
+    headerY += 18;
+    setText(CYAN);
     doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.setCharSpace(2);
-    doc.text(displayTitle.toUpperCase(), sidebarW + (pageW - sidebarW) / 2, headerY + 10 + barH + 16, { align: "center" });
+    doc.text("CORPORATIONS ", pageW - marginX, headerY, { align: "right" });
+
+    // Divider Line
+    headerY += 15;
+    doc.setDrawColor(DARK_BLUE[0], DARK_BLUE[1], DARK_BLUE[2]);
+    doc.setLineWidth(1.5);
+    doc.line(pageW - 250, headerY, pageW - marginX, headerY);
+
+    // --- REPORT TITLE ---
+    headerY += 60;
+    setText(DARK_BLUE);
+    doc.setFontSize(16);
+    doc.text(displayTitle.toUpperCase(), marginX, headerY);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(`DATE: ${new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}`, pageW - marginX, headerY, { align: "right" });
 
     // --- Summary Statistics (Only on First Page) ---
     if (isFirstPage) {
@@ -156,48 +157,51 @@ export async function exportBenefitLogsPdf(args: {
       const uniqueEmployees = new Set(rows.map((r) => r.user_id)).size;
       const grandTotal = rows.reduce((sum, r) => sum + (r.deducted_amount || 0), 0);
 
-      const statsY = headerY + barH * 2.5 + 15;
-      doc.setTextColor(...colors.slate600);
+      const statsY = headerY + 40;
+      doc.setTextColor(11, 19, 43); // Dark Blue
       doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.setCharSpace(0);
+      doc.setFont("helvetica", "bold");
 
       const headerStats = [
-        `Period: ${cutoffLabelText}`,
-        `Total Employees: ${uniqueEmployees}`,
-        `Grand Total: ${formatMoney(grandTotal)}`
+        `PERIOD: ${cutoffLabelText.toUpperCase()}`,
+        `TOTAL EMPLOYEES: ${uniqueEmployees}`,
+        `GRAND TOTAL: PHP ${formatMoney(grandTotal)}`
       ].join("   |   ");
 
       doc.text(headerStats, pageW / 2, statsY, { align: "center" });
 
       // Divider line
-      doc.setDrawColor(...colors.border);
+      doc.setDrawColor(226, 232, 240); // Border color
       doc.setLineWidth(0.5);
       doc.line(marginX, statsY + 10, pageW - marginX, statsY + 10);
       return statsY + 12;
     }
-    return headerY + barH * 2.5 + 10;
+    return headerY + 20;
   };
 
   const renderFooter = (pageNumber: number, totalPages: number) => {
+    const footerH = 50;
     const footerY = pageH - footerH;
 
-    // Bottom Accent Bar (Mirrors Title Bar)
-    doc.setFillColor(...colors.secondary);
-    doc.rect(0, footerY + 10, pageW, 15, "F");
+    // Background Bar
+    setFill(DARK_BLUE);
+    doc.rect(0, footerY, pageW, footerH, "F");
 
-    // Sidebar Accent (Mirrors Header Sidebar)
-    doc.setFillColor(...colors.dark);
-    doc.roundedRect(0, footerY - 5, 80, 45, 0, 20, "F");
+    // Footer Ribbon (Bottom Right)
+    setFill(CYAN);
+    doc.triangle(pageW, pageH, pageW - 120, pageH, pageW, pageH - 40, "F");
+    setFill(LIGHT_BLUE);
+    doc.triangle(pageW, pageH, pageW - 80, pageH, pageW, pageH - 25, "F");
 
-    doc.setTextColor(255, 255, 255);
+    // Contact Info
+    setText([255, 255, 255]);
+    doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.text(`MEN2 MARKETING`, 40, footerY + 20, { align: "center" });
+    doc.text("VERTEX TECHNOLOGIES CORPORATIONS", marginX, footerY + 30);
 
-    doc.setTextColor(...colors.slate600);
+    doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
-    doc.text(`Generated on ${new Date().toLocaleDateString()}  |  Page ${pageNumber} of ${totalPages}`, pageW - marginX, footerY + 20, { align: "right" });
+    doc.text(`Page ${pageNumber} of ${totalPages}`, pageW - marginX - 100, footerY + 30, { align: "right" });
   };
 
   let lastY = renderHeader(true);
@@ -261,23 +265,27 @@ export async function exportBenefitLogsPdf(args: {
         startY: lastY + 10,
         head,
         body,
-        theme: "grid",
+        theme: "striped",
         margin: { left: marginX, right: marginX, bottom: footerH + 10 },
         styles: {
           font: "helvetica",
-          fontSize: 8,
-          cellPadding: 4,
-          textColor: [15, 23, 42],
-          lineColor: [226, 232, 240],
-          lineWidth: 0.5,
+          fontSize: 9,
+          cellPadding: 8,
+          textColor: [11, 19, 43], // Dark Blue
+          lineColor: [230, 233, 237],
+          lineWidth: 0.1,
         },
         headStyles: {
-          fillColor: [248, 250, 252],
-          textColor: [71, 85, 105],
+          fillColor: [11, 19, 43], // Dark Blue
+          textColor: [255, 255, 255],
           fontStyle: "bold",
+          halign: "left",
+        },
+        alternateRowStyles: {
+          fillColor: [245, 247, 250],
         },
         columnStyles: {
-          2: { halign: "right" }, // Deducted
+          2: { halign: "right", fontStyle: "bold" }, // Deducted
           1: { cellWidth: 100 },  // Account #
           3: { cellWidth: 80 },   // Posted Date
         },
@@ -300,6 +308,5 @@ export async function exportBenefitLogsPdf(args: {
     renderFooter(i, pageCount);
   }
 
-  const safeDate = new Date().toISOString().slice(0, 10);
-  doc.save(`benefit-logs-${safeDate}-${paper.toLowerCase()}-portrait.pdf`);
+  return doc;
 }

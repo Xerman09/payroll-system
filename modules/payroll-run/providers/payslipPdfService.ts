@@ -547,10 +547,8 @@ export async function downloadPayslipsPdf(args: {
     const benPhil = n(r?.benefit_philhealth ?? 0);
     const benPag = n(r?.benefit_pagibig ?? 0);
 
-    const benLoanSSS = n(r?.benefit_sss_loan ?? r?.benefit_loan_sss ?? 0);
-    const benLoanPag = n(
-      r?.benefit_pagibig_loan ?? r?.benefit_loan_pagibig ?? 0,
-    );
+    const benLoanSSS = n(r?.benefit_loan_sss ?? 0);
+    const benLoanPag = n(r?.benefit_loan_pagibig ?? 0);
 
     const otherDed = n(r?.other_deductions ?? 0);
     const manualDed = n(r?.manual_deductions ?? 0);

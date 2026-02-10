@@ -1216,19 +1216,13 @@ export function BenefitsTab({
                   Total
                 </TableHead>
                 <TableHead className="whitespace-nowrap text-xs font-semibold text-gray-600 px-4">
-                  Amort
-                </TableHead>
-                <TableHead className="whitespace-nowrap text-xs font-semibold text-gray-600 px-4">
                   Terms
-                </TableHead>
-                <TableHead className="whitespace-nowrap text-xs font-semibold text-gray-600 px-4">
-                  Deduct
                 </TableHead>
                 <TableHead className="whitespace-nowrap text-xs font-semibold text-gray-600 px-4">
                   Cutoff Start
                 </TableHead>
                 <TableHead className="whitespace-nowrap text-xs font-semibold text-gray-600 px-4">
-                  Remain
+                  Accumulated
                 </TableHead>
                 <TableHead className="whitespace-nowrap text-xs font-semibold text-gray-600 px-4">
                   Status
@@ -1243,8 +1237,8 @@ export function BenefitsTab({
               {loading ? (
                 <TableRow>
                   <TableCell
-                    colSpan={11}
-                    className="h-12 text-center text-gray-500"
+                    colSpan={9}
+                    className="h-12 text-center text-gray-500 text-sm"
                   >
                     Loading benefit loans...
                   </TableCell>
@@ -1252,8 +1246,8 @@ export function BenefitsTab({
               ) : rows.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={11}
-                    className="h-12 text-center text-gray-500"
+                    colSpan={9}
+                    className="h-12 text-center text-gray-500 text-sm"
                   >
                     No benefit loans found.
                   </TableCell>
@@ -1261,8 +1255,8 @@ export function BenefitsTab({
               ) : totalFiltered === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={11}
-                    className="h-12 text-center text-gray-500"
+                    colSpan={9}
+                    className="h-12 text-center text-gray-500 text-sm"
                   >
                     No results{q ? ` for "${q}"` : ""}.
                   </TableCell>
@@ -1273,11 +1267,11 @@ export function BenefitsTab({
                     key={r.loan_id}
                     className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
                   >
-                    <TableCell className="whitespace-nowrap px-4 py-3 font-medium">
+                    <TableCell className="whitespace-nowrap px-4 py-3 font-medium text-sm">
                       {r.benefit_code}
                     </TableCell>
 
-                    <TableCell className="px-4 py-3">
+                    <TableCell className="px-4 py-3 text-sm">
                       <span className="block max-w-[180px] truncate">
                         {r.loan_name || (
                           <span className="text-gray-400">—</span>
@@ -1285,7 +1279,7 @@ export function BenefitsTab({
                       </span>
                     </TableCell>
 
-                    <TableCell className="px-4 py-3">
+                    <TableCell className="px-4 py-3 text-sm">
                       <span className="block max-w-[160px] truncate">
                         {r.reference_no || (
                           <span className="text-gray-400">—</span>
@@ -1293,28 +1287,20 @@ export function BenefitsTab({
                       </span>
                     </TableCell>
 
-                    <TableCell className="whitespace-nowrap px-4 py-3 tabular-nums">
+                    <TableCell className="whitespace-nowrap px-4 py-3 tabular-nums text-sm">
                       ₱{money(r.total_payable)}
                     </TableCell>
 
-                    <TableCell className="whitespace-nowrap px-4 py-3 tabular-nums">
-                      ₱{money(r.amortization_amount)}
-                    </TableCell>
-
-                    <TableCell className="whitespace-nowrap px-4 py-3 tabular-nums">
+                    <TableCell className="whitespace-nowrap px-4 py-3 tabular-nums text-sm">
                       {r.terms_installments}
                     </TableCell>
 
-                    <TableCell className="whitespace-nowrap px-4 py-3">
-                      {r.deduct_on}
-                    </TableCell>
-
-                    <TableCell className="whitespace-nowrap px-4 py-3 tabular-nums">
+                    <TableCell className="whitespace-nowrap px-4 py-3 tabular-nums text-sm">
                       {startCutoffDisplay(r.start_cutoff_id)}
                     </TableCell>
 
-                    <TableCell className="whitespace-nowrap px-4 py-3 tabular-nums">
-                      ₱{money(r.remaining_balance)}
+                    <TableCell className="whitespace-nowrap px-4 py-3 tabular-nums text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                      ₱{money(r.accumulated_amount || 0)}
                     </TableCell>
 
                     <TableCell className="whitespace-nowrap px-4 py-3">

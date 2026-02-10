@@ -5,8 +5,9 @@ import * as React from "react";
 import { FileDown, Search, Filter } from "lucide-react";
 import { formatMoney } from "../providers/benefitApi";
 import type { BenefitLogRow, BenefitCode, UserData, CutoffSetting } from "../types";
-import { exportBenefitLogsPdf, type BenefitLogsPaperSize } from "./benefitLogsPdf";
+import { exportBenefitLogsPdf, type BenefitLogsPaperSize } from "../utils/benefitLogsPdf";
 import { cutoffLabel } from "../providers/benefitApi";
+import { PdfPreviewModal } from "@/components/PdfPreviewModal";
 
 import {
   Dialog,
@@ -63,6 +64,8 @@ export default function BenefitExportPreviewDialog({
   const [type, setType] = React.useState<"ALL" | "CONTRIBUTION" | "LOAN">(initialType);
   const [paper, setPaper] = React.useState<BenefitLogsPaperSize>(initialPaper);
   const [exporting, setExporting] = React.useState(false);
+  const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [pdfBlob, setPdfBlob] = React.useState<Blob | null>(null);
 
   const filtered = React.useMemo(() => {
     return allRows.filter((r) => {
@@ -77,12 +80,12 @@ export default function BenefitExportPreviewDialog({
     return filtered.reduce((acc, r) => acc + (r.deducted_amount || 0), 0);
   }, [filtered]);
 
-  const onDownload = async () => {
+  const onPreview = async () => {
     setExporting(true);
     try {
-      await exportBenefitLogsPdf({
+      const doc = await exportBenefitLogsPdf({
         paper,
-        companyName: "Vertex Technology Corps.",
+        companyName: "Vertex Technologies Corporations",
         title: benefit === "ALL" ? "Benefit Logs Summary" : `${benefit} Benefit Logs`,
         users,
         cutoffs,
@@ -92,7 +95,9 @@ export default function BenefitExportPreviewDialog({
         search: "", 
         rows: filtered,
       });
-      onOpenChange(false);
+      const blob = doc.output("blob");
+      setPdfBlob(blob);
+      setPreviewOpen(true);
     } finally {
       setExporting(false);
     }
@@ -239,18 +244,26 @@ export default function BenefitExportPreviewDialog({
           <Button 
             className="bg-blue-600 hover:bg-blue-700 text-white min-w-[140px]" 
             disabled={exporting || filtered.length === 0}
-            onClick={onDownload}
+            onClick={onPreview}
           >
             {exporting ? (
               "Processing..."
             ) : (
               <>
                 <FileDown className="mr-2 h-4 w-4" />
-                Download PDF
+                Preview PDF
               </>
             )}
           </Button>
         </DialogFooter>
+
+        <PdfPreviewModal
+          isOpen={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+          title={benefit === "ALL" ? "Benefit Logs Summary" : `${benefit} Benefit Logs`}
+          pdfBlob={pdfBlob}
+          fileName={`benefit-logs-${new Date().toISOString().slice(0, 10)}.pdf`}
+        />
       </DialogContent>
     </Dialog>
   );

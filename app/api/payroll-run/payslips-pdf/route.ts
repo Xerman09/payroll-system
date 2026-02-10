@@ -199,10 +199,8 @@ function buildDeductionLines(row: AnyRow) {
   if (loanCar) loanLines.push(`Car Loan (${money(loanCar)})`);
   if (loanCoop) loanLines.push(`Coop Loan (${money(loanCoop)})`);
 
-  const benefitLoanSSS = n(row.benefit_sss_loan ?? row.benefit_loan_sss);
-  const benefitLoanPagibig = n(
-    row.benefit_pagibig_loan ?? row.benefit_loan_pagibig
-  );
+  const benefitLoanSSS = n(row.benefit_loan_sss);
+  const benefitLoanPagibig = n(row.benefit_loan_pagibig);
 
   const benefitLoanLines: string[] = [];
   if (benefitLoanSSS) benefitLoanLines.push(`SSS Loan (${money(benefitLoanSSS)})`);
@@ -350,8 +348,8 @@ function drawSlip(
   const benSSS = n(row.benefit_sss);
   const benPhil = n(row.benefit_philhealth);
   const benPag = n(row.benefit_pagibig);
-  const benLoanSSS = n(row.benefit_sss_loan ?? row.benefit_loan_sss);
-  const benLoanPag = n(row.benefit_pagibig_loan ?? row.benefit_loan_pagibig);
+  const benLoanSSS = n(row.benefit_loan_sss);
+  const benLoanPag = n(row.benefit_loan_pagibig);
 
   const otherDed = n(row.other_deductions);
   const manualDed = n(row.manual_deductions);

@@ -78,6 +78,8 @@ type LoanDraft = {
   interest_rate: string; // auto for COOP, else 0
   interest_amount: string; // auto for COOP, else 0
   net_amount_released: string; // auto for COOP, else 0
+
+  accumulated_amount: string;
 };
 
 function isYmd(s: string) {
@@ -209,6 +211,7 @@ export default function WageModal({
       interest_rate: "0.00",
       interest_amount: "0.00",
       net_amount_released: "0.00",
+      accumulated_amount: "0.00",
     };
   }, []);
 
@@ -350,6 +353,7 @@ export default function WageModal({
           interest_rate,
           interest_amount,
           net_amount_released,
+          accumulated_amount: 0,
           status: "ACTIVE",
           created_by: loggedUserId,
           updated_by: loggedUserId,
@@ -395,6 +399,7 @@ export default function WageModal({
         interest_rate: money(l.interest_rate ?? 0),
         interest_amount: money(l.interest_amount ?? 0),
         net_amount_released: money(l.net_amount_released ?? 0),
+        accumulated_amount: money(l.accumulated_amount ?? 0),
       };
 
       setLoanDraft(recomputeLoanDraft(base));
