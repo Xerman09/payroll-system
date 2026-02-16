@@ -454,10 +454,12 @@ function MinimalAdjustmentRow({
   entry,
   onEdit,
   onDelete,
+  isPosted = false,
 }: {
   entry: ManualEntry;
   onEdit: (e: ManualEntry) => void;
   onDelete: (e: ManualEntry) => void;
+  isPosted?: boolean;
 }) {
   const e: any = normalizeEntry(entry as any);
 
@@ -489,7 +491,8 @@ function MinimalAdjustmentRow({
       ? "savings"
       : "none";
 
-  const disableEditDelete = isDR && drPostedFromEntry(e);
+  // Disable edit/delete if posted OR if DR payment is already posted to payroll
+  const disableEditDelete = isPosted || (isDR && drPostedFromEntry(e));
 
   return (
     <div className="group flex items-center justify-between gap-3 border-b px-0 py-2">
@@ -517,7 +520,11 @@ function MinimalAdjustmentRow({
             }}
             disabled={disableEditDelete}
             title={
-              disableEditDelete ? "Cannot edit posted DR payments" : "Edit"
+              isPosted
+                ? "Cannot edit adjustments for posted employees"
+                : disableEditDelete
+                  ? "Cannot edit posted DR payments"
+                  : "Edit"
             }
           >
             <Pencil className="h-4 w-4" />
@@ -534,7 +541,11 @@ function MinimalAdjustmentRow({
             }}
             disabled={disableEditDelete}
             title={
-              disableEditDelete ? "Cannot delete posted DR payments" : "Delete"
+              isPosted
+                ? "Cannot delete adjustments for posted employees"
+                : disableEditDelete
+                  ? "Cannot delete posted DR payments"
+                  : "Delete"
             }
           >
             <Trash2 className="h-4 w-4" />
@@ -549,6 +560,7 @@ export function EmployeeDetailsSheet({
   open,
   line,
   manualEntries,
+  isPosted = false,
   onOpenAdjust,
   onEditEntry,
   onDeleteEntry,
@@ -557,6 +569,7 @@ export function EmployeeDetailsSheet({
   open: boolean;
   line: PayrollComputedLine | null;
   manualEntries: ManualEntry[];
+  isPosted?: boolean;
 
   onOpenAdjust?: (() => void) | null;
 
@@ -795,7 +808,8 @@ export function EmployeeDetailsSheet({
                       e.stopPropagation();
                       openAdjust();
                     }}
-                    disabled={!line}
+                    disabled={!line || isPosted}
+                    title={isPosted ? "Cannot add adjustments to posted employees" : "Add Adjustment"}
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Adjustment
@@ -849,13 +863,13 @@ export function EmployeeDetailsSheet({
             </div>
 
             <div className="mt-5">
-              <Tabs defaultValue="adjustments">
+              <Tabs defaultValue={isPosted ? "overview" : "adjustments"}>
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="overview">Overview</TabsTrigger>
-                  <TabsTrigger value="itemizations">
+                  <TabsTrigger value="itemizations" disabled={isPosted}>
                     Earnings Itemization
                   </TabsTrigger>
-                  <TabsTrigger value="adjustments">
+                  <TabsTrigger value="adjustments" disabled={isPosted}>
                     Manual Adjustments
                   </TabsTrigger>
                 </TabsList>

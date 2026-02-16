@@ -271,6 +271,7 @@ export function PayrollAdjustStep({
   lines,
   summary,
   holdMap,
+  postedMap,
   onToggleHold,
   onRecompute,
   onNext,
@@ -281,6 +282,7 @@ export function PayrollAdjustStep({
   lines: PayrollComputedLine[];
   summary: PayrollSummary;
   holdMap: Map<number, boolean>;
+  postedMap: Map<number, boolean>;
   onToggleHold: (userId: number) => void;
   onRecompute: () => void;
   onNext: () => void;
@@ -739,6 +741,7 @@ export function PayrollAdjustStep({
               <TableBody>
                 {filtered.map((l) => {
                   const isHold = Boolean(holdMap.get((l as any).user_id));
+                  const isPosted = Boolean(postedMap.get((l as any).user_id));
                   return (
                     <TableRow
                       key={(l as any).user_id}
@@ -748,13 +751,19 @@ export function PayrollAdjustStep({
                         <div className="flex items-center gap-3">
                           <Switch
                             checked={isHold}
+                            disabled={isPosted}
                             onCheckedChange={() => {
+                              if (isPosted) return; // Prevent toggle for posted employees
                               setIsDirty(true);
                               onToggleHold((l as any).user_id);
                             }}
                           />
                           <div className="text-[11px]">
-                            {isHold ? (
+                            {isPosted ? (
+                              <span className="font-bold text-emerald-600">
+                                Posted
+                              </span>
+                            ) : isHold ? (
                               <span className="font-bold text-destructive">
                                 HOLD
                               </span>
@@ -856,6 +865,7 @@ export function PayrollAdjustStep({
             open={activeUserId != null}
             line={activeLine}
             manualEntries={manualEntries as any}
+            isPosted={activeUserId != null ? Boolean(postedMap.get(activeUserId)) : false}
             onOpenAdjust={() => openAddAdjustment()}
             onEditEntry={(e) => openEditAdjustment(e)}
             onDeleteEntry={(e) => deleteAdjustment(e)}

@@ -83,6 +83,10 @@ export default function PayrollRunModule() {
   // hold/exclude
   const [holdMap, setHoldMap] = useState<Map<number, boolean>>(new Map());
 
+  // posted employees (read-only in adjust step)
+  const [postedMap, setPostedMap] = useState<Map<number, boolean>>(new Map());
+
+
   // password dialog
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
 
@@ -210,10 +214,26 @@ export default function PayrollRunModule() {
 
       setWs(workspace);
 
-      // 4) reset hold map
-      setHoldMap(new Map());
+      // 4) Load persisted hold and posted status if this is an existing run
+      if (activeRun && activeRun.payroll_run_id) {
+        const persistedHold = await svc.loadPersistedHoldMap(activeRun.payroll_run_id);
+        setHoldMap(persistedHold);
+
+        // If the run is POSTED, load posted employees (on_hold != 1) for read-only display
+        if (String(activeRun.status).toUpperCase() === "POSTED") {
+          const posted = await svc.loadPostedEmployeesMap(activeRun.payroll_run_id);
+          setPostedMap(posted);
+        } else {
+          setPostedMap(new Map());
+        }
+      } else {
+        // New run - reset both maps
+        setHoldMap(new Map());
+        setPostedMap(new Map());
+      }
 
       setStep(2);
+
     } catch (e: any) {
       toast.error(e?.message || "Failed to load payroll workspace");
     } finally {
@@ -290,8 +310,10 @@ export default function PayrollRunModule() {
     setRun(null);
     setWs(null);
     setHoldMap(new Map());
+    setPostedMap(new Map());
     setStep(1);
   }, []);
+
 
   // ✅ When PayrollAdjustStep confirms leaving (Start Over), execute reset here.
   useEffect(() => {
@@ -511,6 +533,7 @@ export default function PayrollRunModule() {
                   lines={computed.lines}
                   summary={computed.summary}
                   holdMap={holdMap}
+                  postedMap={postedMap}
                   onToggleHold={toggleHold}
                   onRecompute={async () => {
                     try {

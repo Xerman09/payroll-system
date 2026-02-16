@@ -1155,7 +1155,7 @@ function holdMapEquals(a: Map<number, boolean>, b: Map<number, boolean>): boolea
   return true;
 }
 
-async function loadPersistedHoldMap(payrollRunId: number): Promise<Map<number, boolean>> {
+export async function loadPersistedHoldMap(payrollRunId: number): Promise<Map<number, boolean>> {
   const pid = n(payrollRunId);
   const map = new Map<number, boolean>();
   if (!pid) return map;
@@ -1179,6 +1179,38 @@ async function loadPersistedHoldMap(payrollRunId: number): Promise<Map<number, b
 
   return map;
 }
+
+/**
+ * Load posted employees map from payroll_run_employee.
+ * Returns a map of user_id -> true for employees that are posted (on_hold != 1).
+ * This is used in the payroll rerun scenario to make posted employees read-only.
+ */
+export async function loadPostedEmployeesMap(payrollRunId: number): Promise<Map<number, boolean>> {
+  const pid = n(payrollRunId);
+  const map = new Map<number, boolean>();
+  if (!pid) return map;
+
+  const rows = await safeList<any>(
+    RES.payrollLines,
+    {
+      "filter[payroll_run_id][_eq]": pid,
+      "filter[on_hold][_neq]": 1,  // Get employees that are NOT on hold (i.e., posted)
+      limit: 50000,
+      fields: "user_id,on_hold",
+      sort: "user_id",
+    },
+    [],
+  );
+
+  for (const r of rows ?? []) {
+    const uid = n(r?.user_id);
+    if (!uid) continue;
+    map.set(uid, true);  // Mark as posted
+  }
+
+  return map;
+}
+
 
 /**
  * Enforces on-hold behavior:
