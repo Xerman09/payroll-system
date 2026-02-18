@@ -16,6 +16,7 @@ import {
   fetchBenefitSettings,
   fetchUsers,
   saveBenefitSetting,
+  fetchCutoffSettings,
 } from "./providers/benefitApi";
 
 import BenefitLoansTab from "./components/BenefitLoansTab";
@@ -47,6 +48,8 @@ export default function BenefitSettingsModule() {
     return m;
   }, [users]);
 
+  const [cutoffs, setCutoffs] = React.useState<any[]>([]);
+
   const [settings, setSettings] = React.useState<
     Record<BenefitCode, BenefitSetting>
   >({
@@ -63,8 +66,13 @@ export default function BenefitSettingsModule() {
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
-      const [u, s] = await Promise.all([fetchUsers(), fetchBenefitSettings()]);
+      const [u, s, c] = await Promise.all([
+        fetchUsers(),
+        fetchBenefitSettings(),
+        fetchCutoffSettings(), // Re-using existing export from benefitApi
+      ]);
       setUsers(u);
+      setCutoffs(c);
 
       const byCode: Record<BenefitCode, BenefitSetting> = {
         SSS: makeDefaultSetting("SSS", "SSS"),
@@ -74,6 +82,18 @@ export default function BenefitSettingsModule() {
 
       for (const row of s) {
         byCode[row.benefit_code] = row;
+      }
+
+      // SYNC: Ensure effective dates match current cutoff settings if already set
+      for (const code of Object.keys(byCode) as BenefitCode[]) {
+        const setting = byCode[code];
+        if (setting.cutoff) {
+          const match = c.find((x) => x.cutoff_type === setting.cutoff);
+          if (match) {
+            setting.effective_from = match.start_date;
+            setting.effective_to = match.end_date;
+          }
+        }
       }
 
       setSettings(byCode);
@@ -99,25 +119,37 @@ export default function BenefitSettingsModule() {
   const onCutoff = React.useCallback(
     (code: BenefitCode, newValue: BenefitSetting["cutoff"]) => {
       setStatus("idle");
-      setSettings((prev) => ({
-        ...prev,
-        [code]: { ...prev[code], cutoff: newValue },
-      }));
+      setSettings((prev) => {
+        const next = { ...prev };
+        const setting = { ...next[code], cutoff: newValue };
+
+        // Auto-set dates based on selected cutoff
+        if (newValue) {
+          const match = cutoffs.find((c) => c.cutoff_type === newValue);
+          if (match) {
+            setting.effective_from = match.start_date;
+            setting.effective_to = match.end_date;
+          }
+        } else {
+           setting.effective_from = null;
+           setting.effective_to = null;
+        }
+        
+        next[code] = setting;
+        return next;
+      });
     },
-    []
+    [cutoffs]
   );
 
+  // No-op for manual date change since inputs satisfy read-only requirement
   const onDateChange = React.useCallback(
     (
       code: BenefitCode,
       field: "effective_from" | "effective_to",
       val: string
     ) => {
-      setStatus("idle");
-      setSettings((prev) => ({
-        ...prev,
-        [code]: { ...prev[code], [field]: val || null },
-      }));
+      // Intentionally empty or strictly controlled
     },
     []
   );
@@ -131,6 +163,14 @@ export default function BenefitSettingsModule() {
 
       for (const b of BENEFITS) {
         const row = settings[b.code];
+        // Ensure we save the correct derived dates
+        if (row.cutoff) {
+             const match = cutoffs.find((c) => c.cutoff_type === row.cutoff);
+             if (match) {
+                 row.effective_from = match.start_date;
+                 row.effective_to = match.end_date;
+             }
+        }
         await saveBenefitSetting({ ...row, updated_by: updatedBy });
       }
 
@@ -143,7 +183,7 @@ export default function BenefitSettingsModule() {
     } finally {
       setSaving(false);
     }
-  }, [settings, load]);
+  }, [settings, load, cutoffs]);
 
   return (
     <DashboardLayout>
@@ -178,7 +218,6 @@ export default function BenefitSettingsModule() {
                   setting={settings[b.code]}
                   getUserName={getUserName}
                   onCutoff={onCutoff}
-                  onDateChange={onDateChange}
                 />
               ))
             )}

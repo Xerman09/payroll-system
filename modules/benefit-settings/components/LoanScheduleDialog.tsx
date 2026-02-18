@@ -85,8 +85,8 @@ export default function LoanScheduleDialog(props: {
                   No computed schedule (start cutoff not found).
                 </div>
               ) : (
-                sched.all.map((c, idx) => {
-                  const isPaid = sched.paid.some((x) => x.id === c.id);
+                sched.all.map((c: CutoffSetting, idx: number) => {
+                  const isPaid = sched.paid.some((x: CutoffSetting) => x.id === c.id);
                   return (
                     <div
                       key={c.id}

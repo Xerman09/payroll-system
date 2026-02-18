@@ -156,7 +156,7 @@ export async function saveBenefitSetting(setting: BenefitSetting) {
 // --------------------
 export async function fetchCutoffSettings(): Promise<CutoffSetting[]> {
   const json = await apiFetch(
-    "/items/cutoff_settings?limit=500&sort=start_date&fields=id,cutoff_type,start_date,end_date"
+    "/items/cutoff_settings?limit=500&sort=start_date&fields=id,cutoff_type,start_date,end_date,period_status"
   );
   return json.data || [];
 }

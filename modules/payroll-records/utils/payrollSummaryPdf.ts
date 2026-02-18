@@ -223,18 +223,24 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
   let cashAdd = 0, cashRemove = 0, cashPrevNet = 0, cashCurrNet = 0, cashCurrEmp = 0, cashPrevEmp = 0;
 
   for (const c of args.data || []) {
+    const cCurrEmps = c?.currEmps || [];
+    const cPrevEmps = c?.prevEmps || [];
+
+    const calculatedCurrNet = cCurrEmps.reduce((sum: number, e: any) => sum + Number(e.net_pay || 0), 0);
+    const calculatedPrevNet = cPrevEmps.reduce((sum: number, e: any) => sum + Number(e.net_pay || 0), 0);
+
     companySums.push({
       name: safeStr(c?.companyName, "—"),
-      prevNet: Number(c?.prevRun?.total_net || 0),
-      currNet: Number(c?.currentRun?.total_net || 0),
+      prevNet: calculatedPrevNet,
+      currNet: calculatedCurrNet,
     });
   }
 
   // ─────────────────────────────────────────────
-  // 1.1) PROCESS DATA FOR SUMMARIES (Main Company ONLY - 8056)
+  // 1.1) PROCESS DATA FOR SUMMARIES (Main Entity Detection)
   // ─────────────────────────────────────────────
   const mainDeptMap = new Map<string, DeptSummary>();
-  const mainCompany = (args.data || []).find(c => c.companyName?.includes("8056")) || (args.data || [])[0];
+  const mainCompany = (args.data || []).find(c => c.isMain) || (args.data || [])[0];
 
   if (mainCompany) {
     const mCurrEmps = mainCompany.currEmps || [];
@@ -303,14 +309,35 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
     });
   }
 
-  const grandPrevNet = bankPrevNet + cashPrevNet;
-  const grandCurrNet = bankCurrNet + cashCurrNet;
-  const grandCurrEmp = bankCurrEmp + cashCurrEmp;
-  const grandPrevEmp = bankPrevEmp + cashPrevEmp;
+  const grandPrevNet = companySums.reduce((a, c) => a + c.prevNet, 0);
+  const grandCurrNet = companySums.reduce((a, c) => a + c.currNet, 0);
+  const grandCurrEmp = (args.data || []).reduce((a, c) => a + (c.currEmps?.length || 0), 0);
+  const grandPrevEmp = (args.data || []).reduce((a, c) => a + (c.prevEmps?.length || 0), 0);
+
+  // Re-calculate these from ALL employees if we want global counts
+  let globalBankAdd = 0, globalBankRemove = 0, globalCashAdd = 0, globalCashRemove = 0;
+  for (const c of args.data || []) {
+    const mCurrEmps = c.currEmps || [];
+    const mPrevEmps = c.prevEmps || [];
+    const mCurrIds = new Set(mCurrEmps.map((e: any) => e.user_id));
+    const mPrevIds = new Set(mPrevEmps.map((e: any) => e.user_id));
+
+    mCurrEmps.forEach((e: any) => {
+      if (!mPrevIds.has(e.user_id)) {
+        if (Number(e.is_card) === 1) globalBankAdd++; else globalCashAdd++;
+      }
+    });
+    mPrevEmps.forEach((e: any) => {
+      if (!mCurrIds.has(e.user_id)) {
+        if (Number(e.is_card) === 1) globalBankRemove++; else globalCashRemove++;
+      }
+    });
+  }
 
   const reportCompany =
     safeStr(args?.meta?.companyName) ||
-    (args?.data?.length > 0 ? safeStr(args?.data?.[0]?.companyName, "Men2 Marketing Corporation") : "All Companies");
+    safeStr(mainCompany?.companyName) ||
+    "All Companies";
 
   const cutoffLabel = args?.meta?.currentCutoff
     ? `${fmtDate(args.meta.currentCutoff.start)} to ${fmtDate(args.meta.currentCutoff.end)}`
@@ -388,7 +415,7 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
       }
     };
 
-    drawKpi(M, "Total Employees", `${fmtInt(grandCurrEmp)} / ${fmtInt(grandPrevEmp)}`, `Add: ${fmtInt(bankAdd + cashAdd)}  •  Remove: ${fmtInt(bankRemove + cashRemove)}`);
+    drawKpi(M, "Total Employees", `${fmtInt(bankCurrEmp)} / ${fmtInt(bankPrevEmp)}`, `Add: ${fmtInt(bankAdd + cashAdd)}  •  Remove: ${fmtInt(bankRemove + cashRemove)}`);
     drawKpi(M + cardW + gap, "Previous Cutoff • Total Net", `PHP ${fmtMoney(bankPrevNet + cashPrevNet)}`);
     drawKpi(M + (cardW + gap) * 2, "Current Cutoff • Total Net", `PHP ${fmtMoney(bankCurrNet + cashCurrNet)}`);
 
@@ -431,7 +458,7 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
     const payRows = [
       { m: "BANK", pEmp: fmtInt(bankPrevEmp), cEmp: fmtInt(bankCurrEmp), add: dashIfZero(bankAdd), rem: dashIfZero(bankRemove), prev: fmtMoney(bankPrevNet), net: fmtMoney(bankCurrNet) },
       { m: "CASH", pEmp: fmtInt(cashPrevEmp), cEmp: fmtInt(cashCurrEmp), add: dashIfZero(cashAdd), rem: dashIfZero(cashRemove), prev: fmtMoney(cashPrevNet), net: fmtMoney(cashCurrNet) },
-      { m: "TOTAL", pEmp: fmtInt(grandPrevEmp), cEmp: fmtInt(grandCurrEmp), add: dashIfZero(bankAdd + cashAdd), rem: dashIfZero(bankRemove + cashRemove), prev: fmtMoney(grandPrevNet), net: fmtMoney(grandCurrNet) },
+      { m: "TOTAL", pEmp: fmtInt(bankPrevEmp + cashPrevEmp), cEmp: fmtInt(bankCurrEmp + cashCurrEmp), add: dashIfZero(bankAdd + cashAdd), rem: dashIfZero(bankRemove + cashRemove), prev: fmtMoney(bankPrevNet + cashPrevNet), net: fmtMoney(bankCurrNet + cashCurrNet) },
     ];
 
     drawTable({

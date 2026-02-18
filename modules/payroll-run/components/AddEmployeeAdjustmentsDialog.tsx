@@ -195,7 +195,7 @@ export function AddEmployeeAdjustmentsDialog({
             await updateRetroPay(entryId!, {
               amount: amt,
               description: description.trim() || null,
-              updated_by: createdBy ?? null,
+              created_by: createdBy ?? null,
             });
             toast.success("Retro Pay updated.");
           } else {
@@ -220,7 +220,7 @@ export function AddEmployeeAdjustmentsDialog({
           await updateOtherAddition(entryId!, {
             amount: amt,
             description: description.trim() || null,
-            updated_by: createdBy ?? null,
+            created_by: createdBy ?? null,
           });
           toast.success("Addition updated.");
         } else {
@@ -253,7 +253,7 @@ export function AddEmployeeAdjustmentsDialog({
             payment_date: drPaymentDate,
             amount_paid: paid,
             remarks: drRemarks.trim() || null,
-            updated_by: createdBy ?? null,
+            created_by: createdBy ?? null,
           });
           toast.success("Stock purchase (DR Payment) updated.");
         } else {
@@ -287,7 +287,7 @@ export function AddEmployeeAdjustmentsDialog({
           amount: amt,
           type: t,
           description: description.trim() || null,
-          updated_by: createdBy ?? null,
+          created_by: createdBy ?? null,
         });
         toast.success("Deduction updated.");
       } else {

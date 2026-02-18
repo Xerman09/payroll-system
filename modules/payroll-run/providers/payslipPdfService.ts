@@ -798,9 +798,9 @@ export async function downloadPayslipsPdf(args: {
     ) {
       if (lines.length === 0) return y0;
 
-      doc.setLineDash([1.5, 2], 0);
+      (doc as any).setLineDash([1.5, 2], 0);
       doc.line(x0, y0, x0 + w0, y0);
-      doc.setLineDash([], 0);
+      (doc as any).setLineDash([], 0);
 
       let yy = y0 + 9;
 

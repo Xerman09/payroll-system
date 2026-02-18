@@ -53,6 +53,7 @@ export default function CutoffSettingsModal({
       : "2nd Cutoff Configuration";
 
   function handleResetToDefault() {
+    if (!draft) return;
     const d = draft.cutoff_type === "FIRST" ? defaults.FIRST : defaults.SECOND;
 
     setDraft((prev) =>
@@ -67,6 +68,7 @@ export default function CutoffSettingsModal({
   }
 
   function handleSave() {
+    if (!draft) return;
     onConfirm(draft);
     onOpenChange(false);
   }

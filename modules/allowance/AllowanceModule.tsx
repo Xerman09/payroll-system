@@ -127,7 +127,7 @@ export default function AllowanceModule() {
       if (meta.mode === "one_time") {
         return {
           ...base,
-          is_recurring: 0,
+          is_recurring: 0 as const,
           pay_cycle: "N/A" as const,
           start_date: null,
           end_date: null,
@@ -142,7 +142,7 @@ export default function AllowanceModule() {
 
       return {
         ...base,
-        is_recurring: 1,
+        is_recurring: 1 as const,
         pay_cycle: meta.pay_cycle,
         start_date: meta.start_date,
         end_date: meta.end_date,

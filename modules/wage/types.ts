@@ -369,6 +369,8 @@ export type EmployeeAllowancePatchPayload = Partial<
 
 export type BenefitCode = "SSS" | "PAGIBIG";
 export type BenefitLoanDeductOn = "FIRST" | "SECOND" | "BOTH";
+/** Alias for BenefitLoanDeductOn – used by BenefitsTab */
+export type DeductOn = BenefitLoanDeductOn;
 export type BenefitLoanStatus = "ACTIVE" | "CLOSED" | "CANCELLED" | string;
 
 export type BenefitLoanRecord = {

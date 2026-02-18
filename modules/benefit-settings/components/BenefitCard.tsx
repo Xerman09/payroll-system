@@ -20,18 +20,12 @@ export default function BenefitCard({
   setting,
   getUserName,
   onCutoff,
-  onDateChange,
 }: {
   name: string;
   code: BenefitCode;
   setting: BenefitSetting | null;
   getUserName: (id: number | null) => string;
   onCutoff: (c: BenefitCode, newValue: BenefitSetting["cutoff"]) => void;
-  onDateChange: (
-    code: BenefitCode,
-    field: "effective_from" | "effective_to",
-    val: string
-  ) => void;
 }) {
   const s = setting;
 
@@ -60,8 +54,7 @@ export default function BenefitCard({
 
         {s && (
           <BenefitDates
-            value={s}
-            onChange={(field, val) => onDateChange(code, field, val)}
+             value={s}
           />
         )}
       </CardContent>

@@ -29,6 +29,7 @@ export interface CutoffSetting {
   cutoff_type: "FIRST" | "SECOND";
   start_date: string;
   end_date: string;
+  period_status?: string;
 }
 
 // === Benefit Loans (NEW) ===

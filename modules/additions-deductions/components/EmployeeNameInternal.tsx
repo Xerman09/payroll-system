@@ -1,5 +1,5 @@
 import React from "react";
-import type { User } from "../types";
+import type { User } from "@/modules/additions-deductions/types";
 
 function fullname(u?: User | null) {
   if (!u) return "Unknown";

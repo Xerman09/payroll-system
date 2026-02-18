@@ -196,7 +196,7 @@ export async function GET(req: NextRequest) {
       return json({ ...body, data: rows });
     }
 
-    // ✅ Company-wide Payroll Summary (Multi-DB Aggregator)
+    // ✅ Company-wide Payroll Summary (Dynamic Multi-DB Aggregator)
     if (type === "summary") {
       const cutoffStart = searchParams.get("cutoff_start");
       const cutoffEnd = searchParams.get("cutoff_end");
@@ -205,12 +205,42 @@ export async function GET(req: NextRequest) {
         return json({ error: "cutoff_start and cutoff_end are required" }, { status: 400 });
       }
 
-      const APIS = [
-        { name: "Company Name", url: process.env.API_BASE || process.env.NEXT_PUBLIC_API_BASE }, // 8056
-        { name: "Vertex", url: process.env.API_I }, // 8090
-        { name: "Men2", url: process.env.API_II }, // 8091
-        { name: "Hanvin", url: process.env.API_III }, // 8092
-      ].filter((x) => !!x.url);
+      // 1. Gather APIs from Environment Variables (Registry)
+      const APIS: any[] = [];
+
+      // Map prefixes to their names
+      const prefixes = ["BASE", "I", "II", "III", "IV", "V"];
+      for (const p of prefixes) {
+        const urlKey = p === "BASE" ? "API_BASE" : `API_${p}`;
+        const nameKey = `${urlKey}_NAME`;
+
+        const url = process.env[urlKey];
+        const name = process.env[nameKey];
+
+        if (url) {
+          APIS.push({
+            name: name || (p === "BASE" ? "Primary Company" : `Company ${p}`),
+            url: url,
+            isPrimary: p === "BASE",
+            isMain: p === "BASE"
+          });
+        }
+      }
+
+      // Check for Database Registry as a secondary fallback if no Env found
+      if (APIS.length === 0) {
+        const registryPath = `/items/company_registry?filter[status][_eq]=published&limit=-1`;
+        const registryData = await directusFetch(registryPath);
+        if (registryData.ok) {
+          const dbRows = pickArray(registryData.body).map((item: any) => ({
+            name: item.name,
+            url: item.api_url,
+            isPrimary: isTruthyFlag(item.is_primary),
+            isMain: isTruthyFlag(item.is_main)
+          }));
+          APIS.push(...dbRows);
+        }
+      }
 
       async function fetchFromApi(baseUrl: string, path: string) {
         const url = `${baseUrl}${path}`;
@@ -219,17 +249,18 @@ export async function GET(req: NextRequest) {
         return res.json().then((p) => pickArray(p));
       }
 
-      // 1. Find the PREVIOUS cutoff from the source (8056)
-      const sourceUrl = APIS[0].url!;
+      // 2. Find the PREVIOUS cutoff from the PRIMARY source
+      const primaryApi = APIS.find(a => a.isPrimary) || APIS[0];
+      const sourceUrl = primaryApi.url!;
       const histPath = `/items/cutoff_settings_history?sort=-event_at` +
         `&filter[start_date][_lt]=${cutoffStart}` +
         `&limit=1`;
       const prevHist = await fetchFromApi(sourceUrl, histPath);
       const prevCutoff = prevHist?.[0];
 
-      // 2. Fetch all data concurrently
+      // 3. Fetch all data concurrently
       console.log(`[Summary] Fetching data for cutoff: ${cutoffStart} to ${cutoffEnd}`);
-      console.log(`[Summary] Previous cutoff detected: ${prevCutoff ? `${prevCutoff.start_date} to ${prevCutoff.end_date}` : "None"}`);
+      console.log(`[Summary] Previous cutoff detected from ${primaryApi.name}: ${prevCutoff ? `${prevCutoff.start_date} to ${prevCutoff.end_date}` : "None"}`);
 
       const results = await Promise.all(
         APIS.map(async (api) => {
@@ -264,6 +295,7 @@ export async function GET(req: NextRequest) {
 
             return {
               companyName: api.name,
+              isMain: api.isMain,
               currentRun,
               prevRun,
               currEmps,
@@ -273,6 +305,7 @@ export async function GET(req: NextRequest) {
             console.error(`[Summary] Error fetching from ${api.name}:`, e);
             return {
               companyName: api.name,
+              isMain: api.isMain,
               currentRun: null,
               prevRun: null,
               currEmps: [],

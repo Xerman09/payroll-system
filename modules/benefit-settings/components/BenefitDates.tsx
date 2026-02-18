@@ -7,10 +7,8 @@ import { Clock } from "lucide-react";
 
 export default function BenefitDates({
   value,
-  onChange,
 }: {
   value: BenefitSetting;
-  onChange: (field: "effective_from" | "effective_to", val: string) => void;
 }) {
   return (
     <div className="space-y-3">
@@ -26,9 +24,9 @@ export default function BenefitDates({
           </Label>
           <Input
             type="date"
-            className="h-9 text-xs" // Standard compact height
+            className="h-9 text-xs bg-muted text-muted-foreground cursor-not-allowed" // Visually indicate read-only
             value={value.effective_from || ""}
-            onChange={(e) => onChange("effective_from", e.target.value)}
+            readOnly
           />
         </div>
 
@@ -38,9 +36,9 @@ export default function BenefitDates({
           </Label>
           <Input
             type="date"
-            className="h-9 text-xs"
+            className="h-9 text-xs bg-muted text-muted-foreground cursor-not-allowed"
             value={value.effective_to || ""}
-            onChange={(e) => onChange("effective_to", e.target.value)}
+            readOnly
           />
         </div>
       </div>

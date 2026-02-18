@@ -73,6 +73,7 @@ type LoanDraft = {
   loan_type: LoanType;
   months_to_pay: string;
   start_date: string;
+  end_date: string;
 
   monthly_payment: string; // auto
   interest_rate: string; // auto for COOP, else 0
@@ -80,6 +81,8 @@ type LoanDraft = {
   net_amount_released: string; // auto for COOP, else 0
 
   accumulated_amount: string;
+
+  status: string;
 };
 
 function isYmd(s: string) {
@@ -207,11 +210,13 @@ export default function WageModal({
       loan_type: "VALE",
       months_to_pay: "1",
       start_date: today,
+      end_date: "",
       monthly_payment: "0.00",
       interest_rate: "0.00",
       interest_amount: "0.00",
       net_amount_released: "0.00",
       accumulated_amount: "0.00",
+      status: "ACTIVE",
     };
   }, []);
 
@@ -395,11 +400,13 @@ export default function WageModal({
         loan_amount,
         months_to_pay,
         start_date,
+        end_date: (l.end_date || "").substring(0, 10),
         monthly_payment: computeMonthlyPayment(loan_amount, months_to_pay),
         interest_rate: money(l.interest_rate ?? 0),
         interest_amount: money(l.interest_amount ?? 0),
         net_amount_released: money(l.net_amount_released ?? 0),
         accumulated_amount: money(l.accumulated_amount ?? 0),
+        status: String(l.status ?? "ACTIVE"),
       };
 
       setLoanDraft(recomputeLoanDraft(base));
@@ -1441,7 +1448,6 @@ export default function WageModal({
                         className={`rounded-xl border bg-white p-5 shadow-sm dark:bg-slate-950 ${TABLE_FIT_SCOPE}`}
                       >
                         <SavingsTab
-                          ui={ui}
                           selectedEmployee={selectedEmployee}
                           open={open}
                         />

@@ -707,7 +707,7 @@ export function AllowanceTab({
                     // ONE_TIME
                     const next = {
                       ...p,
-                      mode: "ONE_TIME",
+                      mode: "ONE_TIME" as AllowanceMode,
                       pay_cycle: "N/A" as const,
                       start_date: "",
                       end_date: "",
