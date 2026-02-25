@@ -21,6 +21,7 @@ import { exportCoopPdf, CoopPaperSize } from "../../utils/coopExportPdf";
 import { listItems } from "../../providers/coopApi";
 import { Label } from "@/components/ui/label";
 import { CutoffSetting } from "@/modules/benefit-settings/types";
+import { fetchCompanyConfig } from "@/modules/benefit-settings/providers/benefitApi";
 
 interface PrintPreviewModalProps {
   isOpen: boolean;
@@ -44,18 +45,25 @@ export function PrintPreviewModal({
   const [isGenerating, setIsGenerating] = useState(false);
   const [cutoffs, setCutoffs] = useState<CutoffSetting[]>([]);
   const [selectedCutoff, setSelectedCutoff] = useState<string>("all");
+  const [companyName, setCompanyName] = useState<string>("MEN2 MARKETING CORPORATION");
 
   useEffect(() => {
     if (isOpen) {
       const fetchCutoffs = async () => {
         try {
-          const { data: list } = await listItems<CutoffSetting>("cutoff_settings", {
-            limit: "100",
-            sort: "-start_date",
-          });
+          const [{ data: list }, config] = await Promise.all([
+            listItems<CutoffSetting>("cutoff_settings", {
+              limit: "100",
+              sort: "-start_date",
+            }),
+            fetchCompanyConfig()
+          ]);
           setCutoffs(list);
+          if (config?.companyName) {
+            setCompanyName(config.companyName);
+          }
         } catch (error) {
-          console.error("Failed to fetch cutoffs:", error);
+          console.error("Failed to fetch cutoffs or config:", error);
         }
       };
       fetchCutoffs();
@@ -73,6 +81,7 @@ export function PrintPreviewModal({
         statusFilter,
         cutoffId: selectedCutoff === "all" ? undefined : Number(selectedCutoff),
         cutoffs,
+        companyName,
       });
 
       const blob = doc.output("blob");

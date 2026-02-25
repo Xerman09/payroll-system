@@ -11,6 +11,15 @@ import type {
 
 const BASE_API = "/api/benefit";
 
+export async function fetchCompanyConfig(): Promise<{ companyName: string }> {
+  try {
+    const res = await fetch(`${BASE_API}?path=config`);
+    return res.ok ? await res.json() : { companyName: "MEN2 MARKETING CORPORATION" };
+  } catch {
+    return { companyName: "MEN2 MARKETING CORPORATION" };
+  }
+}
+
 
 async function apiFetch(path: string, options?: RequestInit) {
   const res = await fetch(`${BASE_API}?path=${encodeURIComponent(path)}`, options);

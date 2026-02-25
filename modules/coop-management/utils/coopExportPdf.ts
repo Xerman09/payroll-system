@@ -20,8 +20,9 @@ export async function exportCoopPdf(args: {
   statusFilter?: string;
   cutoffId?: number;
   cutoffs?: CutoffSetting[];
+  companyName?: string;
 }) {
-  const { paper, type, data: rawData, searchTerm, statusFilter, cutoffId, cutoffs } = args;
+  const { paper, type, data: rawData, searchTerm, statusFilter, cutoffId, cutoffs, companyName } = args;
 
   const [{ jsPDF }, autoTableMod] = await Promise.all([
     import("jspdf"),
@@ -66,13 +67,25 @@ export async function exportCoopPdf(args: {
     let headerY = 50;
     setText(DARK_BLUE);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.text("MEN2 MARKETING", pageW - marginX, headerY, { align: "right" });
 
-    headerY += 18;
-    setText(CYAN);
-    doc.setFontSize(10);
-    doc.text("CORPORATIONS ", pageW - marginX, headerY, { align: "right" });
+    const nameStr = (companyName || "").toUpperCase().trim();
+    const lastSpaceIdx = nameStr.lastIndexOf(" ");
+
+    if (lastSpaceIdx === -1) {
+      doc.setFontSize(22);
+      doc.text(nameStr || "MEN2 MARKETING", pageW - marginX, headerY, { align: "right" });
+    } else {
+      const p1 = nameStr.substring(0, lastSpaceIdx);
+      const p2 = nameStr.substring(lastSpaceIdx + 1);
+
+      doc.setFontSize(22);
+      doc.text(p1, pageW - marginX, headerY, { align: "right" });
+
+      headerY += 18;
+      setText(CYAN);
+      doc.setFontSize(10);
+      doc.text(p2, pageW - marginX, headerY, { align: "right" });
+    }
 
     // Divider Line
     headerY += 15;
@@ -165,7 +178,7 @@ export async function exportCoopPdf(args: {
     setText([255, 255, 255]);
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
-    doc.text("VERTEX TECHNOLOGIES CORPORATIONS", marginX, footerY + 30);
+    doc.text((companyName || "VERTEX TECHNOLOGIES CORPORATIONS").toUpperCase(), marginX, footerY + 30);
 
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");

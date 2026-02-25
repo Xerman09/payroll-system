@@ -192,8 +192,9 @@ export async function GET(req: NextRequest) {
       // ✅ HARD FILTER (extra safety)
       const body = r.body ?? {};
       const rows = pickArray(body).filter((row: any) => !isTruthyFlag(row?.on_hold));
+      const companyName = process.env.API_BASE_NAME || "COMPANY NAME";
 
-      return json({ ...body, data: rows });
+      return json({ ...body, data: rows, meta: { companyName } });
     }
 
     // ✅ Company-wide Payroll Summary (Dynamic Multi-DB Aggregator)

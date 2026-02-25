@@ -127,6 +127,7 @@ function drawRightFitted(args: {
 }
 
 export async function buildTapSheetPdf(args: {
+  companyName?: string;
   departmentName: string;
   cutoffStart: string;
   cutoffEnd: string;
@@ -207,7 +208,8 @@ export async function buildTapSheetPdf(args: {
     doc.setFont(fontFamily, "bold");
     doc.setFontSize(14);
     doc.setTextColor(255, 255, 255);
-    doc.text("MEN2 MARKETING CORPORATION", pageW / 2, marginTop + 14, { align: "center" });
+    const companyLabel = (args.companyName || "MEN2 MARKETING CORPORATION").toUpperCase();
+    doc.text(companyLabel, pageW / 2, marginTop + 14, { align: "center" });
 
     // 2. Document Title (Subtle Ribbon)
     const titleY = headerBandH + 18;

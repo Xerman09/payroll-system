@@ -44,7 +44,7 @@ export async function fetchTapSheet(args: {
   cutoffStart: string;
   cutoffEnd: string;
   departmentName: string;
-}): Promise<PayrollRunEmployeeRow[]> {
+}): Promise<{ data: PayrollRunEmployeeRow[]; meta?: { companyName?: string } }> {
   const qs = new URLSearchParams({
     type: "top-sheet",
     cutoff_start: args.cutoffStart,
@@ -52,6 +52,9 @@ export async function fetchTapSheet(args: {
     department_name: args.departmentName,
   });
 
-  const data = await getJson<{ data: PayrollRunEmployeeRow[] }>(`${BASE}?${qs.toString()}`);
-  return Array.isArray(data?.data) ? data.data : [];
+  const data = await getJson<{ data: PayrollRunEmployeeRow[]; meta?: { companyName?: string } }>(`${BASE}?${qs.toString()}`);
+  return {
+    data: Array.isArray(data?.data) ? data.data : [],
+    meta: data?.meta,
+  };
 }

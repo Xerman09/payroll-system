@@ -123,6 +123,7 @@ export default function TapSheetTab({
   const [loading, setLoading] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
   const [rowsRaw, setRowsRaw] = React.useState<any[]>([]);
+  const [companyName, setCompanyName] = React.useState<string>("MEN2 MARKETING CORPORATION");
 
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
@@ -156,17 +157,20 @@ export default function TapSheetTab({
 
       try {
         setLoading(true);
-        const data = await fetchTapSheet({
+        const res = await fetchTapSheet({
           cutoffStart: cutoff.start,
           cutoffEnd: cutoff.end,
           departmentName,
         });
 
         // ✅ safety-net filter (backend should already filter, but keep this)
-        const filtered = (Array.isArray(data) ? data : []).filter(
+        const filtered = res.data.filter(
           (r: any) => !isTruthyFlag(r?.on_hold),
         );
         setRowsRaw(filtered);
+        if (res.meta?.companyName) {
+          setCompanyName(res.meta.companyName);
+        }
       } catch (e) {
         console.error(e);
         toast.error("Failed to load Top Sheet data.");
@@ -287,6 +291,7 @@ export default function TapSheetTab({
     );
 
     const doc = await buildTapSheetPdf({
+      companyName,
       departmentName,
       cutoffStart: cutoff.start,
       cutoffEnd: cutoff.end,

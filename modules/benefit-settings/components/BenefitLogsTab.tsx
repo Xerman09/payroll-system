@@ -14,6 +14,7 @@ import type {
 import {
   fetchBenefitLogs,
   fetchCutoffSettings,
+  fetchCompanyConfig,
   cutoffLabel,
   formatMoney,
 } from "../providers/benefitApi";
@@ -61,6 +62,7 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
+  const [companyName, setCompanyName] = React.useState("MEN2 MARKETING CORPORATION");
 
   const [cutoffs, setCutoffs] = React.useState<CutoffSetting[]>([]);
   const cutoffMap = React.useMemo(
@@ -90,12 +92,16 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
-      const [c, l] = await Promise.all([
+      const [c, l, config] = await Promise.all([
         fetchCutoffSettings(),
         fetchBenefitLogs(),
+        fetchCompanyConfig(),
       ]);
       setCutoffs(c);
       setRows(l);
+      if (config?.companyName) {
+        setCompanyName(config.companyName);
+      }
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to load benefit logs.");
     } finally {
@@ -491,6 +497,7 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
         initialBenefit={benefit}
         initialType={type}
         initialPaper={paper}
+        companyName={companyName}
       />
     </div>
   );

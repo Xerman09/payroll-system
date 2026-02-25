@@ -45,6 +45,7 @@ interface BenefitExportPreviewDialogProps {
   initialBenefit: BenefitCode | "ALL";
   initialType: "ALL" | "CONTRIBUTION" | "LOAN";
   initialPaper: BenefitLogsPaperSize;
+  companyName: string;
 }
 
 export default function BenefitExportPreviewDialog({
@@ -56,6 +57,7 @@ export default function BenefitExportPreviewDialog({
   initialBenefit,
   initialType,
   initialPaper,
+  companyName,
 }: BenefitExportPreviewDialogProps) {
   const [cutoffRange, setCutoffRange] = React.useState<string>(initialCutoffRange);
   const [benefit, setBenefit] = React.useState<BenefitCode | "ALL">(initialBenefit);
@@ -90,7 +92,7 @@ export default function BenefitExportPreviewDialog({
     try {
       const doc = await exportBenefitLogsPdf({
         paper,
-        companyName: "Vertex Technologies Corporations",
+        companyName,
         title: benefit === "ALL" ? "Benefit Logs Summary" : `${benefit} Benefit Logs`,
         users,
         cutoffRange,

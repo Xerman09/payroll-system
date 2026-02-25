@@ -54,6 +54,10 @@ async function forward(req: NextRequest) {
     return NextResponse.json({ error: "Missing ?path=" }, { status: 400 });
   }
 
+  if (path === "config") {
+    return NextResponse.json({ companyName: process.env.API_BASE_NAME || "MEN2 MARKETING CORPORATION" });
+  }
+
   const targetUrl = joinUrl(DIRECTUS_BASE, path);
 
   const method = req.method.toUpperCase();
