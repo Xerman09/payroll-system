@@ -34,8 +34,7 @@ export async function exportBenefitLogsPdf(args: {
   title?: string;
 
   users: UserData[];
-  cutoffs: CutoffSetting[];
-  cutoffId: string; // "ALL" or id string
+  cutoffRange: string; // "ALL" or start_end
   benefit: BenefitCode | "ALL";
   type: "ALL" | "CONTRIBUTION" | "LOAN";
   search: string;
@@ -47,8 +46,7 @@ export async function exportBenefitLogsPdf(args: {
     companyName = "Vertex Technology Corps.",
     title = "Benefit Logs (Deduction Report)",
     users,
-    cutoffs,
-    cutoffId,
+    cutoffRange,
     benefit,
     type,
     search,
@@ -146,12 +144,13 @@ export async function exportBenefitLogsPdf(args: {
 
     // --- Summary Statistics (Only on First Page) ---
     if (isFirstPage) {
-      const cutoffLabelText =
-        cutoffId === "ALL"
-          ? "All Cutoffs"
+      const periodLabelText =
+        cutoffRange === "ALL" || cutoffRange === "UNKNOWN"
+          ? "All Records"
           : (() => {
-            const c = cutoffs.find((x) => String(x.id) === String(cutoffId));
-            return c ? cutoffLabel(c) : `Cutoff #${cutoffId}`;
+            const [start, end] = cutoffRange.split("_");
+            const format = (d: string) => new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+            return `Cutoff: ${format(start)} - ${format(end)}`;
           })();
 
       const uniqueEmployees = new Set(rows.map((r) => r.user_id)).size;
@@ -163,7 +162,7 @@ export async function exportBenefitLogsPdf(args: {
       doc.setFont("helvetica", "bold");
 
       const headerStats = [
-        `PERIOD: ${cutoffLabelText.toUpperCase()}`,
+        `PERIOD: ${periodLabelText.toUpperCase()}`,
         `TOTAL EMPLOYEES: ${uniqueEmployees}`,
         `GRAND TOTAL: PHP ${formatMoney(grandTotal)}`
       ].join("   |   ");
@@ -253,8 +252,10 @@ export async function exportBenefitLogsPdf(args: {
           })
           : "—";
 
+        const uId = typeof r.user_id === "object" ? (r.user_id as any)?.user_id : r.user_id;
+
         return [
-          r.employee_name || userName(users, r.user_id),
+          r.employee_name || userName(users, uId),
           r.account_no || "—",
           formatMoney(r.deducted_amount || 0),
           postedDate,

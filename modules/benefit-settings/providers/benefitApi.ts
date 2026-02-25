@@ -260,6 +260,9 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
     "benefit_pagibig",
     "benefit_loan_sss",
     "benefit_loan_pagibig",
+    "cutoff_start",
+    "cutoff_end",
+    "cutoff_type",
     "payroll_run_id.payroll_ref_no",
     "payroll_run_id.payroll_run_id",
     "payroll_run_id.posted_at",
@@ -273,6 +276,12 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
   const fieldsManual = [
     "*",
     "user_id.*", // Fetch related user data
+    "cutoff_start",
+    "cutoff_end",
+    "cutoff_type",
+    "payroll_run_id.cutoff_start",
+    "payroll_run_id.cutoff_end",
+    "payroll_run_id.cutoff_type"
   ].join(",");
   const pathManual = `/items/benefit_logs?limit=5000&sort=-created_date&fields=${fieldsManual}`;
 
@@ -285,21 +294,22 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
   const rowsManual = (jsonManual?.data || []) as any[];
 
   // 3. Merging Logic using Map
-  // Key: `${cutoff_id}|${user_id}|${benefit_code}|${log_type}|${loan_id ?? 'null'}`
+  // Key: `${cutoff_id}|${user_id}|${benefit_code}|${log_type}|${loan_id ?? 'null'}|${payroll_run_id}`
   const logMap = new Map<string, BenefitLogRow>();
 
   // Helper to generate key
   const getKey = (r: BenefitLogRow) => {
-    return `${r.cutoff_id}|${r.user_id}|${r.benefit_code}|${r.log_type}|${r.loan_id ?? "null"}`;
+    return `${r.cutoff_id}|${r.user_id}|${r.benefit_code}|${r.log_type}|${r.loan_id ?? "null"}|${r.payroll_run_id || "null"}`;
   };
 
   // 2.a Build a 'has loan detail' lookup from Manual logs to suppress System summaries
-  // Key: `${cutoff_id}|${user_id}|${benefit_code}`
+  // Key: `${cutoff_id}|${user_id}|${benefit_code}|${payroll_run_id}`
   const hasLoanDetail = new Set<string>();
   for (const r of rowsManual) {
     if (r.log_type === "LOAN" && r.benefit_code) {
       const uId = r.user_id?.user_id || r.user_id;
-      hasLoanDetail.add(`${r.cutoff_id}|${uId}|${r.benefit_code}`);
+      const pId = r.payroll_run_id || "null";
+      hasLoanDetail.add(`${r.cutoff_id}|${uId}|${r.benefit_code}|${pId}`);
     }
   }
 
@@ -311,6 +321,9 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
 
     const common = {
       cutoff_id: r.cutoff_id,
+      cutoff_start: r.cutoff_start || null,
+      cutoff_end: r.cutoff_end || null,
+      cutoff_type: r.cutoff_type || null,
       user_id: uId,
       employee_name: fullnameFromUser(user),
       payroll_run_id: r.payroll_run_id?.payroll_run_id || r.payroll_run_id,
@@ -366,7 +379,7 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
     // If we have detailed loan logs manually (loan_id != null), suppress these summary rows.)
 
     // Check SSS Loan Detail
-    const hasSssLoan = hasLoanDetail.has(`${r.cutoff_id}|${uId}|SSS`);
+    const hasSssLoan = hasLoanDetail.has(`${r.cutoff_id}|${uId}|SSS|${r.payroll_run_id?.payroll_run_id || r.payroll_run_id || "null"}`);
     if (!hasSssLoan && toNum(r.benefit_loan_sss) > 0) {
       pushToMap({
         ...common,
@@ -380,7 +393,7 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
     }
 
     // Check Pagibig Loan Detail
-    const hasPagibigLoan = hasLoanDetail.has(`${r.cutoff_id}|${uId}|PAGIBIG`);
+    const hasPagibigLoan = hasLoanDetail.has(`${r.cutoff_id}|${uId}|PAGIBIG|${r.payroll_run_id?.payroll_run_id || r.payroll_run_id || "null"}`);
     if (!hasPagibigLoan && toNum(r.benefit_loan_pagibig) > 0) {
       pushToMap({
         ...common,
@@ -412,6 +425,9 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
       benefit_code: r.benefit_code,
       benefit_name: r.benefit_code === "PAGIBIG" ? "Pag-IBIG" : r.benefit_code === "PHILHEALTH" ? "PhilHealth" : r.benefit_code,
       cutoff_id: r.cutoff_id,
+      cutoff_start: r.cutoff_start || (typeof r.payroll_run_id === "object" && r.payroll_run_id !== null ? r.payroll_run_id?.cutoff_start : null),
+      cutoff_end: r.cutoff_end || (typeof r.payroll_run_id === "object" && r.payroll_run_id !== null ? r.payroll_run_id?.cutoff_end : null),
+      cutoff_type: r.cutoff_type || (typeof r.payroll_run_id === "object" && r.payroll_run_id !== null ? r.payroll_run_id?.cutoff_type : null),
       user_id: r.user_id?.user_id || r.user_id,
       employee_name: fullnameFromUser(user),
 
@@ -421,7 +437,7 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
       source_amount: r.source_amount ? toNum(r.source_amount) : 0,
       deducted_amount: toNum(r.deducted_amount),
 
-      payroll_run_id: r.payroll_run_id,
+      payroll_run_id: typeof r.payroll_run_id === "object" ? r.payroll_run_id?.id : r.payroll_run_id,
       payroll_ref_no: refNo,
 
       note: r.note,
@@ -450,6 +466,13 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
       // If manual log has a specific payroll ref (from payroll_detail_id), use it
       if (manualRow.payroll_ref_no !== "Manual") {
         existing.payroll_ref_no = manualRow.payroll_ref_no;
+      }
+
+      // Preserve cutoff date ranges if manual log has them
+      if (manualRow.cutoff_start && manualRow.cutoff_end) {
+        existing.cutoff_start = manualRow.cutoff_start;
+        existing.cutoff_end = manualRow.cutoff_end;
+        existing.cutoff_type = manualRow.cutoff_type;
       }
 
       // We keep the 'existing' object in the map, effectively updating it in-place.

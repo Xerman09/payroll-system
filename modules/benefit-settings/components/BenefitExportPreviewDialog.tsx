@@ -6,7 +6,7 @@ import { FileDown, Search, Filter } from "lucide-react";
 import { formatMoney } from "../providers/benefitApi";
 import type { BenefitLogRow, BenefitCode, UserData, CutoffSetting } from "../types";
 import { exportBenefitLogsPdf, type BenefitLogsPaperSize } from "../utils/benefitLogsPdf";
-import { cutoffLabel } from "../providers/benefitApi";
+import { cutoffLabel, fullnameFromUser } from "../providers/benefitApi";
 import { PdfPreviewModal } from "@/components/PdfPreviewModal";
 
 import {
@@ -41,8 +41,7 @@ interface BenefitExportPreviewDialogProps {
   onOpenChange: (open: boolean) => void;
   allRows: BenefitLogRow[];
   users: UserData[];
-  cutoffs: CutoffSetting[];
-  initialCutoffId: string;
+  initialCutoffRange: string;
   initialBenefit: BenefitCode | "ALL";
   initialType: "ALL" | "CONTRIBUTION" | "LOAN";
   initialPaper: BenefitLogsPaperSize;
@@ -53,13 +52,12 @@ export default function BenefitExportPreviewDialog({
   onOpenChange,
   allRows,
   users,
-  cutoffs,
-  initialCutoffId,
+  initialCutoffRange,
   initialBenefit,
   initialType,
   initialPaper,
 }: BenefitExportPreviewDialogProps) {
-  const [cutoffId, setCutoffId] = React.useState<string>(initialCutoffId);
+  const [cutoffRange, setCutoffRange] = React.useState<string>(initialCutoffRange);
   const [benefit, setBenefit] = React.useState<BenefitCode | "ALL">(initialBenefit);
   const [type, setType] = React.useState<"ALL" | "CONTRIBUTION" | "LOAN">(initialType);
   const [paper, setPaper] = React.useState<BenefitLogsPaperSize>(initialPaper);
@@ -69,12 +67,19 @@ export default function BenefitExportPreviewDialog({
 
   const filtered = React.useMemo(() => {
     return allRows.filter((r) => {
-      if (cutoffId !== "ALL" && String(r.cutoff_id) !== cutoffId) return false;
+      if (cutoffRange !== "ALL") {
+        if (cutoffRange === "UNKNOWN") {
+          if (r.cutoff_start || r.cutoff_end) return false;
+        } else {
+          const key = `${r.cutoff_start}_${r.cutoff_end}`;
+          if (key !== cutoffRange) return false;
+        }
+      }
       if (benefit !== "ALL" && r.benefit_code !== benefit) return false;
       if (type !== "ALL" && r.log_type !== type) return false;
       return true;
     });
-  }, [allRows, cutoffId, benefit, type]);
+  }, [allRows, cutoffRange, benefit, type]);
 
   const totals = React.useMemo(() => {
     return filtered.reduce((acc, r) => acc + (r.deducted_amount || 0), 0);
@@ -88,8 +93,7 @@ export default function BenefitExportPreviewDialog({
         companyName: "Vertex Technologies Corporations",
         title: benefit === "ALL" ? "Benefit Logs Summary" : `${benefit} Benefit Logs`,
         users,
-        cutoffs,
-        cutoffId,
+        cutoffRange,
         benefit,
         type,
         search: "", 
@@ -120,17 +124,40 @@ export default function BenefitExportPreviewDialog({
               <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
                 Cutoff
               </label>
-              <Select value={cutoffId} onValueChange={setCutoffId}>
+              <Select value={cutoffRange} onValueChange={setCutoffRange}>
                 <SelectTrigger className="bg-slate-50 dark:bg-gray-800 h-auto min-h-[36px] py-1 flex-wrap whitespace-normal text-left dark:border-gray-700 dark:text-gray-100">
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
                 <SelectContent className="max-w-[400px] dark:bg-gray-900 dark:border-gray-800">
                   <SelectItem value="ALL" className="dark:text-gray-200 dark:focus:bg-gray-800">All Cutoffs</SelectItem>
-                  {cutoffs.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {cutoffLabel(c)}
-                    </SelectItem>
-                  ))}
+                  {(() => {
+                    const uniqueRanges = new Map<string, string>();
+                    const fmt = (dStr: string) => {
+                      const d = new Date(dStr);
+                      if (Number.isNaN(d.getTime())) return dStr;
+                      return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+                    };
+                    
+                    for (const r of allRows) {
+                      if (r.cutoff_start && r.cutoff_end) {
+                        const key = `${r.cutoff_start}_${r.cutoff_end}`;
+                        if (!uniqueRanges.has(key)) {
+                          uniqueRanges.set(key, `${fmt(r.cutoff_start)} – ${fmt(r.cutoff_end)}`);
+                        }
+                      } else {
+                        uniqueRanges.set("UNKNOWN", "Unknown Cutoff");
+                      }
+                    }
+
+                    // Sort ranges visually
+                    const sortedRanges = Array.from(uniqueRanges.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+
+                    return sortedRanges.map(([key, label]) => (
+                      <SelectItem key={key} value={key}>
+                        {label}
+                      </SelectItem>
+                    ));
+                  })()}
                 </SelectContent>
               </Select>
             </div>
@@ -217,9 +244,13 @@ export default function BenefitExportPreviewDialog({
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filtered.map((r) => (
+                    filtered.map((r) => {
+                      const uId = typeof r.user_id === "object" ? (r.user_id as any)?.user_id : r.user_id;
+                      const u = users.find((x) => x.user_id === uId);
+                      const name = r.employee_name || (u ? fullnameFromUser(u) : `User #${uId}`);
+                      return (
                       <TableRow key={r.benefit_log_id} className="text-xs border-b dark:border-gray-800">
-                        <TableCell className="font-medium dark:text-gray-200">{r.employee_name}</TableCell>
+                        <TableCell className="font-medium dark:text-gray-200">{name}</TableCell>
                         <TableCell className="font-mono text-slate-500 dark:text-gray-400">{r.account_no || "—"}</TableCell>
                         <TableCell className="text-right font-semibold dark:text-gray-100">{formatMoney(r.deducted_amount)}</TableCell>
                         <TableCell>
@@ -229,7 +260,8 @@ export default function BenefitExportPreviewDialog({
                         </TableCell>
                         <TableCell className="font-mono dark:text-gray-300">{r.benefit_code}</TableCell>
                       </TableRow>
-                    ))
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>

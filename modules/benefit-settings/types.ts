@@ -77,6 +77,10 @@ export interface BenefitLogRow {
   benefit_log_id: string | number; // unique key for UI
 
   cutoff_id: number;
+  cutoff_start?: string | null;
+  cutoff_end?: string | null;
+  cutoff_type?: string | null;
+
   user_id: number;
   employee_name?: string;
   account_no?: string | null;

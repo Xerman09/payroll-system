@@ -293,6 +293,9 @@ CREATE TABLE payroll_run_access_log (
 CREATE TABLE `benefit_logs` (
   `benefit_log_id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `cutoff_id` int unsigned NOT NULL,
+  `cutoff_start` date DEFAULT NULL,
+  `cutoff_end` date DEFAULT NULL,
+  `cutoff_type` enum('FIRST','SECOND') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
   `user_id` int NOT NULL,
   `benefit_code` enum('SSS','PAGIBIG','PHILHEALTH') NOT NULL,
   `log_type` enum('CONTRIBUTION','LOAN') NOT NULL DEFAULT 'CONTRIBUTION',

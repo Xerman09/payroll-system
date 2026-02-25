@@ -72,7 +72,7 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
 
   // Filters
   const [q, setQ] = React.useState("");
-  const [cutoffId, setCutoffId] = React.useState<string>("ALL");
+  const [cutoffRange, setCutoffRange] = React.useState<string>("ALL");
   const [benefit, setBenefit] = React.useState<BenefitCode | "ALL">("ALL");
   const [type, setType] = React.useState<"ALL" | "CONTRIBUTION" | "LOAN">(
     "ALL"
@@ -124,7 +124,14 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
     const needle = q.trim().toLowerCase();
 
     return rows.filter((r) => {
-      if (cutoffId !== "ALL" && String(r.cutoff_id) !== cutoffId) return false;
+      if (cutoffRange !== "ALL") {
+        if (cutoffRange === "UNKNOWN") {
+          if (r.cutoff_start || r.cutoff_end) return false;
+        } else {
+          const key = `${r.cutoff_start}_${r.cutoff_end}`;
+          if (key !== cutoffRange) return false;
+        }
+      }
       if (benefit !== "ALL" && r.benefit_code !== benefit) return false;
       if (type !== "ALL" && r.log_type !== type) return false;
 
@@ -142,7 +149,7 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
         String(r.user_id).includes(needle)
       );
     });
-  }, [rows, q, cutoffId, benefit, type, users]);
+  }, [rows, q, cutoffRange, benefit, type, users]);
 
   const totals = React.useMemo(() => {
     const sumBy: Record<string, number> = {
@@ -186,17 +193,40 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
 
             <div className="space-y-1">
               <div className="text-xs font-medium text-slate-600 dark:text-gray-400">Cutoff</div>
-              <Select value={cutoffId} onValueChange={setCutoffId}>
+              <Select value={cutoffRange} onValueChange={setCutoffRange}>
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">All</SelectItem>
-                  {cutoffs.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {cutoffLabel(c)}
-                    </SelectItem>
-                  ))}
+                  {(() => {
+                    const uniqueRanges = new Map<string, string>();
+                    const fmt = (dStr: string) => {
+                      const d = new Date(dStr);
+                      if (Number.isNaN(d.getTime())) return dStr;
+                      return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+                    };
+                    
+                    for (const r of rows) {
+                      if (r.cutoff_start && r.cutoff_end) {
+                        const key = `${r.cutoff_start}_${r.cutoff_end}`;
+                        if (!uniqueRanges.has(key)) {
+                          uniqueRanges.set(key, `${fmt(r.cutoff_start)} – ${fmt(r.cutoff_end)}`);
+                        }
+                      } else {
+                        uniqueRanges.set("UNKNOWN", "Unknown Cutoff");
+                      }
+                    }
+
+                    // Sort ranges descending by explicit date bounds
+                    const sortedRanges = Array.from(uniqueRanges.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+
+                    return sortedRanges.map(([key, label]) => (
+                      <SelectItem key={key} value={key}>
+                        {label}
+                      </SelectItem>
+                    ));
+                  })()}
                 </SelectContent>
               </Select>
             </div>
@@ -457,8 +487,7 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
         onOpenChange={setPreviewOpen}
         allRows={rows}
         users={users}
-        cutoffs={cutoffs}
-        initialCutoffId={cutoffId}
+        initialCutoffRange={cutoffRange}
         initialBenefit={benefit}
         initialType={type}
         initialPaper={paper}

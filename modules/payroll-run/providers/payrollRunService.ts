@@ -2508,15 +2508,18 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
   const payrollRunId = n(args.payrollRunId);
   if (!payrollRunId) return;
 
-  // 1. Fetch header to get cutoff_id
+  // 1. Fetch header to get cutoff_id and dates
   const header = await api.getItem<PayrollRunHeader>(RES.payrollRun, payrollRunId, {
-    fields: "cutoff_id",
+    fields: "cutoff_id,cutoff_start,cutoff_end,cutoff_type",
   });
   if (!header?.cutoff_id) {
     console.warn(`[createBenefitLogs] Missing cutoff_id for run ${payrollRunId}`);
     return;
   }
   const cutoffId = n(header.cutoff_id);
+  const cutoffStart = header.cutoff_start ?? null;
+  const cutoffEnd = header.cutoff_end ?? null;
+  const cutoffType = header.cutoff_type ?? null;
   const payrollDetailId = String(args.payrollRefNo);
 
   // 2. Fetch all employee lines (excluding on-hold)
@@ -2578,6 +2581,9 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
     if (sss > 0) {
       contributionLogs.push({
         cutoff_id: cutoffId,
+        cutoff_start: cutoffStart,
+        cutoff_end: cutoffEnd,
+        cutoff_type: cutoffType,
         user_id: userId,
         benefit_code: "SSS",
         log_type: "CONTRIBUTION",
@@ -2590,6 +2596,9 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
     if (ph > 0) {
       contributionLogs.push({
         cutoff_id: cutoffId,
+        cutoff_start: cutoffStart,
+        cutoff_end: cutoffEnd,
+        cutoff_type: cutoffType,
         user_id: userId,
         benefit_code: "PHILHEALTH",
         log_type: "CONTRIBUTION",
@@ -2602,6 +2611,9 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
     if (hdmf > 0) {
       contributionLogs.push({
         cutoff_id: cutoffId,
+        cutoff_start: cutoffStart,
+        cutoff_end: cutoffEnd,
+        cutoff_type: cutoffType,
         user_id: userId,
         benefit_code: "PAGIBIG",
         log_type: "CONTRIBUTION",
@@ -2624,6 +2636,9 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
             deducted_amount: payload.deducted_amount,
             payroll_run_id: payload.payroll_run_id,
             payroll_detail_id: payload.payroll_detail_id,
+            cutoff_start: payload.cutoff_start,
+            cutoff_end: payload.cutoff_end,
+            cutoff_type: payload.cutoff_type,
           });
         } else {
           await api.createItem(RES.benefitLogs, payload);
@@ -2682,6 +2697,9 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
       if (loanId > 0 && amt > 0 && (code === "SSS" || code === "PAGIBIG")) {
         loanLogs.push({
           cutoff_id: cutoffId,
+          cutoff_start: cutoffStart,
+          cutoff_end: cutoffEnd,
+          cutoff_type: cutoffType,
           user_id: userId,
           benefit_code: code as BenefitCode,
           log_type: "LOAN",
@@ -2706,6 +2724,9 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
             deducted_amount: payload.deducted_amount,
             payroll_run_id: payload.payroll_run_id,
             payroll_detail_id: payload.payroll_detail_id,
+            cutoff_start: payload.cutoff_start,
+            cutoff_end: payload.cutoff_end,
+            cutoff_type: payload.cutoff_type,
           });
         } else {
           await api.createItem(RES.benefitLogs, payload);
