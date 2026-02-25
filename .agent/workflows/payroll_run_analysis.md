@@ -289,6 +289,7 @@ CREATE TABLE payroll_run_access_log (
 );
 
 -- Benefit Logs (Inserted during Posting Phase)
+```sql
 CREATE TABLE `benefit_logs` (
   `benefit_log_id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `cutoff_id` int unsigned NOT NULL,
@@ -303,7 +304,7 @@ CREATE TABLE `benefit_logs` (
   `note` varchar(255) DEFAULT NULL,
   `created_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`benefit_log_id`),
-  UNIQUE KEY `uq_blog_unique` (`cutoff_id`,`user_id`,`benefit_code`,`log_type`,`loan_id`),
+  UNIQUE KEY `uq_blog_unique` (`cutoff_id`,`user_id`,`benefit_code`,`log_type`,`loan_id`,`payroll_run_id`),
   KEY `idx_blog_cutoff` (`cutoff_id`),
   KEY `idx_blog_user_cutoff` (`user_id`,`cutoff_id`),
   KEY `idx_blog_benefit` (`benefit_code`),

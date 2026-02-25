@@ -2545,13 +2545,13 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
   const userIdSet = new Set(userIds);
 
   // A1. Fetch existing CONTRIBUTION logs for affected users in this cutoff, build lookup map.
-  const existingContribMap = new Map<string, number>(); // key: "userId|benefitCode" → record id
+  const existingContribMap = new Map<string, number>(); // key: "userId|benefitCode|payrollRunId" → record id
   const allContributions = await safeList<any>(
     RES.benefitLogs,
     {
       "filter[cutoff_id][_eq]": cutoffId,
       "filter[log_type][_eq]": "CONTRIBUTION",
-      fields: "benefit_log_id,user_id,benefit_code",
+      fields: "benefit_log_id,user_id,benefit_code,payroll_run_id",
       limit: 5000,
     },
     [],
@@ -2560,7 +2560,8 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
   for (const log of allContributions.filter(l => userIdSet.has(n(l.user_id)))) {
     const id = n(log.benefit_log_id ?? log.id);
     if (!id) continue;
-    const key = `${n(log.user_id)}|${String(log.benefit_code).toUpperCase()}`;
+    const pId = n(log.payroll_run_id);
+    const key = `${n(log.user_id)}|${String(log.benefit_code).toUpperCase()}|${pId}`;
     existingContribMap.set(key, id);
   }
 
@@ -2614,7 +2615,7 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
 
   if (contributionLogs.length > 0) {
     const insTasks = contributionLogs.map(payload => async () => {
-      const key = `${payload.user_id}|${String(payload.benefit_code).toUpperCase()}`;
+      const key = `${payload.user_id}|${String(payload.benefit_code).toUpperCase()}|${payrollRunId}`;
       const existingId = existingContribMap.get(key);
       try {
         if (existingId) {
@@ -2642,13 +2643,13 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
 
   // B1. Fetch existing LOAN logs for affected users in this cutoff, build lookup map.
   // ⚠️ Same as above: avoid _in filter, fetch all loans for this cutoff and filter in JS.
-  const existingLoanMap = new Map<string, number>(); // key: "userId|benefitCode|loanId" → record id
+  const existingLoanMap = new Map<string, number>(); // key: "userId|benefitCode|loanId|payrollRunId" → record id
   const allLoans = await safeList<any>(
     RES.benefitLogs,
     {
       "filter[cutoff_id][_eq]": cutoffId,
       "filter[log_type][_eq]": "LOAN",
-      fields: "benefit_log_id,user_id,benefit_code,loan_id",
+      fields: "benefit_log_id,user_id,benefit_code,loan_id,payroll_run_id",
       limit: 5000,
     },
     [],
@@ -2657,7 +2658,8 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
   for (const log of allLoans.filter(l => userIdSet.has(n(l.user_id)))) {
     const id = n(log.benefit_log_id ?? log.id);
     if (!id) continue;
-    const key = `${n(log.user_id)}|${String(log.benefit_code).toUpperCase()}|${n(log.loan_id)}`;
+    const pId = n(log.payroll_run_id);
+    const key = `${n(log.user_id)}|${String(log.benefit_code).toUpperCase()}|${n(log.loan_id)}|${pId}`;
     existingLoanMap.set(key, id);
   }
 
@@ -2669,7 +2671,8 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
 
     const breakdown = normalizeJsonOrNull(emp.breakdown_json);
     const deductions = breakdown?.deductions ?? {};
-    const benefitLoanItems = arr<any>(deductions?.benefit_loans?.items);
+    const bLoansRaw = deductions?.benefit_loans;
+    const benefitLoanItems = Array.isArray(bLoansRaw) ? bLoansRaw : arr<any>(bLoansRaw?.items);
 
     for (const item of benefitLoanItems) {
       const loanId = n(item.loan_id ?? item.id);
@@ -2694,7 +2697,7 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
 
   if (loanLogs.length > 0) {
     const loanTasks = loanLogs.map(payload => async () => {
-      const key = `${payload.user_id}|${String(payload.benefit_code).toUpperCase()}|${n(payload.loan_id)}`;
+      const key = `${payload.user_id}|${String(payload.benefit_code).toUpperCase()}|${n(payload.loan_id)}|${payrollRunId}`;
       const existingId = existingLoanMap.get(key);
       try {
         if (existingId) {
