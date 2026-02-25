@@ -270,10 +270,11 @@ export default function BenefitLoanModal(props: {
           max-h-[90vh]
           overflow-hidden
           p-0
+          dark:bg-gray-900 dark:border-gray-800
         "
       >
         <div className="flex flex-col max-h-[90vh]">
-          <DialogHeader className="px-6 pt-6 pb-3 border-b">
+          <DialogHeader className="px-6 pt-6 pb-3 border-b dark:border-gray-800">
             <DialogTitle>
               {isEdit ? "Edit Benefit Loan" : "Add Benefit Loan"}
             </DialogTitle>
@@ -283,17 +284,17 @@ export default function BenefitLoanModal(props: {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex-1 overflow-y-auto px-6 py-4 dark:bg-gray-900">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {/* Employee Picker */}
               <div className="space-y-2">
-                <Label className="text-xs">Employee</Label>
+                <Label className="text-xs dark:text-gray-300">Employee</Label>
                 <Popover open={userPickerOpen} onOpenChange={setUserPickerOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       role="combobox"
-                      className="h-9 w-full justify-between"
+                      className="h-9 w-full justify-between dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
                     >
                       {selectedUser
                         ? userLabel(selectedUser)
@@ -303,13 +304,13 @@ export default function BenefitLoanModal(props: {
                   </PopoverTrigger>
 
                   <PopoverContent
-                    className="w-[--radix-popover-trigger-width] max-w-[95vw] p-0"
+                    className="w-[--radix-popover-trigger-width] max-w-[95vw] p-0 dark:bg-gray-900 dark:border-gray-800"
                     align="start"
                   >
-                    <Command>
-                      <CommandInput placeholder="Search employee…" />
+                    <Command className="dark:bg-gray-900">
+                      <CommandInput placeholder="Search employee…" className="dark:text-gray-100" />
                       <CommandList>
-                        <CommandEmpty>No employee found.</CommandEmpty>
+                        <CommandEmpty className="dark:text-gray-400">No employee found.</CommandEmpty>
                         <CommandGroup>
                           {users.map((u) => (
                             <CommandItem
@@ -319,6 +320,7 @@ export default function BenefitLoanModal(props: {
                                 setForm((p) => ({ ...p, user_id: u.user_id }));
                                 setUserPickerOpen(false);
                               }}
+                              className="dark:text-gray-200 dark:aria-selected:bg-gray-800"
                             >
                               <Check
                                 className={`mr-2 h-4 w-4 ${
@@ -339,7 +341,7 @@ export default function BenefitLoanModal(props: {
 
               {/* Benefit */}
               <div className="space-y-2">
-                <Label className="text-xs">Benefit</Label>
+                <Label className="text-xs dark:text-gray-300">Benefit</Label>
                 <Select
                   value={(form.benefit_code ?? "SSS") as LoanBenefitCode}
                   onValueChange={(v) =>
@@ -349,21 +351,21 @@ export default function BenefitLoanModal(props: {
                     }))
                   }
                 >
-                  <SelectTrigger className="h-9">
+                  <SelectTrigger className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="SSS">SSS</SelectItem>
-                    <SelectItem value="PAGIBIG">PAGIBIG</SelectItem>
+                  <SelectContent className="dark:bg-gray-900 dark:border-gray-800">
+                    <SelectItem value="SSS" className="dark:text-gray-200 dark:focus:bg-gray-800">SSS</SelectItem>
+                    <SelectItem value="PAGIBIG" className="dark:text-gray-200 dark:focus:bg-gray-800">PAGIBIG</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Loan Name */}
               <div className="space-y-2">
-                <Label className="text-xs">Loan Name</Label>
+                <Label className="text-xs dark:text-gray-300">Loan Name</Label>
                 <Input
-                  className="h-9"
+                  className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 placeholder:text-gray-500"
                   value={form.loan_name ?? ""}
                   onChange={(e) =>
                     setForm((p) => ({
@@ -377,9 +379,9 @@ export default function BenefitLoanModal(props: {
 
               {/* Reference */}
               <div className="space-y-2">
-                <Label className="text-xs">Reference No</Label>
+                <Label className="text-xs dark:text-gray-300">Reference No</Label>
                 <Input
-                  className="h-9"
+                  className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 placeholder:text-gray-500"
                   value={form.reference_no ?? ""}
                   onChange={(e) =>
                     setForm((p) => ({
@@ -393,9 +395,9 @@ export default function BenefitLoanModal(props: {
 
               {/* Principal */}
               <div className="space-y-2">
-                <Label className="text-xs">Principal Amount</Label>
+                <Label className="text-xs dark:text-gray-300">Principal Amount</Label>
                 <Input
-                  className="h-9"
+                  className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                   inputMode="decimal"
                   value={String(form.principal_amount ?? 0)}
                   onChange={(e) =>
@@ -409,9 +411,9 @@ export default function BenefitLoanModal(props: {
 
               {/* Interest Rate (%) */}
               <div className="space-y-2">
-                <Label className="text-xs">Interest Rate (%)</Label>
+                <Label className="text-xs dark:text-gray-300">Interest Rate (%)</Label>
                 <Input
-                  className="h-9"
+                  className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 placeholder:text-gray-500"
                   inputMode="decimal"
                   value={interestRatePct}
                   onChange={(e) => setInterestRatePct(e.target.value)}
@@ -421,9 +423,9 @@ export default function BenefitLoanModal(props: {
 
               {/* Auto: Interest */}
               <div className="space-y-2">
-                <Label className="text-xs">Interest Amount (Auto)</Label>
+                <Label className="text-xs dark:text-gray-300">Interest Amount (Auto)</Label>
                 <Input
-                  className="h-9"
+                  className="h-9 bg-muted/50 dark:bg-gray-800/50 dark:border-gray-700 dark:text-gray-400 cursor-not-allowed"
                   readOnly
                   value={fmtMoney(form.interest_amount)}
                 />
@@ -431,9 +433,9 @@ export default function BenefitLoanModal(props: {
 
               {/* Auto: Total */}
               <div className="space-y-2">
-                <Label className="text-xs">Total Payable (Auto)</Label>
+                <Label className="text-xs dark:text-gray-300">Total Payable (Auto)</Label>
                 <Input
-                  className="h-9"
+                  className="h-9 bg-muted/50 dark:bg-gray-800/50 dark:border-gray-700 dark:text-gray-400 cursor-not-allowed"
                   readOnly
                   value={fmtMoney(form.total_payable)}
                 />
@@ -441,9 +443,9 @@ export default function BenefitLoanModal(props: {
 
               {/* Terms */}
               <div className="space-y-2">
-                <Label className="text-xs">Terms (Installments)</Label>
+                <Label className="text-xs dark:text-gray-300">Terms (Installments)</Label>
                 <Input
-                  className="h-9"
+                  className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                   inputMode="numeric"
                   value={String(form.terms_installments ?? 1)}
                   onChange={(e) =>
@@ -457,9 +459,9 @@ export default function BenefitLoanModal(props: {
 
               {/* Auto: Amortization */}
               <div className="space-y-2">
-                <Label className="text-xs">Amortization Amount (Auto)</Label>
+                <Label className="text-xs dark:text-gray-300">Amortization Amount (Auto)</Label>
                 <Input
-                  className="h-9"
+                  className="h-9 bg-muted/50 dark:bg-gray-800/50 dark:border-gray-700 dark:text-gray-400 cursor-not-allowed"
                   readOnly
                   value={fmtMoney(form.amortization_amount)}
                 />
@@ -467,39 +469,39 @@ export default function BenefitLoanModal(props: {
 
               {/* Deduct On */}
               <div className="space-y-2">
-                <Label className="text-xs">Deduct On</Label>
+                <Label className="text-xs dark:text-gray-300">Deduct On</Label>
                 <Select
                   value={(form.deduct_on ?? "BOTH") as DeductOn}
                   onValueChange={(v) =>
                     setForm((p) => ({ ...p, deduct_on: v as DeductOn }))
                   }
                 >
-                  <SelectTrigger className="h-9">
+                  <SelectTrigger className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="BOTH">Both Cutoffs</SelectItem>
-                    <SelectItem value="FIRST">1st Cutoff Only</SelectItem>
-                    <SelectItem value="SECOND">2nd Cutoff Only</SelectItem>
+                  <SelectContent className="dark:bg-gray-900 dark:border-gray-800">
+                    <SelectItem value="BOTH" className="dark:text-gray-200 dark:focus:bg-gray-800">Both Cutoffs</SelectItem>
+                    <SelectItem value="FIRST" className="dark:text-gray-200 dark:focus:bg-gray-800">1st Cutoff Only</SelectItem>
+                    <SelectItem value="SECOND" className="dark:text-gray-200 dark:focus:bg-gray-800">2nd Cutoff Only</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Start Cutoff */}
               <div className="space-y-2 sm:col-span-2">
-                <Label className="text-xs">Start Cutoff</Label>
+                <Label className="text-xs dark:text-gray-300">Start Cutoff</Label>
                 <Select
                   value={String(form.start_cutoff_id ?? 0)}
                   onValueChange={(v) =>
                     setForm((p) => ({ ...p, start_cutoff_id: Number(v) }))
                   }
                 >
-                  <SelectTrigger className="h-9">
+                  <SelectTrigger className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="dark:bg-gray-900 dark:border-gray-800">
                     {cutoffs.map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)}>
+                      <SelectItem key={c.id} value={String(c.id)} className="dark:text-gray-200 dark:focus:bg-gray-800">
                         {cutoffLabel(c)}
                       </SelectItem>
                     ))}
@@ -509,29 +511,29 @@ export default function BenefitLoanModal(props: {
 
               {/* Status */}
               <div className="space-y-2">
-                <Label className="text-xs">Status</Label>
+                <Label className="text-xs dark:text-gray-300">Status</Label>
                 <Select
                   value={(form.status ?? "ACTIVE") as BenefitLoanStatus}
                   onValueChange={(v) =>
                     setForm((p) => ({ ...p, status: v as BenefitLoanStatus }))
                   }
                 >
-                  <SelectTrigger className="h-9">
+                  <SelectTrigger className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ACTIVE">Active</SelectItem>
-                    <SelectItem value="CLOSED">Closed</SelectItem>
-                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                  <SelectContent className="dark:bg-gray-900 dark:border-gray-800">
+                    <SelectItem value="ACTIVE" className="dark:text-gray-200 dark:focus:bg-gray-800">Active</SelectItem>
+                    <SelectItem value="CLOSED" className="dark:text-gray-200 dark:focus:bg-gray-800">Closed</SelectItem>
+                    <SelectItem value="CANCELLED" className="dark:text-gray-200 dark:focus:bg-gray-800">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Auto: Remaining */}
               <div className="space-y-2">
-                <Label className="text-xs">Remaining Balance (Auto)</Label>
+                <Label className="text-xs dark:text-gray-300">Remaining Balance (Auto)</Label>
                 <Input
-                  className="h-9"
+                  className="h-9 bg-muted/50 dark:bg-gray-800/50 dark:border-gray-700 dark:text-gray-400 cursor-not-allowed"
                   readOnly
                   value={fmtMoney(form.remaining_balance)}
                 />
@@ -539,8 +541,9 @@ export default function BenefitLoanModal(props: {
 
               {/* Remarks */}
               <div className="space-y-2 sm:col-span-2">
-                <Label className="text-xs">Remarks</Label>
+                <Label className="text-xs dark:text-gray-300">Remarks</Label>
                 <Textarea
+                  className="dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 placeholder:text-gray-500"
                   value={form.remarks ?? ""}
                   onChange={(e) =>
                     setForm((p) => ({ ...p, remarks: e.target.value || null }))
@@ -551,7 +554,7 @@ export default function BenefitLoanModal(props: {
             </div>
           </div>
 
-          <DialogFooter className="px-6 py-4 border-t bg-background">
+          <DialogFooter className="px-6 py-4 border-t dark:border-gray-800 bg-background dark:bg-gray-900">
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}

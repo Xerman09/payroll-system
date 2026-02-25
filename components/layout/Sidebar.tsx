@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -53,7 +54,7 @@ function Sidebar() {
             title: "COOP",
             href: "/dashboard/coop",
             icon: <PiggyBank size={20} />,
-          },
+          },  /*
           {
             title: "Retro Pay",
             href: "/dashboard/retro",
@@ -68,7 +69,7 @@ function Sidebar() {
             title: "Allowance Management",
             href: "/dashboard/allowance-management",
             icon: <Wallet size={20} />,
-          },
+          }, */
           {
             title: "Holiday Calendar",
             href: "/dashboard/calendar-management",
@@ -112,21 +113,25 @@ function Sidebar() {
 
   return (
     <TooltipProvider disableHoverableContent>
-      <aside
-        className={cn(
-          "fixed top-0 left-0 h-screen flex flex-col z-50 shadow-xl",
-          "hidden md:flex",
-          collapsed
-            ? "w-20 bg-gray-200 dark:bg-gray-800"
-            : "w-[250px] bg-gray-100 dark:bg-gray-900",
-          mobileOpen && "flex w-full md:hidden"
-        )}
-        style={{
-          contain: "layout paint",
-          willChange: "width",
-          backfaceVisibility: "hidden",
-        }}
-      >
+      <AnimatePresence>
+        {(typeof window !== "undefined" ? window.innerWidth >= 768 : true) ||
+        mobileOpen ? (
+          <motion.aside
+            initial={mobileOpen ? { x: "-100%" } : { width: collapsed ? 80 : 250 }}
+            animate={mobileOpen ? { x: 0 } : { width: collapsed ? 80 : 250 }}
+            exit={{ x: "-100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className={cn(
+              "fixed top-0 left-0 h-screen flex flex-col z-50 shadow-xl",
+              "bg-gray-100 dark:bg-gray-900 border-r border-gray-300 dark:border-gray-700",
+              collapsed && "bg-gray-200 dark:bg-gray-800",
+              mobileOpen ? "w-full md:w-[250px]" : "hidden md:flex"
+            )}
+            style={{
+              contain: "layout paint",
+              backfaceVisibility: "hidden",
+            }}
+          >
         {/* Header */}
         <div className="flex items-center justify-between h-[65px] px-4 border-b border-gray-300 dark:border-gray-700">
           <div
@@ -143,13 +148,22 @@ function Sidebar() {
         {/* Collapse Button */}
         <button
           onClick={() => {
-            toggle();
-            if (mobileOpen) setMobileOpen(false);
+            if (mobileOpen) {
+              setMobileOpen(false);
+            } else {
+              toggle();
+            }
           }}
           className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 text-black dark:text-white shadow-lg transition-transform"
           style={{ willChange: "transform" }}
         >
-          {collapsed ? <Menu size={22} /> : <ChevronLeft size={22} />}
+          {mobileOpen ? (
+            <ChevronLeft size={22} />
+          ) : collapsed ? (
+            <Menu size={22} />
+          ) : (
+            <ChevronLeft size={22} />
+          )}
         </button>
 
         {/* Navigation */}
@@ -194,8 +208,10 @@ function Sidebar() {
             </div>
           ))}
         </div>
-      </aside>
-    </TooltipProvider>
+      </motion.aside>
+    ) : null}
+  </AnimatePresence>
+</TooltipProvider>
   );
 }
 

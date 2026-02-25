@@ -13,6 +13,9 @@ import type {
   BenefitCode,
   DeductOn,
   BenefitLoanStatus,
+  BenefitLogRecord,
+  BenefitLogDraft,
+  BenefitLogCreatePayload,
 } from "../../types";
 import * as wageApi from "../../providers/wageApi";
 
@@ -619,6 +622,170 @@ export function BenefitsTab({
     },
     [cutoffs.length, cutoffsLoading, ensureCutoffs]
   );
+
+  // =========================
+  // Section 3: Benefit Logs (Manual)
+  // =========================
+  const [logsLoading, setLogsLoading] = React.useState(false);
+  const [logsRows, setLogsRows] = React.useState<BenefitLogRecord[]>([]);
+  const [logFormOpen, setLogFormOpen] = React.useState(false);
+  const [editingLogId, setEditingLogId] = React.useState<number | null>(null);
+
+  // Pagination for logs
+  const [logPage, setLogPage] = React.useState(1);
+  const LOG_PAGE_SIZE = 5;
+
+  const defaultLogDraft = React.useCallback((): BenefitLogDraft => {
+    return {
+      benefit_code: "SSS",
+      cutoff_period: "1",
+      payroll_id_input: "",
+      deducted_amount: "0.00",
+      note: "",
+      created_date: new Date().toISOString().split("T")[0],
+    };
+  }, []);
+
+  const [logDraft, setLogDraft] = React.useState<BenefitLogDraft>(defaultLogDraft);
+
+  const resetLogDraft = React.useCallback(() => {
+    setLogDraft(defaultLogDraft());
+    setEditingLogId(null);
+  }, [defaultLogDraft]);
+
+  const loadBenefitLogs = React.useCallback(async () => {
+    if (!selectedEmployee) return;
+    setLogsLoading(true);
+    try {
+      const list = await wageApi.fetchBenefitLogsByUser(selectedEmployee.user_id);
+      setLogsRows(list);
+    } catch (e: any) {
+      console.error("[BenefitsTab] load logs failed", e);
+      toast.error(e?.message || "Failed to load benefit logs.");
+    } finally {
+      setLogsLoading(false);
+    }
+  }, [selectedEmployee]);
+
+  React.useEffect(() => {
+    if (open && selectedEmployee) {
+      void loadBenefitLogs();
+    }
+  }, [open, selectedEmployee, loadBenefitLogs]);
+
+  const saveBenefitLog = React.useCallback(async () => {
+    if (!selectedEmployee) return;
+    const loggedUserId = getLoggedUserId();
+    if (!loggedUserId) {
+      toast.error("User session missing.");
+      return;
+    }
+
+    const amt = toNum(logDraft.deducted_amount);
+    if (amt <= 0) {
+      toast.error("Deducted amount must be greater than 0.");
+      return;
+    }
+
+    if (!logDraft.created_date) {
+      toast.error("Date is required.");
+      return;
+    }
+
+    // Logic: payroll_run_id is always 0. 
+    // payroll_detail_id takes the input value.
+    const payrollRunId = 0;
+    const payrollDetailId = logDraft.payroll_id_input.trim() || null;
+
+    setSaving(true);
+    try {
+      const payload: any = {
+        benefit_code: logDraft.benefit_code,
+        cutoff_id: Number(logDraft.cutoff_period),
+        log_type: "CONTRIBUTION",
+        loan_id: null,
+        source_amount: 0, // Manual log usually implies just the deduction
+        deducted_amount: amt,
+        payroll_run_id: payrollRunId,
+        payroll_detail_id: payrollDetailId,
+        note: logDraft.note.trim() || null,
+        created_date: logDraft.created_date,
+        updated_by: loggedUserId,
+      };
+
+      if (editingLogId) {
+         await wageApi.patchBenefitLog(editingLogId, payload);
+         toast.success("Benefit log updated.");
+      } else {
+         payload.user_id = selectedEmployee.user_id;
+         payload.created_by = loggedUserId;
+         await wageApi.createBenefitLog(payload);
+         toast.success("Benefit log created.");
+      }
+      
+      setLogFormOpen(false);
+      resetLogDraft();
+      await loadBenefitLogs();
+    } catch (e: any) {
+      console.error("[BenefitsTab] save log failed", e);
+      toast.error(e?.message || "Failed to save benefit log.");
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    selectedEmployee,
+    logDraft,
+    editingLogId,
+    loadBenefitLogs,
+    resetLogDraft
+  ]);
+
+  const deleteBenefitLog = React.useCallback(async (id: number) => {
+    if (!window.confirm("Delete this benefit log?")) return;
+    setSaving(true);
+    try {
+      await wageApi.deleteBenefitLog(id);
+      toast.success("Benefit log deleted.");
+      await loadBenefitLogs();
+    } catch (e: any) {
+        console.error("[BenefitsTab] delete log failed", e);
+        toast.error(e?.message || "Failed to delete benefit log.");
+    } finally {
+      setSaving(false);
+    }
+  }, [loadBenefitLogs]);
+
+  const startEditLog = React.useCallback((r: BenefitLogRecord) => {
+    setEditingLogId(r.benefit_log_id);
+    
+    // Reverse map cutoff_id (1 or preferably use string)
+    const cPeriod = String(r.cutoff_id) === "2" ? "2" : "1";
+    
+    // If payroll_run_id was 0, we used detail_id as the "ID"
+    // But here we just map back what we stored.
+    // The requirement said: "display logic... if 0 display detail_id"
+    // For editing, we map the fields back to inputs.
+    
+    setLogDraft({
+        benefit_code: r.benefit_code,
+        cutoff_period: cPeriod as any,
+        payroll_id_input: r.payroll_detail_id || "", 
+        deducted_amount: fmtMoneyPlain(r.deducted_amount),
+        note: r.note || "",
+        created_date: (r.created_date || "").substring(0, 10),
+    });
+    setLogFormOpen(true);
+  }, []);
+
+  // Pagination Logic for Logs
+  const totalLogPages = Math.ceil(logsRows.length / LOG_PAGE_SIZE);
+  const currentLogPage = Math.min(Math.max(1, logPage), Math.max(1, totalLogPages));
+  const pagedLogs = React.useMemo(() => {
+    const start = (currentLogPage - 1) * LOG_PAGE_SIZE;
+    return logsRows.slice(start, start + LOG_PAGE_SIZE);
+  }, [logsRows, currentLogPage]);
+
+
 
   const startCreate = React.useCallback(() => {
     const firstCutoffId = cutoffs[0]?.id ? String(cutoffs[0]?.id) : "";
@@ -1438,6 +1605,244 @@ export function BenefitsTab({
           </Pagination>
         </div>
       </div>
+
+      {/* =========================
+          SECTION 3: Benefit Logs
+         ========================= */}
+      <div className="space-y-3 pt-6 border-t border-gray-100 dark:border-gray-800">
+        <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                Benefit Logs
+              </div>
+              <div className="text-xs text-gray-500">
+                Manual history or adjustments for contributions.
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className={PAYROLL_OUTLINE}
+              onClick={() => {
+                resetLogDraft();
+                setLogFormOpen(true);
+              }}
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Add Log
+            </Button>
+        </div>
+
+        <div className="rounded-md border border-gray-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
+          <Table className="text-xs">
+            <TableHeader className="bg-gray-50 dark:bg-gray-800/50">
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Payroll ID</TableHead>
+                <TableHead>Cutoff</TableHead>
+                <TableHead className="text-right">Deducted</TableHead>
+                <TableHead>Note</TableHead>
+                <TableHead className="w-[80px] text-center">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {logsLoading ? (
+                 <TableRow>
+                   <TableCell colSpan={7} className="h-24 text-center text-gray-500">
+                     Loading logs...
+                   </TableCell>
+                 </TableRow>
+              ) : logsRows.length === 0 ? (
+                 <TableRow>
+                   <TableCell colSpan={7} className="h-24 text-center text-gray-400">
+                     No benefit logs found.
+                   </TableCell>
+                 </TableRow>
+              ) : (
+                pagedLogs.map((r) => {
+                  const pidDisplay = r.payroll_detail_id || "—";
+
+                  return (
+                    <TableRow key={r.benefit_log_id} className="group hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                      <TableCell>{(r.created_date || "").substring(0, 10)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-normal">
+                          {r.benefit_code}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-gray-600 dark:text-gray-400">
+                        {pidDisplay}
+                      </TableCell>
+                      <TableCell>
+                        {Number(r.cutoff_id) === 1 ? "1st" : Number(r.cutoff_id) === 2 ? "2nd" : r.cutoff_id}
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-gray-900 dark:text-gray-100">
+                        {money(r.deducted_amount)}
+                      </TableCell>
+                      <TableCell className="max-w-[150px] truncate text-gray-500" title={r.note || ""}>
+                        {r.note || "—"}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              onClick={() => startEditLog(r)}
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => deleteBenefitLog(r.benefit_log_id)}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+          
+          {!logsLoading && totalLogPages > 1 && (
+            <div className="flex items-center justify-end p-2 border-t border-gray-100 dark:border-gray-800">
+               <div className="flex gap-1">
+                 <Button 
+                   variant="outline" 
+                   size="sm" 
+                   className="h-6 px-2 text-[10px]"
+                   disabled={currentLogPage <= 1}
+                   onClick={() => setLogPage(p => p - 1)}
+                 >
+                   Prev
+                 </Button>
+                 <span className="text-[10px] flex items-center px-1 text-gray-500">
+                   {currentLogPage} / {totalLogPages}
+                 </span>
+                 <Button 
+                   variant="outline" 
+                   size="sm" 
+                   className="h-6 px-2 text-[10px]"
+                   disabled={currentLogPage >= totalLogPages}
+                   onClick={() => setLogPage(p => p + 1)}
+                 >
+                   Next
+                 </Button>
+               </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <Dialog open={logFormOpen} onOpenChange={setLogFormOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+             <DialogTitle>{editingLogId ? "Edit Benefit Log" : "Add Benefit Log"}</DialogTitle>
+             <DialogDescription>
+               Record a past contribution or adjustment.
+             </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-2">
+             <div className="grid grid-cols-2 gap-4">
+               <div className="space-y-1">
+                  <Label>Benefit Code</Label>
+                  <Select 
+                    value={logDraft.benefit_code} 
+                    onValueChange={(v: any) => setLogDraft(d => ({ ...d, benefit_code: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="SSS">SSS</SelectItem>
+                      <SelectItem value="PAGIBIG">Pagibig</SelectItem>
+                      <SelectItem value="PHILHEALTH">Philhealth</SelectItem>
+                    </SelectContent>
+                  </Select>
+               </div>
+               <div className="space-y-1">
+                  <Label>Cutoff Period</Label>
+                  <Select 
+                    value={logDraft.cutoff_period} 
+                    onValueChange={(v: any) => setLogDraft(d => ({ ...d, cutoff_period: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">First Cutoff</SelectItem>
+                      <SelectItem value="2">Second Cutoff</SelectItem>
+                    </SelectContent>
+                  </Select>
+               </div>
+             </div>
+
+             <div className="space-y-1">
+               <Label>Date</Label>
+               <Input 
+                 type="date"
+                 value={logDraft.created_date}
+                 onChange={e => setLogDraft(d => ({ ...d, created_date: e.target.value }))}
+               />
+             </div>
+             
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                   <Label>Payroll ID</Label>
+                   <Input 
+                     placeholder="Optional"
+                     value={logDraft.payroll_id_input}
+                     onChange={e => setLogDraft(d => ({ ...d, payroll_id_input: e.target.value }))}
+                   />
+                </div>
+                <div className="space-y-1">
+                   <Label>Deducted Amount</Label>
+                   <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">₱</span>
+                      <Input 
+                        className="pl-6"
+                        placeholder="0.00"
+                        value={logDraft.deducted_amount}
+                        onChange={e => {
+                          if (/^\d*\.?\d*$/.test(e.target.value)) {
+                            setLogDraft(d => ({ ...d, deducted_amount: e.target.value }));
+                          }
+                        }}
+                        onBlur={() => {
+                           const n = Number(logDraft.deducted_amount);
+                           setLogDraft(d => ({ ...d, deducted_amount: money(n) }));
+                        }}
+                      />
+                   </div>
+                </div>
+             </div>
+
+             <div className="space-y-1">
+               <Label>Note / Remarks</Label>
+               <Textarea 
+                 rows={2}
+                 placeholder="Optional notes..."
+                 value={logDraft.note}
+                 onChange={e => setLogDraft(d => ({ ...d, note: e.target.value }))}
+               />
+             </div>
+          </div>
+
+          <DialogFooter>
+             <Button variant="outline" onClick={() => setLogFormOpen(false)}>Cancel</Button>
+             <Button onClick={saveBenefitLog} disabled={saving}>
+               {saving ? "Saving..." : "Save Log"}
+             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

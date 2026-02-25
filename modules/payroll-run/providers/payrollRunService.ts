@@ -20,6 +20,9 @@ import type {
   UserRow,
   WageProfile,
   WageProrationLog,
+  // ✅ Benefit Logs
+  BenefitLog,
+  BenefitLogType,
 } from "../types";
 
 import { computeEmployeeLine } from "../utils/compute";
@@ -57,6 +60,9 @@ export const RES = {
 
   // ✅ DR payments fetched as system deductions
   drPayments: "dr_payment",
+
+  // ✅ Benefit Logs
+  benefitLogs: "benefit_logs",
 } as const;
 
 // ------------------------------
@@ -428,11 +434,16 @@ export async function listDepartments(): Promise<Department[]> {
 export async function findExistingPostedRun(args: {
   cutoffId: number;
   departmentId: number | null;
+  cutoffStart?: string;
+  cutoffEnd?: string;
 }): Promise<PayrollRunHeader | null> {
-  const { cutoffId, departmentId } = args;
+  const { cutoffId, departmentId, cutoffStart, cutoffEnd } = args;
 
   const rows = await api.listItems<any>(RES.payrollRun, {
     "filter[cutoff_id][_eq]": cutoffId,
+
+    ...(cutoffStart ? { "filter[cutoff_start][_eq]": cutoffStart } : {}),
+    ...(cutoffEnd ? { "filter[cutoff_end][_eq]": cutoffEnd } : {}),
 
     ...(departmentId == null
       ? { "filter[department_id][_null]": "true" }
@@ -453,11 +464,16 @@ export async function findExistingPostedRun(args: {
 export async function findExistingDraftRun(args: {
   cutoffId: number;
   departmentId: number | null;
+  cutoffStart?: string;
+  cutoffEnd?: string;
 }): Promise<PayrollRunHeader | null> {
-  const { cutoffId, departmentId } = args;
+  const { cutoffId, departmentId, cutoffStart, cutoffEnd } = args;
 
   const rows = await api.listItems<any>(RES.payrollRun, {
     "filter[cutoff_id][_eq]": cutoffId,
+
+    ...(cutoffStart ? { "filter[cutoff_start][_eq]": cutoffStart } : {}),
+    ...(cutoffEnd ? { "filter[cutoff_end][_eq]": cutoffEnd } : {}),
 
     ...(departmentId == null
       ? { "filter[department_id][_null]": "true" }
@@ -514,6 +530,8 @@ export async function createOrGetActiveRun(args: {
   const existingDraft = await findExistingDraftRun({
     cutoffId,
     departmentId: args.departmentId,
+    cutoffStart: args.cutoff.start_date,
+    cutoffEnd: args.cutoff.end_date,
   });
   if (existingDraft) return existingDraft;
 
@@ -522,6 +540,8 @@ export async function createOrGetActiveRun(args: {
   const posted = await findExistingPostedRun({
     cutoffId,
     departmentId: args.departmentId,
+    cutoffStart: args.cutoff.start_date,
+    cutoffEnd: args.cutoff.end_date,
   });
   if (posted) {
     const hasHold = await postedRunHasOnHoldEmployees(posted.payroll_run_id);
@@ -597,6 +617,8 @@ export async function createDraftRun(args: {
   const posted = await findExistingPostedRun({
     cutoffId: args.cutoff.id,
     departmentId: args.departmentId,
+    cutoffStart: args.cutoff.start_date,
+    cutoffEnd: args.cutoff.end_date,
   });
 
   if (posted) {
@@ -2172,6 +2194,13 @@ export async function postRun(args: { payrollRunId: number; postedBy: number }):
     throw new Error(`Failed to update coop savings accumulations: ${e.message}`);
   }
 
+  try {
+    await createBenefitLogs({ payrollRunId: pid, payrollRefNo });
+  } catch (e: any) {
+    console.error("Failed to create benefit logs:", e);
+    // Don't block posting for logging failure, just warn
+  }
+
   // Mark as POSTED
   await api.patchItem(RES.payrollRun, pid, {
     status: "POSTED",
@@ -2460,6 +2489,231 @@ async function updateCoopSavingsAccumulations(args: { payrollRunId: number; payr
       );
       throw e;
     }
+  }
+}
+
+/**
+ * Creates or updates benefit logs for contributions and loans.
+ *
+ * Strategy:
+ * - CONTRIBUTIONS: delete existing rows first, then insert fresh.
+ *   Reason: MySQL treats NULL != NULL in unique indexes, so the DB unique constraint
+ *   `uq_blog_unique(cutoff_id, user_id, benefit_code, log_type, loan_id)` does NOT
+ *   prevent duplicate contribution rows (loan_id IS NULL). Delete+insert is the only
+ *   reliable approach.
+ * - LOANS: upsert (check by loan_id, patch if found, insert if not).
+ *   Reason: loan_id IS NOT NULL so the unique constraint works correctly for loans.
+ */
+async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: string }): Promise<void> {
+  const payrollRunId = n(args.payrollRunId);
+  if (!payrollRunId) return;
+
+  // 1. Fetch header to get cutoff_id
+  const header = await api.getItem<PayrollRunHeader>(RES.payrollRun, payrollRunId, {
+    fields: "cutoff_id",
+  });
+  if (!header?.cutoff_id) {
+    console.warn(`[createBenefitLogs] Missing cutoff_id for run ${payrollRunId}`);
+    return;
+  }
+  const cutoffId = n(header.cutoff_id);
+  const payrollDetailId = String(args.payrollRefNo);
+
+  // 2. Fetch all employee lines (excluding on-hold)
+  const employees = await safeList<any>(
+    RES.payrollLines,
+    {
+      "filter[payroll_run_id][_eq]": payrollRunId,
+      "filter[on_hold][_neq]": 1,
+      fields: "user_id,benefit_sss,benefit_philhealth,benefit_pagibig,benefit_loan_sss,benefit_loan_pagibig,breakdown_json",
+      limit: 5000,
+    },
+    [],
+  );
+
+  if (!employees.length) return;
+
+  const userIds = Array.from(new Set(employees.map(e => n(e.user_id)).filter(id => id > 0)));
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // STEP A: Handle CONTRIBUTIONS — Upsert via JS Map
+  // MySQL NULL != NULL in unique indexes, so the DB unique constraint
+  // does not prevent duplicate contribution rows (loan_id IS NULL).
+  // Safe fix: query existing rows, build a JS map, and upsert exactly like loans.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const userIdSet = new Set(userIds);
+
+  // A1. Fetch existing CONTRIBUTION logs for affected users in this cutoff, build lookup map.
+  const existingContribMap = new Map<string, number>(); // key: "userId|benefitCode" → record id
+  const allContributions = await safeList<any>(
+    RES.benefitLogs,
+    {
+      "filter[cutoff_id][_eq]": cutoffId,
+      "filter[log_type][_eq]": "CONTRIBUTION",
+      fields: "benefit_log_id,user_id,benefit_code",
+      limit: 5000,
+    },
+    [],
+  );
+
+  for (const log of allContributions.filter(l => userIdSet.has(n(l.user_id)))) {
+    const id = n(log.benefit_log_id ?? log.id);
+    if (!id) continue;
+    const key = `${n(log.user_id)}|${String(log.benefit_code).toUpperCase()}`;
+    existingContribMap.set(key, id);
+  }
+
+  // A2. Build and upsert CONTRIBUTION rows
+  const contributionLogs: any[] = [];
+  for (const emp of employees) {
+    const userId = n(emp.user_id);
+    if (!userId) continue;
+
+    const sss = n(emp.benefit_sss);
+    const ph = n(emp.benefit_philhealth);
+    const hdmf = n(emp.benefit_pagibig);
+
+    if (sss > 0) {
+      contributionLogs.push({
+        cutoff_id: cutoffId,
+        user_id: userId,
+        benefit_code: "SSS",
+        log_type: "CONTRIBUTION",
+        source_amount: sss,
+        deducted_amount: sss,
+        payroll_run_id: payrollRunId,
+        payroll_detail_id: payrollDetailId,
+      });
+    }
+    if (ph > 0) {
+      contributionLogs.push({
+        cutoff_id: cutoffId,
+        user_id: userId,
+        benefit_code: "PHILHEALTH",
+        log_type: "CONTRIBUTION",
+        source_amount: ph,
+        deducted_amount: ph,
+        payroll_run_id: payrollRunId,
+        payroll_detail_id: payrollDetailId,
+      });
+    }
+    if (hdmf > 0) {
+      contributionLogs.push({
+        cutoff_id: cutoffId,
+        user_id: userId,
+        benefit_code: "PAGIBIG",
+        log_type: "CONTRIBUTION",
+        source_amount: hdmf,
+        deducted_amount: hdmf,
+        payroll_run_id: payrollRunId,
+        payroll_detail_id: payrollDetailId,
+      });
+    }
+  }
+
+  if (contributionLogs.length > 0) {
+    const insTasks = contributionLogs.map(payload => async () => {
+      const key = `${payload.user_id}|${String(payload.benefit_code).toUpperCase()}`;
+      const existingId = existingContribMap.get(key);
+      try {
+        if (existingId) {
+          await api.patchItem(RES.benefitLogs, existingId, {
+            source_amount: payload.source_amount,
+            deducted_amount: payload.deducted_amount,
+            payroll_run_id: payload.payroll_run_id,
+            payroll_detail_id: payload.payroll_detail_id,
+          });
+        } else {
+          await api.createItem(RES.benefitLogs, payload);
+        }
+      } catch (e: any) {
+        if (!isRecordNotUnique(e)) {
+          console.warn(`[createBenefitLogs] Failed to upsert contribution for user=${payload.user_id} code=${payload.benefit_code}:`, e);
+        }
+      }
+    });
+    await runWithConcurrency(insTasks, 10);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // STEP B: Handle LOANS — upsert (loan_id IS NOT NULL, unique constraint works)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // B1. Fetch existing LOAN logs for affected users in this cutoff, build lookup map.
+  // ⚠️ Same as above: avoid _in filter, fetch all loans for this cutoff and filter in JS.
+  const existingLoanMap = new Map<string, number>(); // key: "userId|benefitCode|loanId" → record id
+  const allLoans = await safeList<any>(
+    RES.benefitLogs,
+    {
+      "filter[cutoff_id][_eq]": cutoffId,
+      "filter[log_type][_eq]": "LOAN",
+      fields: "benefit_log_id,user_id,benefit_code,loan_id",
+      limit: 5000,
+    },
+    [],
+  );
+
+  for (const log of allLoans.filter(l => userIdSet.has(n(l.user_id)))) {
+    const id = n(log.benefit_log_id ?? log.id);
+    if (!id) continue;
+    const key = `${n(log.user_id)}|${String(log.benefit_code).toUpperCase()}|${n(log.loan_id)}`;
+    existingLoanMap.set(key, id);
+  }
+
+  // B2. Build and upsert LOAN rows
+  const loanLogs: any[] = [];
+  for (const emp of employees) {
+    const userId = n(emp.user_id);
+    if (!userId) continue;
+
+    const breakdown = normalizeJsonOrNull(emp.breakdown_json);
+    const deductions = breakdown?.deductions ?? {};
+    const benefitLoanItems = arr<any>(deductions?.benefit_loans?.items);
+
+    for (const item of benefitLoanItems) {
+      const loanId = n(item.loan_id ?? item.id);
+      const amt = n(item.amount_this_cutoff ?? item.amount);
+      const code = String(item.benefit_code || "").toUpperCase();
+
+      if (loanId > 0 && amt > 0 && (code === "SSS" || code === "PAGIBIG")) {
+        loanLogs.push({
+          cutoff_id: cutoffId,
+          user_id: userId,
+          benefit_code: code as BenefitCode,
+          log_type: "LOAN",
+          loan_id: loanId,
+          source_amount: amt,
+          deducted_amount: amt,
+          payroll_run_id: payrollRunId,
+          payroll_detail_id: payrollDetailId,
+        });
+      }
+    }
+  }
+
+  if (loanLogs.length > 0) {
+    const loanTasks = loanLogs.map(payload => async () => {
+      const key = `${payload.user_id}|${String(payload.benefit_code).toUpperCase()}|${n(payload.loan_id)}`;
+      const existingId = existingLoanMap.get(key);
+      try {
+        if (existingId) {
+          await api.patchItem(RES.benefitLogs, existingId, {
+            source_amount: payload.source_amount,
+            deducted_amount: payload.deducted_amount,
+            payroll_run_id: payload.payroll_run_id,
+            payroll_detail_id: payload.payroll_detail_id,
+          });
+        } else {
+          await api.createItem(RES.benefitLogs, payload);
+        }
+      } catch (e: any) {
+        if (!isRecordNotUnique(e)) {
+          console.warn(`[createBenefitLogs] Failed to upsert loan for user=${payload.user_id} code=${payload.benefit_code} loan_id=${payload.loan_id}:`, e);
+        }
+      }
+    });
+    await runWithConcurrency(loanTasks, 10);
   }
 }
 

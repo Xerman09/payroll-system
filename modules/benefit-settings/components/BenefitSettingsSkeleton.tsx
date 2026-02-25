@@ -12,7 +12,7 @@ export function BenefitCardSkeleton() {
       {Array.from({ length: 3 }).map((_, i) => (
         <div
           key={i}
-          className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 space-y-4"
+          className="rounded-xl border border-slate-100 dark:border-gray-800 bg-slate-50/50 dark:bg-gray-800/50 p-4 space-y-4"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -41,7 +41,7 @@ export function BenefitCardSkeleton() {
             </div>
           </div>
 
-          <div className="pt-2 border-t border-slate-100">
+          <div className="pt-2 border-t border-slate-100 dark:border-gray-800">
             <div className="flex items-center justify-between text-[10px]">
               <Skeleton className="h-3 w-24" />
               <Skeleton className="h-3 w-16" />

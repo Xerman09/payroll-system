@@ -16,19 +16,19 @@ export default function BenefitCutoff({
 }) {
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-sm font-medium text-foreground/80">
-        <CalendarDays className="h-4 w-4 text-primary" />
+      <div className="flex items-center gap-2 text-sm font-medium text-foreground/80 dark:text-gray-300">
+        <CalendarDays className="h-4 w-4 text-primary dark:text-blue-400" />
         <span>Payroll Cutoff</span>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div
           className={`
-            flex items-center space-x-2 border rounded-md p-3 transition-colors
+            flex items-center space-x-2 border dark:border-gray-800 rounded-md p-3 transition-colors
             ${
               current === "FIRST"
-                ? "bg-primary/5 border-primary"
-                : "hover:bg-muted/50"
+                ? "bg-primary/5 border-primary dark:bg-blue-900/10 dark:border-blue-700"
+                : "hover:bg-muted/50 dark:hover:bg-gray-800/50"
             }
           `}
         >
@@ -49,11 +49,11 @@ export default function BenefitCutoff({
 
         <div
           className={`
-            flex items-center space-x-2 border rounded-md p-3 transition-colors
+            flex items-center space-x-2 border dark:border-gray-800 rounded-md p-3 transition-colors
             ${
               current === "SECOND"
-                ? "bg-primary/5 border-primary"
-                : "hover:bg-muted/50"
+                ? "bg-primary/5 border-primary dark:bg-blue-900/10 dark:border-blue-700"
+                : "hover:bg-muted/50 dark:hover:bg-gray-800/50"
             }
           `}
         >

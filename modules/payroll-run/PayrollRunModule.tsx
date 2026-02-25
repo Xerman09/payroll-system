@@ -185,6 +185,8 @@ export default function PayrollRunModule() {
       const existing = await svc.findExistingDraftRun({
         cutoffId: selectedCutoff.id,
         departmentId: config.departmentId,
+        cutoffStart: selectedCutoff.start_date,
+        cutoffEnd: selectedCutoff.end_date,
       });
 
       let activeRun = existing;

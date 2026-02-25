@@ -252,6 +252,26 @@ export interface BenefitLoanRow {
 }
 
 // ------------------------------
+// Benefit Logs
+// ------------------------------
+export type BenefitLogType = "CONTRIBUTION" | "LOAN";
+
+export interface BenefitLog {
+  benefit_log_id: number;
+  cutoff_id: number;
+  user_id: number;
+  benefit_code: BenefitCode;
+  log_type: BenefitLogType;
+  loan_id?: number | null;
+  source_amount: number;
+  deducted_amount: number;
+  payroll_run_id: number;
+  payroll_detail_id?: string | null;
+  note?: string | null;
+  created_date?: string;
+}
+
+// ------------------------------
 // Allowances
 // ------------------------------
 export type AllowancePayCycle = "N/A" | "PER_CUTOFF" | "PER_MONTH";

@@ -23,7 +23,12 @@ interface NavbarProps {
 export default function Navbar({ toggleTheme, currentTheme }: NavbarProps) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
-  const { setMobileOpen } = useSidebar();
+  const { setMobileOpen, toggle, collapsed } = useSidebar();
+
+  const handleMobileMenuOpen = () => {
+    if (collapsed) toggle(); // Resets to expanded
+    setMobileOpen(true);
+  };
 
   const handleLogout = () => {
     setLoggingOut(true);
@@ -43,7 +48,7 @@ export default function Navbar({ toggleTheme, currentTheme }: NavbarProps) {
     >
       <div className="flex items-center gap-4">
         <button
-          onClick={() => setMobileOpen(true)}
+          onClick={handleMobileMenuOpen}
           className="md:hidden p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700"
         >
           <Menu size={20} />

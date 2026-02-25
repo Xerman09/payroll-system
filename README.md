@@ -1,3 +1,7 @@
+# Payroll System
+
+🚀 **Agent-Ready Repository**: This project is configured with the **WAT v2** framework for high-reliability AI collaboration. See [.agent/WAT_V2_INSTRUCTIONS.md](.agent/WAT_V2_INSTRUCTIONS.md) for details.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

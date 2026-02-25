@@ -1,10 +1,28 @@
 # Payroll System - Detailed System Documentation
 
+---
+
+## 🤖 Agentic Orchestration (WAT v2)
+
+The system is designed to be co-authored by human developers and AI agents using the **WAT (Workflows, Agents, Tools)** framework.
+
+### Core Mechanics
+1. **Deterministic Tools**: Complex logic (e.g., tax calculation, PDF generation) is offloaded to TypeScript scripts in `/tools` to ensure absolute accuracy and type-safety.
+2. **Persistent Memory**: The `.agent/remedies.md` log enables "self-healing," where the system learns from past errors.
+3. **Automatic Intelligence**: Specialized skills in `.agent/skills/` are dynamically loaded by the AI based on the task domain (Frontend vs Backend).
+
+### Available Tools (`tools/*.ts`)
+- `tools/module-scaffolder.ts`: Creates full module structure (`modules/`, `providers/`, `types`, `app/dashboard`).
+- `tools/api-scaffolder.ts`: Creates standardized API routes with security checks.
+- `tools/component-generator.ts`: Creates Shadcn/Framer Motion components.
+
+---
+
 ## 1. System Overview
-**Framework**: Next.js 14 (App Router)
-**Language**: TypeScript
+**Framework**: Next.js 16 (App Router)
+**Language**: TypeScript (React 19)
 **Backend**: Directus (Headless CMS)
-**UI Library**: Shadcn UI (Radix + Tailwind)
+**UI Library**: Shadcn UI (Radix + Tailwind 4)
 **State Management**: React Hooks + SWR
 
 ---
@@ -230,7 +248,7 @@ payroll_system/
 ### Auth API
 **Path**: `app/api/auth/login/route.ts`
 - **Function**: `POST`
-- **Logic**: Accepts email/password. Fetches user from Directus. Verifies password (text-based). Returns user object.
+- **Logic**: Accepts email/password. Fetches user from Directus. Verifies password. Returns user object.
 
 ### General API Proxy (`api-proxy.ts` pattern)
 Most API routes (`app/api/[module]/route.ts`) follow a pattern:

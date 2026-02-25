@@ -170,22 +170,22 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
   return (
     <div className="space-y-4">
       {/* Filters row (modern alignment) */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           {/* Left: Filters */}
           <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1">
-              <div className="text-xs font-medium text-slate-600">Search</div>
+              <div className="text-xs font-medium text-slate-600 dark:text-gray-400">Search</div>
               <Input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Employee or note…"
-                className="h-9"
+                className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 placeholder:text-gray-500"
               />
             </div>
 
             <div className="space-y-1">
-              <div className="text-xs font-medium text-slate-600">Cutoff</div>
+              <div className="text-xs font-medium text-slate-600 dark:text-gray-400">Cutoff</div>
               <Select value={cutoffId} onValueChange={setCutoffId}>
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="All" />
@@ -202,7 +202,7 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
             </div>
 
             <div className="space-y-1">
-              <div className="text-xs font-medium text-slate-600">Benefit</div>
+              <div className="text-xs font-medium text-slate-600 dark:text-gray-400">Benefit</div>
               <Select
                 value={benefit}
                 onValueChange={(v) => setBenefit(v as any)}
@@ -220,7 +220,7 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
             </div>
 
             <div className="space-y-1">
-              <div className="text-xs font-medium text-slate-600">Type</div>
+              <div className="text-xs font-medium text-slate-600 dark:text-gray-400">Type</div>
               <Select value={type} onValueChange={(v) => setType(v as any)}>
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="All" />
@@ -246,7 +246,7 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
             </Button>
 
             <div className="min-w-[180px] space-y-1">
-              <div className="text-xs font-medium text-slate-600">
+              <div className="text-xs font-medium text-slate-600 dark:text-gray-400">
                 Paper size
               </div>
               <Select
@@ -289,10 +289,10 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
       <Separator />
 
       {/* Table */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
+            <TableRow className="bg-slate-50 dark:bg-gray-800/50">
               <TableHead>Employee</TableHead>
               <TableHead>Account #</TableHead>
               <TableHead className="text-right">Deducted</TableHead>
@@ -329,44 +329,44 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
                 return (
                   <TableRow
                     key={r.benefit_log_id}
-                    className="hover:bg-slate-50/60"
+                    className="hover:bg-slate-50/60 dark:hover:bg-gray-800/40 border-b dark:border-gray-800"
                   >
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium dark:text-gray-200">
                       {r.employee_name || userName(users, r.user_id)}
                     </TableCell>
-                    <TableCell className="font-mono text-xs text-slate-600">
+                    <TableCell className="font-mono text-xs text-slate-600 dark:text-gray-400">
                       {r.account_no || "—"}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold text-slate-900">
+                    <TableCell className="text-right tabular-nums font-semibold text-slate-900 dark:text-gray-100">
                       {formatMoney(r.deducted_amount)}
                     </TableCell>
-                    <TableCell className="text-sm font-medium text-blue-600">
+                    <TableCell className="text-sm font-medium text-blue-600 dark:text-blue-400">
                       {r.payroll_ref_no || "—"}
                     </TableCell>
                     <TableCell>
                       {r.log_type === "LOAN" ? (
                         <Badge
                           variant="secondary"
-                          className="bg-amber-50 text-amber-700 border-amber-200"
+                          className="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/40"
                         >
                           Loan
                         </Badge>
                       ) : (
                         <Badge
                           variant="outline"
-                          className="bg-blue-50 text-blue-700 border-blue-200"
+                          className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900/40"
                         >
                           Contribution
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm text-slate-500">
+                    <TableCell className="text-sm text-slate-500 dark:text-gray-400">
                       {postedDate}
                     </TableCell>
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className="font-mono text-[10px] uppercase bg-slate-50"
+                        className="font-mono text-[10px] uppercase bg-slate-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300"
                       >
                         {r.benefit_code}
                       </Badge>
@@ -381,7 +381,7 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
 
       {/* Summary Totals Modal */}
       <Dialog open={summaryOpen} onOpenChange={setSummaryOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md dark:bg-gray-900 dark:border-gray-800">
           <DialogHeader>
             <DialogTitle>Summary totals</DialogTitle>
             <DialogDescription>
@@ -390,13 +390,13 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
           </DialogHeader>
 
           <div className="space-y-3">
-            <div className="rounded-lg border bg-slate-50 p-3">
+            <div className="rounded-lg border dark:border-gray-800 bg-slate-50 dark:bg-gray-800/50 p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="font-mono text-[10px]">
+                  <Badge variant="outline" className="font-mono text-[10px] bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300">
                     SSS
                   </Badge>
-                  <span className="text-sm text-slate-600">Deducted</span>
+                  <span className="text-sm text-slate-600 dark:text-gray-400">Deducted</span>
                 </div>
                 <div className="tabular-nums font-semibold">
                   {formatMoney(totals.SSS)}
@@ -405,10 +405,10 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
 
               <div className="mt-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="font-mono text-[10px]">
+                  <Badge variant="outline" className="font-mono text-[10px] bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300">
                     PAGIBIG
                   </Badge>
-                  <span className="text-sm text-slate-600">Deducted</span>
+                  <span className="text-sm text-slate-600 dark:text-gray-400">Deducted</span>
                 </div>
                 <div className="tabular-nums font-semibold">
                   {formatMoney(totals.PAGIBIG)}
@@ -417,27 +417,27 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
 
               <div className="mt-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="font-mono text-[10px]">
+                  <Badge variant="outline" className="font-mono text-[10px] bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300">
                     PH
                   </Badge>
-                  <span className="text-sm text-slate-600">Deducted</span>
+                  <span className="text-sm text-slate-600 dark:text-gray-400">Deducted</span>
                 </div>
                 <div className="tabular-nums font-semibold">
                   {formatMoney(totals.PHILHEALTH)}
                 </div>
               </div>
 
-              <div className="mt-3 border-t pt-3 flex items-center justify-between">
-                <span className="text-sm font-semibold">Total</span>
-                <span className="tabular-nums text-base font-bold">
+              <div className="mt-3 border-t dark:border-gray-800 pt-3 flex items-center justify-between">
+                <span className="text-sm font-semibold dark:text-gray-200">Total</span>
+                <span className="tabular-nums text-base font-bold dark:text-gray-100">
                   {formatMoney(totals.ALL)}
                 </span>
               </div>
             </div>
 
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-slate-500 dark:text-gray-400">
               Rows included:{" "}
-              <span className="font-medium text-slate-700">
+              <span className="font-medium text-slate-700 dark:text-gray-300">
                 {filtered.length}
               </span>
             </div>

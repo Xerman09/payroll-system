@@ -192,6 +192,53 @@ async function logHistory(
 }
 
 /**
+ * Synchronizes benefit_cutoff_settings based on cutoff_settings changes
+ */
+async function syncBenefitCutoffs(
+  cutoffType: string,
+  startDate: string,
+  endDate: string,
+  updatedBy: string | null
+) {
+  try {
+    // 1. Fetch matching benefit cutoff settings
+    const qs = new URLSearchParams();
+    qs.set("filter[cutoff][_eq]", cutoffType);
+    qs.set("fields", "id");
+
+    const getRes = await directusFetchAuth("GET", `/items/benefit_cutoff_settings?${qs}`);
+    if (!getRes.ok) {
+      console.error("Failed to fetch benefit cutoffs for sync:", getRes.error);
+      return;
+    }
+
+    const items = (getRes.data as any)?.data || [];
+    if (!items.length) return;
+
+    // 2. Update each matching row
+    for (const item of items) {
+      const patchBody = {
+        effective_from: startDate,
+        effective_to: endDate,
+        updated_by: updatedBy,
+      };
+
+      const patchRes = await directusFetchAuth(
+        "PATCH",
+        `/items/benefit_cutoff_settings/${item.id}`,
+        patchBody
+      );
+
+      if (!patchRes.ok) {
+        console.error(`Failed to sync benefit cutoff id ${item.id}:`, patchRes.error);
+      }
+    }
+  } catch (error) {
+    console.error("Benefit cutoff sync error:", error);
+  }
+}
+
+/**
  * Checks if relevant fields have changed between old and new data
  */
 function hasChanged(oldData: any, newData: any) {
@@ -319,6 +366,12 @@ export async function POST(req: NextRequest) {
   const newData = (result.data as any)?.data || result.data;
   if (newData) {
     await logHistory("INSERT", newData, newData.created_by);
+    await syncBenefitCutoffs(
+      newData.cutoff_type,
+      newData.start_date,
+      newData.end_date,
+      newData.created_by
+    );
   }
 
   return NextResponse.json(result.data, {
@@ -368,6 +421,20 @@ export async function PATCH(req: NextRequest) {
       const newData = (r.data as any)?.data || r.data;
       if (newData && oldData && hasChanged(oldData, newData)) {
         await logHistory("UPDATE", newData, newData.updated_by);
+
+        // Sync if relevant fields changed
+        if (
+          oldData.start_date !== newData.start_date ||
+          oldData.end_date !== newData.end_date ||
+          oldData.cutoff_type !== newData.cutoff_type
+        ) {
+          await syncBenefitCutoffs(
+            newData.cutoff_type,
+            newData.start_date,
+            newData.end_date,
+            newData.updated_by
+          );
+        }
       }
 
       results.push(newData);
@@ -384,6 +451,12 @@ export async function PATCH(req: NextRequest) {
       const newData = (r.data as any)?.data || r.data;
       if (newData) {
         await logHistory("INSERT", newData, newData.created_by);
+        await syncBenefitCutoffs(
+          newData.cutoff_type,
+          newData.start_date,
+          newData.end_date,
+          newData.created_by
+        );
       }
 
       results.push(newData);

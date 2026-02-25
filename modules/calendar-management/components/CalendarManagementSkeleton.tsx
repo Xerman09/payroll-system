@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 
 export function CalendarManagementSkeleton() {
   return (
-    <div className="flex flex-col gap-6 h-full p-6 bg-gray-50 font-sans">
+    <div className="flex flex-col gap-6 h-full p-6 bg-gray-50 dark:bg-gray-950 font-sans">
       {/* HEADER */}
       <div className="flex items-center justify-between shrink-0">
         <div>
@@ -22,8 +22,8 @@ export function CalendarManagementSkeleton() {
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 h-[500px]">
         {/* 1. CALENDAR VIEW SKELETON */}
         <div className="xl:col-span-3 flex flex-col h-full overflow-hidden">
-          <div className="h-full border rounded-lg shadow-sm flex flex-col overflow-hidden bg-white">
-            <div className="py-3 px-5 border-b bg-white flex items-center justify-between">
+          <div className="h-full border dark:border-gray-700 rounded-lg shadow-sm flex flex-col overflow-hidden bg-white dark:bg-gray-900">
+            <div className="py-3 px-5 border-b dark:border-gray-700 bg-white dark:bg-gray-900 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Skeleton className="w-4 h-4 rounded-full" />
                 <Skeleton className="h-4 w-24" />
@@ -55,7 +55,7 @@ export function CalendarManagementSkeleton() {
 
               {/* Selected Date Info */}
               <div className="mt-auto pt-6">
-                <div className="w-full p-4 bg-gray-50 border border-gray-100 rounded-xl space-y-3">
+                <div className="w-full p-4 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl space-y-3">
                   <div className="flex items-center gap-2">
                     <Skeleton className="h-2 w-2 rounded-full" />
                     <Skeleton className="h-3 w-20" />
@@ -70,9 +70,9 @@ export function CalendarManagementSkeleton() {
 
         {/* 2. EVENTS TABLE SKELETON */}
         <div className="xl:col-span-9 flex flex-col h-full overflow-hidden">
-          <div className="flex-1 flex flex-col border rounded-lg shadow-sm overflow-hidden bg-white">
+          <div className="flex-1 flex flex-col border dark:border-gray-700 rounded-lg shadow-sm overflow-hidden bg-white dark:bg-gray-900">
             {/* Top Bar */}
-            <div className="px-5 py-3 border-b flex items-center justify-between bg-white">
+            <div className="px-5 py-3 border-b dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-900">
               <div>
                 <Skeleton className="h-4 w-24 mb-1" />
                 <Skeleton className="h-3 w-48" />
@@ -81,7 +81,7 @@ export function CalendarManagementSkeleton() {
             </div>
 
             {/* Stats Row */}
-            <div className="grid grid-cols-3 divide-x border-b bg-gray-50">
+            <div className="grid grid-cols-3 divide-x dark:divide-gray-700 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
               {Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="px-5 py-3 flex items-center justify-between">
                   <div className="space-y-1">
@@ -97,7 +97,7 @@ export function CalendarManagementSkeleton() {
             <div className="flex-1 overflow-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b">
+                  <tr className="border-b dark:border-gray-700">
                     {Array.from({ length: 6 }).map((_, i) => (
                       <th key={i} className="px-5 py-3">
                         <Skeleton className="h-3 w-16" />
@@ -107,7 +107,7 @@ export function CalendarManagementSkeleton() {
                 </thead>
                 <tbody>
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i} className="border-b">
+                    <tr key={i} className="border-b dark:border-gray-800">
                       <td className="px-5 py-4"><Skeleton className="h-4 w-24" /></td>
                       <td className="px-3 py-4"><Skeleton className="h-5 w-16 rounded-full" /></td>
                       <td className="px-3 py-4"><Skeleton className="h-4 w-40" /></td>
@@ -126,7 +126,7 @@ export function CalendarManagementSkeleton() {
             </div>
 
             {/* Pagination */}
-            <div className="border-t px-4 py-2 bg-gray-50 flex items-center justify-between">
+            <div className="border-t dark:border-gray-700 px-4 py-2 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-between">
               <Skeleton className="h-4 w-24" />
               <div className="flex gap-1">
                 {Array.from({ length: 4 }).map((_, i) => (

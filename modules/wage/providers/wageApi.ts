@@ -30,7 +30,9 @@ import type {
   CoopSavingsMembershipRecord,
   CoopSavingsMembershipCreatePayload,
   CoopSavingsMembershipPatchPayload,
-
+  BenefitLogRecord,
+  BenefitLogCreatePayload,
+  BenefitLogPatchPayload,
 } from "../types";
 
 const BASE_API = "/api/wage";
@@ -653,6 +655,59 @@ export async function deleteCoopSavingsMembership(id: number) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       path: `/items/coop_savings_membership/${id}`,
+    }),
+  });
+}
+
+// ----------------------------------------------------------------------
+// BENEFIT LOGS (benefit_logs)
+// ----------------------------------------------------------------------
+
+export async function fetchBenefitLogsByUser(
+  userId: number
+): Promise<BenefitLogRecord[]> {
+  const qs = new URLSearchParams({
+    limit: "300",
+    sort: "-created_date",
+    [`filter[user_id][_eq]`]: String(userId),
+  }).toString();
+
+  // Assuming endpoint is /items/benefit_logs based on DDL
+  const json = await apiFetch(`/items/benefit_logs?${qs}`);
+  return (json?.data as BenefitLogRecord[]) || [];
+}
+
+export async function createBenefitLog(payload: BenefitLogCreatePayload) {
+  return apiFetch("/items/benefit_logs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: "/items/benefit_logs",
+      payload,
+    }),
+  });
+}
+
+export async function patchBenefitLog(
+  id: number,
+  payload: BenefitLogPatchPayload
+) {
+  return apiFetch(`/items/benefit_logs/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: `/items/benefit_logs/${id}`,
+      payload,
+    }),
+  });
+}
+
+export async function deleteBenefitLog(id: number) {
+  return apiFetch(`/items/benefit_logs/${id}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: `/items/benefit_logs/${id}`,
     }),
   });
 }

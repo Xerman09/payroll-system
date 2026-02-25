@@ -184,17 +184,17 @@ export default function BenefitLoansTab({ users }: { users: UserData[] }) {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3 lg:max-w-3xl">
           <div className="space-y-1">
-            <div className="text-xs font-medium text-slate-600">Search</div>
+            <div className="text-xs font-medium text-slate-600 dark:text-gray-400">Search</div>
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Employee, reference, loan name…"
-              className="h-9"
+              className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 placeholder:text-gray-500"
             />
           </div>
 
           <div className="space-y-1">
-            <div className="text-xs font-medium text-slate-600">Benefit</div>
+            <div className="text-xs font-medium text-slate-600 dark:text-gray-400">Benefit</div>
             <Select value={benefit} onValueChange={(v) => setBenefit(v as any)}>
               <SelectTrigger className="h-9">
                 <SelectValue placeholder="All" />
@@ -208,7 +208,7 @@ export default function BenefitLoansTab({ users }: { users: UserData[] }) {
           </div>
 
           <div className="space-y-1">
-            <div className="text-xs font-medium text-slate-600">Status</div>
+            <div className="text-xs font-medium text-slate-600 dark:text-gray-400">Status</div>
             <Select value={status} onValueChange={(v) => setStatus(v as any)}>
               <SelectTrigger className="h-9">
                 <SelectValue placeholder="All" />
@@ -238,10 +238,10 @@ export default function BenefitLoansTab({ users }: { users: UserData[] }) {
       <Separator />
 
       {/* Table */}
-      <div className="rounded-lg border border-slate-200">
+      <div className="rounded-lg border border-slate-200 dark:border-gray-800">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
+            <TableRow className="bg-slate-50 dark:bg-gray-800/50">
               <TableHead>Employee</TableHead>
               <TableHead>Benefit</TableHead>
               <TableHead>Loan</TableHead>
@@ -277,11 +277,11 @@ export default function BenefitLoansTab({ users }: { users: UserData[] }) {
                   : "—";
 
                 return (
-                  <TableRow key={r.loan_id} className="hover:bg-slate-50/60">
+                  <TableRow key={r.loan_id} className="hover:bg-slate-50/60 dark:hover:bg-gray-800/40 border-b dark:border-gray-800">
                     <TableCell className="font-medium">
                       {userName(users, r.user_id)}
                       {r.reference_no ? (
-                        <div className="text-xs text-slate-500">
+                        <div className="text-xs text-slate-500 dark:text-gray-400">
                           Ref: {r.reference_no}
                         </div>
                       ) : null}
@@ -290,16 +290,16 @@ export default function BenefitLoansTab({ users }: { users: UserData[] }) {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className="font-mono text-[10px]"
+                        className="font-mono text-[10px] dark:border-gray-700 dark:text-gray-300"
                       >
                         {r.benefit_code}
                       </Badge>
                     </TableCell>
 
                     <TableCell>
-                      <div className="text-sm">{r.loan_name || "—"}</div>
+                      <div className="text-sm dark:text-gray-200">{r.loan_name || "—"}</div>
                       {start ? (
-                        <div className="text-xs text-slate-500">
+                        <div className="text-xs text-slate-500 dark:text-gray-400">
                           Start: {cutoffLabel(start)}
                         </div>
                       ) : (
@@ -309,28 +309,28 @@ export default function BenefitLoansTab({ users }: { users: UserData[] }) {
                       )}
                     </TableCell>
 
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell className="text-right tabular-nums dark:text-gray-200">
                       {formatMoney(r.total_payable)}
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-slate-500 dark:text-gray-400">
                         Rem: {formatMoney(r.remaining_balance)}
                       </div>
                     </TableCell>
 
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell className="text-right tabular-nums dark:text-gray-200">
                       {formatMoney(r.amortization_amount)}
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-slate-500 dark:text-gray-400">
                         Terms: {r.terms_installments}
                       </div>
                     </TableCell>
 
-                    <TableCell className="tabular-nums">
+                    <TableCell className="tabular-nums dark:text-gray-200">
                       {payments}
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-slate-500 dark:text-gray-400">
                         Deduct: {r.deduct_on}
                       </div>
                     </TableCell>
 
-                    <TableCell className="text-sm">
+                    <TableCell className="text-sm dark:text-gray-200">
                       {sched.nextDue ? (
                         <div className="flex items-center gap-2">
                           <span className="truncate">
@@ -338,7 +338,7 @@ export default function BenefitLoansTab({ users }: { users: UserData[] }) {
                           </span>
                         </div>
                       ) : (
-                        <span className="text-slate-500">—</span>
+                        <span className="text-slate-500 dark:text-gray-500">—</span>
                       )}
                     </TableCell>
 

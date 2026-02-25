@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const deptId = 2;
+    const deptId = process.env.DEFAULT_DEPT_ID;
 
     const qs = new URLSearchParams();
     qs.append("limit", "1");

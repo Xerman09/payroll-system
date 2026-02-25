@@ -189,13 +189,13 @@ export default function BenefitSettingsModule() {
     <DashboardLayout>
       <div className="space-y-4">
         {/* Top: Manage Benefits (Settings) */}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <div className="text-base font-semibold text-slate-900">
+              <div className="text-base font-semibold text-slate-900 dark:text-gray-100">
                 Manage Benefits
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-slate-500 dark:text-gray-400">
                 Configure which cutoff deducts each contribution, then manage
                 benefit loans and review posted logs.
               </div>
@@ -226,25 +226,25 @@ export default function BenefitSettingsModule() {
         </div>
 
         {/* Bottom: Tabs (Loans + Logs) */}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm">
           <Tabs defaultValue="loans" className="w-full">
             {/* Tabs header styled like your other modules */}
             <div className="flex flex-col gap-3">
               <div>
-                <div className="text-sm font-semibold text-slate-900">
+                <div className="text-sm font-semibold text-slate-900 dark:text-gray-100">
                   Benefits Operations
                 </div>
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-slate-500 dark:text-gray-400">
                   Loans are for SSS & Pagibig only. Logs are view-only and
                   appear after payroll run posting.
                 </div>
               </div>
 
-              <TabsList className="w-full justify-start rounded-lg bg-slate-100 p-1">
-                <TabsTrigger value="loans" className="rounded-md">
+              <TabsList className="w-full justify-start rounded-lg bg-slate-100 dark:bg-gray-800 p-1">
+                <TabsTrigger value="loans" className="rounded-md dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100">
                   Benefit Loans
                 </TabsTrigger>
-                <TabsTrigger value="logs" className="rounded-md">
+                <TabsTrigger value="logs" className="rounded-md dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100">
                   Benefit Logs
                 </TabsTrigger>
               </TabsList>

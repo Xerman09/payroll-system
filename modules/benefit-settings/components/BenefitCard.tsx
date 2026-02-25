@@ -30,8 +30,8 @@ export default function BenefitCard({
   const s = setting;
 
   return (
-    <Card className="flex flex-col h-full shadow-sm hover:shadow-md transition-shadow duration-200">
-      <CardHeader className="pb-3 bg-muted/30">
+    <Card className="flex flex-col h-full shadow-sm hover:shadow-md transition-shadow duration-200 dark:bg-gray-900 dark:border-gray-800">
+      <CardHeader className="pb-3 bg-muted/30 dark:bg-gray-800/50">
         <div className="flex justify-between items-start">
           <CardTitle className="text-base font-semibold leading-tight">
             {name}
@@ -60,13 +60,13 @@ export default function BenefitCard({
       </CardContent>
 
       {/* Footer for Metadata */}
-      <CardFooter className="pt-3 pb-3 bg-muted/10 border-t min-h-[3rem]">
+      <CardFooter className="pt-3 pb-3 bg-muted/10 dark:bg-gray-800/30 border-t dark:border-gray-800 min-h-[3rem]">
         {s && s.updated_by ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground w-full">
             <User className="h-3 w-3" />
             <span className="truncate">
               Updated by{" "}
-              <span className="font-medium text-foreground">
+              <span className="font-medium text-foreground dark:text-gray-200">
                 {getUserName(s.updated_by)}
               </span>
             </span>

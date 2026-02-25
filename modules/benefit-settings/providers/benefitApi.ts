@@ -250,6 +250,7 @@ export async function deleteBenefitLoan(loanId: number) {
 // Benefit Logs (REFECTORED) - VIEW ONLY
 // --------------------
 export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
+  // 1. Fetch existing payroll_run_employee logs (System/Automated)
   const fields = [
     "id",
     "cutoff_id",
@@ -260,101 +261,223 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
     "benefit_loan_sss",
     "benefit_loan_pagibig",
     "payroll_run_id.payroll_ref_no",
+    "payroll_run_id.payroll_run_id",
     "payroll_run_id.posted_at",
     "created_at"
   ].join(",");
 
-  const path = `/items/payroll_run_employee?limit=5000&filter[payroll_run_id][status][_eq]=POSTED&sort=-created_at&fields=${fields}`;
-  const json = await apiFetch(path);
-  const rows = (json.data || []) as any[];
+  const pathSystem = `/items/payroll_run_employee?limit=5000&filter[payroll_run_id][status][_eq]=POSTED&sort=-created_at&fields=${fields}`;
 
-  const logs: BenefitLogRow[] = [];
+  // 2. Fetch new benefit_logs (Manual/Adjustments)
+  // We need user details to display name consistently
+  const fieldsManual = [
+    "*",
+    "user_id.*", // Fetch related user data
+  ].join(",");
+  const pathManual = `/items/benefit_logs?limit=5000&sort=-created_date&fields=${fieldsManual}`;
 
-  for (const r of rows) {
+  const [jsonSystem, jsonManual] = await Promise.all([
+    apiFetch(pathSystem),
+    apiFetch(pathManual),
+  ]);
+
+  const rowsSystem = (jsonSystem?.data || []) as any[];
+  const rowsManual = (jsonManual?.data || []) as any[];
+
+  // 3. Merging Logic using Map
+  // Key: `${cutoff_id}|${user_id}|${benefit_code}|${log_type}|${loan_id ?? 'null'}`
+  const logMap = new Map<string, BenefitLogRow>();
+
+  // Helper to generate key
+  const getKey = (r: BenefitLogRow) => {
+    return `${r.cutoff_id}|${r.user_id}|${r.benefit_code}|${r.log_type}|${r.loan_id ?? "null"}`;
+  };
+
+  // 2.a Build a 'has loan detail' lookup from Manual logs to suppress System summaries
+  // Key: `${cutoff_id}|${user_id}|${benefit_code}`
+  const hasLoanDetail = new Set<string>();
+  for (const r of rowsManual) {
+    if (r.log_type === "LOAN" && r.benefit_code) {
+      const uId = r.user_id?.user_id || r.user_id;
+      hasLoanDetail.add(`${r.cutoff_id}|${uId}|${r.benefit_code}`);
+    }
+  }
+
+  // --- PROCESS SYSTEM LOGS (payroll_run_employee) ---
+  for (const r of rowsSystem) {
     const user = r.user_id || {};
     const pr = r.payroll_run_id || {};
+    const uId = r.user_id?.user_id || r.user_id;
 
     const common = {
       cutoff_id: r.cutoff_id,
-      user_id: r.user_id?.user_id || r.user_id,
+      user_id: uId,
       employee_name: fullnameFromUser(user),
       payroll_run_id: r.payroll_run_id?.payroll_run_id || r.payroll_run_id,
       payroll_ref_no: pr.payroll_ref_no || "N/A",
       posted_at: pr.posted_at || null,
       created_date: r.created_at,
       note: null,
+      source_amount: 0,
+    };
+
+    const pushToMap = (item: BenefitLogRow) => {
+      const key = getKey(item);
+      logMap.set(key, item);
     };
 
     // Contributions
     if (toNum(r.benefit_sss) > 0) {
-      logs.push({
+      pushToMap({
         ...common,
         benefit_log_id: `CONTRI-SSS-${r.id}`,
         benefit_code: "SSS",
         benefit_name: "SSS",
         log_type: "CONTRIBUTION",
         loan_id: null,
-        source_amount: 0, // Not explicitly in payroll_run_employee as separate source for contri
         deducted_amount: toNum(r.benefit_sss),
       });
     }
     if (toNum(r.benefit_philhealth) > 0) {
-      logs.push({
+      pushToMap({
         ...common,
         benefit_log_id: `CONTRI-PH-${r.id}`,
         benefit_code: "PHILHEALTH",
         benefit_name: "PhilHealth",
         log_type: "CONTRIBUTION",
         loan_id: null,
-        source_amount: 0,
         deducted_amount: toNum(r.benefit_philhealth),
       });
     }
 
     if (toNum(r.benefit_pagibig) > 0) {
-      logs.push({
+      pushToMap({
         ...common,
         benefit_log_id: `CONTRI-HDMF-${r.id}`,
         benefit_code: "PAGIBIG",
         benefit_name: "Pag-IBIG",
         log_type: "CONTRIBUTION",
         loan_id: null,
-        source_amount: 0,
         deducted_amount: toNum(r.benefit_pagibig),
       });
     }
 
-    // Loans
-    if (toNum(r.benefit_loan_sss) > 0) {
-      logs.push({
+    // Loans (Note: System loans have loan_id = null usually.
+    // If we have detailed loan logs manually (loan_id != null), suppress these summary rows.)
+
+    // Check SSS Loan Detail
+    const hasSssLoan = hasLoanDetail.has(`${r.cutoff_id}|${uId}|SSS`);
+    if (!hasSssLoan && toNum(r.benefit_loan_sss) > 0) {
+      pushToMap({
         ...common,
         benefit_log_id: `LOAN-SSS-${r.id}`,
         benefit_code: "SSS",
         benefit_name: "SSS",
         log_type: "LOAN",
         loan_id: null,
-        source_amount: 0,
         deducted_amount: toNum(r.benefit_loan_sss),
       });
     }
-    if (toNum(r.benefit_loan_pagibig) > 0) {
-      logs.push({
+
+    // Check Pagibig Loan Detail
+    const hasPagibigLoan = hasLoanDetail.has(`${r.cutoff_id}|${uId}|PAGIBIG`);
+    if (!hasPagibigLoan && toNum(r.benefit_loan_pagibig) > 0) {
+      pushToMap({
         ...common,
         benefit_log_id: `LOAN-HDMF-${r.id}`,
         benefit_code: "PAGIBIG",
         benefit_name: "Pag-IBIG",
         log_type: "LOAN",
         loan_id: null,
-        source_amount: 0,
         deducted_amount: toNum(r.benefit_loan_pagibig),
       });
     }
   }
 
+  // --- PROCESS MANUAL LOGS (benefit_logs) ---
+  for (const r of rowsManual) {
+    const user = r.user_id || {};
+
+    // Determine Payroll Ref No display
+    // Priority: payroll_detail_id > payroll_run_id
+    let refNo = "Manual";
+    if (r.payroll_detail_id) {
+      refNo = r.payroll_detail_id;
+    } else if (r.payroll_run_id && Number(r.payroll_run_id) !== 0) {
+      refNo = String(r.payroll_run_id);
+    }
+
+    const manualRow: BenefitLogRow = {
+      benefit_log_id: r.benefit_log_id,
+      benefit_code: r.benefit_code,
+      benefit_name: r.benefit_code === "PAGIBIG" ? "Pag-IBIG" : r.benefit_code === "PHILHEALTH" ? "PhilHealth" : r.benefit_code,
+      cutoff_id: r.cutoff_id,
+      user_id: r.user_id?.user_id || r.user_id,
+      employee_name: fullnameFromUser(user),
+
+      log_type: r.log_type,
+      loan_id: r.loan_id,
+
+      source_amount: r.source_amount ? toNum(r.source_amount) : 0,
+      deducted_amount: toNum(r.deducted_amount),
+
+      payroll_run_id: r.payroll_run_id,
+      payroll_ref_no: refNo,
+
+      note: r.note,
+      created_date: r.created_date,
+      posted_at: r.created_date,
+
+      account_no: null // Will be populated in final pass
+    };
+
+    const key = getKey(manualRow);
+    const existing = logMap.get(key);
+
+    if (existing) {
+      // MERGE LOGIC (User Request: "treat same data as one not add/total them")
+      // The manual log takes precedence over the system log for the same key.
+
+      // Overwrite amounts
+      existing.deducted_amount = manualRow.deducted_amount;
+      existing.source_amount = manualRow.source_amount;
+
+      // Overwrite note if manual log has one
+      if (manualRow.note) {
+        existing.note = manualRow.note;
+      }
+
+      // If manual log has a specific payroll ref (from payroll_detail_id), use it
+      if (manualRow.payroll_ref_no !== "Manual") {
+        existing.payroll_ref_no = manualRow.payroll_ref_no;
+      }
+
+      // We keep the 'existing' object in the map, effectively updating it in-place.
+    } else {
+      // INSERT NEW
+      logMap.set(key, manualRow);
+    }
+  }
+
+  // Convert Map to Array
+  const logs = Array.from(logMap.values());
+
   // Final pass to set correct account_no based on benefit_code
+  // We need to look up ANY row from system or manual that has the user details
+  const userMap = new Map<number, any>();
+
+  // Populate user map from both sources
+  rowsSystem.forEach(r => {
+    const u = r.user_id;
+    if (u && u.user_id) userMap.set(u.user_id, u);
+  });
+  rowsManual.forEach(r => {
+    const u = r.user_id;
+    if (u && u.user_id) userMap.set(u.user_id, u);
+  });
+
   for (const log of logs) {
-    const rawRow = rows.find(r => (r.user_id?.user_id || r.user_id) === log.user_id);
-    const u = rawRow?.user_id || {};
+    const u = userMap.get(log.user_id) || {};
 
     if (log.benefit_code === "SSS") {
       log.account_no = u.user_sss || null;
@@ -364,6 +487,13 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
       log.account_no = u.user_pagibig || null;
     }
   }
+
+  // Sort by date descending (posted_at or created_date)
+  logs.sort((a, b) => {
+    const da = new Date(a.created_date || 0).getTime();
+    const db = new Date(b.created_date || 0).getTime();
+    return db - da; // Descending
+  });
 
   return logs;
 }

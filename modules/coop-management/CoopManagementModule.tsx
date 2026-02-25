@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
-import { Plus, RefreshCw, RotateCcw, Search } from "lucide-react";
+import { Plus, Printer, RefreshCw, RotateCcw, Search } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -18,8 +18,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { SavingsTab } from "./components/SavingsTab";
-import { LoansTab } from "./components/LoansTab";
+import SavingsTab from "./components/SavingsTab";
+import LoansTab from "./components/LoansTab";
+import { useRef } from "react";
+import { PrintPreviewModal } from "./components/modals/PrintPreviewModal";
 
 export function CoopManagementModule() {
   const [activeTab, setActiveTab] = useState("savings");
@@ -28,6 +30,11 @@ export function CoopManagementModule() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [printData, setPrintData] = useState<any[]>([]);
+
+  const savingsRef = useRef<{ getData: () => any[] }>(null);
+  const loansRef = useRef<{ getData: () => any[] }>(null);
 
   const handleRefresh = () => setRefreshTrigger((prev) => prev + 1);
 
@@ -35,6 +42,20 @@ export function CoopManagementModule() {
     setSearchTerm("");
     setStatusFilter("All");
     toast.info("Filters reset");
+  };
+
+  const handlePrint = () => {
+    const data = activeTab === "savings" 
+      ? savingsRef.current?.getData() 
+      : loansRef.current?.getData();
+    
+    if (!data || data.length === 0) {
+      toast.error("No data available to print.");
+      return;
+    }
+    
+    setPrintData(data);
+    setIsPreviewOpen(true);
   };
 
   return (
@@ -114,6 +135,13 @@ export function CoopManagementModule() {
                     <RotateCcw className="h-3.5 w-3.5 mr-2" /> Reset
                   </Button>
                   <Button
+                    variant="outline"
+                    className="flex-1 border-blue-200 text-blue-700 hover:bg-blue-50"
+                    onClick={handlePrint}
+                  >
+                    <Printer className="h-3.5 w-3.5 mr-2" /> Print
+                  </Button>
+                  <Button
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
                     onClick={handleRefresh}
                   >
@@ -138,6 +166,7 @@ export function CoopManagementModule() {
 
               <TabsContent value="savings" className="mt-0 space-y-4">
                 <SavingsTab
+                  ref={savingsRef}
                   searchTerm={searchTerm}
                   statusFilter={statusFilter}
                   refreshTrigger={refreshTrigger}
@@ -148,6 +177,7 @@ export function CoopManagementModule() {
 
               <TabsContent value="loans" className="mt-0 space-y-4">
                 <LoansTab
+                  ref={loansRef}
                   searchTerm={searchTerm}
                   statusFilter={statusFilter}
                   refreshTrigger={refreshTrigger}
@@ -156,6 +186,15 @@ export function CoopManagementModule() {
                 />
               </TabsContent>
             </Tabs>
+
+            <PrintPreviewModal
+              isOpen={isPreviewOpen}
+              onClose={() => setIsPreviewOpen(false)}
+              type={activeTab as "savings" | "loans"}
+              data={printData}
+              searchTerm={searchTerm}
+              statusFilter={statusFilter}
+            />
           </CardContent>
         </Card>
       </div>

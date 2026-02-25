@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,13 +28,17 @@ import { AddLoanModal } from "./modals/AddLoanModal";
 import { EditLoanModal } from "./modals/EditLoanModal";
 import { CoopTableSkeleton } from "./CoopTableSkeleton";
 
-export function LoansTab({
-  searchTerm,
-  statusFilter,
-  refreshTrigger,
-  isAddModalOpen,
-  onCloseAddModal,
-}: TabContentProps) {
+const LoansTab = forwardRef<{ getData: () => any[] }, TabContentProps>(
+  function LoansTab(
+    {
+      searchTerm,
+      statusFilter,
+      refreshTrigger,
+      isAddModalOpen,
+      onCloseAddModal,
+    },
+    ref
+  ) {
   const [loans, setLoans] = useState<EmployeeLoan[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [paymentsMap, setPaymentsMap] = useState<Record<number, number>>({});
@@ -46,6 +50,10 @@ export function LoansTab({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalLoans, setTotalLoans] = useState<number>(0);
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
+
+  useImperativeHandle(ref, () => ({
+    getData: () => processedRows,
+  }));
 
   const loadData = useCallback(
     async (signal?: AbortSignal) => {
@@ -425,4 +433,6 @@ export function LoansTab({
       />
     </>
   );
-}
+});
+
+export default LoansTab;

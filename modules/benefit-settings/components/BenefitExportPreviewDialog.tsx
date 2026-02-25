@@ -105,27 +105,27 @@ export default function BenefitExportPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!w-[95vw] !max-w-7xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="px-6 py-4 border-b">
+      <DialogContent className="!w-[95vw] !max-w-7xl max-h-[95vh] flex flex-col p-0 overflow-hidden dark:bg-gray-900 dark:border-gray-800">
+        <DialogHeader className="px-6 py-4 border-b dark:border-gray-800">
           <DialogTitle className="flex items-center gap-2">
             <FileDown className="h-5 w-5 text-blue-600" />
             PDF Export Preview
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col flex-1 overflow-hidden p-6 gap-6">
+        <div className="flex flex-col flex-1 overflow-hidden p-6 gap-6 dark:bg-gray-950/20">
           {/* Selections / Filters */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
                 Cutoff
               </label>
               <Select value={cutoffId} onValueChange={setCutoffId}>
-                <SelectTrigger className="bg-slate-50 h-auto min-h-[36px] py-1 flex-wrap whitespace-normal text-left">
+                <SelectTrigger className="bg-slate-50 dark:bg-gray-800 h-auto min-h-[36px] py-1 flex-wrap whitespace-normal text-left dark:border-gray-700 dark:text-gray-100">
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
-                <SelectContent className="max-w-[400px]">
-                  <SelectItem value="ALL">All Cutoffs</SelectItem>
+                <SelectContent className="max-w-[400px] dark:bg-gray-900 dark:border-gray-800">
+                  <SelectItem value="ALL" className="dark:text-gray-200 dark:focus:bg-gray-800">All Cutoffs</SelectItem>
                   {cutoffs.map((c) => (
                     <SelectItem key={c.id} value={String(c.id)}>
                       {cutoffLabel(c)}
@@ -136,15 +136,15 @@ export default function BenefitExportPreviewDialog({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
                 Benefit
               </label>
               <Select value={benefit} onValueChange={(v) => setBenefit(v as any)}>
-                <SelectTrigger className="bg-slate-50 h-auto min-h-[36px]">
+                <SelectTrigger className="bg-slate-50 dark:bg-gray-800 h-auto min-h-[36px] dark:border-gray-700 dark:text-gray-100">
                   <SelectValue placeholder="All Benefits" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Benefits</SelectItem>
+                <SelectContent className="dark:bg-gray-900 dark:border-gray-800">
+                  <SelectItem value="ALL" className="dark:text-gray-200 dark:focus:bg-gray-800">All Benefits</SelectItem>
                   <SelectItem value="SSS">SSS</SelectItem>
                   <SelectItem value="PHILHEALTH">PhilHealth</SelectItem>
                   <SelectItem value="PAGIBIG">Pag-IBIG</SelectItem>
@@ -153,15 +153,15 @@ export default function BenefitExportPreviewDialog({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
                 Type
               </label>
               <Select value={type} onValueChange={(v) => setType(v as any)}>
-                <SelectTrigger className="bg-slate-50 h-auto min-h-[36px]">
+                <SelectTrigger className="bg-slate-50 dark:bg-gray-800 h-auto min-h-[36px] dark:border-gray-700 dark:text-gray-100">
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Types</SelectItem>
+                <SelectContent className="dark:bg-gray-900 dark:border-gray-800">
+                  <SelectItem value="ALL" className="dark:text-gray-200 dark:focus:bg-gray-800">All Types</SelectItem>
                   <SelectItem value="CONTRIBUTION">Contributions</SelectItem>
                   <SelectItem value="LOAN">Loans</SelectItem>
                 </SelectContent>
@@ -169,14 +169,14 @@ export default function BenefitExportPreviewDialog({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
                 Paper Size
               </label>
               <Select value={paper} onValueChange={(v) => setPaper(v as BenefitLogsPaperSize)}>
-                <SelectTrigger className="bg-slate-50 h-auto min-h-[36px]">
+                <SelectTrigger className="bg-slate-50 dark:bg-gray-800 h-auto min-h-[36px] dark:border-gray-700 dark:text-gray-100">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="dark:bg-gray-900 dark:border-gray-800">
                   <SelectItem value="LETTER">Letter</SelectItem>
                   <SelectItem value="A4">A4</SelectItem>
                   <SelectItem value="LEGAL">Legal</SelectItem>
@@ -188,19 +188,19 @@ export default function BenefitExportPreviewDialog({
           <Separator />
 
           {/* Preview Table */}
-          <div className="flex-1 flex flex-col overflow-hidden bg-white border rounded-xl shadow-inner">
-            <div className="bg-slate-50/80 px-4 py-2 flex justify-between items-center border-b">
-              <span className="text-sm font-medium text-slate-600">
+          <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-gray-900 border dark:border-gray-800 rounded-xl shadow-inner">
+            <div className="bg-slate-50/80 dark:bg-gray-800/80 px-4 py-2 flex justify-between items-center border-b dark:border-gray-800">
+              <span className="text-sm font-medium text-slate-600 dark:text-gray-400">
                 {filtered.length} entries matching selection
               </span>
-              <span className="text-sm font-bold text-slate-900 border-l pl-4">
+              <span className="text-sm font-bold text-slate-900 dark:text-gray-100 border-l dark:border-gray-700 pl-4">
                 Total: {formatMoney(totals)}
               </span>
             </div>
             
             <ScrollArea className="flex-1">
               <Table>
-                <TableHeader className="sticky top-0 bg-white shadow-sm z-10">
+                <TableHeader className="sticky top-0 bg-white dark:bg-gray-900 shadow-sm z-10">
                   <TableRow>
                     <TableHead className="w-[200px]">Employee</TableHead>
                     <TableHead>Account #</TableHead>
@@ -218,16 +218,16 @@ export default function BenefitExportPreviewDialog({
                     </TableRow>
                   ) : (
                     filtered.map((r) => (
-                      <TableRow key={r.benefit_log_id} className="text-xs">
-                        <TableCell className="font-medium">{r.employee_name}</TableCell>
-                        <TableCell className="font-mono text-slate-500">{r.account_no || "—"}</TableCell>
-                        <TableCell className="text-right font-semibold">{formatMoney(r.deducted_amount)}</TableCell>
+                      <TableRow key={r.benefit_log_id} className="text-xs border-b dark:border-gray-800">
+                        <TableCell className="font-medium dark:text-gray-200">{r.employee_name}</TableCell>
+                        <TableCell className="font-mono text-slate-500 dark:text-gray-400">{r.account_no || "—"}</TableCell>
+                        <TableCell className="text-right font-semibold dark:text-gray-100">{formatMoney(r.deducted_amount)}</TableCell>
                         <TableCell>
-                          <Badge variant={r.log_type === "LOAN" ? "secondary" : "outline"} className="text-[10px] scale-90 origin-left">
+                          <Badge variant={r.log_type === "LOAN" ? "secondary" : "outline"} className="text-[10px] scale-90 origin-left dark:bg-gray-800 dark:text-gray-300">
                             {r.log_type}
                           </Badge>
                         </TableCell>
-                        <TableCell className="font-mono">{r.benefit_code}</TableCell>
+                        <TableCell className="font-mono dark:text-gray-300">{r.benefit_code}</TableCell>
                       </TableRow>
                     ))
                   )}
@@ -237,7 +237,7 @@ export default function BenefitExportPreviewDialog({
           </div>
         </div>
 
-        <DialogFooter className="px-6 py-4 border-t bg-slate-50/50">
+        <DialogFooter className="px-6 py-4 border-t dark:border-gray-800 bg-slate-50/50 dark:bg-gray-800/50">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

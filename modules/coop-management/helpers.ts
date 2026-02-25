@@ -1,6 +1,6 @@
 export function formatPeso(n: number | string): string {
   const num = Number(n || 0);
-  return `₱${num.toLocaleString(undefined, {
+  return `PHP ${num.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
