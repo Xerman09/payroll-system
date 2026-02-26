@@ -16,11 +16,14 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Separator } from "@/components/ui/separator";
 
 import type { Holiday, CalendarUser as UserType } from "./types";
 import { CalendarManagementSkeleton } from "./components/CalendarManagementSkeleton";
+import * as calendarApi from "./providers/calendarApi";
+import { getSessionUserId } from "../cutoff-settings/providers/cutoffSettingsApi";
 
 export function CalendarManagementModule() {
   // ---------------------- State & Logic ----------------------
@@ -40,6 +43,7 @@ export function CalendarManagementModule() {
 
   // Form States
   const [holidayDate, setHolidayDate] = useState("");
+  const [lastWorkingDay, setLastWorkingDay] = useState("");
   const [description, setDescription] = useState("");
   const [holidayType, setHolidayType] = useState("regular");
   const [isRecurring, setIsRecurring] = useState(true);
@@ -51,138 +55,26 @@ export function CalendarManagementModule() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 5;
 
-  // ---------------------- Mock Data ----------------------
-  useEffect(() => {
-    const mockHolidays: Holiday[] = [
-      {
-        id: 1,
-        holiday_date: "2025-01-01",
-        description: "New Year's Day",
-        holiday_type: "regular",
-        is_recurring: true,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 2,
-        holiday_date: "2025-02-14",
-        description: "Valentine's Day",
-        holiday_type: "special",
-        is_recurring: true,
-        is_paid: false,
-        created_by: 1,
-      },
-      {
-        id: 3,
-        holiday_date: "2025-03-17",
-        description: "Company Foundation Day",
-        holiday_type: "company",
-        is_recurring: true,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 4,
-        holiday_date: "2025-04-18",
-        description: "Good Friday",
-        holiday_type: "regular",
-        is_recurring: true,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 5,
-        holiday_date: "2025-05-01",
-        description: "Labor Day",
-        holiday_type: "regular",
-        is_recurring: true,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 6,
-        holiday_date: "2025-06-12",
-        description: "Independence Day",
-        holiday_type: "regular",
-        is_recurring: true,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 7,
-        holiday_date: "2025-07-04",
-        description: "Mid-Year Company Event",
-        holiday_type: "company",
-        is_recurring: false,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 8,
-        holiday_date: "2025-08-21",
-        description: "Summer Outing",
-        holiday_type: "special",
-        is_recurring: false,
-        is_paid: false,
-        created_by: 1,
-      },
-      {
-        id: 9,
-        holiday_date: "2025-09-15",
-        description: "Team Building Day",
-        holiday_type: "company",
-        is_recurring: false,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 10,
-        holiday_date: "2025-10-31",
-        description: "Halloween Party",
-        holiday_type: "special",
-        is_recurring: true,
-        is_paid: false,
-        created_by: 1,
-      },
-      {
-        id: 11,
-        holiday_date: "2025-11-01",
-        description: "All Saints' Day",
-        holiday_type: "regular",
-        is_recurring: true,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 12,
-        holiday_date: "2025-12-25",
-        description: "Christmas Day",
-        holiday_type: "regular",
-        is_recurring: true,
-        is_paid: true,
-        created_by: 1,
-      },
-      {
-        id: 13,
-        holiday_date: "2025-12-31",
-        description: "New Year's Eve",
-        holiday_type: "special",
-        is_recurring: true,
-        is_paid: false,
-        created_by: 1,
-      },
-    ];
-
-    const mockUsers: UserType[] = [{ user_id: 1, user_fname: "Zarina", user_lname: "Carcha" }];
-    
-    // Simulate API loading
-    const timer = setTimeout(() => {
-      setHolidays(mockHolidays);
-      setUsers(mockUsers);
+  // ---------------------- API Data ----------------------
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [hData, uData] = await Promise.all([
+        calendarApi.fetchHolidays(),
+        calendarApi.fetchUsers(),
+      ]);
+      setHolidays(hData);
+      setUsers(uData);
+    } catch (err: any) {
+      console.error("Failed to load calendar data:", err);
+      toast.error(err.message || "Failed to load data");
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
+  };
 
-    return () => clearTimeout(timer);
+  useEffect(() => {
+    loadData();
   }, []);
 
   useEffect(() => {
@@ -214,14 +106,8 @@ export function CalendarManagementModule() {
 
   // ---------------------- Handlers ----------------------
   const resetForm = () => {
-    if (selectedDate) {
-      const y = selectedDate.getFullYear();
-      const m = String(selectedDate.getMonth() + 1).padStart(2, "0");
-      const d = String(selectedDate.getDate()).padStart(2, "0");
-      setHolidayDate(`${y}-${m}-${d}`);
-    } else {
-      setHolidayDate("");
-    }
+    setHolidayDate(selectedDate ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}` : "");
+    setLastWorkingDay("");
     setDescription("");
     setHolidayType("regular");
     setIsRecurring(true);
@@ -232,6 +118,7 @@ export function CalendarManagementModule() {
   const handleEdit = (e: React.MouseEvent, h: Holiday) => {
     e.stopPropagation(); // Prevent triggering the row click
     setHolidayDate(h.holiday_date);
+    setLastWorkingDay(h.last_working_day || "");
     setDescription(h.description);
     setHolidayType(h.holiday_type);
     setIsRecurring(h.is_recurring === 1 || h.is_recurring === true);
@@ -246,30 +133,47 @@ export function CalendarManagementModule() {
       return;
     }
 
-    const newHoliday: Holiday = {
-      id: editingHolidayId || Date.now(),
+    const payload: Partial<Holiday> = {
       holiday_date: holidayDate,
+      last_working_day: lastWorkingDay || null,
       description,
       holiday_type: holidayType,
-      is_recurring: isRecurring,
-      is_paid: isPaid,
-      created_by: 1,
+      is_recurring: isRecurring ? 1 : 0,
+      is_paid: isPaid ? 1 : 0,
+      updated_by: Number(getSessionUserId()),
     };
 
-    if (editingHolidayId) {
-      setHolidays(holidays.map((h) => (h.id === editingHolidayId ? newHoliday : h)));
-    } else {
-      setHolidays([...holidays, newHoliday]);
+    if (!editingHolidayId) {
+      payload.created_by = Number(getSessionUserId());
     }
 
-    setModalOpen(false);
-    resetForm();
+    try {
+      if (editingHolidayId) {
+        await calendarApi.updateHoliday(editingHolidayId, payload);
+      } else {
+        await calendarApi.createHoliday(payload);
+      }
+      setModalOpen(false);
+      resetForm();
+      await loadData(); // Reload from DB
+      toast.success(editingHolidayId ? "Holiday updated" : "Holiday created");
+    } catch (err: any) {
+      console.error("Failed to save holiday:", err);
+      toast.error(err.message || "Failed to save holiday");
+    }
   };
 
   const handleDeleteHoliday = async (e: React.MouseEvent, id: number) => {
     e.stopPropagation(); // Prevent triggering the row click
     if (!confirm("Delete this holiday?")) return;
-    setHolidays(holidays.filter((h) => h.id !== id));
+    try {
+      await calendarApi.deleteHoliday(id);
+      await loadData();
+      toast.success("Holiday deleted");
+    } catch (err: any) {
+      console.error("Failed to delete holiday:", err);
+      toast.error(err.message || "Failed to delete");
+    }
   };
 
   // --- Handle Event Click from Table ---
@@ -316,7 +220,7 @@ export function CalendarManagementModule() {
         year,
         month,
       };
-    }, []);
+    }, [currentMonth]);
 
     const days = [];
     for (let i = 0; i < startingDayOfWeek; i++) {
@@ -793,6 +697,15 @@ export function CalendarManagementModule() {
                     type="date"
                     value={holidayDate}
                     onChange={(e) => setHolidayDate(e.target.value)}
+                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">Last Working Day (Optional)</label>
+                  <input
+                    type="date"
+                    value={lastWorkingDay}
+                    onChange={(e) => setLastWorkingDay(e.target.value)}
                     className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   />
                 </div>

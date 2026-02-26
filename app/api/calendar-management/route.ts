@@ -35,8 +35,8 @@ const TOKEN =
   getEnv("DIRECTUS_STATIC_TOKEN");
 
 const COLLECTIONS: Record<ResourceKey, string> = {
-  users: getEnv("CAL_USERS_COLLECTION") || "users",
-  holidays: getEnv("CAL_HOLIDAYS_COLLECTION") || "holidays",
+  users: getEnv("CAL_USERS_COLLECTION") || "user",
+  holidays: getEnv("CAL_HOLIDAYS_COLLECTION") || "holiday_calendar",
 };
 
 function assertConfig() {

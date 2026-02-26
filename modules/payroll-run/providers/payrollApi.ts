@@ -11,6 +11,11 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const msg = json?.error || json?.details || "Request failed";
+    console.error(`apiFetch failed: ${res.status} ${res.statusText}`, {
+      url,
+      status: res.status,
+      json,
+    });
     throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
   }
   return json as T;
