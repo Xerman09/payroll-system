@@ -21,6 +21,9 @@ import {
   Wallet,
   Diff,
   Folders,
+  Anchor,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 import {
@@ -33,6 +36,7 @@ import {
 function Sidebar() {
   const { collapsed, toggle, mobileOpen, setMobileOpen } = useSidebar();
   const pathname = usePathname();
+  const [openDropdowns, setOpenDropdowns] = React.useState<string[]>([]);
 
   const menuItems = useMemo(
     () => [
@@ -85,6 +89,21 @@ function Sidebar() {
             href: "/dashboard/cutoff-settings",
             icon: <Calendars size={20} />,
           },
+          {
+            title: "Logistics Compensation",
+            href: "#",
+            icon: <Anchor size={20} />,
+            subItems: [
+              {
+                title: "Compensation Settings",
+                href: "/dashboard/logistics-compensation/settings",
+              },
+              {
+                title: "Wage Matrix",
+                href: "/dashboard/logistics-compensation/wage-matrix",
+              },
+            ],
+          },
         ],
       },
       {
@@ -110,6 +129,37 @@ function Sidebar() {
     ],
     []
   );
+
+  const toggleDropdown = (title: string) => {
+    setOpenDropdowns((prev) =>
+      prev.includes(title)
+        ? prev.filter((item) => item !== title)
+        : [...prev, title]
+    );
+  };
+
+  // Auto-expand parent if sub-item is active
+  React.useEffect(() => {
+    const activeParents: string[] = [];
+    menuItems.forEach(panel => {
+      panel.items.forEach(item => {
+        if (item.subItems?.some(sub => pathname === sub.href)) {
+          activeParents.push(item.title);
+        }
+      });
+    });
+    
+    if (activeParents.length > 0) {
+      setOpenDropdowns(prev => {
+        const next = [...prev];
+        activeParents.forEach(p => {
+          if (!next.includes(p)) next.push(p);
+        });
+        return next;
+      });
+    }
+  }, [pathname, menuItems]);
+
 
   return (
     <TooltipProvider disableHoverableContent>
@@ -178,33 +228,96 @@ function Sidebar() {
               )}
 
               {/* Items */}
-              {panel.items.map((item, idx) => (
-                <Tooltip key={idx} delayDuration={0}>
-                  <TooltipTrigger asChild>
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        "flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ease-out",
-                        "text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 hover:shadow-lg",
-                        collapsed ? "justify-center" : "justify-start",
-                        pathname === item.href &&
-                          "bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
-                      )}
-                    >
-                      {item.icon}
-                      {!collapsed && <span>{item.title}</span>}
-                    </Link>
-                  </TooltipTrigger>
+              {panel.items.map((item, idx) => {
+                const hasSubItems = item.subItems && item.subItems.length > 0;
+                const isOpen = openDropdowns.includes(item.title);
+                const isActive = pathname === item.href || (hasSubItems && item.subItems.some(sub => pathname === sub.href));
 
-                  {/* ✔ Always render TooltipContent (prevents infinite loop) */}
-                  <TooltipContent
-                    side="right"
-                    className={cn(!collapsed ? "hidden" : "")}
-                  >
-                    {item.title}
-                  </TooltipContent>
-                </Tooltip>
-              ))}
+                return (
+                  <div key={idx}>
+                    <Tooltip delayDuration={0}>
+                      <TooltipTrigger asChild>
+                        {hasSubItems ? (
+                          <button
+                            onClick={() => {
+                              if (collapsed) {
+                                toggle();
+                                if (!isOpen) toggleDropdown(item.title);
+                              } else {
+                                toggleDropdown(item.title);
+                              }
+                            }}
+                            className={cn(
+                              "w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ease-out",
+                              "text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 hover:shadow-lg",
+                              collapsed ? "justify-center" : "justify-start",
+                              isActive && "bg-blue-500/10 text-blue-600 dark:bg-blue-600/10 dark:text-blue-400"
+                            )}
+                          >
+                            {item.icon}
+                            {!collapsed && (
+                              <>
+                                <span className="flex-1 text-left">{item.title}</span>
+                                {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <Link
+                            href={item.href}
+                            className={cn(
+                              "flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ease-out",
+                              "text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 hover:shadow-lg",
+                              collapsed ? "justify-center" : "justify-start",
+                              pathname === item.href &&
+                                "bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
+                            )}
+                          >
+                            {item.icon}
+                            {!collapsed && <span>{item.title}</span>}
+                          </Link>
+                        )}
+                      </TooltipTrigger>
+
+                      <TooltipContent
+                        side="right"
+                        className={cn(!collapsed ? "hidden" : "")}
+                      >
+                        {item.title}
+                      </TooltipContent>
+                    </Tooltip>
+
+                    {/* Sub Items */}
+                    <AnimatePresence>
+                      {hasSubItems && isOpen && !collapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2, ease: "easeInOut" }}
+                          className="overflow-hidden"
+                        >
+                          <div className="mt-1 ml-9 flex flex-col gap-1 border-l-2 border-gray-300 dark:border-gray-700 pl-4">
+                            {item.subItems.map((sub, sIdx) => (
+                              <Link
+                                key={sIdx}
+                                href={sub.href}
+                                className={cn(
+                                  "p-2 text-sm rounded-lg transition-colors",
+                                  "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-800",
+                                  pathname === sub.href && "text-blue-600 dark:text-blue-400 font-medium"
+                                )}
+                              >
+                                {sub.title}
+                              </Link>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>

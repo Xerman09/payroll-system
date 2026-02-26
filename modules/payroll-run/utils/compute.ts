@@ -380,18 +380,20 @@ function allowanceAmountForCutoff(args: {
     }
 
     if (a.pay_cycle === "PER_MONTH") {
-      const half = round2(a.amount / 2);
-      const amountThisCutoff = cutoffType === "FIRST" || cutoffType === "SECOND" || !cutoffType ? half : half;
+      const isSecond = cutoffType === "SECOND";
+      const amountThisCutoff = isSecond ? a.amount : 0;
 
-      items.push({
-        allowance_id: a.allowance_id,
-        description: a.description,
-        pay_cycle: a.pay_cycle,
-        is_recurring: 1,
-        amount_full: round2(a.amount),
-        amount_this_cutoff: round2(amountThisCutoff),
-        source: "RECURRING",
-      });
+      if (amountThisCutoff > 0) {
+        items.push({
+          allowance_id: a.allowance_id,
+          description: a.description,
+          pay_cycle: a.pay_cycle,
+          is_recurring: 1,
+          amount_full: round2(a.amount),
+          amount_this_cutoff: round2(amountThisCutoff),
+          source: "RECURRING",
+        });
+      }
       continue;
     }
   }
