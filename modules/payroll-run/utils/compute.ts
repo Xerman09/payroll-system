@@ -966,7 +966,10 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     const dayHourly = rate.hourlyForDate(date);
 
     const h = holidayMap.get(date) ?? null;
-    const holidayFlag = toHolidayFlag(h);
+    // ✅ Special holiday with is_paid=0 → treat as normal day (no premium multiplier)
+    const rawHolidayFlag = toHolidayFlag(h);
+    const holidayFlag: HolidayFlag =
+      rawHolidayFlag === "SPECIAL" && h && !h.is_paid ? "NONE" : rawHolidayFlag;
     const rd = isSunday(date);
 
     const wmRaw = n(r.work_minutes);
@@ -1054,7 +1057,9 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   nightDiffAmount = round2(nightDiffAmount);
 
   // unworked holidays
+  // ✅ Special holidays = no work no pay (only regular holidays get unworked pay)
   for (const [date, h] of holidayMap.entries()) {
+    if (h.type === "special" || h.type === "company") continue;
     if (!h.is_paid) continue;
     if (!inRange(date, args.cutoffStart, args.cutoffEnd)) continue;
     if (attendedHolidayDates.has(date)) continue;

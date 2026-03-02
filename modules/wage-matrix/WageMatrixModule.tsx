@@ -60,14 +60,14 @@ const COLUMN_MAP = [
   { key: 'logistics_regular_10w_t', label: 'Regular (10W/T)', group: 'Logistics Crew', role: 'Helper', employmentType: 'REGULAR(10W/T)' },
 ];
 
-const LOCAL_STORAGE_KEY = 'wage_matrix_draft';
+const LOCAL_STORAGE_KEY = 'wage_matrix_draft_v2';
 
 export default function WageMatrixModule() {
   const [data, setData] = useState<WageMatrixData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [draft, setDraft] = useState<Record<string, string>>({}); // Key: areaId_staffId_vehicleTypeId
+  const [draft, setDraft] = useState<Record<string, string>>({}); // Key: areaId_colKey
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -79,8 +79,21 @@ export default function WageMatrixModule() {
       // Initialize draft from matrix data
       const initialDraft: Record<string, string> = {};
       res.matrix.forEach(item => {
-        const key = `${item.area_id}_${item.staff_id}_${item.vehicle_type_id}`;
-        initialDraft[key] = item.wage_amount.toString();
+        // Find which column this item belongs to
+        const staff = res.staff.find(s => s.staff_id === item.staff_id);
+        const vt = res.vehicleTypes.find(v => v.vehicle_type_id === item.vehicle_type_id);
+        
+        const col = COLUMN_MAP.find(c => {
+          const matchesStaff = staff?.role === c.role && (c.employmentType ? staff?.employment_type === c.employmentType : true);
+          // For drivers, we match vehicle type. For others, we expect 'N/A' or nothing.
+          const matchesVT = c.vehicleType ? vt?.vehicle_type === c.vehicleType : (vt?.vehicle_type === 'N/A' || !vt);
+          return matchesStaff && matchesVT;
+        });
+
+        if (col) {
+          const key = `${item.area_id}_${col.key}`;
+          initialDraft[key] = item.wage_amount.toString();
+        }
       });
 
       // Merge with localStorage if exists
@@ -121,8 +134,8 @@ export default function WageMatrixModule() {
     }
   }, [draft]);
 
-  const handleInputChange = (areaId: number, staffId: number, vehicleTypeId: number, value: string) => {
-    const key = `${areaId}_${staffId}_${vehicleTypeId}`;
+  const handleInputChange = (areaId: number, colKey: string, value: string) => {
+    const key = `${areaId}_${colKey}`;
     setDraft(prev => ({ ...prev, [key]: value }));
   };
 
@@ -135,25 +148,31 @@ export default function WageMatrixModule() {
       
       // Construct payload from draft
       Object.entries(draft).forEach(([key, value]) => {
-        const [areaId, staffId, vehicleTypeId] = key.split('_').map(Number);
+        const [areaIdStr, colKey] = key.split('_');
+        const areaId = Number(areaIdStr);
         const amount = parseFloat(value);
         if (isNaN(amount)) return;
 
+        const colConfig = COLUMN_MAP.find(c => c.key === colKey);
+        const staff = staffByColumn[colKey];
+        if (!staff || !colConfig) return;
+
+        const vtId = getVehicleTypeId(colConfig.vehicleType);
+
         const existing = data.matrix.find(m => 
           m.area_id === areaId && 
-          m.staff_id === staffId && 
-          m.vehicle_type_id === vehicleTypeId
+          m.staff_id === staff.staff_id && 
+          m.vehicle_type_id === vtId
         );
 
         const record = {
           area_id: areaId,
-          staff_id: staffId,
-          vehicle_type_id: vehicleTypeId,
+          staff_id: staff.staff_id,
+          vehicle_type_id: vtId,
           wage_amount: amount
         };
 
         if (existing?.id) {
-          // Only add to updates if value actually changed
           if (existing.wage_amount !== amount) {
             updates.push({ ...record, id: existing.id });
           }
@@ -251,12 +270,7 @@ export default function WageMatrixModule() {
   };
 
   const getCellValue = (areaId: number, colKey: string): string => {
-    const colConfig = COLUMN_MAP.find(c => c.key === colKey);
-    const staff = staffByColumn[colKey];
-    if (!staff || !colConfig) return "";
-
-    const vtId = getVehicleTypeId(colConfig.vehicleType);
-    const key = `${areaId}_${staff.staff_id}_${vtId}`;
+    const key = `${areaId}_${colKey}`;
     return draft[key] || "";
   };
 
@@ -441,7 +455,7 @@ export default function WageMatrixModule() {
                                          <Input 
                                            type="number"
                                            value={cellValue}
-                                           onChange={(e) => handleInputChange(area.area_id, staff.staff_id, vtId, e.target.value)}
+                                           onChange={(e) => handleInputChange(area.area_id, col.key, e.target.value)}
                                            className={`h-9 text-center font-mono text-sm bg-transparent border-none focus:ring-1 focus:ring-blue-500/50 rounded-lg transition-all text-slate-900 dark:text-slate-100 ${
                                              isDirty ? "bg-amber-100/50 dark:bg-amber-900/10 text-amber-700" : ""
                                            }`}

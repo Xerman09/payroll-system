@@ -120,14 +120,25 @@ export default function VehicleTypeTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this vehicle type?")) return;
+    const vtToDelete = vehicleTypes.find(v => v.id === id);
+    if (vtToDelete?.vehicle_type === 'N/A') {
+      return toast.error("The 'N/A' classification is a system requirement and cannot be deleted.");
+    }
+
+    if (!confirm(`Are you sure you want to delete "${vtToDelete?.vehicle_type}"?`)) return;
+    
     try {
       await deleteVehicleType(id);
       toast.success("Vehicle type deleted successfully.");
       loadVehicleTypes();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error("Failed to delete vehicle type.");
+      const message = error.message || "";
+      if (message.includes("foreign key") || message.includes("restricted") || message.includes("REFERENCE")) {
+        toast.error("Cannot delete check classification because it is currently used in the Rate & Payout Matrix.");
+      } else {
+        toast.error(message || "Failed to delete vehicle type.");
+      }
     }
   };
 
