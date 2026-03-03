@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { Lock, Mail, ArrowRight, Loader2 } from "lucide-react";
 
 export default function LoginForm({
   onSubmit,
@@ -15,6 +16,7 @@ export default function LoginForm({
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   return (
     <form
@@ -24,33 +26,72 @@ export default function LoginForm({
       }}
       className="space-y-5"
     >
-      <div className="flex flex-col gap-2">
-        <Label>Email</Label>
-        <Input
-          type="email"
-          required
-          placeholder="hi@yourcompany.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+      {/* Email Field */}
+      <div className="space-y-2">
+        <Label className="text-[10px] font-black uppercase tracking-[0.25em] text-white/30 ml-1 flex items-center gap-2">
+          <Mail className="w-3 h-3" />
+          Corporate Email
+        </Label>
+        <div>
+          <Input
+            type="email"
+            required
+            id="login-email"
+            placeholder="admin@vtc-systems.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onFocus={() => setFocusedField("email")}
+            onBlur={() => setFocusedField(null)}
+            className="relative bg-white/[0.04] border-white/10 rounded-2xl py-6 px-5 text-white placeholder:text-white/15 focus:border-cyan-500/50 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 text-sm"
+          />
+        </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <Label>Password</Label>
-        <Input
-          type="password"
-          required
-          placeholder="Enter your password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+      {/* Password Field */}
+      <div className="space-y-2">
+        <Label className="text-[10px] font-black uppercase tracking-[0.25em] text-white/30 ml-1 flex items-center gap-2">
+          <Lock className="w-3 h-3" />
+          Secure Password
+        </Label>
+        <div>
+          <Input
+            type="password"
+            required
+            id="login-password"
+            placeholder="••••••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onFocus={() => setFocusedField("password")}
+            onBlur={() => setFocusedField(null)}
+            className="relative bg-white/[0.04] border-white/10 rounded-2xl py-6 px-5 text-white placeholder:text-white/20 focus:border-white/20 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 text-sm"
+          />
+        </div>
       </div>
 
-      <motion.div whileTap={{ scale: 0.95 }}>
-        <Button className="w-full" disabled={loading}>
-          {loading ? "Signing in..." : "Sign in"}
-        </Button>
-      </motion.div>
+      {/* Submit Button */}
+      <div className="pt-3">
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
+          <Button
+            id="login-submit-btn"
+            className="w-full h-14 relative overflow-hidden bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black uppercase text-xs tracking-[0.25em] rounded-2xl shadow-2xl shadow-cyan-500/20 transition-all duration-300 disabled:opacity-50 group"
+            disabled={loading}
+          >
+            {/* Button shimmer */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+            {loading ? (
+              <div className="flex items-center gap-3">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Verifying Access...</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <span>Authenticate</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+            )}
+          </Button>
+        </motion.div>
+      </div>
     </form>
   );
 }

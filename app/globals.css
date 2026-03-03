@@ -128,7 +128,13 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
+  html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
     @apply bg-background text-foreground;
   }
    :root {
@@ -151,5 +157,91 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.439 0 0);
+  }
+
+  /* VTC Luxury Tech Theme - OKLCH Derived */
+  :root {
+    --premium-navy: oklch(0.12 0.05 260);
+    --premium-purple: oklch(0.20 0.10 270);
+    --premium-teal: oklch(0.16 0.08 240);
+    --accent-cyan: oklch(0.75 0.15 220);
+    --accent-magenta: oklch(0.70 0.20 320);
+    --accent-gold: oklch(0.85 0.12 85);
+    --accent-orange: oklch(0.75 0.18 50);
+    --primary-vtc: oklch(0.7 0.15 255);
+  }
+
+  .glass {
+    background: rgba(255, 255, 255, 0.05); /* Slightly more prominent white glass */
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  .glass-dark {
+    background: rgba(15, 23, 42, 0.3); /* Slate-900 at 30% for better transparency */
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 24px 0 rgba(0, 0, 0, 0.5);
+  }
+
+  .text-gradient-cyan {
+    background-image: linear-gradient(to right, #22d3ee, #3b82f6) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    display: inline-block;
+  }
+
+  .text-gradient-gold {
+    background-image: linear-gradient(to right, #fbbf24, #f97316) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    display: inline-block;
+  }
+
+  .bg-hero-gradient {
+    background: radial-gradient(circle at top left, var(--premium-navy), oklch(0.1 0.03 250));
+    background-attachment: fixed;
+  }
+
+  /* Custom Glow Effects */
+  .glow-cyan {
+    box-shadow: 0 0 30px color-mix(in oklch, var(--accent-cyan) 40%, transparent 60%);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 30px color-mix(in oklch, var(--primary-vtc) 40%, transparent 60%);
+  }
+
+  /* Performance Optimization Utilities */
+  .will-change-transform {
+    will-change: transform;
+  }
+
+  .will-change-opacity {
+    will-change: opacity;
+  }
+
+  .gpu-accelerated {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+  }
+
+  /* Scroll Snapping Utilities */
+  .snap-container {
+    scroll-snap-type: y proximity;
+    scroll-behavior: smooth;
+  }
+
+  .snap-section {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
   }
 }
