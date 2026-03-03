@@ -104,13 +104,28 @@ export function buildTapSheetRows(
       if (!posted) posted = runObj.posted_at;
     }
 
+    const grossOrig = toNumberSafe(pr.gross_pay);
+    const addsOrig = toNumberSafe(pr.total_additions);
+
+    const basic = toNumberSafe(pr.basic_pay);
+    const ot = toNumberSafe(pr.ot_amount);
+    const hol = toNumberSafe(pr.holiday_pay);
+    const rest = toNumberSafe(pr.rest_day_amount);
+    const nd = toNumberSafe(pr.night_diff_amount);
+
+    // New Logic: 
+    // Gross = Basic + OT + Holiday + Rest Day + Night Diff
+    // Additions = Original Additions - (OT + Holiday + Rest Day + Night Diff)
+    const adjustedGross = basic + ot + hol + rest + nd;
+    const adjustedAdds = addsOrig - (ot + hol + rest + nd);
+
     return {
       user_id: pr.user_id,
       name_display,
       name_sort_key,
       payment_type: isCard ? "BANK" : "CASH",
-      gross_pay: toNumberSafe(pr.gross_pay),
-      total_additions: toNumberSafe(pr.total_additions),
+      gross_pay: adjustedGross,
+      total_additions: adjustedAdds,
       total_deductions: toNumberSafe(pr.total_deductions),
       net_pay: toNumberSafe(pr.net_pay),
       payroll_ref_no: ref,

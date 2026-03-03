@@ -44,6 +44,11 @@ export type PayrollRunEmployeeRow = {
   cutoff_end: string;
   cutoff_label: string | null;
   gross_pay: string | number;
+  basic_pay: string | number;
+  ot_amount: string | number;
+  holiday_pay: string | number;
+  rest_day_amount: string | number;
+  night_diff_amount: string | number;
   total_additions: string | number;
   total_deductions: string | number;
   net_pay: string | number;
