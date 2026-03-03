@@ -210,7 +210,7 @@ export async function GET(req: NextRequest) {
       const APIS: any[] = [];
 
       // Map prefixes to their names
-      const prefixes = ["BASE", "I", "II", "III", "IV", "V"];
+      const prefixes = ["BASE", "I", "II", "III", "IV", "V", "VI", "VII"];
       for (const p of prefixes) {
         const urlKey = p === "BASE" ? "API_BASE" : `API_${p}`;
         const nameKey = `${urlKey}_NAME`;
