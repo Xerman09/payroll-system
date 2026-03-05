@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 9001",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 9002",
     "lint": "eslint"
   },
   "dependencies": {
@@ -25,6 +25,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.24",
+    "gsap": "^3.14.2",
     "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.554.0",
