@@ -127,11 +127,44 @@ export function CalendarManagementModule() {
     setModalOpen(true);
   };
 
+  // Resolve the cutoff_setting_id for a given date by querying the cutoff-settings API.
+  const getCutoffSettingId = async (dateStr: string): Promise<number | null> => {
+    try {
+      const d = new Date(dateStr);
+      const month = String(d.getMonth() + 1);
+      const year = String(d.getFullYear());
+      const day = d.getDate();
+
+      const res = await fetch(`/api/cutoff-settings?month=${month}&year=${year}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return null;
+
+      const json = await res.json();
+      const settings: any[] = json?.data ?? [];
+      if (!settings.length) return null;
+
+      // Prefer the cutoff period whose date range contains the holiday date.
+      const matched = settings.find((s) => {
+        if (!s.start_date || !s.end_date) return false;
+        const start = new Date(s.start_date).getDate();
+        const end = new Date(s.end_date).getDate();
+        return day >= start && day <= end;
+      });
+
+      return (matched ?? settings[0])?.id ?? null;
+    } catch {
+      return null;
+    }
+  };
+
   const handleSaveHoliday = async () => {
     if (!holidayDate || !description) {
       alert("Please fill all required fields");
       return;
     }
+
+    const cutoffSettingId = await getCutoffSettingId(holidayDate);
 
     const payload: Partial<Holiday> = {
       holiday_date: holidayDate,
@@ -140,6 +173,7 @@ export function CalendarManagementModule() {
       holiday_type: holidayType,
       is_recurring: isRecurring ? 1 : 0,
       is_paid: isPaid ? 1 : 0,
+      cutoff_setting_id: cutoffSettingId,
       updated_by: Number(getSessionUserId()),
     };
 
@@ -432,10 +466,15 @@ export function CalendarManagementModule() {
                                         Recurring
                                       </span>
                                     )}
-                                    {event.is_paid && (
+                                    {event.is_paid ? (
                                       <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded border border-emerald-100 dark:border-emerald-900/40">
                                         <div className="w-1 h-1 rounded-full bg-emerald-500"></div>{" "}
                                         Paid
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-[10px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded border border-red-100 dark:border-red-900/40">
+                                        <div className="w-1 h-1 rounded-full bg-red-500"></div>{" "}
+                                        Unpaid
                                       </span>
                                     )}
                                   </div>
@@ -578,10 +617,15 @@ export function CalendarManagementModule() {
                                   Recurring
                                 </span>
                               )}
-                              {item.is_paid && (
+                              {item.is_paid ? (
                                 <span className="text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/40 px-1.5 py-0.5 rounded flex items-center gap-1">
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{" "}
                                   Paid
+                                </span>
+                              ) : (
+                                <span className="text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/40 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>{" "}
+                                  Unpaid
                                 </span>
                               )}
                             </div>

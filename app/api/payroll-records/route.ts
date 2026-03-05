@@ -162,6 +162,11 @@ export async function GET(req: NextRequest) {
           "cutoff_end",
           "cutoff_label",
           "gross_pay",
+          "basic_pay",
+          "ot_amount",
+          "holiday_pay",
+          "rest_day_amount",
+          "night_diff_amount",
           "total_additions",
           "total_deductions",
           "net_pay",
@@ -210,7 +215,7 @@ export async function GET(req: NextRequest) {
       const APIS: any[] = [];
 
       // Map prefixes to their names
-      const prefixes = ["BASE", "I", "II", "III", "IV", "V"];
+      const prefixes = ["BASE", "I", "II", "III", "IV", "V", "VI", "VII"];
       for (const p of prefixes) {
         const urlKey = p === "BASE" ? "API_BASE" : `API_${p}`;
         const nameKey = `${urlKey}_NAME`;

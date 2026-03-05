@@ -19,9 +19,9 @@ export function ThemeToggle({ toggleTheme, currentTheme }: ThemeToggleProps) {
         window.matchMedia("(prefers-color-scheme: dark)").matches
       )
         return "dark";
-      else return "light";
+      else return "dark";
     } catch {
-      return "light";
+      return "dark";
     }
   });
 
