@@ -327,7 +327,7 @@ export async function GET(req: NextRequest) {
         meta: {
           currentCutoff: { start: cutoffStart, end: cutoffEnd },
           prevCutoff: prevCutoff ? { start: prevCutoff.start_date, end: prevCutoff.end_date } : null,
-          companyName: process.env.API_BASE_NAME || "COMPANY NAME",
+          companyName: process.env.API_BASE_NAME || "",
         },
       });
     }

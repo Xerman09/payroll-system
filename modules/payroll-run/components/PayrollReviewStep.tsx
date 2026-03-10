@@ -436,7 +436,7 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
       setIsPrinting(true);
 
       let rowsToPrint: any[] = [...displayLines];
-      let companyName: string | undefined = (props as any)?.summary?.companyName || "COMPANY NAME";
+      let companyName: string | undefined = (props as any)?.summary?.companyName || "";
 
       // Ensure breakdown_json is present for itemized lists
       if (!rowsHaveBreakdown(rowsToPrint) && runId != null) {

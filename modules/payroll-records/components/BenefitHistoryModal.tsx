@@ -260,7 +260,7 @@ export default function BenefitHistoryModal({
     try {
       const firstRecord = filteredData[0];
       const doc = await buildBenefitHistoryPdf({
-        companyName: companyName || "COMPANY NAME",
+        companyName: companyName || "",
         reportType: reportType,
         employee: {
           id: employee?.user_id || "N/A",
