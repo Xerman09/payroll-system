@@ -141,7 +141,7 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
   }
 
   // If Directus returns empty body on other statuses, still respond safely
-  const companyName = process.env.API_BASE_NAME || "MEN2 MARKETING CORPORATION";
+  const companyName = process.env.API_BASE_NAME || "";
 
   // If data is an object, inject companyName into metadata
   if (data && typeof data === "object" && !Array.isArray(data)) {
