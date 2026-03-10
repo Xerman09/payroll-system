@@ -1,0 +1,17 @@
+[
+  "benefit_code",
+  "benefit_log_id",
+  "created_date",
+  "cutoff_end",
+  "cutoff_id",
+  "cutoff_start",
+  "cutoff_type",
+  "deducted_amount",
+  "loan_id",
+  "log_type",
+  "note",
+  "payroll_detail_id",
+  "payroll_run_id",
+  "source_amount",
+  "user_id"
+]

@@ -1,28 +1,32 @@
+const fs = require('fs');
 
-async function testApi() {
-  const url = 'http://localhost:9001/api/payroll-run?resource=payroll_run_access_log';
-  const payload = {
-    payload: {
-      opened_by: 1,
-      cutoff_id: 1,
-      department_id: null,
-      remarks: "Test access log from script"
-    }
-  };
-
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    console.log('Status:', res.status, res.statusText);
-    const json = await res.json().catch(() => null);
-    console.log('JSON:', JSON.stringify(json, null, 2));
-  } catch (err) {
-    console.error('Error:', err);
+async function test() {
+  const env = fs.readFileSync('.env.local', 'utf8');
+  let token = '';
+  for (const line of env.split('\n')) {
+    if (line.startsWith('DIRECTUS_TOKEN=')) token = line.split('=')[1].trim();
   }
+  
+  const res = await fetch('http://goatedcodoer:8091/items/benefit_logs', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      cutoff_id: 1,
+      user_id: 1,
+      benefit_code: "SSS",
+      log_type: "CONTRIBUTION",
+      source_amount: 100,
+      deducted_amount: 100,
+      payroll_run_id: 1,
+      payroll_detail_id: "TEST"
+    })
+  });
+  
+  const txt = await res.text();
+  console.log("STATUS:", res.status);
+  console.log("BODY:", txt);
 }
-
-testApi();
+test();

@@ -2594,7 +2594,7 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
         source_amount: sss,
         deducted_amount: sss,
         payroll_run_id: payrollRunId,
-        payroll_detail_id: payrollDetailId,
+        payroll_detail_id: null,
       });
     }
     if (ph > 0) {
@@ -2609,7 +2609,7 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
         source_amount: ph,
         deducted_amount: ph,
         payroll_run_id: payrollRunId,
-        payroll_detail_id: payrollDetailId,
+        payroll_detail_id: null,
       });
     }
     if (hdmf > 0) {
@@ -2624,7 +2624,7 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
         source_amount: hdmf,
         deducted_amount: hdmf,
         payroll_run_id: payrollRunId,
-        payroll_detail_id: payrollDetailId,
+        payroll_detail_id: null,
       });
     }
   }
@@ -2711,7 +2711,7 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
           source_amount: amt,
           deducted_amount: amt,
           payroll_run_id: payrollRunId,
-          payroll_detail_id: payrollDetailId,
+          payroll_detail_id: null,
         });
       }
     }
