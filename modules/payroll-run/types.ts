@@ -420,6 +420,7 @@ export interface PayrollSummary {
   total_deductions: number;
   total_net: number;
   variance_alerts: number;
+  companyName?: string;
 }
 
 export interface PayrollWorkspace {
@@ -448,6 +449,8 @@ export interface PayrollWorkspace {
   allowances: Map<number, EmployeeAllowance[]>;
 
   wageProrationLogs: Map<number, WageProrationLog[]>;
+
+  companyName?: string;
 
   [k: string]: any;
 }

@@ -670,7 +670,7 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     setText(SLATE_600);
-    doc.text("Men2 Market Corps • Payroll Summary", M, fy);
+    doc.text(`${reportCompany} • Payroll Summary`, M, fy);
     doc.text("Page 1 of 1", pageW - M, fy, { align: "right" });
   }
 

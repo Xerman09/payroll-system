@@ -671,12 +671,14 @@ export async function loadWorkspace(args: {
       ? null
       : normalizeDepartment(await api.getItem<any>(RES.departments, departmentId, {}));
 
-  const rawEmployees = await api.listItems<any>(RES.users, {
+  const rawEmployees = await api.listItemsWithMeta<any>(RES.users, {
     ...(departmentId == null ? {} : { "filter[user_department][_eq]": departmentId }),
     limit: 5000,
   });
 
-  const employees = (rawEmployees ?? []).map(normalizeUser);
+  const companyName = rawEmployees.meta?.companyName;
+
+  const employees = (rawEmployees.data ?? []).map(normalizeUser);
   const userIds = employees.map((u) => u.id);
 
   const wagesArr = userIds.length
@@ -1042,6 +1044,7 @@ export async function loadWorkspace(args: {
     allowances,
 
     wageProrationLogs,
+    companyName,
   } as PayrollWorkspace;
 }
 
@@ -1121,6 +1124,7 @@ export function computeRegister(args: {
       total_deductions: round2(totalDeductions),
       total_net: round2(totalNet),
       variance_alerts: varianceAlerts,
+      companyName: ws.companyName,
     },
   };
 }

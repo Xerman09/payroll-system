@@ -436,10 +436,13 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
       setIsPrinting(true);
 
       let rowsToPrint: any[] = [...displayLines];
+      let companyName: string | undefined = (props as any)?.summary?.companyName || "COMPANY NAME";
 
       // Ensure breakdown_json is present for itemized lists
       if (!rowsHaveBreakdown(rowsToPrint) && runId != null) {
-        rowsToPrint = await fetchPayrollRunEmployeesForPrint(Number(runId));
+        const res = await fetchPayrollRunEmployeesForPrint(Number(runId));
+        rowsToPrint = res.rows;
+        companyName = res.companyName;
       }
 
       if (!Array.isArray(rowsToPrint) || rowsToPrint.length === 0) {
@@ -466,6 +469,7 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
         pageSize: "LEGAL",
         payrollRefNo: (props as any)?.run?.payroll_ref_no,
         postedAt: (props as any)?.run?.posted_at,
+        companyName,
       });
 
       const blob = doc.output("blob");

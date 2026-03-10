@@ -69,6 +69,7 @@ export default function PayslipHistoryModal({
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [companyName, setCompanyName] = React.useState<string>("");
 
   React.useEffect(() => {
     if (isOpen && employee?.user_id) {
@@ -102,6 +103,9 @@ export default function PayslipHistoryModal({
       if (!res.ok) throw new Error(json?.error || "Failed to fetch history");
       
       setRecords(Array.isArray(json?.data) ? json.data : []);
+      if (json.meta?.companyName) {
+        setCompanyName(json.meta.companyName);
+      }
     } catch (e: any) {
       toast.error(e.message || "Failed to load history");
     } finally {
@@ -134,6 +138,7 @@ export default function PayslipHistoryModal({
         pageSize: "LEGAL",
         payrollRefNo,
         postedAt,
+        companyName: companyName || "",
       });
 
       const blob = doc.output("blob");

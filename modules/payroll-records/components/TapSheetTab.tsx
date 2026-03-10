@@ -123,7 +123,7 @@ export default function TapSheetTab({
   const [loading, setLoading] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
   const [rowsRaw, setRowsRaw] = React.useState<any[]>([]);
-  const [companyName, setCompanyName] = React.useState<string>("MEN2 MARKETING CORPORATION");
+  const [companyName, setCompanyName] = React.useState<string>("");
 
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);

@@ -208,7 +208,7 @@ export async function buildTapSheetPdf(args: {
     doc.setFont(fontFamily, "bold");
     doc.setFontSize(14);
     doc.setTextColor(255, 255, 255);
-    const companyLabel = (args.companyName || "MEN2 MARKETING CORPORATION").toUpperCase();
+    const companyLabel = (args.companyName || "").toUpperCase();
     doc.text(companyLabel, pageW / 2, marginTop + 14, { align: "center" });
 
     // 2. Document Title (Subtle Ribbon)

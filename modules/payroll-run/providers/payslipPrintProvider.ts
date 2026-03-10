@@ -15,7 +15,7 @@ export async function fetchPayrollRunEmployeesForPrint(payrollRunId: number) {
   }
 
   const rows = Array.isArray(json?.data) ? json.data : [];
-  return rows;
+  return { rows, companyName: json?.meta?.companyName };
 }
 
 export function rowsHaveBreakdown(rows: any[]): boolean {

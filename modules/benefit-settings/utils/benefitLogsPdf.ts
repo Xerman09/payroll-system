@@ -43,7 +43,7 @@ export async function exportBenefitLogsPdf(args: {
 }) {
   const {
     paper,
-    companyName = "Vertex Technology Corps.",
+    companyName = "",
     title = "Benefit Logs (Deduction Report)",
     users,
     cutoffRange,
@@ -208,7 +208,7 @@ export async function exportBenefitLogsPdf(args: {
     setText([255, 255, 255]);
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
-    doc.text((companyName || "VERTEX TECHNOLOGIES CORPORATIONS").toUpperCase(), marginX, footerY + 30);
+    doc.text((companyName || "").toUpperCase(), marginX, footerY + 30);
 
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");

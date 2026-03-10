@@ -83,6 +83,7 @@ export default function BenefitHistoryModal({
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [pdfBlob, setPdfBlob] = React.useState<Blob | null>(null);
   const [isGenerating, setIsGenerating] = React.useState(false);
+  const [companyName, setCompanyName] = React.useState<string>("");
 
   const fetchHistory = React.useCallback(async () => {
     if (!employee?.user_id) return;
@@ -131,6 +132,9 @@ export default function BenefitHistoryModal({
         });
       });
 
+      if (json.meta?.companyName) {
+        setCompanyName(json.meta.companyName);
+      }
       setRecords(unpivoted);
     } catch (e: any) {
       toast.error(e.message || "Failed to load history");
@@ -256,7 +260,7 @@ export default function BenefitHistoryModal({
     try {
       const firstRecord = filteredData[0];
       const doc = await buildBenefitHistoryPdf({
-        companyName: "Men2 Marketing Corporations",
+        companyName: companyName || "COMPANY NAME",
         reportType: reportType,
         employee: {
           id: employee?.user_id || "N/A",

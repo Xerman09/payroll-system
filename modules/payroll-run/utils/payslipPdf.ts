@@ -766,6 +766,7 @@ export async function buildPayslipsPdf(args: {
   pageSize?: PageSize;
   payrollRefNo?: string;
   postedAt?: string;
+  companyName?: string;
 }) {
   const pageSize: PageSize = args.pageSize ?? "LEGAL";
 
@@ -978,7 +979,7 @@ export async function buildPayslipsPdf(args: {
         { label: "NIGHT DIFF", value: nightDiffAmount },
         { label: "ALLOWANCE", value: allowanceTotal },
         { label: "RETRO", value: retroPayTotal },
-        { label: "MANUAL ADDS", value: manualAdditions },
+        { label: "MANUAL ADDITIONS", value: manualAdditions },
       ],
       { includeZero: true },
     );
@@ -986,17 +987,17 @@ export async function buildPayslipsPdf(args: {
     const deductionsEntries = buildEntries(
       [
         { label: "LATE", value: lateDed },
-        { label: "UT", value: undertimeDed },
+        { label: "UNDERTIME", value: undertimeDed },
         { label: "SHORTAGE", value: shortageDed },
-        { label: "DR PAY", value: drDed },
-        { label: "ELoans", value: empLoansExCoop },
-        { label: "CSavings", value: coopSavingsTotal },
-        { label: "CLoans", value: coopLoanTotal }, // ✅ COOP employee-loan sum lives here
+        { label: "STOCK PURCHASE", value: drDed },
+        { label: "EMPLOYEE LOANS", value: empLoansExCoop },
+        { label: "COOP SAVINGS", value: coopSavingsTotal },
+        { label: "COOP LOANS", value: coopLoanTotal }, // ✅ COOP employee-loan sum lives here
         { label: "SSS", value: benSSS },
         { label: "PHILHEALTH", value: benPhil },
         { label: "PAG-IBIG", value: benPag },
-        { label: "BLoans", value: benefitLoansTotal },
-        { label: "MANUAL DEDS", value: manualDedTotal },
+        { label: "BENEFIT LOANS", value: benefitLoansTotal },
+        { label: "MANUAL DEDUCTIONS", value: manualDedTotal },
       ],
       { includeZero: true },
     );
@@ -1016,7 +1017,8 @@ export async function buildPayslipsPdf(args: {
     // HEADER
     doc.setFont("helvetica", "bold");
     doc.setFontSize(fsCorp);
-    doc.text("MEN2 MARKETING CORPORATION", innerX, cy);
+    const headerName = args.companyName || "";
+    doc.text(headerName, innerX, cy);
 
     cy += 9.5;
 
@@ -1278,7 +1280,7 @@ export async function buildPayslipsPdf(args: {
         earnLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
     }
     if (manualAdditionPairs.length) {
-      earnLines.push({ t: "text", text: "MANUAL ADDS:" });
+      earnLines.push({ t: "text", text: "MANUAL ADDITIONS:" });
       for (const p of manualAdditionPairs)
         earnLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
     }
@@ -1297,7 +1299,7 @@ export async function buildPayslipsPdf(args: {
         dedLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
     }
     if (md.length) {
-      dedLines.push({ t: "text", text: "MANUAL DEDS:" });
+      dedLines.push({ t: "text", text: "MANUAL DEDUCTIONS:" });
       for (const p of md)
         dedLines.push({ t: "pair", label: p.label, value: p.value, indent: 10 });
     }
@@ -1359,7 +1361,7 @@ export async function buildPayslipsPdf(args: {
     doc.text(`Gross: ${fmtMoney(grossPay)}`, innerX + 4, totalsTopY + 12);
     textRight(
       doc,
-      `Total Deds: ${fmtMoney(totalDeductions)}`,
+      `Total Deductions: ${fmtMoney(totalDeductions)}`,
       innerX + innerW - 4,
       totalsTopY + 12,
     );
@@ -1406,6 +1408,7 @@ export async function downloadPayslipsPdf(args: {
   fileName?: string;
   payrollRefNo?: string;
   postedAt?: string;
+  companyName?: string;
 }) {
   const fileName = args.fileName ?? "payslips.pdf";
   const doc = await buildPayslipsPdf(args);

@@ -426,6 +426,7 @@ export async function downloadPayslipsPdf(args: {
   payrollPeriodLabel: string;
   pageSize?: PageSize;
   fileName?: string;
+  companyName?: string;
 }) {
   const pageSize: PageSize = args.pageSize ?? "LEGAL";
   let rows = dedupeRows(Array.isArray(args.rows) ? args.rows : []);
@@ -612,7 +613,8 @@ export async function downloadPayslipsPdf(args: {
     // corporation title
     doc.setFont("helvetica", "bold");
     doc.setFontSize(fsCorp);
-    doc.text("MEN2 MARKETING CORPORATION", innerX, cy);
+    const headerName = args.companyName || "MEN2 MARKETING CORPORATION";
+    doc.text(headerName, innerX, cy);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(fsBody);
