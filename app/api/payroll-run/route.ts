@@ -141,7 +141,30 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
   }
 
   // If Directus returns empty body on other statuses, still respond safely
-  return NextResponse.json(data ?? null, { status: res.status });
+  const companyName = process.env.API_BASE_NAME || "MEN2 MARKETING CORPORATION";
+
+  // If data is an object, inject companyName into metadata
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    return NextResponse.json(
+      {
+        ...data,
+        meta: {
+          ...(data.meta || {}),
+          companyName,
+        },
+      },
+      { status: res.status },
+    );
+  }
+
+  // Fallback for arrays or other types
+  return NextResponse.json(
+    {
+      data: data ?? null,
+      meta: { companyName },
+    },
+    { status: res.status },
+  );
 }
 
 export async function GET(req: NextRequest) {

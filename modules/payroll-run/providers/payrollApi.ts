@@ -1,7 +1,7 @@
 // modules/payroll-run/providers/payrollApi.ts
 
-type DirectusList<T> = { data: T[] };
-type DirectusSingle<T> = { data: T };
+type DirectusList<T> = { data: T[]; meta?: any };
+type DirectusSingle<T> = { data: T; meta?: any };
 
 const BASE = "/api/payroll-run";
 
@@ -34,11 +34,22 @@ export async function listItems<T>(
   resource: string,
   params: Record<string, any>,
 ): Promise<T[]> {
+  const res = await listItemsWithMeta<T>(resource, params);
+  return res.data;
+}
+
+export async function listItemsWithMeta<T>(
+  resource: string,
+  params: Record<string, any>,
+): Promise<DirectusList<T>> {
   const query = qs({ resource, ...params });
   const json = await apiFetch<DirectusList<T>>(`${BASE}?${query}`, {
     method: "GET",
   });
-  return (json?.data ?? []) as T[];
+  return {
+    data: json?.data ?? [],
+    meta: json?.meta,
+  } as DirectusList<T>;
 }
 
 export async function getItem<T>(
@@ -46,11 +57,20 @@ export async function getItem<T>(
   id: number,
   params: Record<string, any>,
 ): Promise<T> {
+  const res = await getItemWithMeta<T>(resource, id, params);
+  return res.data;
+}
+
+export async function getItemWithMeta<T>(
+  resource: string,
+  id: number,
+  params: Record<string, any>,
+): Promise<DirectusSingle<T>> {
   const query = qs({ resource, id, ...params });
   const json = await apiFetch<DirectusSingle<T>>(`${BASE}?${query}`, {
     method: "GET",
   });
-  return json.data as T;
+  return json;
 }
 
 export async function createItem<T>(resource: string, payload: any): Promise<T> {

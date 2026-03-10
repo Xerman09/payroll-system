@@ -63,19 +63,15 @@ export async function buildBenefitHistoryPdf(args: BenefitReportArgs) {
   let y = 50;
   setText(DARK_BLUE);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(22);
-  doc.text("MEN2 MARKETING", pageW - margin, y, { align: "right" });
+  doc.setFontSize(18);
 
-  y += 18;
-  setText(CYAN);
-  doc.setFontSize(10);
-  doc.text("CORPORATIONS ", pageW - margin, y, { align: "right" });
+  const compStr = (args.companyName || "").toUpperCase();
+  doc.text(compStr, pageW - margin, y, { align: "right" });
 
   // Divider Line
   y += 15;
   doc.setDrawColor(DARK_BLUE[0], DARK_BLUE[1], DARK_BLUE[2]);
   doc.setLineWidth(1.5);
-  doc.line(pageW - 250, y, pageW - margin, y);
 
   // --- REPORT TITLE ---
   y += 60;
@@ -190,7 +186,7 @@ export async function buildBenefitHistoryPdf(args: BenefitReportArgs) {
   setText([255, 255, 255]);
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
-  doc.text("VERTEX TECHNOLOGIES CORPORATIONS", margin, footerY + 30);
+  doc.text((args.companyName || "").toUpperCase(), margin, footerY + 30);
 
   return doc;
 }
