@@ -1,2 +1,0 @@
-This file was created for testing the AI's Undo feature.
-If you click "Undo" on the chat message that triggered this, this file should disappear.
