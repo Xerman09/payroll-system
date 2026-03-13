@@ -128,6 +128,12 @@ export function buildTapSheetRows(
       total_additions: adjustedAdds,
       total_deductions: toNumberSafe(pr.total_deductions),
       net_pay: toNumberSafe(pr.net_pay),
+
+      // ✅ New fields
+      employee_no: pr.user_id.toString().padStart(4, "0"),
+      days_worked: toNumberSafe(pr.total_days_worked),
+      work_hours: toNumberSafe(pr.total_work_minutes) / 60,
+
       payroll_ref_no: ref,
       posted_at: posted,
     };

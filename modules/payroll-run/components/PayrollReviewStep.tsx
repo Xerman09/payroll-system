@@ -455,11 +455,35 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
 
       rowsToPrint.sort((a, b) => {
         // Sort by Payment Method (Bank=1 first, Cash=0 last)
-        const isCardA = n(a?.is_card ?? (a as any)?.isCard ?? a?.breakdown_json?.is_card ?? 0);
-        const isCardB = n(b?.is_card ?? (b as any)?.isCard ?? b?.breakdown_json?.is_card ?? 0);
+        const isCardA = n(
+          a?.is_card ?? (a as any)?.isCard ?? a?.breakdown_json?.is_card ?? 0,
+        );
+        const isCardB = n(
+          b?.is_card ?? (b as any)?.isCard ?? b?.breakdown_json?.is_card ?? 0,
+        );
         if (isCardA !== isCardB) return isCardB - isCardA; // 1 -> 0
 
-        // Then by name
+        // Then by last name
+        const getSortName = (r: any) => {
+          const ln = String(r?.last_name ?? "").trim();
+          if (ln) return ln.toLowerCase();
+
+          // Fallback: parse from full name if last_name is missing
+          const full = String(getRowName(r)).trim();
+          const parts = full.split(/\s+/);
+          if (parts.length > 1) {
+            // Assume the last part is the last name (simplistic but works for most cases)
+            return parts[parts.length - 1].toLowerCase();
+          }
+          return full.toLowerCase();
+        };
+
+        const sortA = getSortName(a);
+        const sortB = getSortName(b);
+
+        if (sortA !== sortB) return sortA.localeCompare(sortB);
+
+        // Finally by first name or full name as secondary
         return String(getRowName(a)).localeCompare(String(getRowName(b)));
       });
 

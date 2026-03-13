@@ -35,9 +35,23 @@ function isTruthyFlag(v: unknown): boolean {
   return false;
 }
 
-function json(data: any, init?: ResponseInit) {
-  const res = NextResponse.json(data, init);
-  res.headers.set("X-Payroll-Records-Route", "top-sheet-onhold-filter-boolean-v4");
+function json(payload: any, init?: ResponseInit) {
+  const companyName = process.env.API_BASE_NAME || "COMPANY NAME";
+  
+  // Create a structured response with data and meta
+  const data = payload && typeof payload === "object" && "data" in payload ? payload.data : payload;
+  const existingMeta = payload && typeof payload === "object" && "meta" in payload ? payload.meta : {};
+  
+  const body = {
+    data: data ?? null,
+    meta: {
+      ...existingMeta,
+      companyName,
+    },
+  };
+
+  const res = NextResponse.json(body, init);
+  res.headers.set("X-Payroll-Records-Route", "top-sheet-onhold-filter-boolean-v4-meta-fix");
   return res;
 }
 
@@ -170,6 +184,8 @@ export async function GET(req: NextRequest) {
           "total_additions",
           "total_deductions",
           "net_pay",
+          "total_days_worked",
+          "total_work_minutes",
           "created_at",
           "on_hold", // ✅ MUST BE INCLUDED
           "is_card", // ✅ MUST BE INCLUDED for Payment Type

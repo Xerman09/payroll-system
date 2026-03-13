@@ -55,12 +55,14 @@ type PayslipHistoryModalProps = {
     user_mname: string | null;
     user_lname: string;
   } | null;
+  companyName: string;
 };
 
 export default function PayslipHistoryModal({
   isOpen,
   onClose,
   employee,
+  companyName: passedCompanyName,
 }: PayslipHistoryModalProps) {
   const [loading, setLoading] = React.useState(false);
   const [records, setRecords] = React.useState<any[]>([]);
@@ -69,7 +71,11 @@ export default function PayslipHistoryModal({
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [companyName, setCompanyName] = React.useState<string>("");
+  const [companyName, setCompanyName] = React.useState<string>(passedCompanyName);
+  
+  React.useEffect(() => {
+    if (passedCompanyName) setCompanyName(passedCompanyName);
+  }, [passedCompanyName]);
 
   React.useEffect(() => {
     if (isOpen && employee?.user_id) {
@@ -78,7 +84,7 @@ export default function PayslipHistoryModal({
     } else {
       setRecords([]);
     }
-  }, [isOpen, employee]);
+  }, [isOpen, employee, passedCompanyName]);
 
   React.useEffect(() => {
     return () => {
@@ -138,7 +144,7 @@ export default function PayslipHistoryModal({
         pageSize: "LEGAL",
         payrollRefNo,
         postedAt,
-        companyName: companyName || "",
+        companyName: (companyName || "").toUpperCase(),
       });
 
       const blob = doc.output("blob");
@@ -260,7 +266,7 @@ export default function PayslipHistoryModal({
                   Payslip History
                 </DialogTitle>
                 <p className="text-muted-foreground ml-11 text-sm font-medium">
-                  Viewing electronic payslips for <span className="text-foreground">{employee?.user_fname} {employee?.user_lname}</span>
+                  Viewing electronic payslips for <span className="text-foreground">{(employee?.user_fname || "")} {(employee?.user_lname || "")}</span>
                 </p>
               </div>
               

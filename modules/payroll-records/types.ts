@@ -54,6 +54,10 @@ export type PayrollRunEmployeeRow = {
   net_pay: string | number;
   created_at?: string;
 
+  // ✅ New fields for Top Sheet
+  total_days_worked?: string | number;
+  total_work_minutes?: string | number;
+
   // ✅ REQUIRED for filtering
   on_hold?: number | boolean | string | { data?: any[] };
   is_card?: number | boolean | string | { data?: any[] };
@@ -75,6 +79,10 @@ export type TapSheetRow = {
   total_additions: number;
   total_deductions: number;
   net_pay: number;
+  // ✅ New fields for display
+  employee_no: string;
+  days_worked: number;
+  work_hours: number;
   payroll_ref_no?: string;
   posted_at?: string;
 };

@@ -1017,7 +1017,7 @@ export async function buildPayslipsPdf(args: {
     // HEADER
     doc.setFont("helvetica", "bold");
     doc.setFontSize(fsCorp);
-    const headerName = args.companyName || "";
+    const headerName = (args.companyName || "").toUpperCase();
     doc.text(headerName, innerX, cy);
 
     cy += 9.5;

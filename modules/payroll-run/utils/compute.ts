@@ -1432,6 +1432,8 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   return {
     user_id: n((args.user as any).id),
     employee_name: empName,
+    first_name: (args.user as any).first_name ?? null,
+    last_name: (args.user as any).last_name ?? null,
     position,
     department_name: departmentResolved,
 

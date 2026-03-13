@@ -31,10 +31,12 @@ export default function EmployeesTab({
   loading,
   employees,
   departments,
+  companyName,
 }: {
   loading: boolean;
   employees: Employee[];
   departments: Department[];
+  companyName: string;
 }) {
   const [filterDept, setFilterDept] = React.useState<number | null>(null);
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -282,6 +284,7 @@ export default function EmployeesTab({
           setSelectedEmployee(null);
         }}
         employee={selectedEmployee}
+        companyName={companyName}
       />
 
       <BenefitHistoryModal

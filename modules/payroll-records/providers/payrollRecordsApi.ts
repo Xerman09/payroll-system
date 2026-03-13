@@ -25,19 +25,28 @@ async function getJson<T>(url: string): Promise<T> {
   return json as T;
 }
 
-export async function fetchEmployees(): Promise<Employee[]> {
-  const data = await getJson<{ data: Employee[] }>(`${BASE}?type=employees`);
-  return Array.isArray(data?.data) ? data.data : [];
+export async function fetchEmployees(): Promise<{ data: Employee[]; meta?: { companyName?: string } }> {
+  const data = await getJson<{ data: Employee[]; meta?: { companyName?: string } }>(`${BASE}?type=employees`);
+  return {
+    data: Array.isArray(data?.data) ? data.data : [],
+    meta: data?.meta,
+  };
 }
 
-export async function fetchDepartments(): Promise<Department[]> {
-  const data = await getJson<{ data: Department[] }>(`${BASE}?type=departments`);
-  return Array.isArray(data?.data) ? data.data : [];
+export async function fetchDepartments(): Promise<{ data: Department[]; meta?: { companyName?: string } }> {
+  const data = await getJson<{ data: Department[]; meta?: { companyName?: string } }>(`${BASE}?type=departments`);
+  return {
+    data: Array.isArray(data?.data) ? data.data : [],
+    meta: data?.meta,
+  };
 }
 
-export async function fetchCutoffs(): Promise<CutoffHistoryRow[]> {
-  const data = await getJson<{ data: CutoffHistoryRow[] }>(`${BASE}?type=cutoffs`);
-  return Array.isArray(data?.data) ? data.data : [];
+export async function fetchCutoffs(): Promise<{ data: CutoffHistoryRow[]; meta?: { companyName?: string } }> {
+  const data = await getJson<{ data: CutoffHistoryRow[]; meta?: { companyName?: string } }>(`${BASE}?type=cutoffs`);
+  return {
+    data: Array.isArray(data?.data) ? data.data : [],
+    meta: data?.meta,
+  };
 }
 
 export async function fetchTapSheet(args: {
