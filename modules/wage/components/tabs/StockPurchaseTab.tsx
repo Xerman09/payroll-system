@@ -8,7 +8,6 @@ import {
   MoreVertical,
   Pencil,
   Trash2,
-  ReceiptText,
   Search,
   X,
 } from "lucide-react";
@@ -90,7 +89,7 @@ const METHODS: { value: DRPaymentMethod; label: string }[] = [
   { value: "OTHERS", label: "Others" },
 ];
 
-function methodLabel(v: any) {
+function methodLabel(v: unknown) {
   const s = String(v || "PAYROLL_DEDUCTION") as DRPaymentMethod;
   return METHODS.find((m) => m.value === s)?.label ?? s;
 }
@@ -208,9 +207,10 @@ export function StockPurchaseTab({
       );
       setRows(data);
       setPage(1);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[StockPurchaseTab] load failed", e);
-      toast.error(e?.message || "Failed to load DR payments.");
+      const loadMsg = e instanceof Error ? e.message : "Failed to load DR payments.";
+      toast.error(loadMsg);
       setRows([]);
       setPage(1);
     } finally {
@@ -398,9 +398,10 @@ export function StockPurchaseTab({
       setFormOpen(false);
       resetDraft();
       await load();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[StockPurchaseTab] save failed", e);
-      toast.error(e?.message || "Failed to save DR payment.");
+      const saveMsg = e instanceof Error ? e.message : "Failed to save DR payment.";
+      toast.error(saveMsg);
     } finally {
       setSaving(false);
     }
@@ -424,9 +425,10 @@ export function StockPurchaseTab({
         await wageApi.deleteDRPayment(r.dr_payment_id);
         toast.success("DR payment deleted.");
         await load();
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error("[StockPurchaseTab] delete failed", e);
-        toast.error(e?.message || "Failed to delete DR payment.");
+        const delMsg = e instanceof Error ? e.message : "Failed to delete DR payment.";
+        toast.error(delMsg);
       } finally {
         setSaving(false);
       }

@@ -85,7 +85,7 @@ function boolToFlag(v: boolean): 0 | 1 {
   return v ? 1 : 0;
 }
 
-function flagToBool(v: any): boolean {
+function flagToBool(v: unknown): boolean {
   return Number(v) === 1;
 }
 
@@ -142,7 +142,7 @@ function activeBadge(active: boolean) {
   );
 }
 
-function processedBadge(isProcessed: any) {
+function processedBadge(isProcessed: unknown) {
   return flagToBool(isProcessed) ? (
     <Badge
       variant="secondary"
@@ -168,10 +168,10 @@ function normalize(v: unknown) {
 }
 
 function buildAllowanceHaystack(r: EmployeeAllowanceRecord) {
-  const isRecurring = flagToBool((r as any).is_recurring);
+  const isRecurring = flagToBool(r.is_recurring);
   const mode = isRecurring ? "recurring" : "one-time";
-  const active = flagToBool((r as any).is_active) ? "active" : "inactive";
-  const processed = flagToBool((r as any).is_processed)
+  const active = flagToBool(r.is_active) ? "active" : "inactive";
+  const processed = flagToBool(r.is_processed)
     ? "processed"
     : "pending";
 
@@ -316,9 +316,10 @@ export function AllowanceTab({
         selectedEmployee.user_id
       );
       setRows(list);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[AllowanceTab] load failed", e);
-      toast.error(e?.message || "Failed to load employee allowances.");
+      const msg = e instanceof Error ? e.message : "Failed to load employee allowances.";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -479,9 +480,10 @@ export function AllowanceTab({
       resetDraft();
       setFormOpen(false);
       await loadAllowances();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[AllowanceTab] save failed", e);
-      toast.error(e?.message || "Failed to save allowance.");
+      const msg = e instanceof Error ? e.message : "Failed to save allowance.";
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -561,9 +563,10 @@ export function AllowanceTab({
         }
 
         await loadAllowances();
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error("[AllowanceTab] delete failed", e);
-        toast.error(e?.message || "Failed to delete allowance.");
+        const msg = e instanceof Error ? e.message : "Failed to delete allowance.";
+        toast.error(msg);
       } finally {
         setSaving(false);
       }

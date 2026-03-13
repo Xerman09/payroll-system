@@ -5,7 +5,7 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { BENEFITS } from "./index";
-import type { BenefitCode, BenefitSetting, UserData } from "./types";
+import type { BenefitCode, BenefitSetting, UserData, CutoffSetting } from "./types";
 
 import BenefitCard from "./components/BenefitCard";
 import SaveButton from "./components/SaveButton";
@@ -48,7 +48,7 @@ export default function BenefitSettingsModule() {
     return m;
   }, [users]);
 
-  const [cutoffs, setCutoffs] = React.useState<any[]>([]);
+  const [cutoffs, setCutoffs] = React.useState<CutoffSetting[]>([]);
 
   const [settings, setSettings] = React.useState<
     Record<BenefitCode, BenefitSetting>
@@ -97,8 +97,9 @@ export default function BenefitSettingsModule() {
       }
 
       setSettings(byCode);
-    } catch (e: any) {
-      toast.error(e?.message ?? "Failed to load Manage Benefits data.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to load Manage Benefits data.";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -144,11 +145,7 @@ export default function BenefitSettingsModule() {
 
   // No-op for manual date change since inputs satisfy read-only requirement
   const onDateChange = React.useCallback(
-    (
-      code: BenefitCode,
-      field: "effective_from" | "effective_to",
-      val: string
-    ) => {
+    () => {
       // Intentionally empty or strictly controlled
     },
     []
@@ -177,8 +174,9 @@ export default function BenefitSettingsModule() {
       toast.success("Benefit settings saved.");
       setStatus("success");
       await load();
-    } catch (e: any) {
-      toast.error(e?.message ?? "Failed to save benefit settings.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to save benefit settings.";
+      toast.error(msg);
       setStatus("error");
     } finally {
       setSaving(false);

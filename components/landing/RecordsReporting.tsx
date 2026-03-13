@@ -41,6 +41,7 @@ export function RecordsReporting() {
                         transition={{ duration: 0.8, ease: "easeOut" }}
                         className="relative z-10 glass-dark p-3 rounded-[3rem] border border-white/10 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.8)] overflow-hidden will-change-transform"
                     >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img 
                             src="/images/premium_trucks.png"
                             className="w-full h-full object-cover rounded-[2.5rem] grayscale-[0.3] group-hover:grayscale-0 transition-all duration-1000"

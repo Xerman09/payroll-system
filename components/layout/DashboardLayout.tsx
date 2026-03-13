@@ -39,7 +39,7 @@ export default function DashboardLayout({
   useEffect(() => {
     try {
       // Runs once on mount
-      // eslint-disable-next-line no-console
+       
       console.log(DEV_SIGNATURE);
     } catch {}
   }, []);

@@ -1,12 +1,12 @@
 // modules/allowance/components/AllowanceTableSkeleton.tsx
 "use client";
 
-import { TableBody, TableCell, TableRow } from "@/components/ui/table";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AllowanceMode } from "../types";
 
 export default function AllowanceTableSkeleton({ mode }: { mode: AllowanceMode }) {
-  const colSpan = mode === "one_time" ? 7 : 9;
+
   const rows = Array.from({ length: 5 });
 
   return (

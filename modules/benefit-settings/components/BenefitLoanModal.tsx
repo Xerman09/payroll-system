@@ -244,18 +244,19 @@ export default function BenefitLoanModal(props: {
         ),
       };
 
-      let res: any;
+      let res: BenefitLoan | { data: BenefitLoan };
       if (isEdit && initial) {
         res = await updateBenefitLoan(initial.loan_id, payload);
       } else {
         res = await createBenefitLoan(payload);
       }
 
-      const saved = (res?.data ?? res) as BenefitLoan;
+      const saved = ('data' in res ? res.data : res) as BenefitLoan;
       onSaved(saved);
       onOpenChange(false);
-    } catch (e: any) {
-      toast.error(e?.message ?? "Failed to save loan.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to save loan.";
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -400,12 +401,12 @@ export default function BenefitLoanModal(props: {
                   className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                   inputMode="decimal"
                   value={String(form.principal_amount ?? 0)}
-                  onChange={(e) =>
+                   onChange={(e) =>
                     setForm((p) => ({
                       ...p,
-                      principal_amount: e.target.value as any,
+                      principal_amount: toNum(e.target.value),
                     }))
-                  }
+                   }
                 />
               </div>
 
@@ -448,12 +449,12 @@ export default function BenefitLoanModal(props: {
                   className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                   inputMode="numeric"
                   value={String(form.terms_installments ?? 1)}
-                  onChange={(e) =>
+                   onChange={(e) =>
                     setForm((p) => ({
                       ...p,
-                      terms_installments: e.target.value as any,
+                      terms_installments: toNum(e.target.value),
                     }))
-                  }
+                   }
                 />
               </div>
 

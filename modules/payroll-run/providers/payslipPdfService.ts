@@ -429,7 +429,7 @@ export async function downloadPayslipsPdf(args: {
   companyName?: string;
 }) {
   const pageSize: PageSize = args.pageSize ?? "LEGAL";
-  let rows = dedupeRows(Array.isArray(args.rows) ? args.rows : []);
+  const rows = dedupeRows(Array.isArray(args.rows) ? args.rows : []);
   const fileName = args.fileName ?? "payslips.pdf";
 
   const doc = new jsPDF({

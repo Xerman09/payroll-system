@@ -42,9 +42,6 @@ export function WageTab({
     });
   }, [wageData.dailyWage]);
 
-  const ACCENT_ICON_BG =
-    "bg-persian-blue-50 border-persian-blue-200 dark:bg-persian-blue-900/30 dark:border-persian-blue-800";
-
   return (
     <div className="space-y-5">
       {/* Header / quick context */}

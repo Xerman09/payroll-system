@@ -440,7 +440,7 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
     const tablePad = 8;
     const tX = leftX + tablePad;
     const tW = colWLeft - tablePad * 2;
-    let tY = y + 24;
+    const tY = y + 24;
 
     const payCols: Col[] = [
       { key: "m", label: "Method", w: 45, align: "left" },

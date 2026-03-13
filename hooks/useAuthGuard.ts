@@ -12,6 +12,7 @@ export function useAuthGuard() {
     if (!token) {
       router.replace("/auth/login"); // redirect if no session
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
     }
 

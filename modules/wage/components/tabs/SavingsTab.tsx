@@ -64,7 +64,7 @@ function boolToFlag(v: boolean): 0 | 1 {
   return v ? 1 : 0;
 }
 
-function flagToBool(v: any): boolean {
+function flagToBool(v: unknown): boolean {
   return Number(v) === 1;
 }
 
@@ -113,7 +113,7 @@ function normalize(v: unknown) {
 }
 
 function buildSavingsHaystack(r: CoopSavingsMembershipRecord) {
-  const active = flagToBool((r as any).is_active) ? "active" : "inactive";
+  const active = flagToBool(r.is_active) ? "active" : "inactive";
 
   return normalize(
     [
@@ -179,7 +179,6 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
   }, [selectedEmployee, q, pageSize, open]);
 
   const defaultDraft = React.useCallback((): SavingsDraft => {
-    const today = toLocalYmd(new Date());
     return {
       membership_id: generateMembershipId(),
       monthly_amount: "0.00",
@@ -205,9 +204,10 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
         selectedEmployee.user_id,
       );
       setRows(list);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[SavingsTab] load failed", e);
-      toast.error(e?.message || "Failed to load savings memberships.");
+      const msg = e instanceof Error ? e.message : "Failed to load savings memberships.";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -319,9 +319,10 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
       resetDraft();
       setFormOpen(false);
       await loadSavings();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[SavingsTab] save failed", e);
-      toast.error(e?.message || "Failed to save savings membership.");
+      const msg = e instanceof Error ? e.message : "Failed to save savings membership.";
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -373,9 +374,10 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
         }
 
         await loadSavings();
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error("[SavingsTab] delete failed", e);
-        toast.error(e?.message || "Failed to delete savings membership.");
+        const msg = e instanceof Error ? e.message : "Failed to delete savings membership.";
+        toast.error(msg);
       } finally {
         setSaving(false);
       }

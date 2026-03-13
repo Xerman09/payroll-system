@@ -81,7 +81,7 @@ export function CoreFeatures() {
             className="lg:w-1/2"
           >
             <p className="text-xl text-white/40 leading-relaxed font-medium">
-              We've automated the most complex logic layers of logistics payroll. 
+              We&apos;ve automated the most complex logic layers of logistics payroll. 
               From multi-node payout matrices to daily driver performance tracking, 
               everything is deterministic.
             </p>

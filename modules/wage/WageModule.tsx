@@ -332,7 +332,7 @@ export function WageModule() {
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               onOpenPassword={openPasswordDialog}
-              handleSort={handleSort as any}
+              handleSort={handleSort as (key: keyof Employee) => void}
               rowsPerPage={rowsPerPage}
               setRowsPerPage={setRowsPerPage}
               currentPage={currentPage}

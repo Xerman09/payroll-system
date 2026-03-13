@@ -186,9 +186,10 @@ export default function WageModal({
     try {
       await Promise.resolve(onSave());
       toast.success("Saved.");
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[WageModal] Save failed", e);
-      toast.error(e?.message || "Failed to save.");
+      const msg = e instanceof Error ? e.message : "Failed to save.";
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -265,9 +266,10 @@ export default function WageModal({
         selectedEmployee.user_id,
       );
       setLoans(rows);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[WageModal] Failed to load loans", e);
-      toast.error(e?.message || "Failed to load employee loans.");
+      const msg = e instanceof Error ? e.message : "Failed to load employee loans.";
+      toast.error(msg);
     } finally {
       setLoanLoading(false);
     }
@@ -369,9 +371,10 @@ export default function WageModal({
       resetLoanDraft();
       setLoanPanelOpen(false);
       await loadLoans();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[WageModal] Loan save failed", e);
-      toast.error(e?.message || "Failed to save loan.");
+      const msg = e instanceof Error ? e.message : "Failed to save loan.";
+      toast.error(msg);
     } finally {
       setLoanSaving(false);
     }
@@ -436,8 +439,8 @@ export default function WageModal({
         }
 
         await loadLoans();
-      } catch (e: any) {
-        console.error("[WageModal] Delete failed; trying cancel fallback", e);
+    } catch (e: unknown) {
+      console.error("[WageModal] Delete failed; trying cancel fallback", e);
 
         try {
           await wageApi.patchEmployeeLoan(loanId, {
@@ -452,11 +455,11 @@ export default function WageModal({
           }
 
           await loadLoans();
-        } catch (e2: any) {
+        } catch (e2: unknown) {
           console.error("[WageModal] Cancel fallback failed", e2);
-          toast.error(
-            e2?.message || e?.message || "Failed to delete/cancel loan.",
-          );
+          const msg1 = e instanceof Error ? e.message : "Failed to delete/cancel loan.";
+          const msg2 = e2 instanceof Error ? e2.message : msg1;
+          toast.error(msg2);
         }
       } finally {
         setLoanSaving(false);
@@ -503,9 +506,10 @@ export default function WageModal({
     try {
       const rows = await wageApi.fetchCutoffSettingsOpen();
       setCutoffs(rows);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to load cutoff settings.";
       console.error("[WageModal] Failed to load cutoff settings", e);
-      toast.error(e?.message || "Failed to load cutoff settings.");
+      toast.error(msg);
       setCutoffs([]);
     } finally {
       setCutoffsLoading(false);
@@ -551,9 +555,10 @@ export default function WageModal({
     try {
       const rows = await wageApi.fetchRetroPayByUser(selectedEmployee.user_id);
       setRetroRows(rows);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to load retro pay.";
       console.error("[WageModal] Failed to load retro pay", e);
-      toast.error(e?.message || "Failed to load retro pay.");
+      toast.error(msg);
     } finally {
       setRetroLoading(false);
     }
@@ -625,9 +630,10 @@ export default function WageModal({
       resetRetroDraft();
       setRetroFormOpen(false);
       await loadRetroPay();
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to save retro pay.";
       console.error("[WageModal] Retro pay save failed", e);
-      toast.error(e?.message || "Failed to save retro pay.");
+      toast.error(msg);
     } finally {
       setRetroSaving(false);
     }
@@ -696,9 +702,10 @@ export default function WageModal({
         }
 
         await loadRetroPay();
-      } catch (e: any) {
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Failed to delete retro pay.";
         console.error("[WageModal] Retro pay delete failed", e);
-        toast.error(e?.message || "Failed to delete retro pay.");
+        toast.error(msg);
       } finally {
         setRetroSaving(false);
       }

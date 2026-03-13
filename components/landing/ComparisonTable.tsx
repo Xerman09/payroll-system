@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, X } from "lucide-react";
+import { Check } from "lucide-react";
 
 const rows = [
     { label: "Industry Focus", standard: "Generic SaaS", premium: "Logistics-Centric" },

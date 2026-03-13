@@ -59,7 +59,7 @@ function isYmd(s: string) {
 function boolToFlag(v: boolean): 0 | 1 {
   return v ? 1 : 0;
 }
-function flagToBool(v: any): boolean {
+function flagToBool(v: unknown): boolean {
   return Number(v) === 1;
 }
 function cutoffLabel(c: CutoffSetting) {
@@ -92,7 +92,7 @@ function normalize(v: unknown) {
 
 function buildRetroHaystack(r: RetroPayRecord) {
   const statusLabel =
-    Number((r as any).is_processed) === 1 ? "processed" : "pending";
+    Number(r.is_processed) === 1 ? "processed" : "pending";
   return normalize(
     [r.description, r.cutoff_start, r.cutoff_end, r.amount, statusLabel].join(
       " "

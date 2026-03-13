@@ -21,7 +21,6 @@ export interface UserData {
   user_lname: string;
 }
 
-export interface BenefitSettingRaw extends BenefitSetting { }
 
 // === Cutoff settings (needed for loan schedule display) ===
 export interface CutoffSetting {

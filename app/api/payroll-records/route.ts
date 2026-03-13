@@ -11,9 +11,12 @@ function authHeaders() {
   return h;
 }
 
-function pickArray(payload: any) {
-  if (payload && Array.isArray(payload.data)) return payload.data;
-  if (Array.isArray(payload)) return payload;
+function pickArray(payload: unknown): Record<string, unknown>[] {
+  if (payload && typeof payload === "object" && "data" in payload) {
+    const d = (payload as Record<string, unknown>).data;
+    if (Array.isArray(d)) return d as Record<string, unknown>[];
+  }
+  if (Array.isArray(payload)) return payload as Record<string, unknown>[];
   return [];
 }
 
@@ -22,8 +25,9 @@ function isTruthyFlag(v: unknown): boolean {
   if (v === null || v === undefined) return false;
 
   if (typeof v === "object") {
-    const anyV = v as any;
-    const d0 = anyV?.data?.[0];
+    const anyV = v as Record<string, unknown>;
+    const dataObj = anyV?.data;
+    const d0 = Array.isArray(dataObj) ? dataObj[0] : undefined;
     if (d0 === 1 || d0 === "1" || d0 === true) return true;
     if (d0 === 0 || d0 === "0" || d0 === false || d0 == null) return false;
   }
@@ -35,12 +39,12 @@ function isTruthyFlag(v: unknown): boolean {
   return false;
 }
 
-function json(payload: any, init?: ResponseInit) {
+function json(payload: unknown, init?: ResponseInit) {
   const companyName = process.env.API_BASE_NAME || "COMPANY NAME";
   
   // Create a structured response with data and meta
-  const data = payload && typeof payload === "object" && "data" in payload ? payload.data : payload;
-  const existingMeta = payload && typeof payload === "object" && "meta" in payload ? payload.meta : {};
+  const data = payload && typeof payload === "object" && "data" in payload ? (payload as Record<string, unknown>).data : payload;
+  const existingMeta = payload && typeof payload === "object" && "meta" in payload ? (payload as Record<string, unknown>).meta as Record<string, unknown> : {};
   
   const body = {
     data: data ?? null,
@@ -76,7 +80,7 @@ export async function GET(req: NextRequest) {
     });
 
     const text = await res.text();
-    let body: any = null;
+    let body: unknown = null;
     try {
       body = text ? JSON.parse(text) : null;
     } catch {
@@ -212,10 +216,13 @@ export async function GET(req: NextRequest) {
 
       // ✅ HARD FILTER (extra safety)
       const body = r.body ?? {};
-      const rows = pickArray(body).filter((row: any) => !isTruthyFlag(row?.on_hold));
+      const rows = pickArray(body).filter((row: unknown) => {
+        const rObj = row as Record<string, unknown>;
+        return !isTruthyFlag(rObj?.on_hold);
+      });
       const companyName = process.env.API_BASE_NAME || "COMPANY NAME";
 
-      return json({ ...body, data: rows, meta: { companyName } });
+      return json({ ...(body as object), data: rows, meta: { companyName } });
     }
 
     // ✅ Company-wide Payroll Summary (Dynamic Multi-DB Aggregator)
@@ -228,7 +235,7 @@ export async function GET(req: NextRequest) {
       }
 
       // 1. Gather APIs from Environment Variables (Registry)
-      const APIS: any[] = [];
+      const APIS: { name: string; url?: string; isPrimary?: boolean; isMain?: boolean }[] = [];
 
       // Map prefixes to their names
       const prefixes = ["BASE", "I", "II", "III", "IV", "V", "VI", "VII"];
@@ -254,12 +261,15 @@ export async function GET(req: NextRequest) {
         const registryPath = `/items/company_registry?filter[status][_eq]=published&limit=-1`;
         const registryData = await directusFetch(registryPath);
         if (registryData.ok) {
-          const dbRows = pickArray(registryData.body).map((item: any) => ({
-            name: item.name,
-            url: item.api_url,
-            isPrimary: isTruthyFlag(item.is_primary),
-            isMain: isTruthyFlag(item.is_main)
-          }));
+          const dbRows = pickArray(registryData.body).map((item: unknown) => {
+            const i = item as Record<string, unknown>;
+            return {
+              name: String(i.name),
+              url: String(i.api_url),
+              isPrimary: isTruthyFlag(i.is_primary),
+              isMain: isTruthyFlag(i.is_main)
+            };
+          });
           APIS.push(...dbRows);
         }
       }

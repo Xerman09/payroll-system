@@ -73,7 +73,8 @@ export async function GET(req: NextRequest) {
 
     const data = await parseJsonSafe(res);
     return NextResponse.json(data, { status: res.status });
-  } catch (e: any) {
+  } catch (error: unknown) {
+    const e = error as Error;
     console.error("API wage GET error: - route.ts:77", e);
     return NextResponse.json(
       { error: e?.message || "GET failed" },
@@ -107,7 +108,8 @@ export async function POST(req: NextRequest) {
 
     const data = await parseJsonSafe(res);
     return NextResponse.json(data, { status: res.status });
-  } catch (e: any) {
+  } catch (error: unknown) {
+    const e = error as Error;
     console.error("API wage POST error: - route.ts:111", e);
     return NextResponse.json(
       { error: e?.message || "POST failed" },
@@ -141,7 +143,8 @@ export async function PATCH(req: NextRequest) {
 
     const data = await parseJsonSafe(res);
     return NextResponse.json(data, { status: res.status });
-  } catch (e: any) {
+  } catch (error: unknown) {
+    const e = error as Error;
     console.error("API wage PATCH error: - route.ts:145", e);
     return NextResponse.json(
       { error: e?.message || "PATCH failed" },
@@ -186,7 +189,8 @@ export async function DELETE(req: NextRequest) {
 
     const data = await parseJsonSafe(res);
     return NextResponse.json(data, { status: res.status });
-  } catch (e: any) {
+  } catch (error: unknown) {
+    const e = error as Error;
     console.error("API wage DELETE error: - route.ts:190", e);
     return NextResponse.json(
       { error: e?.message || "DELETE failed" },

@@ -104,8 +104,9 @@ export default function BenefitLoansTab({ users }: { users: UserData[] }) {
       ]);
       setCutoffs(c);
       setRows(l);
-    } catch (e: any) {
-      toast.error(e?.message ?? "Failed to load benefit loans.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to load benefit loans.";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -121,8 +122,9 @@ export default function BenefitLoansTab({ users }: { users: UserData[] }) {
       const l = await fetchBenefitLoans();
       setRows(l);
       toast.success("Loans refreshed.");
-    } catch (e: any) {
-      toast.error(e?.message ?? "Failed to refresh loans.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to refresh loans.";
+      toast.error(msg);
     } finally {
       setRefreshing(false);
     }
@@ -165,8 +167,9 @@ export default function BenefitLoansTab({ users }: { users: UserData[] }) {
       await deleteBenefitLoan(toDelete.loan_id);
       toast.success("Loan deleted.");
       setRows((prev) => prev.filter((x) => x.loan_id !== toDelete.loan_id));
-    } catch (e: any) {
-      toast.error(e?.message ?? "Failed to delete loan.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to delete loan.";
+      toast.error(msg);
     } finally {
       setDeleteOpen(false);
       setToDelete(null);
@@ -195,7 +198,7 @@ export default function BenefitLoansTab({ users }: { users: UserData[] }) {
 
           <div className="space-y-1">
             <div className="text-xs font-medium text-slate-600 dark:text-gray-400">Benefit</div>
-            <Select value={benefit} onValueChange={(v) => setBenefit(v as any)}>
+            <Select value={benefit} onValueChange={(v) => setBenefit(v as LoanBenefitCode | "ALL")}>
               <SelectTrigger className="h-9">
                 <SelectValue placeholder="All" />
               </SelectTrigger>
@@ -209,7 +212,7 @@ export default function BenefitLoansTab({ users }: { users: UserData[] }) {
 
           <div className="space-y-1">
             <div className="text-xs font-medium text-slate-600 dark:text-gray-400">Status</div>
-            <Select value={status} onValueChange={(v) => setStatus(v as any)}>
+            <Select value={status} onValueChange={(v) => setStatus(v as BenefitLoanStatus | "ALL")}>
               <SelectTrigger className="h-9">
                 <SelectValue placeholder="All" />
               </SelectTrigger>

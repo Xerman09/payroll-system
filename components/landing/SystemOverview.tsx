@@ -84,6 +84,7 @@ export function SystemOverview() {
             className="relative will-change-transform"
           >
             <div className="relative z-10 glass-dark rounded-[3rem] p-4 border border-white/10 shadow-[0_50px_100px_-20px_rgba(0,0,0,1)] overflow-hidden aspect-video group">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img 
                 src="/images/logistics_flow.png" 
                 className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-[2s]"

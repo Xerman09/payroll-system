@@ -45,7 +45,7 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
   })).sort((a, b) => b.value - a.value);
 
   // Show Top 5 and aggregate others so the sum matches 'activeEmpCount'
-  let distData = distDataRaw.slice(0, 5);
+  const distData = distDataRaw.slice(0, 5);
   if (distDataRaw.length > 5) {
     const othersValue = distDataRaw.slice(5).reduce((sum, item) => sum + item.value, 0);
     distData.push({ name: "Others", value: othersValue });

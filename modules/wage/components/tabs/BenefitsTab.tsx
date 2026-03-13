@@ -101,7 +101,7 @@ type Draft = {
   remarks: string;
 };
 
-function money(n: any) {
+function money(n: unknown) {
   const x = Number(n || 0);
   return x.toLocaleString(undefined, {
     minimumFractionDigits: 2,
@@ -121,7 +121,7 @@ function toNum(v: unknown) {
     const n = Number(cleaned);
     return Number.isFinite(n) ? n : 0;
   }
-  const n = Number(v as any);
+  const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -266,12 +266,12 @@ export function BenefitsTab({
   const onMoneyChange =
     (key: "sss" | "pagibig" | "philhealth") => (v: string) => {
       if (!/^\d*\.?\d*$/.test(v)) return;
-      setWageData({ [key]: v } as any);
+      setWageData({ [key]: v });
     };
 
   const onMoneyBlur = (key: "sss" | "pagibig" | "philhealth") => () => {
-    const n = Number((wageData as any)[key] || 0);
-    setWageData({ [key]: money(n) } as any);
+    const n = Number(wageData[key] || 0);
+    setWageData({ [key]: money(n) });
   };
 
   // =========================
@@ -337,9 +337,10 @@ export function BenefitsTab({
         selectedEmployee.user_id
       );
       setRows(list);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[BenefitsTab] load loans failed", e);
-      toast.error(e?.message || "Failed to load benefit loans.");
+      const msg = e instanceof Error ? e.message : "Failed to load benefit loans.";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -514,7 +515,7 @@ export function BenefitsTab({
     try {
       if (editingId) {
         await wageApi.patchBenefitLoan(editingId, {
-          benefit_code: draft.benefit_code as any,
+          benefit_code: draft.benefit_code as BenefitCode,
           loan_name: v.loan_name,
           reference_no: v.reference_no,
 
@@ -533,14 +534,14 @@ export function BenefitsTab({
           remarks: v.remarks,
 
           updated_by: loggedUserId,
-        });
+        } as Partial<BenefitLoanRecord>);
 
         toast.success("Benefit loan updated.");
       } else {
         await wageApi.createBenefitLoan({
           user_id: selectedEmployee.user_id,
 
-          benefit_code: draft.benefit_code as any,
+          benefit_code: draft.benefit_code as BenefitCode,
           loan_name: v.loan_name,
           reference_no: v.reference_no,
 
@@ -570,9 +571,10 @@ export function BenefitsTab({
       resetDraft();
       setFormOpen(false);
       await loadLoans();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[BenefitsTab] save loan failed", e);
-      toast.error(e?.message || "Failed to save benefit loan.");
+      const msg = e instanceof Error ? e.message : "Failed to save benefit loan.";
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -659,9 +661,10 @@ export function BenefitsTab({
     try {
       const list = await wageApi.fetchBenefitLogsByUser(selectedEmployee.user_id);
       setLogsRows(list);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[BenefitsTab] load logs failed", e);
-      toast.error(e?.message || "Failed to load benefit logs.");
+      const msg = e instanceof Error ? e.message : "Failed to load benefit logs.";
+      toast.error(msg);
     } finally {
       setLogsLoading(false);
     }
@@ -699,9 +702,9 @@ export function BenefitsTab({
 
     setSaving(true);
     try {
-      const payload: any = {
-        benefit_code: logDraft.benefit_code,
-        cutoff_id: Number(logDraft.cutoff_period),
+      const payload: BenefitLogCreatePayload = {
+        benefit_code: logDraft.benefit_code as BenefitCode,
+        cutoff_id: Number(logDraft.cutoff_period) as 1 | 2,
         log_type: "CONTRIBUTION",
         loan_id: null,
         source_amount: 0, // Manual log usually implies just the deduction
@@ -726,9 +729,10 @@ export function BenefitsTab({
       setLogFormOpen(false);
       resetLogDraft();
       await loadBenefitLogs();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[BenefitsTab] save log failed", e);
-      toast.error(e?.message || "Failed to save benefit log.");
+      const msg = e instanceof Error ? e.message : "Failed to save benefit log.";
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -747,9 +751,10 @@ export function BenefitsTab({
       await wageApi.deleteBenefitLog(id);
       toast.success("Benefit log deleted.");
       await loadBenefitLogs();
-    } catch (e: any) {
+    } catch (e: unknown) {
         console.error("[BenefitsTab] delete log failed", e);
-        toast.error(e?.message || "Failed to delete benefit log.");
+        const msg = e instanceof Error ? e.message : "Failed to delete benefit log.";
+        toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -768,7 +773,7 @@ export function BenefitsTab({
     
     setLogDraft({
         benefit_code: r.benefit_code,
-        cutoff_period: cPeriod as any,
+        cutoff_period: cPeriod as "1" | "2",
         payroll_id_input: r.payroll_detail_id || "", 
         deducted_amount: fmtMoneyPlain(r.deducted_amount),
         note: r.note || "",

@@ -27,6 +27,7 @@ export function HeroSection() {
         style={{ y: bgY }}
         className="absolute inset-0 z-0 opacity-40 grayscale-[0.5] contrast-125"
       >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img 
           src="/images/hero_dashboard.png" 
           alt="Backdrop"
@@ -44,6 +45,7 @@ export function HeroSection() {
       >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shadow-xl border border-white/10 bg-white">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/images/vtc-logo.jpg" alt="VTC Logo" className="w-full h-full object-cover" />
           </div>
           <span className="text-xl font-black tracking-tighter text-white uppercase italic">VTC</span>

@@ -102,8 +102,9 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
       if (config?.companyName) {
         setCompanyName(config.companyName);
       }
-    } catch (e: any) {
-      toast.error(e?.message ?? "Failed to load benefit logs.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to load benefit logs.";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -119,8 +120,9 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
       const l = await fetchBenefitLogs();
       setRows(l);
       toast.success("Logs refreshed.");
-    } catch (e: any) {
-      toast.error(e?.message ?? "Failed to refresh logs.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to refresh logs.";
+      toast.error(msg);
     } finally {
       setRefreshing(false);
     }
@@ -241,7 +243,7 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
               <div className="text-xs font-medium text-slate-600 dark:text-gray-400">Benefit</div>
               <Select
                 value={benefit}
-                onValueChange={(v) => setBenefit(v as any)}
+                onValueChange={(v) => setBenefit(v as BenefitCode | "ALL")}
               >
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="All" />
@@ -257,7 +259,7 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
 
             <div className="space-y-1">
               <div className="text-xs font-medium text-slate-600 dark:text-gray-400">Type</div>
-              <Select value={type} onValueChange={(v) => setType(v as any)}>
+              <Select value={type} onValueChange={(v) => setType(v as "ALL" | "CONTRIBUTION" | "LOAN")}>
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="All" />
                 </SelectTrigger>

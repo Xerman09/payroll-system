@@ -116,7 +116,7 @@ export default function EmployeeTable({
           <div className="space-y-1 w-full md:w-[160px]">
             <label className="text-xs font-medium text-gray-500">Sort By</label>
             <Select
-              onValueChange={(val: any) => handleSort(val)}
+              onValueChange={(val: "user_id" | "user_fname" | "user_lname") => handleSort(val)}
               defaultValue="user_id"
             >
               <SelectTrigger className="h-10">

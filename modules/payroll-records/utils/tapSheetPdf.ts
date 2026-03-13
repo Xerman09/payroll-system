@@ -177,13 +177,13 @@ export async function buildTapSheetPdf(args: {
   // columns (avoid overflow)
   const availableW = pageW - marginX * 2;
 
-  let colAmtW = 62;
-  let colTypeW = showTypeCol ? 40 : 0;
-  let colIdW = 32;
-  let colDaysW = 32;
-  let colHoursW = 34;
+  const colAmtW = 62;
+  const colTypeW = showTypeCol ? 40 : 0;
+  const colIdW = 32;
+  const colDaysW = 32;
+  const colHoursW = 34;
   
-  let colNameW = availableW - colTypeW - colIdW - colDaysW - colHoursW - colAmtW * 4;
+  const colNameW = availableW - colTypeW - colIdW - colDaysW - colHoursW - colAmtW * 4;
 
   const x0 = marginX;
   const xName = x0;

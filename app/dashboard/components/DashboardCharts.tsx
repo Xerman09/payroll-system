@@ -20,21 +20,23 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface DashboardChartsProps {
-  payrollTrend: any[];
-  employeeDistribution: any[];
+  payrollTrend: Record<string, unknown>[];
+  employeeDistribution: Record<string, unknown>[];
   loading?: boolean;
 }
 
 const COLORS = ["#6366f1", "#8b5cf6", "#ec4899", "#f43f5e", "#10b981"];
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-background/95 backdrop-blur-sm border border-border p-3 rounded-xl shadow-lg">
-        <p className="font-semibold mb-1">{label}</p>
+        <p className="font-semibold mb-1">{label as React.ReactNode}</p>
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {payload.map((entry: any, index: number) => (
           <p key={index} className="text-sm" style={{ color: entry.color }}>
-            {entry.name}: {entry.value.toLocaleString()}
+            {entry.name as React.ReactNode}: {Number(entry.value).toLocaleString()}
           </p>
         ))}
       </div>
@@ -150,7 +152,8 @@ export function DashboardCharts({
                   verticalAlign="bottom"
                   height={36}
                   iconType="circle"
-                  formatter={(value) => (
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  formatter={(value: any) => (
                     <span className="text-sm text-muted-foreground ml-1">
                       {value}
                     </span>

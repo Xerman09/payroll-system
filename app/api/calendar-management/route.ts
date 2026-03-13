@@ -80,7 +80,7 @@ async function upstreamFetch(url: URL, init?: RequestInit) {
   const res = await fetch(url.toString(), { ...init, headers, cache: "no-store" });
   const text = await res.text();
 
-  let json: any = null;
+  let json: unknown = null;
   try {
     json = text ? JSON.parse(text) : null;
   } catch {
@@ -88,14 +88,15 @@ async function upstreamFetch(url: URL, init?: RequestInit) {
   }
 
   if (!res.ok) {
-    const errorMsg =
-      (json && (json.error?.message || json.error || json.message)) ||
-      text ||
-      `Upstream request failed (${res.status})`;
-    return NextResponse.json({ error: errorMsg }, { status: res.status });
-  }
+  const j = json as Record<string, unknown> | null;
+  const errorMsg =
+    (j && (j.error as { message?: string })?.message || j?.error || j?.message) ||
+    text ||
+    `Upstream request failed (${res.status})`;
+  return NextResponse.json({ error: errorMsg }, { status: res.status });
+}
 
-  const normalized = json && typeof json === "object" && "data" in json ? json : { data: json };
+const normalized = json && typeof json === "object" && "data" in (json as object) ? json : { data: json };
   return NextResponse.json(normalized, { status: 200 });
 }
 
@@ -115,7 +116,8 @@ export async function GET(req: NextRequest) {
 
     const url = buildUpstreamUrl(resource, id, params);
     return upstreamFetch(url, { method: "GET" });
-  } catch (e: any) {
+  } catch (error: unknown) {
+    const e = error as Error;
     return NextResponse.json({ error: e?.message || "Bad Request" }, { status: 400 });
   }
 }
@@ -130,7 +132,8 @@ export async function POST(req: NextRequest) {
 
     const url = buildUpstreamUrl(resource);
     return upstreamFetch(url, { method: "POST", body: JSON.stringify(data) });
-  } catch (e: any) {
+  } catch (error: unknown) {
+    const e = error as Error;
     return NextResponse.json({ error: e?.message || "Bad Request" }, { status: 400 });
   }
 }
@@ -147,7 +150,8 @@ export async function PATCH(req: NextRequest) {
 
     const url = buildUpstreamUrl(resource, String(id));
     return upstreamFetch(url, { method: "PATCH", body: JSON.stringify(data) });
-  } catch (e: any) {
+  } catch (error: unknown) {
+    const e = error as Error;
     return NextResponse.json({ error: e?.message || "Bad Request" }, { status: 400 });
   }
 }
@@ -164,7 +168,8 @@ export async function DELETE(req: NextRequest) {
 
     const url = buildUpstreamUrl(resource, id, params);
     return upstreamFetch(url, { method: "DELETE" });
-  } catch (e: any) {
+  } catch (error: unknown) {
+    const e = error as Error;
     return NextResponse.json({ error: e?.message || "Bad Request" }, { status: 400 });
   }
 }

@@ -64,7 +64,7 @@ type LoanDraft = {
   status: string;
 };
 
-function statusPill(statusRaw: any) {
+function statusPill(statusRaw: string | undefined | null) {
   const s = String(statusRaw ?? "").trim();
   const u = s.toUpperCase();
 
@@ -132,7 +132,7 @@ function normalize(v: unknown) {
 }
 
 function buildLoanHaystack(l: EmployeeLoanRecord) {
-  const status = (l as any).status ?? "";
+  const status = l.status ?? "";
   return normalize(
     [
       l.loan_type,
@@ -706,7 +706,7 @@ export function LoansTab({
 
                   <TableCell>
                     {(() => {
-                      const p = statusPill((l as any).status);
+                      const p = statusPill(l.status);
                       return (
                         <span className={p.className}>
                           <span

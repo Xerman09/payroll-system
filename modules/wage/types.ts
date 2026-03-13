@@ -15,7 +15,7 @@ export type Employee = {
 
   // Some Directus setups store deleted flag as nullable or as relation wrapper.
   // Keep it permissive to avoid runtime/TS friction.
-  is_deleted?: any;
+  is_deleted?: unknown;
 };
 
 export type WageDataState = {

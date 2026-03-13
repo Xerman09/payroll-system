@@ -62,6 +62,7 @@ export function CTAAndFooter() {
                         <div className="col-span-1 md:col-span-2">
                              <div className="flex items-center gap-3 mb-8">
                                 <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shadow-xl border border-white/10 bg-white">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img src="/images/vtc-logo.jpg" alt="VTC Logo" className="w-full h-full object-cover" />
                                 </div>
                                 <span className="text-2xl font-black text-white italic tracking-tighter uppercase">VTC</span>

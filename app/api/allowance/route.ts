@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       cache: "no-store",
     });
     return forwardResponse(res);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(body),
     });
     return forwardResponse(res);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
@@ -64,7 +64,7 @@ export async function PATCH(request: NextRequest) {
       body: JSON.stringify(body),
     });
     return forwardResponse(res);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
@@ -80,7 +80,7 @@ export async function DELETE(request: NextRequest) {
     });
     if (res.status === 204) return NextResponse.json({ success: true });
     return forwardResponse(res);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

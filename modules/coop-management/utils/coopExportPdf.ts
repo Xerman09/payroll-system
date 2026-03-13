@@ -190,7 +190,7 @@ export async function exportCoopPdf(args: {
     );
   };
 
-  let lastY = renderHeader(true);
+  const lastY = renderHeader(true);
 
   if (type === "savings") {
     const head = [["No.", "Membership ID", "Name", "Monthly", "Total Collection", "Months", "Status"]];

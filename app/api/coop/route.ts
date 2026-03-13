@@ -84,7 +84,6 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
-    // @ts-ignore
     const e = error as Error;
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

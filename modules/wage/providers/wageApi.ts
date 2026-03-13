@@ -38,15 +38,16 @@ import type {
 const BASE_API = "/api/wage";
 const BATCH_SIZE = 100;
 
-function extractDirectusErrorMessage(json: any): string | null {
-  if (!json) return null;
+function extractDirectusErrorMessage(json: unknown): string | null {
+  if (!json || typeof json !== "object") return null;
+  const j = json as Record<string, unknown>;
 
-  if (Array.isArray(json.errors) && json.errors.length > 0) {
-    const e0 = json.errors[0];
-    return e0?.message || e0?.extensions?.code || "Directus error";
+  if (Array.isArray(j.errors) && j.errors.length > 0) {
+    const e0 = j.errors[0] as Record<string, unknown> | null;
+    return (e0?.message as string) || ((e0?.extensions as Record<string, unknown>)?.code as string) || "Directus error";
   }
 
-  if (typeof json.error === "string") return json.error;
+  if (typeof j.error === "string") return j.error;
 
   return null;
 }
@@ -101,7 +102,7 @@ export async function fetchDepartments(): Promise<Department[]> {
 
 export async function fetchEmployees(): Promise<Employee[]> {
   const allUsers = await fetchAllInBatches<Employee>("/items/user");
-  return allUsers.filter((emp) => !emp.is_deleted || emp.is_deleted.data?.[0] === 0);
+  return allUsers.filter((emp) => !emp.is_deleted || (emp.is_deleted as unknown as { data: number[] })?.data?.[0] === 0);
 }
 
 export type EmployeeListParams = {
@@ -121,7 +122,10 @@ export async function fetchEmployeesPaged({
   sortField = "user_id",
   sortOrder = "asc",
 }: EmployeeListParams): Promise<{ rows: Employee[]; total: number }> {
-  const filterParams: any = {
+  type DirectusFilter = {
+    _and: Array<Record<string, unknown>>;
+  };
+  const filterParams: DirectusFilter = {
     _and: [
       {
         _or: [{ is_deleted: { _null: true } }, { is_deleted: { _eq: 0 } }],
@@ -136,7 +140,7 @@ export async function fetchEmployeesPaged({
   const numericId = isNumericId ? Number(q) : null;
 
   if (q) {
-    const orFilters: any[] = [
+    const orFilters: Record<string, unknown>[] = [
       { user_fname: { _icontains: q } },
       { user_lname: { _icontains: q } },
     ];

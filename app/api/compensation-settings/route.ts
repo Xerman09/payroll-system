@@ -125,7 +125,7 @@ export async function DELETE(req: NextRequest) {
 
   if (!table || !id) return NextResponse.json({ error: "Invalid resource or missing ID" }, { status: 400 });
 
-  const result = await directusFetch("DELETE" as any, `/items/${table}/${id}`);
+  const result = await directusFetch("DELETE" as HttpMethod, `/items/${table}/${id}`);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json({ message: "Deleted" }, { headers: corsHeaders() });
 }
