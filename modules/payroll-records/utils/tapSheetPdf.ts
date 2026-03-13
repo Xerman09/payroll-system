@@ -21,6 +21,16 @@ function formatAmountOnly(n: number) {
   }
 }
 
+/** 
+ * Show whole numbers without decimals (12), 
+ * but fractionals with up to 2 (12.5) 
+ */
+function formatSmartDecimal(n: number) {
+  const x = Number.isFinite(n) ? n : 0;
+  if (Number.isInteger(x)) return x.toString();
+  return x.toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
 /** Format date to MMM D, YYYY */
 function fmtDate(iso: string) {
   if (!iso || iso === "-") return "—";
@@ -167,20 +177,20 @@ export async function buildTapSheetPdf(args: {
   // columns (avoid overflow)
   const availableW = pageW - marginX * 2;
 
-  let colAmtW = 90;
-  let colTypeW = showTypeCol ? 50 : 0;
-  let colNameW = availableW - colTypeW - colAmtW * 4;
-
-  const minName = 200;
-
-  if (colNameW < minName) {
-    colAmtW = 80;
-    colNameW = availableW - colTypeW - colAmtW * 4;
-  }
+  let colAmtW = 62;
+  let colTypeW = showTypeCol ? 40 : 0;
+  let colIdW = 32;
+  let colDaysW = 32;
+  let colHoursW = 34;
+  
+  let colNameW = availableW - colTypeW - colIdW - colDaysW - colHoursW - colAmtW * 4;
 
   const x0 = marginX;
   const xName = x0;
-  const xType = xName + colNameW; // if colTypeW is 0, this is start of Gross
+  const xId = xName + colNameW;
+  const xDays = xId + colIdW;
+  const xHours = xDays + colDaysW;
+  const xType = xHours + colHoursW; // if colTypeW is 0, this is start of Gross
   const xGross = xType + colTypeW;
   const xAdds = xGross + colAmtW;
   const xDeds = xAdds + colAmtW;
@@ -188,9 +198,9 @@ export async function buildTapSheetPdf(args: {
   const xEnd = x0 + availableW;
 
   const headerBandH = 30;
-  const tableStartY = 160;
+  const tableStartY = 155;
 
-  const rowH = 20;
+  const rowH = 14;
 
   const drawFooter = (pageNo: number) => {
     doc.setFont(fontFamily, "normal");
@@ -206,59 +216,59 @@ export async function buildTapSheetPdf(args: {
     doc.rect(0, 0, pageW, headerBandH + 10, "F");
 
     doc.setFont(fontFamily, "bold");
-    doc.setFontSize(14);
+    doc.setFontSize(12);
     doc.setTextColor(255, 255, 255);
     const companyLabel = (args.companyName || "").toUpperCase();
-    doc.text(companyLabel, pageW / 2, marginTop + 14, { align: "center" });
+    doc.text(companyLabel, pageW / 2, marginTop + 16, { align: "center" });
 
     // 2. Document Title (Subtle Ribbon)
     const titleY = headerBandH + 18;
     doc.setFillColor(ACCENT_SOFT.r, ACCENT_SOFT.g, ACCENT_SOFT.b);
     doc.setDrawColor(GRID.r, GRID.g, GRID.b);
-    doc.roundedRect(pageW / 2 - 80, titleY, 160, 22, 2, 2, "FD");
+    doc.roundedRect(pageW / 2 - 70, titleY, 140, 20, 2, 2, "FD");
 
     doc.setTextColor(ACCENT.r, ACCENT.g, ACCENT.b);
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setFont(fontFamily, "bold");
-    doc.text("TOP SHEET REPORT", pageW / 2, titleY + 15, { align: "center" });
+    doc.text("TOP SHEET REPORT", pageW / 2, titleY + 14, { align: "center" });
 
     // 3. Metadata Grid
-    const gridY = titleY + 44;
+    const gridY = titleY + 42;
     doc.setTextColor(0, 0, 0);
 
     // Left Column: Core Identity
     doc.setFont(fontFamily, "bold");
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.text("DEPARTMENT:", x0, gridY);
     doc.setFont(fontFamily, "normal");
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     const deptDisplayName = (args.departmentName || "ALL DEPARTMENTS").toUpperCase();
-    doc.text(deptDisplayName, x0 + 75, gridY);
+    doc.text(deptDisplayName, x0 + 72, gridY);
 
     const cutoffLabel = `PERIOD: ${fmtDate(args.cutoffStart)} — ${fmtDate(args.cutoffEnd)}`;
     doc.setFont(fontFamily, "bold");
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(TEXT_MUTED.r, TEXT_MUTED.g, TEXT_MUTED.b);
-    doc.text(cutoffLabel, x0, gridY + 18);
+    doc.text(cutoffLabel, x0, gridY + 16);
 
     // Right Column: Summary Stats
     doc.setFont(fontFamily, "bold");
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
-    doc.text("TOTAL EMPLOYEES:", xEnd - 12, gridY, { align: "right" });
-    doc.setFontSize(12);
+    doc.text("EMPLOYEES:", xEnd - 22, gridY, { align: "right" });
+    doc.setFontSize(11);
     doc.text(String(args.rows.length), xEnd, gridY, { align: "right" });
 
     // Payment Filter (if single)
     if (!showTypeCol) {
       doc.setFont(fontFamily, "bold");
-      doc.setFontSize(8.5);
+      doc.setFontSize(8);
       doc.setTextColor(TEXT_MUTED.r, TEXT_MUTED.g, TEXT_MUTED.b);
-      doc.text(`MODE: ${args.filterType.toUpperCase()}`, xEnd, gridY + 16, { align: "right" });
+      doc.text(`MODE: ${args.filterType.toUpperCase()}`, xEnd, gridY + 15, { align: "right" });
     }
 
     // 4. Administrative Footer (Small/Muted)
-    const adminY = gridY + 34;
+    const adminY = gridY + 30;
     doc.setFont(fontFamily, "normal");
     doc.setFontSize(8);
     doc.setTextColor(TEXT_MUTED.r * 1.2, TEXT_MUTED.g * 1.2, TEXT_MUTED.b * 1.2);
@@ -274,27 +284,35 @@ export async function buildTapSheetPdf(args: {
   const drawTableHeader = (y: number) => {
     doc.setFillColor(ACCENT_SOFT.r, ACCENT_SOFT.g, ACCENT_SOFT.b);
     doc.setDrawColor(GRID.r, GRID.g, GRID.b);
-    doc.setLineWidth(0.8);
+    doc.setLineWidth(0.6);
     doc.rect(x0, y, availableW, rowH, "FD");
 
     doc.setFont(fontFamily, "bold");
-    doc.setFontSize(8.5);
+    doc.setFontSize(8);
     doc.setTextColor(ACCENT.r, ACCENT.g, ACCENT.b);
 
-    const ty = y + 13;
-    doc.text("EMPLOYEE NAME", xName + 8, ty);
+    const ty = y + 11;
+    doc.text("EMPLOYEE NAME", xName + 6, ty);
+
+    doc.text("ID", xId + 3, ty);
+    doc.text("DAYS", xDays + 3, ty);
+    doc.text("HOURS", xHours + 3, ty);
 
     if (showTypeCol) {
-      doc.text("TYPE", xType + 4, ty);
+      doc.text("TYPE", xType + 3, ty);
     }
 
-    doc.text("GROSS PAY", xGross + colAmtW - 8, ty, { align: "right" });
-    doc.text("ADDITIONS", xAdds + colAmtW - 8, ty, { align: "right" });
-    doc.text("DEDUCTIONS", xDeds + colAmtW - 8, ty, { align: "right" });
-    doc.text("NET PAY", xNet + colAmtW - 8, ty, { align: "right" });
+    doc.text("GROSS PAY", xGross + colAmtW - 6, ty, { align: "right" });
+    doc.text("ADDITIONS", xAdds + colAmtW - 6, ty, { align: "right" });
+    doc.text("DEDUCTIONS", xDeds + colAmtW - 6, ty, { align: "right" });
+    doc.text("NET PAY", xNet + colAmtW - 6, ty, { align: "right" });
 
     doc.setDrawColor(GRID.r, GRID.g, GRID.b);
-    doc.setLineWidth(0.8);
+    doc.setLineWidth(0.6);
+
+    doc.line(xId, y, xId, y + rowH);
+    doc.line(xDays, y, xDays, y + rowH);
+    doc.line(xHours, y, xHours, y + rowH);
 
     if (showTypeCol) {
       doc.line(xType, y, xType, y + rowH);
@@ -306,7 +324,7 @@ export async function buildTapSheetPdf(args: {
     doc.line(xNet, y, xNet, y + rowH);
 
     doc.setFont(fontFamily, "normal");
-    doc.setFontSize(8.5);
+    doc.setFontSize(8);
     doc.setTextColor(0, 0, 0);
 
     return y + rowH;
@@ -314,13 +332,17 @@ export async function buildTapSheetPdf(args: {
 
   const drawRow = (y: number, r: TapSheetRow, zebra: boolean) => {
     if (zebra) {
-      doc.setFillColor(250, 252, 255);
+      doc.setFillColor(252, 253, 255);
       doc.rect(x0, y, availableW, rowH, "F");
     }
 
     doc.setDrawColor(GRID.r, GRID.g, GRID.b);
-    doc.setLineWidth(0.5);
+    doc.setLineWidth(0.4);
     doc.rect(x0, y, availableW, rowH);
+
+    doc.line(xId, y, xId, y + rowH);
+    doc.line(xDays, y, xDays, y + rowH);
+    doc.line(xHours, y, xHours, y + rowH);
 
     if (showTypeCol) {
       doc.line(xType, y, xType, y + rowH);
@@ -331,33 +353,39 @@ export async function buildTapSheetPdf(args: {
     doc.line(xDeds, y, xDeds, y + rowH);
     doc.line(xNet, y, xNet, y + rowH);
 
-    const ty = y + 13;
+    const ty = y + 11;
 
     // name
     doc.setFont(fontFamily, "normal");
-    doc.setFontSize(8.8);
+    doc.setFontSize(7.2);
     doc.setTextColor(0, 0, 0);
-    const name = fitTextEllipsis(doc, r.name_display ?? "", colNameW - 16);
-    doc.text(name, xName + 8, ty);
+    const name = fitTextEllipsis(doc, r.name_display ?? "", colNameW - 10);
+    doc.text(name, xName + 5, ty);
+
+    // ID / stats
+    doc.setFontSize(6.8);
+    doc.text(r.employee_no, xId + 3, ty);
+    doc.text(formatSmartDecimal(r.days_worked), xDays + 3, ty);
+    doc.text(formatSmartDecimal(r.work_hours), xHours + 3, ty);
 
     // type
     if (showTypeCol) {
-      doc.setFontSize(8);
+      doc.setFontSize(6.8);
       const type = r.payment_type === "BANK" ? "BANK" : "CASH";
-      doc.text(type, xType + 4, ty);
+      doc.text(type, xType + 3, ty);
     }
 
     // amounts: smaller font
-    const maxAmtW = colAmtW - 14;
+    const maxAmtW = colAmtW - 10;
 
     drawRightFitted({
       doc,
       text: peso(r.gross_pay),
-      xRight: xGross + colAmtW - 8,
+      xRight: xGross + colAmtW - 5,
       y: ty,
       maxW: maxAmtW,
-      baseSize: 8,
-      minSize: 6.5,
+      baseSize: 7,
+      minSize: 6,
       fontFamily,
       fontStyle: "normal",
       color: TEXT_MUTED,
@@ -366,11 +394,11 @@ export async function buildTapSheetPdf(args: {
     drawRightFitted({
       doc,
       text: peso(r.total_additions),
-      xRight: xAdds + colAmtW - 8,
+      xRight: xAdds + colAmtW - 5,
       y: ty,
       maxW: maxAmtW,
-      baseSize: 8,
-      minSize: 6.5,
+      baseSize: 7,
+      minSize: 6,
       fontFamily,
       fontStyle: "normal",
       color: TEXT_MUTED,
@@ -379,11 +407,11 @@ export async function buildTapSheetPdf(args: {
     drawRightFitted({
       doc,
       text: peso(r.total_deductions),
-      xRight: xDeds + colAmtW - 8,
+      xRight: xDeds + colAmtW - 5,
       y: ty,
       maxW: maxAmtW,
-      baseSize: 8,
-      minSize: 6.5,
+      baseSize: 7,
+      minSize: 6,
       fontFamily,
       fontStyle: "normal",
       color: TEXT_MUTED,
@@ -393,11 +421,11 @@ export async function buildTapSheetPdf(args: {
     drawRightFitted({
       doc,
       text: peso(r.net_pay),
-      xRight: xNet + colAmtW - 8,
+      xRight: xNet + colAmtW - 5,
       y: ty,
       maxW: maxAmtW,
-      baseSize: 8,
-      minSize: 6.5,
+      baseSize: 7,
+      minSize: 6,
       fontFamily,
       fontStyle: "bold",
       color: ACCENT,
@@ -413,6 +441,10 @@ export async function buildTapSheetPdf(args: {
     doc.setDrawColor(ACCENT.r, ACCENT.g, ACCENT.b);
     doc.setLineWidth(0.8);
 
+    doc.line(xId, y, xId, y + rowH + 2);
+    doc.line(xDays, y, xDays, y + rowH + 2);
+    doc.line(xHours, y, xHours, y + rowH + 2);
+
     if (showTypeCol) {
       doc.line(xType, y, xType, y + rowH + 2);
     }
@@ -423,22 +455,22 @@ export async function buildTapSheetPdf(args: {
     doc.line(xNet, y, xNet, y + rowH + 2);
 
     doc.setFont(fontFamily, "bold");
-    doc.setFontSize(8.5);
+    doc.setFontSize(8);
     doc.setTextColor(255, 255, 255);
 
-    const ty = y + 14;
-    doc.text("TOTAL", xName + 8, ty);
+    const ty = y + 12;
+    doc.text("TOTAL", xName + 6, ty);
     // Removed count from footer per user request
 
-    const maxAmtW = colAmtW - 14;
+    const maxAmtW = colAmtW - 12;
 
     drawRightFitted({
       doc,
       text: peso(args.totals.gross),
-      xRight: xGross + colAmtW - 8,
+      xRight: xGross + colAmtW - 6,
       y: ty,
       maxW: maxAmtW,
-      baseSize: 8,
+      baseSize: 7.5,
       minSize: 6.5,
       fontFamily,
       fontStyle: "bold",
@@ -448,10 +480,10 @@ export async function buildTapSheetPdf(args: {
     drawRightFitted({
       doc,
       text: peso(args.totals.adds),
-      xRight: xAdds + colAmtW - 8,
+      xRight: xAdds + colAmtW - 6,
       y: ty,
       maxW: maxAmtW,
-      baseSize: 8,
+      baseSize: 7.5,
       minSize: 6.5,
       fontFamily,
       fontStyle: "bold",
@@ -461,10 +493,10 @@ export async function buildTapSheetPdf(args: {
     drawRightFitted({
       doc,
       text: peso(args.totals.deds),
-      xRight: xDeds + colAmtW - 8,
+      xRight: xDeds + colAmtW - 6,
       y: ty,
       maxW: maxAmtW,
-      baseSize: 8,
+      baseSize: 7.5,
       minSize: 6.5,
       fontFamily,
       fontStyle: "bold",
@@ -474,10 +506,10 @@ export async function buildTapSheetPdf(args: {
     drawRightFitted({
       doc,
       text: peso(args.totals.net),
-      xRight: xNet + colAmtW - 8,
+      xRight: xNet + colAmtW - 6,
       y: ty,
       maxW: maxAmtW,
-      baseSize: 8,
+      baseSize: 7.5,
       minSize: 6.5,
       fontFamily,
       fontStyle: "bold",

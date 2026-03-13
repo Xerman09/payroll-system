@@ -46,22 +46,25 @@ export default function PayrollRecordsModule() {
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const [previewFilename, setPreviewFilename] = React.useState("");
+  const [companyName, setCompanyName] = React.useState("");
 
   React.useEffect(() => {
     const run = async () => {
       try {
-        const [emps, depts, cuts] = await Promise.all([
+        const [empRes, deptRes, cutRes] = await Promise.all([
           fetchEmployees(),
           fetchDepartments(),
           fetchCutoffs(),
         ]);
 
-        // remove deleted employees
-        const activeEmployees = emps.filter((e) => !e.is_deleted?.data?.[0]);
+        const name = empRes.meta?.companyName || deptRes.meta?.companyName || cutRes.meta?.companyName || "";
+        if (name) setCompanyName(name);
+
+        const activeEmployees = empRes.data.filter((e) => !e.is_deleted?.data?.[0]);
 
         setEmployees(activeEmployees);
-        setDepartments(depts);
-        setCutoffs(cuts);
+        setDepartments(deptRes.data);
+        setCutoffs(cutRes.data);
       } finally {
         setLoading(false);
       }
@@ -163,7 +166,12 @@ export default function PayrollRecordsModule() {
             </TabsList>
 
             <TabsContent value="employees" className="mt-0">
-              <EmployeesTab loading={loading} employees={employees} departments={departments} />
+              <EmployeesTab 
+                loading={loading} 
+                employees={employees} 
+                departments={departments} 
+                companyName={companyName}
+              />
             </TabsContent>
 
             <TabsContent value="top-sheet" className="mt-0">
@@ -176,6 +184,7 @@ export default function PayrollRecordsModule() {
                 setSelectedCutoff={setSelectedCutoff}
                 deptId={deptId}
                 setDeptId={setDeptId}
+                companyName={companyName}
               />
             </TabsContent>
           </Tabs>

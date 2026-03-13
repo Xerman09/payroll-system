@@ -25,6 +25,7 @@ import {
 } from "../utils/tapSheet";
 import { toNumberSafe } from "../utils/money";
 import { buildTapSheetPdf } from "../utils/tapSheetPdf";
+import { buildPayslipsPdf } from "../../payroll-run/utils/payslipPdf";
 import { buildPayrollSummaryPdf } from "../utils/payrollSummaryPdf";
 
 import { CardHeader, CardTitle } from "@/components/ui/card";
@@ -90,6 +91,26 @@ function formatAmountOnly(v: any) {
   }
 }
 
+/** 
+ * Show whole numbers without decimals (12), 
+ * but fractionals with up to 2 (12.5) 
+ */
+function formatSmartDecimal(v: any) {
+  const n = Math.abs(toNumberSafe(v));
+  if (Number.isInteger(n)) return n.toString();
+  try {
+    return n.toLocaleString("en-PH", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
+  } catch {
+    return n.toLocaleString(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
+  }
+}
+
 /** UI Peso format: single symbol, ABS */
 function peso(v: any) {
   return `₱ ${formatAmountOnly(v)}`;
@@ -104,6 +125,7 @@ export default function TapSheetTab({
   setSelectedCutoff,
   deptId,
   setDeptId,
+  companyName: passedCompanyName,
 }: {
   loading: boolean;
   employees: Employee[];
@@ -113,6 +135,7 @@ export default function TapSheetTab({
   setSelectedCutoff: (v: string) => void;
   deptId: number | null;
   setDeptId: (v: number | null) => void;
+  companyName: string;
 }) {
   const uniqueCutoffs = React.useMemo(() => uniqCutoffs(cutoffs), [cutoffs]);
 
@@ -123,7 +146,11 @@ export default function TapSheetTab({
   const [loading, setLoading] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
   const [rowsRaw, setRowsRaw] = React.useState<any[]>([]);
-  const [companyName, setCompanyName] = React.useState<string>("");
+  const [companyName, setCompanyName] = React.useState<string>(passedCompanyName || "");
+
+  React.useEffect(() => {
+    if (passedCompanyName) setCompanyName(passedCompanyName);
+  }, [passedCompanyName]);
 
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
@@ -304,6 +331,36 @@ export default function TapSheetTab({
     return doc.output("blob");
   };
 
+  const onDownloadAllPayslips = async () => {
+    if (!tapRows.length) return toast.error("No payslips to download.");
+    
+    setExporting(true);
+    try {
+      // ✅ We use all tapRows (they are already sorted by name_sort_key in useMemo)
+      // Map TapSheetRows back to the shape expected by buildPayslipsPdf if needed,
+      // but buildPayslipsPdf just needs 'rows' which are objects.
+      // However, tapRows are already computed. If buildPayslipsPdf needs raw rows,
+      // we might need to pass the raw objects.
+      // Looking at payslipPdf.ts, it uses 'any[]' and deep-dives into properties.
+      // tapRows has properties like net_pay, gross_pay, etc.
+      
+      const doc = await buildPayslipsPdf({
+        rows: tapRows,
+        payrollPeriodLabel: buildCutoffLabel(cutoff as any),
+        pageSize: "LEGAL",
+        companyName: (companyName || "").toUpperCase(),
+      });
+      
+      doc.save(buildSafeFilename("all_payslips"));
+      toast.success("Bulk payslips generated.");
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Failed to generate bulk payslips.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const openPreview = async () => {
     if (!cutoff?.start || !cutoff?.end)
       return toast.error("Please select a cutoff date.");
@@ -353,6 +410,16 @@ export default function TapSheetTab({
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              onClick={onDownloadAllPayslips}
+              disabled={loading || exporting || tapRows.length === 0}
+              variant="outline"
+              className="border-blue-600 text-blue-600 hover:bg-blue-50"
+            >
+               {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
+               Download All Payslips
+            </Button>
+
             <Button
               onClick={openPreview}
               disabled={loading || tapRows.length === 0}
@@ -472,6 +539,9 @@ export default function TapSheetTab({
           <TableHeader>
             <TableRow>
               <TableHead className="min-w-[260px]">Employee Name</TableHead>
+              <TableHead>ID</TableHead>
+              <TableHead>Days</TableHead>
+              <TableHead>Hours</TableHead>
               <TableHead>Payment Type</TableHead>
               <TableHead className="text-right">Gross Pay</TableHead>
               <TableHead className="text-right">Total Additions</TableHead>
@@ -508,6 +578,9 @@ export default function TapSheetTab({
                     <TableCell className="font-medium">
                       {r.name_display}
                     </TableCell>
+                    <TableCell>{r.employee_no}</TableCell>
+                    <TableCell>{formatSmartDecimal(r.days_worked)}</TableCell>
+                    <TableCell>{formatSmartDecimal(r.work_hours)}</TableCell>
                     <TableCell>
                       {r.payment_type}
                     </TableCell>
@@ -528,6 +601,9 @@ export default function TapSheetTab({
 
                 <TableRow className="bg-muted/40">
                   <TableCell className="font-bold">TOTAL</TableCell>
+                  <TableCell />
+                  <TableCell />
+                  <TableCell />
                   <TableCell />
                   <TableCell className="text-right font-bold tabular-nums">
                     {peso(totals.gross)}

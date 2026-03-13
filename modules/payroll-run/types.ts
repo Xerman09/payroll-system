@@ -488,6 +488,8 @@ export interface PayrollComputedLine {
   user_id: number;
 
   employee_name: string;
+  first_name?: string | null;
+  last_name?: string | null;
   position?: string | null;
   department_name?: string | null;
 
