@@ -454,7 +454,7 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
 
     const payRows = [
       { m: "BANK", pEmp: fmtInt(bankPrevEmp), cEmp: fmtInt(bankCurrEmp), add: dashIfZero(bankAdd), rem: dashIfZero(bankRemove), prev: fmtMoney(bankPrevNet), net: fmtMoney(bankCurrNet) },
-      { m: "CASH", pEmp: fmtInt(cashPrevEmp), cEmp: fmtInt(cashCurrEmp), add: dashIfZero(cashAdd), rem: dashIfZero(bankRemove), prev: fmtMoney(cashPrevNet), net: fmtMoney(bankCurrNet) },
+      { m: "CASH", pEmp: fmtInt(cashPrevEmp), cEmp: fmtInt(cashCurrEmp), add: dashIfZero(cashAdd), rem: dashIfZero(cashRemove), prev: fmtMoney(cashPrevNet), net: fmtMoney(cashCurrNet) },
       { m: "TOTAL", pEmp: fmtInt(bankPrevEmp + cashPrevEmp), cEmp: fmtInt(bankCurrEmp + cashCurrEmp), add: dashIfZero(bankAdd + cashAdd), rem: dashIfZero(bankRemove + cashRemove), prev: fmtMoney(bankPrevNet + cashPrevNet), net: fmtMoney(bankCurrNet + cashCurrNet) },
     ];
 
