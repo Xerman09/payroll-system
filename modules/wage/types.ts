@@ -642,8 +642,11 @@ export type BenefitLogCreatePayload = {
 
   note: string | null;
   created_date?: string;
+
+  created_by?: number | null;
+  updated_by?: number | null;
 };
 
 export type BenefitLogPatchPayload = Partial<
-  Omit<BenefitLogCreatePayload, "user_id">
+  Omit<BenefitLogCreatePayload, "user_id" | "created_by">
 >;
