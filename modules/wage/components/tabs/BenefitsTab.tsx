@@ -13,9 +13,12 @@ import type {
   BenefitCode,
   DeductOn,
   BenefitLoanStatus,
+  BenefitLoanPatchPayload,
   BenefitLogRecord,
+  BenefitLogType,
   BenefitLogDraft,
   BenefitLogCreatePayload,
+  BenefitLogPatchPayload,
 } from "../../types";
 import * as wageApi from "../../providers/wageApi";
 
@@ -534,7 +537,7 @@ export function BenefitsTab({
           remarks: v.remarks,
 
           updated_by: loggedUserId,
-        } as Partial<BenefitLoanRecord>);
+        } as BenefitLoanPatchPayload);
 
         toast.success("Benefit loan updated.");
       } else {
@@ -702,12 +705,12 @@ export function BenefitsTab({
 
     setSaving(true);
     try {
-      const payload: BenefitLogCreatePayload = {
+      const basePayload = {
         benefit_code: logDraft.benefit_code as BenefitCode,
         cutoff_id: Number(logDraft.cutoff_period) as 1 | 2,
-        log_type: "CONTRIBUTION",
+        log_type: "CONTRIBUTION" as BenefitLogType,
         loan_id: null,
-        source_amount: 0, // Manual log usually implies just the deduction
+        source_amount: 0,
         deducted_amount: amt,
         payroll_run_id: payrollRunId,
         payroll_detail_id: payrollDetailId,
@@ -717,12 +720,15 @@ export function BenefitsTab({
       };
 
       if (editingLogId) {
-         await wageApi.patchBenefitLog(editingLogId, payload);
+         await wageApi.patchBenefitLog(editingLogId, basePayload as BenefitLogPatchPayload);
          toast.success("Benefit log updated.");
       } else {
-         payload.user_id = selectedEmployee.user_id;
-         payload.created_by = loggedUserId;
-         await wageApi.createBenefitLog(payload);
+         const createPayload: BenefitLogCreatePayload = {
+           ...basePayload,
+           user_id: selectedEmployee.user_id,
+           created_by: loggedUserId,
+         };
+         await wageApi.createBenefitLog(createPayload);
          toast.success("Benefit log created.");
       }
       
