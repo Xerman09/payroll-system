@@ -42,7 +42,7 @@ export default function LoginForm({
             onChange={(e) => setEmail(e.target.value)}
             onFocus={() => setFocusedField("email")}
             onBlur={() => setFocusedField(null)}
-            className="relative bg-white/[0.04] border-white/10 rounded-2xl py-6 px-5 text-white placeholder:text-white/15 focus:border-cyan-500/50 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 text-sm"
+            className="relative bg-slate-900/50 border-white/10 rounded-2xl py-6 px-5 text-white placeholder:text-slate-600 focus:border-cyan-500/50 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 text-sm"
           />
         </div>
       </div>
@@ -63,7 +63,7 @@ export default function LoginForm({
             onChange={(e) => setPassword(e.target.value)}
             onFocus={() => setFocusedField("password")}
             onBlur={() => setFocusedField(null)}
-            className="relative bg-white/[0.04] border-white/10 rounded-2xl py-6 px-5 text-white placeholder:text-white/20 focus:border-white/20 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 text-sm"
+            className="relative bg-slate-900/50 border-white/10 rounded-2xl py-6 px-5 text-white placeholder:text-slate-600 focus:border-white/20 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 text-sm"
           />
         </div>
       </div>
