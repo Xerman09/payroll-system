@@ -33,6 +33,8 @@ import type {
   BenefitLogRecord,
   BenefitLogCreatePayload,
   BenefitLogPatchPayload,
+  SalarySchedule,
+  SalarySchedulePayload,
 } from "../types";
 
 const BASE_API = "/api/wage";
@@ -712,6 +714,47 @@ export async function deleteBenefitLog(id: number) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       path: `/items/benefit_logs/${id}`,
+    }),
+  });
+}
+
+// ----------------------------------------------------------------------
+// SALARY SCHEDULES (CRUD) - salary_schedules
+// ----------------------------------------------------------------------
+
+export async function fetchSalarySchedules(): Promise<SalarySchedule[]> {
+  const json = await apiFetch("/items/salary_schedules?limit=-1&sort=-effectivity_date,salary_grade,step");
+  return (json?.data as SalarySchedule[]) || [];
+}
+
+export async function createSalarySchedule(payload: SalarySchedulePayload) {
+  return apiFetch("/items/salary_schedules", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: "/items/salary_schedules",
+      payload,
+    }),
+  });
+}
+
+export async function patchSalarySchedule(id: number, payload: Partial<SalarySchedulePayload>) {
+  return apiFetch(`/items/salary_schedules/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: `/items/salary_schedules/${id}`,
+      payload,
+    }),
+  });
+}
+
+export async function deleteSalarySchedule(id: number) {
+  return apiFetch(`/items/salary_schedules/${id}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: `/items/salary_schedules/${id}`,
     }),
   });
 }

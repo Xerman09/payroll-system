@@ -255,8 +255,8 @@ body {
   select:-webkit-autofill,
   select:-webkit-autofill:hover,
   select:-webkit-autofill:focus {
-    -webkit-text-fill-color: white !important;
-    -webkit-box-shadow: 0 0 0px 1000px #0f172a inset !important;
+    -webkit-text-fill-color: var(--foreground) !important;
+    -webkit-box-shadow: 0 0 0px 1000px var(--background) inset !important;
     transition: background-color 5000s ease-in-out 0s;
   }
 }

@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -35,9 +36,9 @@ export default function PasswordDialog({
       <DialogContent className="sm:max-w-sm p-6 rounded-xl shadow-lg">
         <DialogHeader>
           <DialogTitle className="text-center">Enter Password</DialogTitle>
-          <p className="text-sm text-gray-500 text-center mt-1">
+          <DialogDescription className="text-center mt-1">
             To access wage management please confirm your login password.
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
         <form

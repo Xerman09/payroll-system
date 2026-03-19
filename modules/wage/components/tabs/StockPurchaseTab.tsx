@@ -761,7 +761,7 @@ export function StockPurchaseTab({
           }
         }}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>
               {editingId ? "Edit DR Payment" : "Add DR Payment"}

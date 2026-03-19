@@ -47,7 +47,7 @@ function Sidebar() {
         panel: "File Management",
         items: [
           {
-            title: "Wage Management",
+            title: "Compensation Management",
             href: "/dashboard/wage",
             icon: <PhilippinePeso size={20} />,
           },
