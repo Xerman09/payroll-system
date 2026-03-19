@@ -650,3 +650,24 @@ export type BenefitLogCreatePayload = {
 export type BenefitLogPatchPayload = Partial<
   Omit<BenefitLogCreatePayload, "user_id" | "created_by">
 >;
+// =======================================================
+// SALARY SCHEDULES (salary_schedules)
+// =======================================================
+
+export type SalarySchedule = {
+  schedule_id: number;
+  effectivity_date: string; // YYYY-MM-DD
+  salary_grade: number; // 1-33
+  step: number; // 1-8
+  monthly_rate: string | number;
+
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type SalarySchedulePayload = {
+  effectivity_date: string;
+  salary_grade: number;
+  step: number;
+  monthly_rate: number;
+};

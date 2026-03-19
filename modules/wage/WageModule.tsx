@@ -5,6 +5,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import type { Department, Employee, WagePayload, WageDataState } from "./types";
 import * as wageApi from "./providers/wageApi"; // ✅ correct path
@@ -12,8 +13,10 @@ import * as wageApi from "./providers/wageApi"; // ✅ correct path
 import EmployeeTable from "./components/EmployeeTable";
 import PasswordDialog from "./components/PasswordDialog";
 import WageModal from "./components/WageModal";
+import { SalaryGradeManagement } from "./components/SalaryGradeManagement";
 
 export function WageModule() {
+  const [activeTab, setActiveTab] = useState("wage");
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedDept, setSelectedDept] = useState<number | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -312,37 +315,70 @@ export function WageModule() {
     <DashboardLayout>
       <div className="space-y-6 font-sans">
         <div className="flex flex-col gap-1 px-1 max-w-7xl mx-auto w-full">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-            Wage Management
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Manage employee wage configurations and records.
-          </p>
-          <Separator />
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                {activeTab === "wage"
+                  ? "Wage Management"
+                  : "Salary Grade Management"}
+              </h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {activeTab === "wage"
+                  ? "Manage individual employee wage configurations and records."
+                  : "Manage standardized salary schedules and grade steps."}
+              </p>
+            </div>
+
+            <Tabs
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="w-full sm:w-auto mt-2 sm:mt-0"
+            >
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="wage">Wage Management</TabsTrigger>
+                <TabsTrigger value="salary-grade">Salary Grade</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+          <Separator className="mt-4" />
         </div>
 
-        <Card className="border shadow-sm bg-white dark:bg-gray-900 max-w-7xl mx-auto w-full py-0">
-          <CardContent className="p-6">
-            <EmployeeTable
-              employees={employees}
-              departments={departments}
-              loading={loading}
-              selectedDept={selectedDept}
-              setSelectedDept={setSelectedDept}
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-              onOpenPassword={openPasswordDialog}
-              handleSort={handleSort as (key: keyof Employee) => void}
-              rowsPerPage={rowsPerPage}
-              setRowsPerPage={setRowsPerPage}
-              currentPage={currentPage}
-              setCurrentPage={setCurrentPage}
-              totalEmployees={totalEmployees}
-              onRefresh={handleRefresh}
-              onReset={handleReset}
-            />
-          </CardContent>
-        </Card>
+        <div className="max-w-7xl mx-auto w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsContent value="wage" className="mt-0 outline-none">
+              <Card className="border shadow-sm bg-white dark:bg-gray-900 py-0">
+                <CardContent className="p-6">
+                  <EmployeeTable
+                    employees={employees}
+                    departments={departments}
+                    loading={loading}
+                    selectedDept={selectedDept}
+                    setSelectedDept={setSelectedDept}
+                    searchTerm={searchTerm}
+                    setSearchTerm={setSearchTerm}
+                    onOpenPassword={openPasswordDialog}
+                    handleSort={handleSort as (key: keyof Employee) => void}
+                    rowsPerPage={rowsPerPage}
+                    setRowsPerPage={setRowsPerPage}
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalEmployees={totalEmployees}
+                    onRefresh={handleRefresh}
+                    onReset={handleReset}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="salary-grade" className="mt-0 outline-none">
+              <Card className="border shadow-sm bg-white dark:bg-gray-900 py-0">
+                <CardContent className="p-6">
+                  <SalaryGradeManagement />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
 
       <PasswordDialog

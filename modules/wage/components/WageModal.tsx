@@ -1143,6 +1143,7 @@ export default function WageModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        aria-describedby={undefined}
         // ✅ Fix: hide the shadcn default close button (prevents double X / overlap)
         className={`${MODAL_WIDTH} w-full p-0 overflow-hidden rounded-xl border shadow-2xl [&>button]:hidden`}
       >
