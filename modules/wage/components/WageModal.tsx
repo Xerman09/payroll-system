@@ -47,6 +47,7 @@ import type {
   PayrollOtherAdditionRecord,
   PayrollOtherDeductionRecord,
   PayrollOtherADDraft,
+  SalarySchedule,
 } from "../types";
 
 import * as wageApi from "../providers/wageApi";
@@ -66,6 +67,7 @@ type Props = {
   wageData: WageDataState;
   setWageData: (upd: Partial<WageDataState>) => void;
   onSave: () => Promise<void> | void;
+  salarySchedules: SalarySchedule[];
 };
 
 type LoanDraft = {
@@ -121,6 +123,7 @@ export default function WageModal({
   wageData,
   setWageData,
   onSave,
+  salarySchedules,
 }: Props) {
   // ✅ Modal width (wider to reduce table pressure)
   const MODAL_WIDTH = "max-w-[96vw] sm:max-w-6xl lg:max-w-7xl";
@@ -1447,6 +1450,7 @@ export default function WageModal({
                           selectedEmployee={selectedEmployee}
                           wageData={wageData}
                           setWageData={setWageData}
+                          salarySchedules={salarySchedules}
                         />
                       </div>
                     </TabsContent>
