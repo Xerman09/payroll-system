@@ -311,28 +311,47 @@ export function WageModule() {
               ? Number(cutoff.id)
               : null;
 
-          if (!cutoffId) {
+          let fallbackCutoffId = cutoffId;
+          if (!fallbackCutoffId) {
+            const currentDay = now.getDate();
+            // If day is 26th up to end of month, or 1st up to 10th
+            if (currentDay >= 26 || currentDay <= 10) {
+              fallbackCutoffId = 1;
+            } else {
+              // Day is 11th up to 25th
+              fallbackCutoffId = 2;
+            }
+            
             console.warn(
               "[Wage] No cutoff_settings row matched date",
-              todayYmd
+              todayYmd,
+              `- proceeding with fallback cutoff_id = ${fallbackCutoffId}`
             );
-            toast.warning(
-              "Wage saved, but no active cutoff was found for today (proration log skipped)."
-            );
-          } else {
-            await wageApi.createWageProrationLog({
-              user_id: selectedEmployee.user_id,
-              previous_daily_wage: existingId ? Number(prevWageFixed) : 0,
-              new_daily_wage: Number(nextWageFixed),
-              effective_date: todayYmd,
-              cutoff_id: cutoffId,
-              updated_by: logged.user_id,
-            });
           }
-        } catch (e) {
+
+          console.log("[Wage] Attempting to create proration log...", {
+            user_id: selectedEmployee.user_id,
+            previous_daily_wage: existingId ? Number(prevWageFixed) : 0,
+            new_daily_wage: Number(nextWageFixed),
+            effective_date: todayYmd,
+            cutoff_id: fallbackCutoffId,
+            updated_by: logged.user_id,
+          });
+
+          await wageApi.createWageProrationLog({
+            user_id: selectedEmployee.user_id,
+            previous_daily_wage: existingId ? Number(prevWageFixed) : 0,
+            new_daily_wage: Number(nextWageFixed),
+            effective_date: todayYmd,
+            cutoff_id: fallbackCutoffId,
+            updated_by: logged.user_id,
+          });
+          console.log("[Wage] Proration log created successfully!");
+        } catch (e: any) {
           console.error("[Wage] Proration log failed to create", e);
-          toast.warning(
-            "Wage saved, but proration log failed to create. Check console/server logs."
+          const msg = e?.message || String(e);
+          toast.error(
+            `Wage saved, but proration log failed: ${msg}. Check console.`
           );
         }
       }

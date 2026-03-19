@@ -267,7 +267,7 @@ function getDayMultipliers(args: {
 
   if (isRestDay && holiday === "NONE") return { baseMult: 1.3, otMult: 1.69, bucket: "REST" };
 
-  return { baseMult: 1.0, otMult: 1.0, bucket: "NORMAL" };
+  return { baseMult: 1.0, otMult: 1.25, bucket: "NORMAL" };
 }
 
 /* ------------------------------ Allowances ------------------------------ */
