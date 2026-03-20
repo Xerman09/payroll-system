@@ -88,9 +88,6 @@ export function SalaryGradeManagement() {
   const [dontAskAgain, setDontAskAgain] = useState(false);
   const [pendingEdit, setPendingEdit] = useState<SalarySchedule | null>(null);
 
-  // Delete Prompt state
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [idToDelete, setIdToDelete] = useState<number | null>(null);
 
   useEffect(() => {
     loadSchedules();
@@ -188,24 +185,6 @@ export function SalaryGradeManagement() {
     toast.success("Notice settings reset. Update warnings will now reappear.");
   };
 
-  const handleDelete = (id: number) => {
-    setIdToDelete(id);
-    setDeleteConfirmOpen(true);
-  };
-
-  const executeDelete = async () => {
-    if (!idToDelete) return;
-    try {
-      await wageApi.deleteSalarySchedule(idToDelete);
-      toast.success("Schedule successfully purged from records.");
-      handleRefresh();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to delete record. Please check permissions.");
-    } finally {
-      setIdToDelete(null);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -434,15 +413,6 @@ export function SalaryGradeManagement() {
                           title="Edit Schedule"
                         >
                           <Edit size={14} />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-red-600 border-red-100 hover:bg-red-50 hover:text-red-700 rounded-md"
-                          onClick={() => handleDelete(sch.schedule_id)}
-                          title="Delete Schedule"
-                        >
-                          <Trash2 size={14} />
                         </Button>
                       </div>
                     </TableCell>
@@ -728,36 +698,6 @@ export function SalaryGradeManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* --- MINIMAL DELETE CONFIRMATION --- */}
-      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent className="sm:max-w-[400px] p-6 border-gray-100 dark:border-gray-800 rounded-2xl shadow-2xl bg-white dark:bg-gray-950 gap-6">
-          <AlertDialogHeader className="space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-xl flex items-center justify-center shrink-0">
-                <Trash2 size={24} />
-              </div>
-              <AlertDialogTitle className="text-xl font-bold text-gray-900 dark:text-gray-100 tracking-tight leading-tight">
-                Permanently remove this record?
-              </AlertDialogTitle>
-            </div>
-            <AlertDialogDescription className="text-sm text-gray-500 dark:text-gray-400 font-medium leading-relaxed">
-              This action <span className="text-red-600 font-bold uppercase tracking-widest text-[10px] ml-1">irreversible</span>. The system will purge associated step data and history.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-
-          <AlertDialogFooter className="flex flex-row gap-3 mt-2 sm:justify-end">
-            <AlertDialogCancel className="w-full sm:w-auto h-11 px-6 rounded-xl border-gray-200 dark:border-gray-800 text-gray-500 font-bold text-[10px] uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-900/50">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={executeDelete}
-              className="w-full sm:w-auto h-11 px-8 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] uppercase tracking-[0.15em] shadow-lg shadow-red-500/20 active:scale-95 transition-all border-none"
-            >
-              Confirm
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
