@@ -234,7 +234,7 @@ export default function PayslipHistoryModal({
         </div>
       ),
     },
-  ], [isGenerating]);
+  ], [isGenerating, companyName]);
 
   const table = useReactTable({
     data: filteredData,
