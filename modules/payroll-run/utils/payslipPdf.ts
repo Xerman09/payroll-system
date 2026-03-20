@@ -291,6 +291,10 @@ function extractHolidayDetailEntries(b: any): Entry[] {
     const total = n(h?.total ?? h?.amount ?? h?.pay_amount ?? 0);
     if (total === 0) continue;
 
+    const basePay = n(h?.pay ?? total);
+    const otPay = n(h?.ot_pay ?? 0);
+    const hasOT = otPay > 0;
+
     const dateRaw = safeStr(h?.date ?? h?.holiday_date ?? h?.holidayDate ?? "");
     const mmdd = dateRaw && dateRaw.length >= 10 ? dateRaw.slice(5, 10) : "";
 
@@ -320,7 +324,13 @@ function extractHolidayDetailEntries(b: any): Entry[] {
     if (desc) label = label; // keep ultra-compact
     label = label.trim();
 
-    out.push({ label, value: fmtMoney(total) });
+    if (hasOT) {
+      out.push({ label, value: fmtMoney(basePay) });
+      const otLabel = `${mmdd ? `${mmdd} ` : ""}${holAbbr} OT`;
+      out.push({ label: otLabel, value: fmtMoney(otPay) });
+    } else {
+      out.push({ label, value: fmtMoney(total) });
+    }
   }
 
   return uniqEntries(out);

@@ -598,6 +598,16 @@ export function EmployeeDetailsSheet({
 
   const [holidayOpen, setHolidayOpen] = React.useState(false);
 
+  // ✅ Rest Day itemization from compute.ts
+  const restDayItems =
+    ((line as any)?.breakdown_json?.earnings?.rest_day_items as any[]) ?? [];
+
+  const restDayPaidItems = restDayItems.filter(
+    (x: any) => Number(x?.total ?? 0) > 0,
+  );
+
+  const [restDayOpen, setRestDayOpen] = React.useState(false);
+
   const rawEntries = Array.isArray(manualEntries) ? manualEntries : [];
   const entries = rawEntries.map((e) => normalizeEntry(e));
 
@@ -863,7 +873,7 @@ export function EmployeeDetailsSheet({
             </div>
 
             <div className="mt-5">
-              <Tabs defaultValue={isPosted ? "overview" : "adjustments"}>
+              <Tabs defaultValue="overview">
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="itemizations" disabled={isPosted}>
@@ -1001,72 +1011,93 @@ export function EmployeeDetailsSheet({
                                     No holiday items recorded for this cutoff.
                                   </div>
                                 ) : (
-                                  <div className="space-y-2 pl-6">
+                                  <div className="space-y-3 pl-6">
                                     {holidayItems.map((h: any, idx: number) => {
                                       const total = Number(h?.total ?? 0);
+                                      const basePay = Number(h?.pay ?? total);
+                                      const otPay = Number(h?.ot_pay ?? 0);
+                                      const hasOT = otPay > 0;
                                       const isZero = !(total > 0);
                                       return (
-                                        <div
-                                          key={`hol-${h?.date ?? idx}-${idx}`}
-                                          className={cn(
-                                            "flex items-start justify-between gap-3 rounded-xl border bg-muted/10 px-3 py-2",
-                                            isZero && "opacity-70",
-                                          )}
-                                        >
-                                          <div className="min-w-0">
-                                            <div className="truncate text-sm font-medium">
-                                              {holidayItemLabel(h)}
-                                            </div>
-
-                                            <div className="mt-0.5 text-[11px] text-muted-foreground">
-                                              <span className="font-mono">
-                                                {String(h?.date ?? "—")}
-                                              </span>
-                                              {h?.pay_type ? (
-                                                <>
-                                                  {" "}
-                                                  •{" "}
-                                                  <span className="font-mono">
-                                                    {String(h.pay_type)}
-                                                  </span>
-                                                </>
-                                              ) : null}
-                                              {h?.base_mult != null ? (
-                                                <>
-                                                  {" "}
-                                                  •{" "}
-                                                  <span className="font-mono">
-                                                    Base x
-                                                    {Number(
-                                                      h.base_mult,
-                                                    ).toFixed(2)}
-                                                  </span>
-                                                </>
-                                              ) : null}
-                                              {h?.ot_mult != null ? (
-                                                <>
-                                                  {" "}
-                                                  •{" "}
-                                                  <span className="font-mono">
-                                                    OT x
-                                                    {Number(h.ot_mult).toFixed(
-                                                      2,
-                                                    )}
-                                                  </span>
-                                                </>
-                                              ) : null}
-                                            </div>
-
-                                            {isZero && h?.rule ? (
-                                              <div className="mt-1 text-[11px] text-muted-foreground">
-                                                {String(h.rule)}
+                                        <div key={`hol-container-${h?.date ?? idx}-${idx}`} className="flex flex-col gap-1.5">
+                                          <div
+                                            className={cn(
+                                              "flex items-start justify-between gap-3 rounded-xl border bg-muted/10 px-3 py-2",
+                                              isZero && "opacity-70",
+                                            )}
+                                          >
+                                            <div className="min-w-0">
+                                              <div className="truncate text-sm font-medium">
+                                                {holidayItemLabel(h)}
                                               </div>
-                                            ) : null}
+
+                                              <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                                <span className="font-mono">
+                                                  {String(h?.date ?? "—")}
+                                                </span>
+                                                {h?.pay_type ? (
+                                                  <>
+                                                    {" "}
+                                                    •{" "}
+                                                    <span className="font-mono">
+                                                      {String(h.pay_type)}
+                                                    </span>
+                                                  </>
+                                                ) : null}
+                                                {h?.base_mult != null ? (
+                                                  <>
+                                                    {" "}
+                                                    •{" "}
+                                                    <span className="font-mono">
+                                                      Base x
+                                                      {Number(h.base_mult).toFixed(2)}
+                                                    </span>
+                                                  </>
+                                                ) : null}
+                                                {!hasOT && h?.ot_mult != null ? (
+                                                  <>
+                                                    {" "}
+                                                    •{" "}
+                                                    <span className="font-mono">
+                                                      OT x
+                                                      {Number(h.ot_mult).toFixed(2)}
+                                                    </span>
+                                                  </>
+                                                ) : null}
+                                              </div>
+
+                                              {isZero && h?.rule ? (
+                                                <div className="mt-1 text-[11px] text-muted-foreground">
+                                                  {String(h.rule)}
+                                                </div>
+                                              ) : null}
+                                            </div>
+
+                                            <div className="shrink-0 font-mono text-xs tabular-nums">
+                                              {formatPHP(hasOT ? basePay : total)}
+                                            </div>
                                           </div>
 
-                                          <div className="shrink-0 font-mono text-xs tabular-nums">
-                                            {formatPHP(total)}
-                                          </div>
+                                          {hasOT ? (
+                                            <div className="ml-6 flex items-start justify-between gap-3 rounded-xl border border-dashed bg-muted/5 px-3 py-2">
+                                              <div className="min-w-0">
+                                                <div className="truncate text-sm font-medium text-muted-foreground">
+                                                  ↳ Holiday Overtime
+                                                </div>
+                                                <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                                  {" "}
+                                                  {h?.ot_mult != null ? (
+                                                    <span className="font-mono">
+                                                      OT x{Number(h.ot_mult).toFixed(2)}
+                                                    </span>
+                                                  ) : null}
+                                                </div>
+                                              </div>
+                                              <div className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+                                                {formatPHP(otPay)}
+                                              </div>
+                                            </div>
+                                          ) : null}
                                         </div>
                                       );
                                     })}
@@ -1075,10 +1106,120 @@ export function EmployeeDetailsSheet({
                               </CollapsibleContent>
                             </Collapsible>
 
-                            <Row
-                              label="Rest Day Amount"
-                              value={formatPHP(line?.rest_day_amount ?? 0)}
-                            />
+                            <Collapsible
+                              open={restDayOpen}
+                              onOpenChange={setRestDayOpen}
+                              className="group/rest"
+                            >
+                              <div className="flex items-center justify-between gap-3 text-sm">
+                                <CollapsibleTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="group inline-flex items-center gap-2 text-muted-foreground hover:text-foreground"
+                                  >
+                                    <span>Rest Day Amount</span>
+                                    {restDayPaidItems.length > 0 ? (
+                                      <span className="text-[11px] text-muted-foreground">
+                                        ({restDayPaidItems.length})
+                                      </span>
+                                    ) : null}
+                                    <ChevronDown
+                                      className={cn(
+                                        "h-4 w-4 transition-transform",
+                                        restDayOpen && "rotate-180",
+                                      )}
+                                    />
+                                  </button>
+                                </CollapsibleTrigger>
+
+                                <div className="font-mono tabular-nums">
+                                  {formatPHP(line?.rest_day_amount ?? 0)}
+                                </div>
+                              </div>
+                              <CollapsibleContent className="data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down overflow-hidden">
+                                {restDayPaidItems.length > 0 && (
+                                  <div className="mt-2 space-y-2 pb-3">
+                                    {restDayPaidItems.map((h: any, i: number) => {
+                                      const total = Number(h?.total ?? h?.amount ?? h?.pay_amount ?? 0);
+                                      const basePay = Number(h?.pay ?? total);
+                                      const otPay = Number(h?.ot_pay ?? 0);
+                                      const hasOT = otPay > 0;
+                                      const isZero = !(total > 0);
+
+                                      return (
+                                        <div key={i} className="flex flex-col gap-1.5 border-l-2 border-primary/20 pl-3">
+                                          <div
+                                            className={cn(
+                                              "flex items-start justify-between gap-3 rounded-xl border bg-muted/10 px-3 py-2",
+                                              isZero && "opacity-70",
+                                            )}
+                                          >
+                                            <div className="min-w-0">
+                                              <div className="truncate text-sm font-medium">
+                                                Rest Day
+                                              </div>
+                                              <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                                <span className="font-mono">
+                                                  {h.date && h.date.length >= 10
+                                                    ? h.date.slice(5, 10)
+                                                    : h?.holiday_date
+                                                      ? String(h.holiday_date).slice(5, 10)
+                                                      : "—"}
+                                                </span>
+                                                {h?.base_mult != null ? (
+                                                  <>
+                                                    •{" "}
+                                                    <span className="font-mono">
+                                                      Base x
+                                                      {Number(h.base_mult).toFixed(2)}
+                                                    </span>
+                                                  </>
+                                                ) : null}
+                                                {h?.ot_mult != null ? (
+                                                  <>
+                                                    •{" "}
+                                                    <span className="font-mono">
+                                                      OT x
+                                                      {Number(h.ot_mult).toFixed(2)}
+                                                    </span>
+                                                  </>
+                                                ) : null}
+                                              </div>
+                                            </div>
+
+                                            <div className="shrink-0 font-mono text-xs tabular-nums">
+                                              {formatPHP(hasOT ? basePay : total)}
+                                            </div>
+                                          </div>
+
+                                          {hasOT ? (
+                                            <div className="ml-6 flex items-start justify-between gap-3 rounded-xl border border-dashed bg-muted/5 px-3 py-2">
+                                              <div className="min-w-0">
+                                                <div className="truncate text-sm font-medium text-muted-foreground">
+                                                  ↳ Rest Day Overtime
+                                                </div>
+                                                <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                                  {" "}
+                                                  {h?.ot_mult != null ? (
+                                                    <span className="font-mono">
+                                                      OT x{Number(h.ot_mult).toFixed(2)}
+                                                    </span>
+                                                  ) : null}
+                                                </div>
+                                              </div>
+                                              <div className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+                                                {formatPHP(otPay)}
+                                              </div>
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </CollapsibleContent>
+                            </Collapsible>
+
                             <Row
                               label="Night Diff Amount"
                               value={formatPHP(line?.night_diff_amount ?? 0)}
