@@ -1140,12 +1140,11 @@ export function EmployeeDetailsSheet({
                                 {restDayPaidItems.length > 0 && (
                                   <div className="mt-2 space-y-2 pb-3">
                                     {restDayPaidItems.map((h: any, i: number) => {
-                                      const isZero = Number(h?.pay ?? h?.total ?? 0) === 0;
-
                                       const total = Number(h?.total ?? h?.amount ?? h?.pay_amount ?? 0);
                                       const basePay = Number(h?.pay ?? total);
                                       const otPay = Number(h?.ot_pay ?? 0);
                                       const hasOT = otPay > 0;
+                                      const isZero = !(total > 0);
 
                                       return (
                                         <div key={i} className="flex flex-col gap-1.5 border-l-2 border-primary/20 pl-3">
