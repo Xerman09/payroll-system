@@ -828,9 +828,10 @@ export default function WageModal({
         selectedEmployee.user_id,
       );
       setAddRows(rows);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[WageModal] Failed to load other additions", e);
-      toast.error(e?.message || "Failed to load other additions.");
+      const msg = e instanceof Error ? e.message : "Failed to load other additions.";
+      toast.error(msg);
     } finally {
       setAddLoading(false);
     }
@@ -844,9 +845,10 @@ export default function WageModal({
         selectedEmployee.user_id,
       );
       setDedRows(rows);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[WageModal] Failed to load other deductions", e);
-      toast.error(e?.message || "Failed to load other deductions.");
+      const msg = e instanceof Error ? e.message : "Failed to load other deductions.";
+      toast.error(msg);
     } finally {
       setDedLoading(false);
     }
@@ -889,9 +891,10 @@ export default function WageModal({
       resetAddDraft();
       setAddFormOpen(false);
       await loadOtherAdditions();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[WageModal] Save other addition failed", e);
-      toast.error(e?.message || "Failed to save other addition.");
+      const msg = e instanceof Error ? e.message : "Failed to save other addition.";
+      toast.error(msg);
     } finally {
       setAddSaving(false);
     }
@@ -941,9 +944,10 @@ export default function WageModal({
       resetDedDraft();
       setDedFormOpen(false);
       await loadOtherDeductions();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[WageModal] Save other deduction failed", e);
-      toast.error(e?.message || "Failed to save other deduction.");
+      const msg = e instanceof Error ? e.message : "Failed to save other deduction.";
+      toast.error(msg);
     } finally {
       setDedSaving(false);
     }
@@ -1018,9 +1022,10 @@ export default function WageModal({
         }
 
         await loadOtherAdditions();
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error("[WageModal] Delete other addition failed", e);
-        toast.error(e?.message || "Failed to delete other addition.");
+        const msg = e instanceof Error ? e.message : "Failed to delete other addition.";
+        toast.error(msg);
       } finally {
         setAddSaving(false);
       }
@@ -1046,9 +1051,10 @@ export default function WageModal({
         }
 
         await loadOtherDeductions();
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error("[WageModal] Delete other deduction failed", e);
-        toast.error(e?.message || "Failed to delete other deduction.");
+        const msg = e instanceof Error ? e.message : "Failed to delete other deduction.";
+        toast.error(msg);
       } finally {
         setDedSaving(false);
       }
@@ -1107,31 +1113,29 @@ export default function WageModal({
     : "Unknown Employee";
 
   const summary = React.useMemo(() => {
-    const num = (v: any) => {
+    const num = (v: string | number | null | undefined) => {
       const n = Number(String(v ?? "0").replace(/,/g, ""));
       return Number.isFinite(n) ? n : 0;
     };
 
-    const daily = num(
-      (wageData as any)?.dailyWage ?? (wageData as any)?.dailyWageInput ?? 0,
-    );
+    const daily = num(wageData.dailyWage || wageData.dailyWageInput || 0);
 
-    const sss = num((wageData as any)?.sss);
-    const pagibig = num((wageData as any)?.pagibig);
-    const philhealth = num((wageData as any)?.philhealth);
+    const sss = num(wageData.sss);
+    const pagibig = num(wageData.pagibig);
+    const philhealth = num(wageData.philhealth);
 
     const contribTotal = sss + pagibig + philhealth;
 
     const activeLoans = loans.filter(
-      (l) => String((l as any)?.status || "").toUpperCase() === "ACTIVE",
+      (l) => String(l.status || "").toUpperCase() === "ACTIVE",
     ).length;
 
     const pendingRetro = retroRows.filter(
-      (r) => Number((r as any)?.is_processed) !== 1,
+      (r) => Number(r.is_processed) !== 1,
     ).length;
 
-    const addTotal = addRows.reduce((sum, r: any) => sum + num(r?.amount), 0);
-    const dedTotal = dedRows.reduce((sum, r: any) => sum + num(r?.amount), 0);
+    const addTotal = addRows.reduce((sum, r) => sum + num(r.amount), 0);
+    const dedTotal = dedRows.reduce((sum, r) => sum + num(r.amount), 0);
 
     return {
       daily,

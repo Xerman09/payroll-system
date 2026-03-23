@@ -1,0 +1,13 @@
+
+C:\Users\mark_\payroll_system\modules\wage\components\tabs\BenefitsTab.tsx
+   816:6   warning  React Hook React.useCallback has an unnecessary dependency: 'cutoffs.length'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+   836:19  error    Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  1052:63  error    Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  1054:69  error    Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  1072:63  error    Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  1197:66  error    Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  1769:40  error    Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+  1785:40  error    Unexpected any. Specify a different type                                                                                        @typescript-eslint/no-explicit-any
+
+✖ 8 problems (7 errors, 1 warning)
+

@@ -13,9 +13,8 @@ export type Employee = {
   user_lname: string;
   user_department?: number | null;
 
-  // Some Directus setups store deleted flag as nullable or as relation wrapper.
-  // Keep it permissive to avoid runtime/TS friction.
-  is_deleted?: unknown;
+  // BIT(1) in MySQL often maps to boolean or 0/1 in JS.
+  is_deleted?: boolean | number | null;
 };
 
 export type WageDataState = {
@@ -114,7 +113,7 @@ export type EmployeeLoanRecord = {
 
   accumulated_amount: string | number;
 
-  status: string;
+  status: "ACTIVE" | "PAID" | "CANCELLED";
 
   created_by: number | null;
   created_date: string;
@@ -139,7 +138,7 @@ export type EmployeeLoanCreatePayload = {
 
   accumulated_amount: number;
 
-  status: string;
+  status: "ACTIVE" | "PAID" | "CANCELLED";
 
   created_by: number;
   updated_by: number;
@@ -158,7 +157,7 @@ export type EmployeeLoanPatchPayload = Partial<{
   interest_amount: number;
   net_amount_released: number;
 
-  status: string;
+  status: "ACTIVE" | "PAID" | "CANCELLED";
 
   updated_by: number;
 }>;
@@ -251,6 +250,7 @@ export type PayrollOtherDeductionRecord = {
   user_id: number;
 
   amount: string | number;
+  type?: "SHORTAGE" | "MANUAL";
   description: string | null;
 
   cutoff_start: string; // YYYY-MM-DD
@@ -287,6 +287,7 @@ export type PayrollOtherAdditionPatchPayload = Partial<
 export type PayrollOtherDeductionCreatePayload = {
   user_id: number;
   amount: number;
+  type?: "SHORTAGE" | "MANUAL";
   description: string | null;
   cutoff_start: string; // YYYY-MM-DD
   cutoff_end: string; // YYYY-MM-DD
@@ -376,17 +377,19 @@ export type EmployeeAllowancePatchPayload = Partial<
 // BENEFIT LOANS (benefit_loans)
 // =======================================================
 
-export type BenefitCode = "SSS" | "PAGIBIG";
+export type BenefitCode = "SSS" | "PAGIBIG" | "PHILHEALTH";
+export type LoanBenefitCode = "SSS" | "PAGIBIG";
+
 export type BenefitLoanDeductOn = "FIRST" | "SECOND" | "BOTH";
 /** Alias for BenefitLoanDeductOn – used by BenefitsTab */
 export type DeductOn = BenefitLoanDeductOn;
-export type BenefitLoanStatus = "ACTIVE" | "CLOSED" | "CANCELLED" | string;
+export type BenefitLoanStatus = "ACTIVE" | "CLOSED" | "CANCELLED";
 
 export type BenefitLoanRecord = {
   loan_id: number;
   user_id: number;
 
-  benefit_code: BenefitCode;
+  benefit_code: LoanBenefitCode;
   loan_name: string | null;
   reference_no: string | null;
 
@@ -404,7 +407,7 @@ export type BenefitLoanRecord = {
   paid_installments: number;
   remaining_balance: string | number;
 
-  last_paid_cutoff_id: number | null;
+  last_paid_cutoff_id: string | null;
 
   status: BenefitLoanStatus;
   remarks: string | null;
@@ -416,7 +419,7 @@ export type BenefitLoanRecord = {
 };
 
 export type BenefitLoanDraft = {
-  benefit_code: BenefitCode;
+  benefit_code: LoanBenefitCode | "";
   loan_name: string;
   reference_no: string;
 
@@ -444,7 +447,7 @@ export type BenefitLoanDraft = {
 
 export type BenefitLoanCreatePayload = {
   user_id: number;
-  benefit_code: BenefitCode;
+  benefit_code: LoanBenefitCode;
   loan_name: string | null;
   reference_no: string | null;
 
@@ -460,7 +463,7 @@ export type BenefitLoanCreatePayload = {
 
   paid_installments: number;
   remaining_balance: number;
-  last_paid_cutoff_id: number | null;
+  last_paid_cutoff_id: string | null;
 
   status: BenefitLoanStatus;
   remarks: string | null;

@@ -98,8 +98,6 @@ export interface CutoffSetting {
 export interface Department {
   id: number;
   name: string;
-  // allow passthrough fields from Directus
-  [k: string]: any;
 }
 
 export interface UserRow {
@@ -112,9 +110,6 @@ export interface UserRow {
   position?: string | null;
 
   is_deleted?: number; // 0/1
-
-  // allow passthrough fields from Directus
-  [k: string]: any;
 }
 
 export interface WageProfile {
@@ -127,13 +122,12 @@ export interface WageProfile {
 
   is_deleted?: number; // 0/1
   isCard?: number; // 0/1
+  is_card?: number; // alias for isCard
 
   // optional stored monthly contributions (employee share)
   sss_employee?: number;
   philhealth_employee?: number;
   pagibig_employee?: number;
-
-  [k: string]: any;
 }
 
 export type AttendanceApprovalStatus =
@@ -160,8 +154,6 @@ export interface AttendanceApproval {
 
   remarks?: string | null;
   status: AttendanceApprovalStatus;
-
-  [k: string]: any;
 }
 
 export type HolidayType = "REGULAR" | "SPECIAL" | "SPECIAL_NON_WORKING" | string;
@@ -176,8 +168,6 @@ export interface HolidayRow {
   is_active?: number;
   is_paid?: number; // 0/1
   last_working_day?: string | null; // YYYY-MM-DD
-
-  [k: string]: any;
 }
 
 // ------------------------------
@@ -202,9 +192,7 @@ export type ManualEntry = {
   deduction_kind?: string | null;
 
   // safe metadata passthrough
-  meta?: any;
-
-  [k: string]: any;
+  meta?: unknown;
 };
 
 // ------------------------------
@@ -223,8 +211,6 @@ export interface EmployeeLoan {
   end_date: string | null;
 
   status: EmployeeLoanStatus;
-
-  [k: string]: any;
 }
 
 export type DeductOn = "FIRST" | "SECOND" | "BOTH" | string;
@@ -247,8 +233,6 @@ export interface BenefitLoanRow {
   last_paid_cutoff_id?: number | null;
 
   reference_no?: string | null;
-
-  [k: string]: any;
 }
 
 // ------------------------------
@@ -301,8 +285,6 @@ export interface EmployeeAllowance {
   created_date?: string | null;
   updated_by?: number | null;
   updated_date?: string | null;
-
-  [k: string]: any;
 }
 
 export interface AllowanceAppliedItem {
@@ -325,8 +307,6 @@ export interface RetroPayRow {
   created_date?: string;
   updated_by?: number | null;
   updated_date?: string | null;
-
-  [k: string]: any;
 }
 
 export interface CoopSavingsMembershipRow {
@@ -346,8 +326,6 @@ export interface CoopSavingsMembershipRow {
   created_date?: string;
   updated_by?: number | null;
   updated_date?: string | null;
-
-  [k: string]: any;
 }
 
 // ------------------------------
@@ -362,8 +340,6 @@ export interface WageProrationLog {
 
   effective_date: string; // YYYY-MM-DD
   created_at: string | null;
-
-  [k: string]: any;
 }
 
 // ------------------------------
@@ -407,8 +383,6 @@ export interface PayrollRunHeader {
 
   posted_by: number | null;
   posted_at: string | null;
-
-  [k: string]: any;
 }
 
 // ------------------------------
@@ -430,7 +404,7 @@ export interface PayrollWorkspace {
   employees: UserRow[];
 
   wages: Map<number, WageProfile>;
-  attendance: Map<number, any[]>;
+  attendance: Map<number, AttendanceApproval[]>;
 
   holidays: HolidayRow[];
 
@@ -444,40 +418,61 @@ export interface PayrollWorkspace {
   benefitMultipliers: Record<BenefitCode, number>;
 
   employeeLoans: Map<number, EmployeeLoan[]>;
-  benefitLoans: Map<number, any[]>;
+  benefitLoans: Map<number, BenefitLoanRow[]>;
 
   allowances: Map<number, EmployeeAllowance[]>;
 
   wageProrationLogs: Map<number, WageProrationLog[]>;
 
   companyName?: string;
-
-  [k: string]: any;
 }
 
 
 export type BreakdownItem = {
-  label: string;
+  item_key: string;
+  type: "EARNING" | "DEDUCTION";
+  category: string;
+  code?: string | null;
+  description: string;
+  label?: string; // legacy support
   amount: number;
-  source?: string;
+  source_table?: string | null;
+  source_id?: string | number | null;
+  meta?: unknown;
 };
 
 export type PayrollBreakdownJson = {
   is_card?: number;
-  flags?: Record<string, any>;
-  rates?: Record<string, any>;
+  flags?: Record<string, unknown>;
+  rates?: Record<string, unknown>;
 
-  earnings?: Record<string, any> & {
+  earnings?: Record<string, unknown> & {
     retro_pay?: number;
     retro_items?: BreakdownItem[];
   };
 
-  deductions?: Record<string, any> & {
+  deductions?: Record<string, unknown> & {
     coop_savings?: number;
     coop_savings_items?: BreakdownItem[];
     coop_loan?: number;
     coop_loan_items?: BreakdownItem[];
   };
+
+  totals?: {
+    gross_pay: number;
+    total_deductions: number;
+    net_pay: number;
+  };
+
+  cutoff?: {
+    start: string;
+    end: string;
+    type?: string;
+    id?: number;
+  };
+
+  policies?: Record<string, unknown>;
+  proration?: Record<string, unknown>;
 };
 
 
@@ -491,10 +486,15 @@ export interface PayrollComputedLine {
   first_name?: string | null;
   last_name?: string | null;
   position?: string | null;
+  position_name?: string | null;
+  position_snapshot?: string | null;
   department_name?: string | null;
+  department_name_snapshot?: string | null;
+  department_snapshot?: string | null;
 
   // rates
   daily_rate: number;
+  basic_daily_rate?: number;
   hourly_rate: number;
   monthly_rate: number;
 
@@ -511,6 +511,7 @@ export interface PayrollComputedLine {
   // earnings
   basic_pay: number;
   ot_amount: number;
+  leave_amount?: number;
 
   // holiday totals (legacy mirror)
   holiday?: number;
@@ -522,6 +523,7 @@ export interface PayrollComputedLine {
 
   allowance: number;
   retro_pay: number;
+  retro_remarks?: string | null;
   manual_additions: number;
 
   // deductions
@@ -573,11 +575,8 @@ export interface PayrollComputedLine {
 
   // proration
   is_prorated?: boolean;
-  proration_json?: any | null;
+  proration_json?: unknown | null;
 
   // printable details
   breakdown_json?: PayrollBreakdownJson;
-
-  // allow future fields without breaking
-  [k: string]: any;
 }

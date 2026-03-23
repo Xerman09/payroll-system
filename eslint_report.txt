@@ -1,0 +1,9 @@
+
+C:\Users\mark_\payroll_system\modules\payroll-run\utils\compute.ts
+   718:68  error    Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+  1127:9   warning  'totalDaysWorked' is assigned a value but never used   @typescript-eslint/no-unused-vars
+  1128:9   warning  'totalHoursWorked' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  1129:9   warning  'holidayDays' is assigned a value but never used       @typescript-eslint/no-unused-vars
+
+✖ 4 problems (1 error, 3 warnings)
+

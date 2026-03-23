@@ -11,6 +11,7 @@ import type {
   CutoffSetting,
   BenefitLoanRecord,
   BenefitCode,
+  LoanBenefitCode,
   DeductOn,
   BenefitLoanStatus,
   BenefitLoanPatchPayload,
@@ -518,7 +519,7 @@ export function BenefitsTab({
     try {
       if (editingId) {
         await wageApi.patchBenefitLoan(editingId, {
-          benefit_code: draft.benefit_code as BenefitCode,
+          benefit_code: draft.benefit_code as LoanBenefitCode,
           loan_name: v.loan_name,
           reference_no: v.reference_no,
 
@@ -544,7 +545,7 @@ export function BenefitsTab({
         await wageApi.createBenefitLoan({
           user_id: selectedEmployee.user_id,
 
-          benefit_code: draft.benefit_code as BenefitCode,
+          benefit_code: draft.benefit_code as LoanBenefitCode,
           loan_name: v.loan_name,
           reference_no: v.reference_no,
 
@@ -833,9 +834,10 @@ export function BenefitsTab({
         }
 
         await loadLoans();
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error("[BenefitsTab] delete loan failed", e);
-        toast.error(e?.message || "Failed to delete benefit loan.");
+        const msg = e instanceof Error ? e.message : "Failed to delete benefit loan.";
+        toast.error(msg);
       } finally {
         setSaving(false);
       }
@@ -1049,9 +1051,9 @@ export function BenefitsTab({
                   <div className="space-y-2">
                     <Label className="text-xs">Benefit</Label>
                     <Select
-                      value={(draft.benefit_code || "SSS") as any}
+                      value={draft.benefit_code || "SSS"}
                       onValueChange={(v) =>
-                        setDraft((p) => ({ ...p, benefit_code: v as any }))
+                        setDraft((p) => ({ ...p, benefit_code: v as BenefitCode }))
                       }
                     >
                       <SelectTrigger className="h-9">
@@ -1069,7 +1071,7 @@ export function BenefitsTab({
                     <Select
                       value={draft.status}
                       onValueChange={(v) =>
-                        setDraft((p) => ({ ...p, status: v as any }))
+                        setDraft((p) => ({ ...p, status: v as BenefitLoanStatus }))
                       }
                     >
                       <SelectTrigger className="h-9">
@@ -1194,7 +1196,7 @@ export function BenefitsTab({
                     <Select
                       value={draft.deduct_on}
                       onValueChange={(v) =>
-                        setDraft((p) => ({ ...p, deduct_on: v as any }))
+                        setDraft((p) => ({ ...p, deduct_on: v as DeductOn }))
                       }
                     >
                       <SelectTrigger className="h-9">
@@ -1766,7 +1768,7 @@ export function BenefitsTab({
                   <Label>Benefit Code</Label>
                   <Select 
                     value={logDraft.benefit_code} 
-                    onValueChange={(v: any) => setLogDraft(d => ({ ...d, benefit_code: v }))}
+                    onValueChange={(v: string) => setLogDraft(d => ({ ...d, benefit_code: v as BenefitCode }))}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -1782,7 +1784,7 @@ export function BenefitsTab({
                   <Label>Cutoff Period</Label>
                   <Select 
                     value={logDraft.cutoff_period} 
-                    onValueChange={(v: any) => setLogDraft(d => ({ ...d, cutoff_period: v }))}
+                    onValueChange={(v: string) => setLogDraft(d => ({ ...d, cutoff_period: v as "1" | "2" }))}
                   >
                     <SelectTrigger>
                       <SelectValue />

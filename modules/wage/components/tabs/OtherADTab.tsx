@@ -69,7 +69,7 @@ function normalize(v: unknown) {
 }
 
 function buildOtherAdHaystack(u: UnifiedRow) {
-  const r: any = u.row as any;
+  const r = u.row;
   return normalize(
     [
       u.kind === "add" ? "addition" : "deduction",
@@ -99,6 +99,47 @@ function getPageItems(totalPages: number, currentPage: number) {
   items.push(totalPages);
   return items;
 }
+
+const CutoffSelect = ({
+  value,
+  onChange,
+  disabled,
+  loading,
+  cutoffs,
+}: {
+  value: number | null;
+  onChange: (id: number | null) => void;
+  disabled?: boolean;
+  loading?: boolean;
+  cutoffs: CutoffSetting[];
+}) => {
+  return (
+    <Select
+      value={value ? String(value) : ""}
+      onValueChange={(val) => onChange(val ? Number(val) : null)}
+      disabled={disabled}
+    >
+      <SelectTrigger className="h-10">
+        <SelectValue
+          placeholder={loading ? "Loading cutoff periods..." : "Select cutoff"}
+        />
+      </SelectTrigger>
+      <SelectContent>
+        {cutoffs.length === 0 ? (
+          <SelectItem value="__none__" disabled>
+            No OPEN cutoff periods found
+          </SelectItem>
+        ) : (
+          cutoffs.map((c) => (
+            <SelectItem key={c.id} value={String(c.id)}>
+              {cutoffLabel(c)}
+            </SelectItem>
+          ))
+        )}
+      </SelectContent>
+    </Select>
+  );
+};
 
 export function OtherADTab({
   ui,
@@ -227,54 +268,16 @@ export function OtherADTab({
     resetDedDraft();
   }, [resetAddDraft, resetDedDraft, setAddFormOpen, setDedFormOpen]);
 
-  const CutoffSelect = ({
-    value,
-    onChange,
-    disabled,
-  }: {
-    value: number | null;
-    onChange: (id: number | null) => void;
-    disabled?: boolean;
-  }) => {
-    return (
-      <Select
-        value={value ? String(value) : ""}
-        onValueChange={(val) => onChange(val ? Number(val) : null)}
-        disabled={disabled}
-      >
-        <SelectTrigger className="h-10">
-          <SelectValue
-            placeholder={
-              cutoffsLoading ? "Loading cutoff periods..." : "Select cutoff"
-            }
-          />
-        </SelectTrigger>
-        <SelectContent>
-          {cutoffs.length === 0 ? (
-            <SelectItem value="__none__" disabled>
-              No OPEN cutoff periods found
-            </SelectItem>
-          ) : (
-            cutoffs.map((c) => (
-              <SelectItem key={c.id} value={String(c.id)}>
-                {cutoffLabel(c)}
-              </SelectItem>
-            ))
-          )}
-        </SelectContent>
-      </Select>
-    );
-  };
-
   const mergedRows = React.useMemo<UnifiedRow[]>(() => {
     const a: UnifiedRow[] = addRows.map((row) => ({ kind: "add", row }));
     const d: UnifiedRow[] = dedRows.map((row) => ({ kind: "ded", row }));
 
-    const safeDate = (s: any) => String(s || "").substring(0, 10);
+    const safeDate = (s: string | number | null | undefined) =>
+      String(s || "").substring(0, 10);
 
     return [...a, ...d].sort((x, y) => {
-      const xs = safeDate((x.row as any).cutoff_start);
-      const ys = safeDate((y.row as any).cutoff_start);
+      const xs = safeDate(x.row.cutoff_start);
+      const ys = safeDate(y.row.cutoff_start);
       if (xs !== ys) return ys.localeCompare(xs); // newest first
       return x.kind.localeCompare(y.kind);
     });
@@ -317,8 +320,8 @@ export function OtherADTab({
   };
 
   const deleteUnified = (u: UnifiedRow) => {
-    if (u.kind === "add") return deleteOtherAddition((u.row as any).id);
-    return deleteOtherDeduction((u.row as any).id);
+    if (u.kind === "add") return deleteOtherAddition(u.row.id);
+    return deleteOtherDeduction(u.row.id);
   };
 
   const typePill = (k: "add" | "ded") => {
@@ -497,6 +500,8 @@ export function OtherADTab({
                   value={draft.cutoff_setting_id}
                   onChange={(id) => applyCutoffToOtherDraft(id, formKind)}
                   disabled={cutoffsLoading}
+                  loading={cutoffsLoading}
+                  cutoffs={cutoffs}
                 />
 
                 <div className="mt-2 grid grid-cols-2 gap-2">
@@ -656,7 +661,7 @@ export function OtherADTab({
                 </TableRow>
               ) : (
                 pagedRows.map((u) => {
-                  const r: any = u.row as any;
+                  const r = u.row;
                   const start = String(r.cutoff_start || "").substring(0, 10);
                   const end = String(r.cutoff_end || "").substring(0, 10);
 
