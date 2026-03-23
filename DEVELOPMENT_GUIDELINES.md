@@ -4,6 +4,7 @@
 1. **Observer Pattern**: Verify every automated action (e.g., `list_dir` after creation).
 2. **Self-Healing**: Record bugs/fixes in `.agent/remedies.md`.
 3. **3-Strike Rule**: Stop and ask for help after 3 failures.
+4. **Directory Organization**: Never create temporary, log, or diagnostic files in the root. Use `diagnostics/` subfolders (see [.agent/AGENT_RULES.md](.agent/AGENT_RULES.md)).
 
 ## ⚡ Architecture
 1. **Module Pattern**: Business logic goes in `modules/[feature]/`. Use `[Feature]Module.tsx`, `components/`, `providers/`, `types.ts`.
