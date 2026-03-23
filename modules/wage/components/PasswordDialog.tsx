@@ -26,9 +26,11 @@ export default function PasswordDialog({
 
   // 🟢 Clear password every time modal opens
   useEffect(() => {
+    let timeout: NodeJS.Timeout;
     if (open) {
-      setPassword("");
+      timeout = setTimeout(() => setPassword(""), 0);
     }
+    return () => clearTimeout(timeout);
   }, [open]);
 
   return (

@@ -103,18 +103,19 @@ function getLoggedUserId(): number | null {
   }
 }
 
-const TAB_KEYS = [
-  "wage",
-  "savings",
-  "loans",
-  "retro",
-  "allowance",
-  "benefits",
-  "stock",
-  "other",
-] as const;
+type TabKey = "wage" | "savings" | "loans" | "retro" | "allowance" | "benefits" | "stock" | "other";
 
-type TabKey = (typeof TAB_KEYS)[number];
+// Theme tokens
+const PAYROLL_PRIMARY =
+  "bg-persian-blue-800 hover:bg-persian-blue-700 text-white";
+const PAYROLL_OUTLINE =
+  "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 " +
+  "dark:bg-transparent dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-900/40";
+const PAYROLL_ICON_BTN =
+  "h-9 w-9 p-0 border border-slate-200 bg-white hover:bg-slate-50 " +
+  "dark:bg-transparent dark:border-slate-700 dark:hover:bg-slate-900/40";
+const PAYROLL_ICON_EDIT = "text-persian-blue-800 hover:text-persian-blue-700";
+const PAYROLL_ICON_DELETE = "text-red-600 hover:text-red-700";
 
 export default function WageModal({
   open,
@@ -142,18 +143,6 @@ export default function WageModal({
     "[&_th]:text-[12px] sm:[&_th]:text-sm [&_td]:text-[12px] sm:[&_td]:text-sm " +
     // allow content to wrap instead of expanding width
     "[&_td]:whitespace-normal [&_td]:break-words";
-
-  // Theme tokens
-  const PAYROLL_PRIMARY =
-    "bg-persian-blue-800 hover:bg-persian-blue-700 text-white";
-  const PAYROLL_OUTLINE =
-    "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 " +
-    "dark:bg-transparent dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-900/40";
-  const PAYROLL_ICON_BTN =
-    "h-9 w-9 p-0 border border-slate-200 bg-white hover:bg-slate-50 " +
-    "dark:bg-transparent dark:border-slate-700 dark:hover:bg-slate-900/40";
-  const PAYROLL_ICON_EDIT = "text-persian-blue-800 hover:text-persian-blue-700";
-  const PAYROLL_ICON_DELETE = "text-red-600 hover:text-red-700";
 
   const ui = React.useMemo(
     () => ({
