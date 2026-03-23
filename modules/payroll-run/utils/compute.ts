@@ -92,7 +92,7 @@ function n(v: unknown): number {
 function normKey(v: unknown): string {
   return s(v)
     .toLowerCase()
-    .replaceAll(/[\s_-]+/g, "")
+    .replace(/[\s_-]+/g, "")
     .trim();
 }
 
@@ -1066,11 +1066,11 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
   // unworked holidays
   // ✅ Special holidays = no work no pay (only regular holidays get unworked pay)
-  for (const [date, h] of holidayMap.entries()) {
-    if (h.type === "special" || h.type === "company") continue;
-    if (!h.is_paid) continue;
-    if (!inRange(date, args.cutoffStart, args.cutoffEnd)) continue;
-    if (attendedHolidayDates.has(date)) continue;
+  holidayMap.forEach((h, date) => {
+    if (h.type === "special" || h.type === "company") return;
+    if (!h.is_paid) return;
+    if (!inRange(date, args.cutoffStart, args.cutoffEnd)) return;
+    if (attendedHolidayDates.has(date)) return;
 
     const ok = eligibleForUnworkedHolidayPay({
       holiday: h,
@@ -1096,7 +1096,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         pay_type: "UNWORKED_HOLIDAY_NOT_ELIGIBLE",
         rule: "Requires approved attendance on last_working_day within cutoff window.",
       });
-      continue;
+      return;
     }
 
     const dayDaily = rate.dailyForDate(date);
@@ -1122,7 +1122,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
       daily_rate_used: dayDaily,
       minute_rate_used: dayDaily > 0 ? dayDaily / 480 : 0,
     });
-  }
+  });
 
   /* ------------------------------ Manual entries (split) ------------------------------ */
 

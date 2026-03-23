@@ -2,7 +2,7 @@
 
 type DirectusListResponse<T> = {
   data: T[];
-  meta?: any;
+  meta?: unknown;
 };
 
 type DepartmentRow = {
@@ -15,7 +15,7 @@ type UserRow = {
   user_department: number | null; // department_id
 };
 
-function toQuery(params: Record<string, any>) {
+function toQuery(params: Record<string, unknown>) {
   const sp = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => {
     if (v === undefined || v === null) return;
@@ -33,7 +33,7 @@ function toQuery(params: Record<string, any>) {
  * This relies on app/api/payroll-run/route.ts which forwards to Directus
  * using API_BASE / NEXT_PUBLIC_API_BASE on the server.
  */
-async function apiGet<T>(resource: "department" | "user", params: Record<string, any> = {}): Promise<T> {
+async function apiGet<T>(resource: "department" | "user", params: Record<string, unknown> = {}): Promise<T> {
   const url = `/api/payroll-run${toQuery({ resource, ...params })}`;
 
   const res = await fetch(url, {
@@ -65,7 +65,7 @@ async function apiGet<T>(resource: "department" | "user", params: Record<string,
 async function fetchAllItems<T>(
   resource: "department" | "user",
   fields: string,
-  extraParams: Record<string, any> = {},
+  extraParams: Record<string, unknown> = {},
 ): Promise<T[]> {
   const limit = 1000;
   let page = 1;

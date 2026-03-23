@@ -383,6 +383,11 @@ export interface PayrollRunHeader {
 
   posted_by: number | null;
   posted_at: string | null;
+
+  // UI aliases / derived fields
+  cutoff_label?: string | null;
+  cutoffLabel?: string | null;
+  payrollRunId?: number; // alias for payroll_run_id
 }
 
 // ------------------------------
@@ -402,6 +407,10 @@ export interface PayrollWorkspace {
   department: Department | null;
 
   employees: UserRow[];
+  lines: PayrollComputedLine[];
+  computedLines?: PayrollComputedLine[]; // alias
+  computed?: PayrollComputedLine[]; // alias
+  results?: PayrollComputedLine[]; // alias
 
   wages: Map<number, WageProfile>;
   attendance: Map<number, AttendanceApproval[]>;

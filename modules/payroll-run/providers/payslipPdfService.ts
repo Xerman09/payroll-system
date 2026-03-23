@@ -1,24 +1,24 @@
-// modules/payroll-run/utils/payslipPdf.ts
+// modules/payroll-run/providers/payslipPdfService.ts
 import jsPDF from "jspdf";
 import { formatPHP } from "../utils/compute";
 
 type PageSize = "LEGAL" | "LONG";
 
-function n(v: any): number {
+function n(v: unknown): number {
   const x = Number(v ?? 0);
   return Number.isFinite(x) ? x : 0;
 }
 
-function safeStr(v: any): string {
+function safeStr(v: unknown): string {
   return String(v ?? "").trim();
 }
 
-function parseJsonMaybe(v: any): any | null {
+function parseJsonMaybe(v: unknown): Record<string, unknown> | null {
   if (!v) return null;
-  if (typeof v === "object") return v;
+  if (typeof v === "object") return v as Record<string, unknown>;
   if (typeof v === "string") {
     try {
-      return JSON.parse(v);
+      return JSON.parse(v) as Record<string, unknown>;
     } catch {
       return null;
     }
@@ -31,19 +31,20 @@ function parseJsonMaybe(v: any): any | null {
  * Built-in jsPDF fonts are WinAnsi; `₱` is not safe.
  * Convert "₱1,234.00" -> "PHP 1,234.00"
  */
-function fmtMoney(v: any): string {
+function fmtMoney(v: unknown): string {
   const x = Math.abs(n(v));
   const s = formatPHP(x); // typically "₱1,234.00"
   if (!s) return "PHP 0.00";
   return s.startsWith("₱") ? `PHP ${s.slice(1).trim()}` : s;
 }
 
-function normalizeRow(r: any) {
+function normalizeRow(r: unknown): Record<string, unknown> {
+  const obj = r as Record<string, unknown>;
   // ✅ critical for your payloads (you showed { data: { ... } })
-  return r?.data && typeof r.data === "object" ? r.data : r;
+  return obj?.data && typeof obj.data === "object" ? (obj.data as Record<string, unknown>) : obj;
 }
 
-function pickPeriodText(rIn: any, fallbackLabel: string) {
+function pickPeriodText(rIn: unknown, fallbackLabel: string) {
   const r = normalizeRow(rIn);
   const cutoffLabel = safeStr(r?.cutoff_label ?? r?.cutoffLabel ?? "");
   const cutoffStart = safeStr(r?.cutoff_start ?? r?.cutoffStart ?? "").slice(
@@ -60,7 +61,7 @@ function pickPeriodText(rIn: any, fallbackLabel: string) {
   );
 }
 
-function payslipKey(rIn: any): string | null {
+function payslipKey(rIn: unknown): string | null {
   const r = normalizeRow(rIn);
 
   const preId =
@@ -117,18 +118,18 @@ function payslipKey(rIn: any): string | null {
   return null;
 }
 
-function dedupeRows(rows: any[]) {
-  const out: any[] = [];
+function dedupeRows(rows: unknown[]) {
+  const out: Record<string, unknown>[] = [];
   const seen = new Set<string>();
   for (const raw of rows) {
     const k = payslipKey(raw);
     if (!k) {
-      out.push(raw);
+      out.push(normalizeRow(raw));
       continue;
     }
     if (seen.has(k)) continue;
     seen.add(k);
-    out.push(raw);
+    out.push(normalizeRow(raw));
   }
   return out;
 }
@@ -156,7 +157,7 @@ function truncateToWidth(doc: jsPDF, txt: string, maxW: number): string {
 
 type Entry = { label: string; value: string };
 
-function buildEntries(items: Array<{ label: string; value: any }>): Entry[] {
+function buildEntries(items: Array<{ label: string; value: unknown }>): Entry[] {
   return items
     .filter((x) => x.label && n(x.value) !== 0)
     .map((x) => ({ label: String(x.label), value: fmtMoney(x.value) }));
@@ -179,15 +180,16 @@ function uniqLines(lines: string[]) {
  * Generic array extractor (safe fallback).
  * Looks for any common "items/lines/details" arrays and formats "Label: Amount".
  */
-function extractGenericItemLines(section: any, preferredKeys: string[] = []) {
+function extractGenericItemLines(section: unknown, preferredKeys: string[] = []) {
   const out: string[] = [];
   if (!section || typeof section !== "object") return out;
 
-  const tryArrays: any[] = [];
+  const tryArrays: unknown[][] = [];
+  const s = section as Record<string, unknown>;
 
   for (const k of preferredKeys) {
-    const v = (section as any)[k];
-    if (Array.isArray(v)) tryArrays.push(v);
+    const v = s[k];
+    if (Array.isArray(v)) tryArrays.push(v as unknown[]);
   }
 
   const commonKeys = [
@@ -216,14 +218,15 @@ function extractGenericItemLines(section: any, preferredKeys: string[] = []) {
   ];
 
   for (const k of commonKeys) {
-    const v = (section as any)[k];
-    if (Array.isArray(v)) tryArrays.push(v);
+    const v = s[k];
+    if (Array.isArray(v)) tryArrays.push(v as unknown[]);
   }
 
-  if (Array.isArray(section)) tryArrays.push(section);
+  if (Array.isArray(section)) tryArrays.push(section as unknown[]);
 
   for (const arr of tryArrays) {
-    for (const x of arr) {
+    for (const xRaw of arr) {
+      const x = xRaw as Record<string, unknown>;
       if (!x) continue;
 
       const label =
@@ -257,14 +260,15 @@ function extractGenericItemLines(section: any, preferredKeys: string[] = []) {
  * ✅ YOUR REAL STRUCTURE ITEMIZATION
  * earnings: allowance_items, holiday_items, rest_day_items (+ fallbacks)
  */
-function extractEarningsItemization(earnings: any): string[] {
+function extractEarningsItemization(earnings: unknown): string[] {
   if (!earnings || typeof earnings !== "object") return [];
 
+  const e = earnings as Record<string, unknown>;
   const lines: string[] = [];
 
   // allowances
-  const allowanceItems = Array.isArray(earnings.allowance_items)
-    ? earnings.allowance_items
+  const allowanceItems = Array.isArray(e.allowance_items)
+    ? (e.allowance_items as Record<string, unknown>[])
     : [];
   for (const it of allowanceItems) {
     const desc = safeStr(it?.description ?? it?.name ?? it?.label ?? "Allowance");
@@ -279,8 +283,8 @@ function extractEarningsItemization(earnings: any): string[] {
   }
 
   // holiday items
-  const holidayItems = Array.isArray(earnings.holiday_items)
-    ? earnings.holiday_items
+  const holidayItems = Array.isArray(e.holiday_items)
+    ? (e.holiday_items as Record<string, unknown>[])
     : [];
   for (const it of holidayItems) {
     const date = safeStr(it?.date).slice(0, 10);
@@ -297,8 +301,8 @@ function extractEarningsItemization(earnings: any): string[] {
   }
 
   // rest day items
-  const restDayItems = Array.isArray(earnings.rest_day_items)
-    ? earnings.rest_day_items
+  const restDayItems = Array.isArray(e.rest_day_items)
+    ? (e.rest_day_items as Record<string, unknown>[])
     : [];
   for (const it of restDayItems) {
     const date = safeStr(it?.date).slice(0, 10);
@@ -309,9 +313,9 @@ function extractEarningsItemization(earnings: any): string[] {
 
   // manual additions items (if your backend provides them in some cases)
   const manualAddItems =
-    (Array.isArray(earnings.manual_additions_items) &&
-      earnings.manual_additions_items) ||
-    (Array.isArray(earnings.manual_items) && earnings.manual_items) ||
+    (Array.isArray(e.manual_additions_items) &&
+      (e.manual_additions_items as Record<string, unknown>[])) ||
+    (Array.isArray(e.manual_items) && (e.manual_items as Record<string, unknown>[])) ||
     [];
   for (const it of manualAddItems) {
     const desc = safeStr(it?.description ?? it?.name ?? it?.label ?? "Manual");
@@ -325,10 +329,9 @@ function extractEarningsItemization(earnings: any): string[] {
     if (desc && amt) lines.push(`${desc}: ${fmtMoney(amt)}`);
   }
 
-  // fallback if still empty
   if (!lines.length) {
     lines.push(
-      ...extractGenericItemLines(earnings, [
+      ...extractGenericItemLines(e, [
         "allowance_items",
         "manual_additions_items",
         "holiday_items",
@@ -346,15 +349,16 @@ function extractEarningsItemization(earnings: any): string[] {
  * ✅ YOUR REAL STRUCTURE ITEMIZATION
  * deductions: benefit_loans.items, employee_loans breakdown (+ fallbacks)
  */
-function extractDeductionsItemization(deductions: any): string[] {
+function extractDeductionsItemization(deductions: unknown): string[] {
   if (!deductions || typeof deductions !== "object") return [];
 
+  const d = deductions as Record<string, unknown>;
   const lines: string[] = [];
 
   // benefit loans items
-  const benefitLoans = deductions.benefit_loans;
+  const benefitLoans = d.benefit_loans as Record<string, unknown>;
   const benefitLoanItems = Array.isArray(benefitLoans?.items)
-    ? benefitLoans.items
+    ? (benefitLoans.items as Record<string, unknown>[])
     : [];
   for (const it of benefitLoanItems) {
     const code = safeStr(it?.benefit_code ?? it?.benefitCode ?? "");
@@ -376,7 +380,7 @@ function extractDeductionsItemization(deductions: any): string[] {
   }
 
   // employee loans (your JSON shows aggregated fields)
-  const empLoans = deductions.employee_loans;
+  const empLoans = d.employee_loans as Record<string, unknown>;
   if (empLoans && typeof empLoans === "object") {
     const vale = n(empLoans.vale);
     const car = n(empLoans.car_loan ?? empLoans.carLoan);
@@ -389,9 +393,9 @@ function extractDeductionsItemization(deductions: any): string[] {
 
   // manual deductions items (if present sometimes)
   const manualDedItems =
-    (Array.isArray(deductions.manual_deductions_items) &&
-      deductions.manual_deductions_items) ||
-    (Array.isArray(deductions.manual_items) && deductions.manual_items) ||
+    (Array.isArray(d.manual_deductions_items) &&
+      (d.manual_deductions_items as Record<string, unknown>[])) ||
+    (Array.isArray(d.manual_items) && (d.manual_items as Record<string, unknown>[])) ||
     [];
   for (const it of manualDedItems) {
     const desc = safeStr(it?.description ?? it?.name ?? it?.label ?? "Manual");
@@ -408,7 +412,7 @@ function extractDeductionsItemization(deductions: any): string[] {
   // fallback
   if (!lines.length) {
     lines.push(
-      ...extractGenericItemLines(deductions, [
+      ...extractGenericItemLines(d, [
         "manual_deductions_items",
         "loan_items",
         "benefit_items",
@@ -422,7 +426,7 @@ function extractDeductionsItemization(deductions: any): string[] {
 }
 
 export async function downloadPayslipsPdf(args: {
-  rows: any[];
+  rows: unknown[];
   payrollPeriodLabel: string;
   pageSize?: PageSize;
   fileName?: string;
@@ -458,7 +462,7 @@ export async function downloadPayslipsPdf(args: {
 
   const pad = 8;
 
-  function drawSlip(rIn: any, x: number, y: number) {
+  function drawSlip(rIn: unknown, x: number, y: number) {
     const r = normalizeRow(rIn);
 
     // subtle header fill
@@ -800,9 +804,9 @@ export async function downloadPayslipsPdf(args: {
     ) {
       if (lines.length === 0) return y0;
 
-      (doc as any).setLineDash([1.5, 2], 0);
+      (doc as unknown as { setLineDash: (p: number[], s: number) => void }).setLineDash([1.5, 2], 0);
       doc.line(x0, y0, x0 + w0, y0);
-      (doc as any).setLineDash([], 0);
+      (doc as unknown as { setLineDash: (p: number[], s: number) => void }).setLineDash([], 0);
 
       let yy = y0 + 9;
 

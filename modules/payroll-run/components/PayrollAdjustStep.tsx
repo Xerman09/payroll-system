@@ -66,7 +66,7 @@ import { // Turbo
 
 /* ------------------------------ Helpers ------------------------------ */
 
-function toNumber(v: any): number {
+function toNumber(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
@@ -80,8 +80,11 @@ function apiBase() {
 
 async function apiGet<T>(url: string): Promise<T> {
   const res = await fetch(url, { cache: "no-store" });
-  const json = await res.json().catch(() => null);
-  if (!res.ok) throw new Error((json as any)?.error || "Request failed");
+  const json = (await res.json().catch(() => null)) as unknown;
+  if (!res.ok) {
+    const err = json as Record<string, unknown>;
+    throw new Error((err?.error as string) || "Request failed");
+  }
   return json as T;
 }
 
@@ -92,14 +95,17 @@ async function apiDelete(url: string): Promise<void> {
   if (res.status === 204 || res.status === 205) return;
 
   const text = await res.text().catch(() => "");
-  let json: any = null;
+  let json: unknown = null;
   try {
     json = text ? JSON.parse(text) : null;
   } catch {
     json = null;
   }
 
-  if (!res.ok) throw new Error(json?.error || "Delete failed");
+  if (!res.ok) {
+    const err = json as Record<string, unknown>;
+    throw new Error((err?.error as string) || "Delete failed");
+  }
 }
 
 type OtherAdditionRow = {
@@ -159,7 +165,7 @@ async function listOtherAdditions(args: {
   sp.set("limit", "200");
 
   const json = await apiGet<ApiList<OtherAdditionRow>>(`${apiBase()}?${sp}`);
-  return Array.isArray((json as any)?.data) ? (json as any).data : [];
+  return Array.isArray(json?.data) ? json.data : [];
 }
 
 async function listOtherDeductions(args: {
@@ -176,7 +182,7 @@ async function listOtherDeductions(args: {
   sp.set("limit", "200");
 
   const json = await apiGet<ApiList<OtherDeductionRow>>(`${apiBase()}?${sp}`);
-  return Array.isArray((json as any)?.data) ? (json as any).data : [];
+  return Array.isArray(json?.data) ? json.data : [];
 }
 
 async function listDRPayments(args: {
@@ -198,7 +204,7 @@ async function listDRPayments(args: {
   sp.set("limit", "200");
 
   const json = await apiGet<ApiList<DrPaymentRow>>(`${apiBase()}?${sp}`);
-  return Array.isArray((json as any)?.data) ? (json as any).data : [];
+  return Array.isArray(json?.data) ? json.data : [];
 }
 
 async function deleteOtherAddition(id: number) {
@@ -222,17 +228,18 @@ async function deleteDRPayment(drPaymentId: number) {
   await apiDelete(`${apiBase()}?${sp}`);
 }
 
-function parseDateLike(v: any): number {
+function parseDateLike(v: unknown): number {
   const s = String(v ?? "").trim();
   if (!s) return 0;
   const t = Date.parse(s);
   return Number.isFinite(t) ? t : 0;
 }
 
-function createdSortKey(e: any): number {
+function createdSortKey(e: unknown): number {
+  const row = e as Record<string, unknown>;
   return (
-    parseDateLike((e as any)?.created_date) ||
-    parseDateLike((e as any)?.created_at) ||
+    parseDateLike(row?.created_date) ||
+    parseDateLike(row?.created_at) ||
     0
   );
 }
@@ -321,8 +328,8 @@ export function PayrollAdjustStep({
   );
 
   // NOTE: your cutoff has start_date/end_date in your other code
-  const cutoffStart = (cutoff as any).start_date;
-  const cutoffEnd = (cutoff as any).end_date;
+  const cutoffStart = cutoff.start_date;
+  const cutoffEnd = cutoff.end_date;
 
   const refreshManualEntries = useCallback(async () => {
     if (!activeUserId) {
@@ -341,7 +348,7 @@ export function PayrollAdjustStep({
 
       const mappedAdds: ManualEntryExt[] = adds.map((r) => ({
         id: r.id,
-        type: "EARNING" as any,
+        type: "EARNING",
         amount: toNumber(r.amount),
         desc: r.description ?? "Manual Addition",
         category: "MANUAL_ADDITION",
@@ -349,11 +356,11 @@ export function PayrollAdjustStep({
         cutoff_end: r.cutoff_end,
         created_date: r.created_date ?? null,
         __source: "ADD",
-      })) as any;
+      }));
 
       const mappedDeds: ManualEntryExt[] = deds.map((r) => ({
         id: r.id,
-        type: "DEDUCTION" as any,
+        type: "DEDUCTION",
         amount: toNumber(r.amount),
         desc:
           r.description ??
@@ -364,11 +371,11 @@ export function PayrollAdjustStep({
         cutoff_end: r.cutoff_end,
         created_date: r.created_date ?? null,
         __source: "DED",
-      })) as any;
+      }));
 
       const mappedDR: ManualEntryExt[] = drs.map((r) => ({
         id: r.dr_payment_id,
-        type: "DEDUCTION" as any,
+        type: "DEDUCTION",
         amount: toNumber(r.amount_paid),
         desc: `DR PAYMENT: ${r.delivery_receipt_number}`,
         category: "DR_PAYMENT",
@@ -387,10 +394,10 @@ export function PayrollAdjustStep({
         created_at: r.created_at ?? null,
         created_by: r.created_by ?? null,
         __source: "DR",
-      })) as any;
+      }));
 
       const merged = [...mappedAdds, ...mappedDeds, ...mappedDR].sort(
-        (a: any, b: any) => {
+        (a, b) => {
           const ta = createdSortKey(a);
           const tb = createdSortKey(b);
           if (tb !== ta) return tb - ta;
@@ -402,8 +409,9 @@ export function PayrollAdjustStep({
       );
 
       setManualEntries(merged);
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to load employee adjustments");
+    } catch (e: unknown) {
+      const err = e as Error;
+      toast.error(err?.message || "Failed to load employee adjustments");
       setManualEntries([]);
     } finally {
       setLoadingEntries(false);
@@ -432,8 +440,8 @@ export function PayrollAdjustStep({
 
   async function deleteAdjustment(entry: ManualEntry) {
     const ext = entry as ManualEntryExt;
-    const id = Number((ext as any)?.id);
-    const src = (ext as any)?.__source as "ADD" | "DED" | "DR" | "RETRO" | "COOP" | undefined;
+    const id = Number(ext?.id);
+    const src = ext?.__source;
 
     if (!id || !src) {
       toast.error("Cannot delete: missing source/id.");
@@ -464,8 +472,9 @@ export function PayrollAdjustStep({
 
       setIsDirty(true);
       onRecompute();
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to delete");
+    } catch (e: unknown) {
+      const err = e as Error;
+      toast.error(err?.message || "Failed to delete");
     }
   }
 
@@ -619,12 +628,12 @@ export function PayrollAdjustStep({
 
     window.addEventListener(
       "payroll-run:request-start-over",
-      onStartOverRequest as any,
+      onStartOverRequest as EventListener,
     );
     return () =>
       window.removeEventListener(
         "payroll-run:request-start-over",
-        onStartOverRequest as any,
+        onStartOverRequest as EventListener,
       );
   }, [isDirty, openConfirm]);
 
@@ -637,17 +646,17 @@ export function PayrollAdjustStep({
           <div>
             <CardTitle>Preview & Adjustments</CardTitle>
             <CardDescription>
-              Cutoff: {(cutoff as any).start_date} → {(cutoff as any).end_date}{" "}
-              ({(cutoff as any).cutoff_type}) • Dept:{" "}
+              Cutoff: {cutoff.start_date} → {cutoff.end_date}{" "}
+              ({cutoff.cutoff_type}) • Dept:{" "}
               {department?.name ?? "ALL"}
             </CardDescription>
 
             {run ? (
               <div className="mt-1 text-xs text-muted-foreground">
                 Ref:{" "}
-                <span className="font-mono">{(run as any).payroll_ref_no}</span>{" "}
+                <span className="font-mono">{run.payroll_ref_no}</span>{" "}
                 • Status:{" "}
-                <span className="font-semibold">{(run as any).status}</span>
+                <span className="font-semibold">{run.status}</span>
               </div>
             ) : null}
           </div>
@@ -686,7 +695,7 @@ export function PayrollAdjustStep({
                 Gross
               </div>
               <div className="mt-1 text-xl font-bold text-primary">
-                {formatPHP((summary as any).total_gross)}
+                {formatPHP(summary.total_gross)}
               </div>
             </Card>
 
@@ -695,7 +704,7 @@ export function PayrollAdjustStep({
                 Deductions
               </div>
               <div className="mt-1 text-xl font-bold text-destructive">
-                {formatPHP((summary as any).total_deductions)}
+                {formatPHP(summary.total_deductions)}
               </div>
             </Card>
 
@@ -704,7 +713,7 @@ export function PayrollAdjustStep({
                 Variance Alerts
               </div>
               <div className="mt-1 text-xl font-bold">
-                {(summary as any).variance_alerts}
+                {summary.variance_alerts}
               </div>
             </Card>
           </div>
@@ -740,11 +749,11 @@ export function PayrollAdjustStep({
 
               <TableBody>
                 {filtered.map((l) => {
-                  const isHold = Boolean(holdMap.get((l as any).user_id));
-                  const isPosted = Boolean(postedMap.get((l as any).user_id));
+                  const isHold = Boolean(holdMap.get(l.user_id));
+                  const isPosted = Boolean(postedMap.get(l.user_id));
                   return (
                     <TableRow
-                      key={(l as any).user_id}
+                      key={l.user_id}
                       className={cn(isHold && "opacity-60")}
                     >
                       <TableCell>
@@ -755,7 +764,7 @@ export function PayrollAdjustStep({
                             onCheckedChange={() => {
                               if (isPosted) return; // Prevent toggle for posted employees
                               setIsDirty(true);
-                              onToggleHold((l as any).user_id);
+                              onToggleHold(l.user_id);
                             }}
                           />
                           <div className="text-[11px]">
@@ -778,49 +787,49 @@ export function PayrollAdjustStep({
 
                       <TableCell>
                         <div className="font-semibold">
-                          {(l as any).employee_name}
+                          {l.employee_name}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {(l as any).position ?? "—"} •{" "}
-                          {(l as any).department_name ?? "—"}
+                          {l.position ?? "—"} •{" "}
+                          {l.department_name ?? "—"}
                         </div>
                       </TableCell>
 
                       <TableCell className="text-right font-mono text-sm">
-                        {formatPHP((l as any).basic_pay)}
+                        {formatPHP(l.basic_pay)}
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm">
-                        {formatPHP((l as any).ot_amount)}
+                        {formatPHP(l.ot_amount)}
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm">
-                        {formatPHP((l as any).holiday_pay)}
+                        {formatPHP(l.holiday_pay)}
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm">
-                        {formatPHP((l as any).rest_day_amount)}
+                        {formatPHP(l.rest_day_amount)}
                       </TableCell>
 
                       <TableCell className="text-right font-mono text-sm text-destructive">
-                        ({formatPHP((l as any).total_deductions)})
+                        ({formatPHP(l.total_deductions)})
                       </TableCell>
 
                       <TableCell className="text-right font-mono text-sm font-bold">
-                        {formatPHP((l as any).net_pay)}
+                        {formatPHP(l.net_pay)}
                       </TableCell>
 
                       <TableCell className="text-right">
-                        {(l as any).variance_pct == null ? (
+                        {l.variance_pct == null ? (
                           <Badge variant="secondary">New</Badge>
                         ) : (
                           <span
                             className={cn(
                               "font-mono text-xs",
-                              (l as any).variance_flag
+                              l.variance_flag
                                 ? "text-destructive font-bold"
                                 : "text-muted-foreground",
                             )}
                           >
-                            {Number((l as any).variance_pct) > 0 ? "+" : ""}
-                            {Number((l as any).variance_pct).toFixed(1)}%
+                            {Number(l.variance_pct) > 0 ? "+" : ""}
+                            {Number(l.variance_pct).toFixed(1)}%
                           </span>
                         )}
                       </TableCell>
@@ -829,7 +838,7 @@ export function PayrollAdjustStep({
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setActiveUserId((l as any).user_id)}
+                          onClick={() => setActiveUserId(l.user_id)}
                         >
                           Details
                         </Button>
@@ -864,7 +873,7 @@ export function PayrollAdjustStep({
           <EmployeeDetailsSheet
             open={activeUserId != null}
             line={activeLine}
-            manualEntries={manualEntries as any}
+            manualEntries={manualEntries as ManualEntry[]}
             isPosted={activeUserId != null ? Boolean(postedMap.get(activeUserId)) : false}
             onOpenAdjust={() => openAddAdjustment()}
             onEditEntry={(e) => openEditAdjustment(e)}

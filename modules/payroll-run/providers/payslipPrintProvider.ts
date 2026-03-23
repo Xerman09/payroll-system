@@ -18,7 +18,10 @@ export async function fetchPayrollRunEmployeesForPrint(payrollRunId: number) {
   return { rows, companyName: json?.meta?.companyName };
 }
 
-export function rowsHaveBreakdown(rows: any[]): boolean {
+export function rowsHaveBreakdown(rows: unknown[]): boolean {
   if (!Array.isArray(rows) || rows.length === 0) return false;
-  return rows.some((r) => r?.breakdown_json != null || r?.breakdownJson != null);
+  return rows.some((r) => {
+    const obj = r as Record<string, unknown>;
+    return obj?.breakdown_json != null || obj?.breakdownJson != null;
+  });
 }

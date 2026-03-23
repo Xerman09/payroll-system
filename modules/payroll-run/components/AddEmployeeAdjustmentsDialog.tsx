@@ -9,10 +9,6 @@ import {
   createOtherAddition,
   createOtherDeduction,
   createRetroPay,
-  deleteDRPayment,
-  deleteOtherAddition,
-  deleteOtherDeduction,
-  deleteRetroPay,
   updateDRPayment,
   updateOtherAddition,
   updateOtherDeduction,
@@ -47,10 +43,17 @@ type DeductionTab = "MANUAL" | "SHORTAGE" | "DR_PAYMENT";
 type AdditionTab = "MANUAL_ADDITION" | "RETRO_PAY";
 
 // Extended entry with metadata for identifying source and ID during edit
-export type ManualEntryExt = any & {
+export type ManualEntryExt = {
   id?: number | string;
   __source?: "ADD" | "DED" | "DR" | "RETRO";
-  [k: string]: any;
+  amount?: number;
+  description?: string;
+  delivery_receipt_number?: string;
+  payment_date?: string;
+  amount_paid?: number;
+  remarks?: string;
+  type?: PayrollOtherDeductionType;
+  [k: string]: unknown;
 };
 
 function num(v: string) {
@@ -112,12 +115,7 @@ export function AddEmployeeAdjustmentsDialog({
     if (!open) return;
 
     if (editingEntry) {
-      const src = (editingEntry as any)?.__source as
-        | "ADD"
-        | "DED"
-        | "DR"
-        | "RETRO"
-        | undefined;
+      const src = editingEntry.__source;
 
       if (src === "RETRO") {
         setKind("ADDITION");
@@ -138,7 +136,7 @@ export function AddEmployeeAdjustmentsDialog({
         setDrRemarks(editingEntry.remarks || "");
       } else if (src === "DED") {
         setKind("DEDUCTION");
-        setDedTab(editingEntry.type || "MANUAL");
+        setDedTab((editingEntry.type as DeductionTab) || "MANUAL");
         setAmount(String(editingEntry.amount || ""));
         setDescription(editingEntry.description || "");
       } else {
@@ -175,13 +173,8 @@ export function AddEmployeeAdjustmentsDialog({
     try {
       setSaving(true);
 
-      const entryId = (editingEntry as any)?.id as number | undefined;
-      const entrySource = (editingEntry as any)?.__source as
-        | "ADD"
-        | "DED"
-        | "DR"
-        | "RETRO"
-        | undefined;
+      const entryId = editingEntry?.id ? (typeof editingEntry.id === "string" ? parseInt(editingEntry.id, 10) : editingEntry.id) : undefined;
+      const entrySource = editingEntry?.__source;
 
       const isEditing = Boolean(editingEntry && entryId && entrySource);
 
@@ -305,8 +298,9 @@ export function AddEmployeeAdjustmentsDialog({
 
       onSaved?.();
       onOpenChange(false);
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to save adjustment.");
+    } catch (err: unknown) {
+      const e = err as Record<string, unknown>;
+      toast.error((e?.message as string) || "Failed to save adjustment.");
     } finally {
       setSaving(false);
     }

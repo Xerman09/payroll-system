@@ -8,6 +8,7 @@ import type {
   PayrollComputedLine,
   PayrollRunHeader,
   PayrollWorkspace,
+  PayrollSummary,
 } from "../types";
 
 import { formatPHP } from "../utils/compute";
@@ -16,7 +17,7 @@ import {
   fetchPayrollRunEmployeesForPrint,
   rowsHaveBreakdown,
 } from "../providers/payslipPrintProvider";
-import { downloadPayslipsPdf, buildPayslipsPdf } from "../utils/payslipPdf";
+import { buildPayslipsPdf } from "../utils/payslipPdf";
 import { Eye, FileDown, Loader2, CheckCircle2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -38,7 +39,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-function n(v: any): number {
+function n(v: unknown): number {
   const x = Number(v ?? 0);
   return Number.isFinite(x) ? x : 0;
 }
@@ -47,7 +48,7 @@ function round2(x: number): number {
   return Math.round((x + Number.EPSILON) * 100) / 100;
 }
 
-function resolveLines(props: any): PayrollComputedLine[] {
+function resolveLines(props: PayrollReviewStepProps): PayrollComputedLine[] {
   const direct =
     props?.lines ??
     props?.computedLines ??
@@ -66,7 +67,7 @@ function resolveLines(props: any): PayrollComputedLine[] {
 
 type PayrollReviewStepProps = {
   run?: PayrollRunHeader | null;
-  workspace?: PayrollWorkspace | any | null;
+  workspace?: PayrollWorkspace | null;
 
   lines?: PayrollComputedLine[];
   computedLines?: PayrollComputedLine[];
@@ -74,7 +75,7 @@ type PayrollReviewStepProps = {
   results?: PayrollComputedLine[];
   rows?: PayrollComputedLine[];
 
-  summary?: any;
+  summary?: PayrollSummary;
 
   isBusy?: boolean;
 
@@ -87,47 +88,54 @@ type PayrollReviewStepProps = {
   onPost?: () => Promise<void>;
 };
 
-function getRowId(r: any): string {
-  return String(r?.user_id ?? r?.userId ?? r?.employeeId ?? r?.id ?? "");
+function getRowId(r: unknown): string {
+  const row = r as Record<string, unknown>;
+  return String(row?.user_id ?? row?.userId ?? row?.employeeId ?? row?.id ?? "");
 }
 
-function getRowName(r: any): string {
+function getRowName(r: unknown): string {
+  const row = r as Record<string, unknown>;
   return (
-    r?.employee_name ??
-    r?.employeeName ??
-    r?.full_name ??
-    r?.name ??
+    (row?.employee_name as string) ??
+    (row?.employeeName as string) ??
+    (row?.full_name as string) ??
+    (row?.name as string) ??
     (getRowId(r) ? `Employee #${getRowId(r)}` : "Employee")
   );
 }
 
-function getGross(r: any): number {
-  return n(r?.gross_pay ?? r?.grossPay ?? r?.gross ?? r?.gross_amount);
+function getGross(r: unknown): number {
+  const row = r as Record<string, unknown>;
+  return n(row?.gross_pay ?? row?.grossPay ?? row?.gross ?? row?.gross_amount);
 }
 
-function getDeductions(r: any): number {
+function getDeductions(r: unknown): number {
+  const row = r as Record<string, unknown>;
   return n(
-    r?.total_deductions ??
-      r?.totalDeductions ??
-      r?.deductions ??
-      r?.deductions_total,
+    row?.total_deductions ??
+      row?.totalDeductions ??
+      row?.deductions ??
+      row?.deductions_total,
   );
 }
 
-function getNet(r: any): number {
-  return n(r?.net_pay ?? r?.netPay ?? r?.net ?? r?.net_amount);
+function getNet(r: unknown): number {
+  const row = r as Record<string, unknown>;
+  return n(row?.net_pay ?? row?.netPay ?? row?.net ?? row?.net_amount);
 }
 
-function getOnHold(r: any): boolean {
-  return Boolean(r?.on_hold ?? r?.onHold);
+function getOnHold(r: unknown): boolean {
+  const row = r as Record<string, unknown>;
+  return Boolean(row?.on_hold ?? row?.onHold);
 }
 
-function getVariancePct(r: any): number | null {
+function getVariancePct(r: unknown): number | null {
+  const row = r as Record<string, unknown>;
   const v =
-    r?.variancePct ??
-    r?.variance_pct ??
-    r?.variance_percent ??
-    r?.variancePercent ??
+    row?.variancePct ??
+    row?.variance_pct ??
+    row?.variance_percent ??
+    row?.variancePercent ??
     null;
 
   if (v === null || v === undefined) return null;
@@ -135,19 +143,22 @@ function getVariancePct(r: any): number | null {
   return Number.isFinite(x) ? x : null;
 }
 
-function getVarianceAlert(r: any): boolean {
-  return Boolean(r?.varianceAlert ?? r?.variance_alert ?? r?.variance_flag);
+function getVarianceAlert(r: unknown): boolean {
+  const row = r as Record<string, unknown>;
+  return Boolean(row?.varianceAlert ?? row?.variance_alert ?? row?.variance_flag);
 }
 
-function getIsProrated(r: any): boolean {
-  return Boolean(r?.isProrated ?? r?.is_prorated);
+function getIsProrated(r: unknown): boolean {
+  const row = r as Record<string, unknown>;
+  return Boolean(row?.isProrated ?? row?.is_prorated);
 }
 
-function getProratedDetails(r: any): any | null {
-  return r?.proratedDetails ?? r?.prorated_details ?? null;
+function getProratedDetails(r: unknown): Record<string, unknown> | null {
+  const row = r as Record<string, unknown>;
+  return (row?.proratedDetails as Record<string, unknown>) ?? (row?.prorated_details as Record<string, unknown>) ?? null;
 }
 
-function VarianceCell({ row }: { row: any }) {
+function VarianceCell({ row }: { row: unknown }) {
   const pct = getVariancePct(row);
 
   if (pct === null) {
@@ -173,7 +184,7 @@ function VarianceCell({ row }: { row: any }) {
   );
 }
 
-function ProrationDetails({ row }: { row: any }) {
+function ProrationDetails({ row }: { row: unknown }) {
   const isProrated = getIsProrated(row);
   const d = getProratedDetails(row);
 
@@ -196,9 +207,10 @@ function ProrationDetails({ row }: { row: any }) {
   );
 }
 
-function payslipKeyClient(r: any): string | null {
+function payslipKeyClient(r: unknown): string | null {
+  const row = r as Record<string, unknown>;
   const primary =
-    r?.id ?? r?.payroll_run_employee_id ?? r?.payrollRunEmployeeId ?? null;
+    row?.id ?? row?.payroll_run_employee_id ?? row?.payrollRunEmployeeId ?? null;
   if (
     primary !== null &&
     primary !== undefined &&
@@ -207,8 +219,8 @@ function payslipKeyClient(r: any): string | null {
     return `pre:${String(primary)}`;
   }
 
-  const run = r?.payroll_run_id ?? r?.payrollRunId ?? null;
-  const user = r?.user_id ?? r?.userId ?? null;
+  const run = row?.payroll_run_id ?? row?.payrollRunId ?? null;
+  const user = row?.user_id ?? row?.userId ?? null;
 
   if (
     run !== null &&
@@ -224,8 +236,8 @@ function payslipKeyClient(r: any): string | null {
   return null;
 }
 
-function dedupeRowsClient(rows: any[]) {
-  const out: any[] = [];
+function dedupeRowsClient(rows: unknown[]) {
+  const out: unknown[] = [];
   const seen = new Set<string>();
   for (const r of rows) {
     const k = payslipKeyClient(r);
@@ -271,9 +283,10 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
           props.onStartOver();
         }
       }, 1500);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const err = e as Error;
       setIsPosting(false);
-      toast.error(e?.message || "Failed to post payroll");
+      toast.error(err?.message || "Failed to post payroll");
     }
   };
 
@@ -293,9 +306,10 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
         if (!alive) return;
         setDeptLookups(lookups);
         setDeptLoadError(null);
-      } catch (e: any) {
+      } catch (e: unknown) {
+        const err = e as Error;
         if (!alive) return;
-        setDeptLoadError(e?.message || "Failed to load department lookups");
+        setDeptLoadError(err?.message || "Failed to load department lookups");
       }
     })();
 
@@ -305,16 +319,17 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
   }, []);
 
   const getDeptNameForLine = React.useCallback(
-    (r: any): string | null => {
+    (r: unknown): string | null => {
+      const row = r as Record<string, unknown>;
       const direct =
-        r?.department_name ?? r?.departmentName ?? r?.department ?? null;
+        row?.department_name ?? row?.departmentName ?? row?.department ?? null;
       if (typeof direct === "string" && direct.trim()) return direct;
 
       const deptId =
-        r?.department_id ??
-        r?.departmentId ??
-        r?.user_department ??
-        r?.userDepartment ??
+        row?.department_id ??
+        row?.departmentId ??
+        row?.user_department ??
+        row?.userDepartment ??
         null;
 
       if (deptId != null) {
@@ -322,7 +337,7 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
         if (name) return name;
       }
 
-      const userId = r?.user_id ?? r?.userId ?? r?.employeeId ?? r?.id ?? null;
+      const userId = row?.user_id ?? row?.userId ?? row?.employeeId ?? row?.id ?? null;
       if (userId != null) {
         const name = deptLookups.deptNameByUserId[String(userId)];
         if (name) return name;
@@ -334,60 +349,53 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
   );
 
   const displayLines = React.useMemo(() => {
-    return lines.map((r: any) => {
+    return lines.map((r) => {
       const dept = getDeptNameForLine(r);
+      const row = r as unknown as Record<string, unknown>;
       return {
         ...r,
-        department_name: dept ?? r?.department_name ?? null,
-        departmentName: dept ?? r?.departmentName ?? null,
+        department_name: dept ?? (row.department_name as string) ?? null,
+        departmentName: dept ?? (row.departmentName as string) ?? null,
       };
     });
   }, [lines, getDeptNameForLine]);
 
   const summary = React.useMemo(() => {
-    const s = (props as any)?.summary ?? null;
+    const s = props.summary ?? null;
     if (s && typeof s === "object") {
       return {
-        count: Number.isFinite(Number(s.count))
-          ? Number(s.count)
+        count: Number.isFinite(Number(s.headcount))
+          ? Number(s.headcount)
           : displayLines.length,
-        totalGross: round2(
-          n(s.totalGross ?? s.total_gross ?? s.total_gross_pay),
-        ),
-        totalDeductions: round2(
-          n(s.totalDeductions ?? s.total_deductions ?? s.total_deduction),
-        ),
-        totalNet: round2(n(s.totalNet ?? s.total_net ?? s.total_payout)),
-        onHoldCount: Number.isFinite(Number(s.onHoldCount ?? s.on_hold_count))
-          ? Number(s.onHoldCount ?? s.on_hold_count)
-          : displayLines.reduce((c, r: any) => c + (getOnHold(r) ? 1 : 0), 0),
-        varianceFlagCount: Number.isFinite(
-          Number(s.varianceFlagCount ?? s.varianceAlerts ?? s.variance_alerts),
-        )
-          ? Number(s.varianceFlagCount ?? s.varianceAlerts ?? s.variance_alerts)
+        totalGross: round2(n(s.total_gross)),
+        totalDeductions: round2(n(s.total_deductions)),
+        totalNet: round2(n(s.total_net)),
+        onHoldCount: displayLines.reduce((c, r) => c + (getOnHold(r) ? 1 : 0), 0),
+        varianceFlagCount: Number.isFinite(Number(s.variance_alerts))
+          ? Number(s.variance_alerts)
           : displayLines.reduce(
-              (c, r: any) => c + (getVarianceAlert(r) ? 1 : 0),
+              (c, r) => c + (getVarianceAlert(r) ? 1 : 0),
               0,
             ),
       };
     }
 
     const totalGross = round2(
-      displayLines.reduce((sum, r: any) => sum + getGross(r), 0),
+      displayLines.reduce((sum, r) => sum + getGross(r), 0),
     );
     const totalDeductions = round2(
-      displayLines.reduce((sum, r: any) => sum + getDeductions(r), 0),
+      displayLines.reduce((sum, r) => sum + getDeductions(r), 0),
     );
     const totalNet = round2(
-      displayLines.reduce((sum, r: any) => sum + getNet(r), 0),
+      displayLines.reduce((sum, r) => sum + getNet(r), 0),
     );
 
     const onHoldCount = displayLines.reduce(
-      (c, r: any) => c + (getOnHold(r) ? 1 : 0),
+      (c, r) => c + (getOnHold(r) ? 1 : 0),
       0,
     );
     const varianceFlagCount = displayLines.reduce(
-      (c, r: any) => c + (getVarianceAlert(r) ? 1 : 0),
+      (c, r) => c + (getVarianceAlert(r) ? 1 : 0),
       0,
     );
 
@@ -402,15 +410,14 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
   }, [displayLines, props]);
 
   const cutoffLabel =
-    (props as any)?.cutoffLabel ??
-    (props as any)?.run?.cutoff_label ??
-    (props as any)?.run?.cutoffLabel ??
+    props?.run?.cutoff_label ??
+    props?.run?.cutoffLabel ??
     null;
 
   const cutoffRange =
-    (props as any)?.run?.cutoff_start && (props as any)?.run?.cutoff_end
-      ? `${String((props as any).run.cutoff_start).slice(0, 10)} to ${String(
-          (props as any).run.cutoff_end,
+    props?.run?.cutoff_start && props?.run?.cutoff_end
+      ? `${String(props.run.cutoff_start).slice(0, 10)} to ${String(
+          props.run.cutoff_end,
         ).slice(0, 10)}`
       : null;
 
@@ -420,10 +427,8 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
   const [isPrinting, setIsPrinting] = React.useState(false);
 
   const runId =
-    (props as any)?.run?.payroll_run_id ??
-    (props as any)?.run?.payrollRunId ??
-    (props as any)?.payroll_run_id ??
-    (props as any)?.payrollRunId ??
+    props?.run?.payroll_run_id ??
+    props?.run?.payrollRunId ??
     null;
 
   const onDownloadPayslipsPdf = React.useCallback(async () => {
@@ -435,11 +440,11 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
 
       setIsPrinting(true);
 
-      let rowsToPrint: any[] = [...displayLines];
-      let companyName: string | undefined = (props as any)?.summary?.companyName || "";
+      let rowsToPrint: unknown[] = [...displayLines];
+      let companyName: string | undefined = props.summary?.companyName || "";
 
       // Ensure breakdown_json is present for itemized lists
-      if (!rowsHaveBreakdown(rowsToPrint) && runId != null) {
+      if (!rowsHaveBreakdown(rowsToPrint as PayrollComputedLine[]) && runId != null) {
         const res = await fetchPayrollRunEmployeesForPrint(Number(runId));
         rowsToPrint = res.rows;
         companyName = res.companyName;
@@ -454,22 +459,25 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
       rowsToPrint = dedupeRowsClient(rowsToPrint);
 
       rowsToPrint.sort((a, b) => {
+        const rowA = a as Record<string, unknown>;
+        const rowB = b as Record<string, unknown>;
         // Sort by Payment Method (Bank=1 first, Cash=0 last)
         const isCardA = n(
-          a?.is_card ?? (a as any)?.isCard ?? a?.breakdown_json?.is_card ?? 0,
+          rowA?.is_card ?? rowA?.isCard ?? (rowA?.breakdown_json as Record<string, unknown>)?.is_card ?? 0,
         );
         const isCardB = n(
-          b?.is_card ?? (b as any)?.isCard ?? b?.breakdown_json?.is_card ?? 0,
+          rowB?.is_card ?? rowB?.isCard ?? (rowB?.breakdown_json as Record<string, unknown>)?.is_card ?? 0,
         );
         if (isCardA !== isCardB) return isCardB - isCardA; // 1 -> 0
 
         // Then by last name
-        const getSortName = (r: any) => {
-          const ln = String(r?.last_name ?? "").trim();
+        const getSortName = (r: unknown) => {
+          const row = r as Record<string, unknown>;
+          const ln = String(row?.last_name ?? "").trim();
           if (ln) return ln.toLowerCase();
 
           // Fallback: parse from full name if last_name is missing
-          const full = String(getRowName(r)).trim();
+          const full = String(getRowName(row)).trim();
           const parts = full.split(/\s+/);
           if (parts.length > 1) {
             // Assume the last part is the last name (simplistic but works for most cases)
@@ -487,12 +495,12 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
         return String(getRowName(a)).localeCompare(String(getRowName(b)));
       });
 
-      const doc = await buildPayslipsPdf({
-        rows: rowsToPrint,
+       const doc = await buildPayslipsPdf({
+        rows: rowsToPrint as PayrollComputedLine[],
         payrollPeriodLabel,
         pageSize: "LEGAL",
-        payrollRefNo: (props as any)?.run?.payroll_ref_no,
-        postedAt: (props as any)?.run?.posted_at,
+        payrollRefNo: props?.run?.payroll_ref_no,
+        postedAt: (props?.run?.posted_at ?? undefined),
         companyName,
       });
 
@@ -502,11 +510,19 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
       setPreviewUrl(url);
       setPreviewOpen(true);
       setIsPrinting(false);
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to generate payslips PDF");
+    } catch (e: unknown) {
+      const err = e as Error;
+      toast.error(err?.message || "Failed to generate payslips PDF");
       setIsPrinting(false);
     }
-  }, [summary.count, displayLines, runId, payrollPeriodLabel, previewUrl]);
+  }, [
+    summary.count,
+    displayLines,
+    runId,
+    payrollPeriodLabel,
+    previewUrl,
+    props,
+  ]);
 
   const backHandler = props.onBack ?? props.onBackToAdjust;
   const finalizeHandler =
@@ -655,12 +671,13 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                 </TableHeader>
 
                 <TableBody>
-                  {displayLines.map((row: any) => {
+                  {displayLines.map((row, idx) => {
+                    const rowTyped = row as Record<string, unknown>;
                     const id =
-                      getRowId(row) || Math.random().toString(16).slice(2);
+                      getRowId(row) || `idx-${idx}`;
                     const name = getRowName(row);
                     const dept =
-                      row?.department_name ?? row?.departmentName ?? null;
+                      rowTyped?.department_name ?? rowTyped?.departmentName ?? null;
 
                     const gross = getGross(row);
                     const ded = getDeductions(row);
@@ -678,7 +695,7 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                         <TableCell className="align-top">
                           <div className="text-sm">
                             {dept ? (
-                              dept
+                              dept as string
                             ) : (
                               <span className="text-muted-foreground">
                                 (unknown)

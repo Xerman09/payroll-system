@@ -124,8 +124,9 @@ export default function PayrollRunModule() {
         if (c.length && config.cutoffId == null) {
           setConfig((p) => ({ ...p, cutoffId: c[0].id }));
         }
-      } catch (e: any) {
-        toast.error(e?.message || "Failed to load payroll masters");
+      } catch (e: unknown) {
+        const err = e as Error;
+        toast.error(err?.message || "Failed to load payroll masters");
       } finally {
         setLoadingMaster(false);
       }
@@ -145,11 +146,11 @@ export default function PayrollRunModule() {
     try {
       const session = sessionStorage.getItem("user");
       if (!session) return alert("User not logged in.");
-      const logged = JSON.parse(session);
+      const logged = JSON.parse(session) as Record<string, unknown>;
 
-      const apiUser = await api.fetchUserById(logged.user_id);
+      const apiUser = (await api.fetchUserById(logged.user_id as number)) as unknown as Record<string, unknown>;
       if (!apiUser) return alert("User record not found.");
-      if (passwordInput !== apiUser.user_password)
+      if (passwordInput !== (apiUser.user_password as string))
         return alert("Incorrect password.");
 
       const ts = new Date().toISOString();
@@ -158,7 +159,7 @@ export default function PayrollRunModule() {
       const remarks = `Accessed payroll run for ${cutoffLabel} - ${deptName} at ${ts}`;
       
       await api.logPayrollRunAccess(
-        logged.user_id,
+        logged.user_id as number,
         selectedCutoff!.id,
         config.departmentId,
         remarks
@@ -166,7 +167,7 @@ export default function PayrollRunModule() {
 
       setPasswordDialogOpen(false);
       await loadOrCreateRunAndWorkspace();
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
       alert("Error verifying password. Try again.");
     }
@@ -236,8 +237,9 @@ export default function PayrollRunModule() {
 
       setStep(2);
 
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to load payroll workspace");
+    } catch (e: unknown) {
+      const err = e as Error;
+      toast.error(err?.message || "Failed to load payroll workspace");
     } finally {
       setLoadingWs(false);
     }
@@ -272,8 +274,9 @@ export default function PayrollRunModule() {
 
       setStep(4);
       toast.success("Payroll computed and saved (DRAFT lines).");
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to process payroll");
+    } catch (e: unknown) {
+      const err = e as Error;
+      toast.error(err?.message || "Failed to process payroll");
       setStep(2);
     }
   }
@@ -290,7 +293,7 @@ export default function PayrollRunModule() {
       // Optional (recommended): stamp DR payments as posted only when payroll is posted.
       if (ws && computed) {
         const employeeIds = computed.lines
-          .map((x) => Number((x as any)?.user_id))
+          .map((x) => Number(x.user_id))
           .filter((x) => Number.isFinite(x) && x > 0);
 
         await svc.postDRPaymentsToPayroll({
@@ -302,8 +305,9 @@ export default function PayrollRunModule() {
 
       toast.success("Payroll POSTED successfully.");
       setRun((p) => (p ? { ...p, status: "POSTED" } : p));
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to post payroll");
+    } catch (e: unknown) {
+      const err = e as Error;
+      toast.error(err?.message || "Failed to post payroll");
     }
   }
 
@@ -317,14 +321,13 @@ export default function PayrollRunModule() {
   }, []);
 
 
-  // ✅ When PayrollAdjustStep confirms leaving (Start Over), execute reset here.
   useEffect(() => {
     const handler = () => startOver();
-    window.addEventListener("payroll-run:confirm-start-over", handler as any);
+    window.addEventListener("payroll-run:confirm-start-over", handler as EventListener);
     return () =>
       window.removeEventListener(
         "payroll-run:confirm-start-over",
-        handler as any,
+        handler as EventListener,
       );
   }, [startOver]);
 
@@ -545,9 +548,10 @@ export default function PayrollRunModule() {
                       });
                       setWs(updatedWorkspace);
                       toast.success("Payroll updated with latest adjustments.");
-                    } catch (e: any) {
+                    } catch (e: unknown) {
+                      const err = e as Error;
                       toast.error(
-                        e?.message || "Failed to reload payroll data",
+                        err?.message || "Failed to reload payroll data",
                       );
                     }
                   }}

@@ -27,11 +27,9 @@ import {
   Trash2,
   Plus,
   Wallet,
-  Receipt,
   PiggyBank,
   BadgePercent,
   Clock,
-  CalendarDays,
   Layers,
   CircleDollarSign,
   ArrowDownRight,
@@ -161,57 +159,61 @@ function MiniStat({
   );
 }
 
-function upper(v: any): string {
+function upper(v: unknown): string {
   return String(v ?? "")
     .trim()
     .toUpperCase();
 }
 
-function entryCategory(e: any): string {
+function entryCategory(e: unknown): string {
+  const row = e as Record<string, unknown>;
   const cat =
-    e?.category ??
-    e?.deduction_type ??
-    e?.deductionType ??
-    e?.other_deduction_type ??
-    e?.otherDeductionType ??
-    e?.deduction_kind ??
-    e?.deductionKind ??
-    e?.type_kind ??
-    e?.typeKind ??
-    e?.kind ??
+    row?.category ??
+    row?.deduction_type ??
+    row?.deductionType ??
+    row?.other_deduction_type ??
+    row?.otherDeductionType ??
+    row?.deduction_kind ??
+    row?.deductionKind ??
+    row?.type_kind ??
+    row?.typeKind ??
+    row?.kind ??
     null;
 
   if (cat != null && String(cat).trim() !== "") return upper(cat);
 
-  const t = upper(e?.type);
+  const t = upper(row?.type);
   if (t && t !== "EARNING" && t !== "DEDUCTION") return t;
 
   return "";
 }
 
-function readAmount(e: any): number {
-  const v = e?.amount ?? e?.amount_paid ?? e?.amountPaid ?? 0;
+function readAmount(e: unknown): number {
+  const row = e as Record<string, unknown>;
+  const v = row?.amount ?? row?.amount_paid ?? row?.amountPaid ?? 0;
   const n = Number(v ?? 0);
   return Number.isFinite(n) ? n : 0;
 }
 
 function formatEntryAmount(e: ManualEntry) {
-  const amt = readAmount(e as any);
-  if (upper((e as any)?.type) === "DEDUCTION") return `(${formatPHP(amt)})`;
+  const row = e as unknown as Record<string, unknown>;
+  const amt = readAmount(e);
+  if (upper(row?.type) === "DEDUCTION") return `(${formatPHP(amt)})`;
   return formatPHP(amt);
 }
 
-function safeId(e: any) {
+function safeId(e: unknown) {
+  const row = e as Record<string, unknown>;
   const id =
-    e?.id ??
-    e?.retro_id ??
-    e?.retroId ??
-    e?.dr_payment_id ??
-    e?.drPaymentId ??
-    e?.coop_savings_membership_id ??
-    e?.coopSavingsMembershipId ??
-    e?.savings_id ??
-    e?.savingsId ??
+    row?.id ??
+    row?.retro_id ??
+    row?.retroId ??
+    row?.dr_payment_id ??
+    row?.drPaymentId ??
+    row?.coop_savings_membership_id ??
+    row?.coopSavingsMembershipId ??
+    row?.savings_id ??
+    row?.savingsId ??
     null;
 
   return id == null ? "noid" : String(id);
@@ -223,14 +225,15 @@ function extractDrReceiptNo(desc: string): string {
   return s.replace(prefix, "").trim();
 }
 
-function entryDesc(e: any): string {
+function entryDesc(e: unknown): string {
+  const row = e as Record<string, unknown>;
   // ✅ DR FIRST: never return raw "DR PAYMENT: ..." desc
   if (isDRPaymentEntry(e)) {
     const drNo = drReceiptNoFromEntry(e); // already strips prefix via extractDrReceiptNo()
     return drNo ? drNo : "DR Payment";
   }
 
-  const d = e?.desc ?? e?.description ?? "";
+  const d = row?.desc ?? row?.description ?? "";
   if (String(d).trim()) return String(d);
 
   if (isShortageEntry(e)) return "Shortage";
@@ -241,120 +244,91 @@ function entryDesc(e: any): string {
 }
 
 // ===== Itemized detectors =====
-function isDRPaymentEntry(e: any): boolean {
+function isDRPaymentEntry(e: unknown): boolean {
+  const row = e as Record<string, unknown>;
   const cat = entryCategory(e);
   if (cat === "DR_PAYMENT") return true;
 
-  if (e?.dr_payment_id != null) return true;
-  if (e?.delivery_receipt_number) return true;
+  if (row?.dr_payment_id != null) return true;
+  if (row?.delivery_receipt_number) return true;
 
-  if (upper(e?.source) === "DR_PAYMENT" || upper(e?.source) === "DR")
+  if (upper(row?.source) === "DR_PAYMENT" || upper(row?.source) === "DR")
     return true;
 
-  const desc = String(e?.desc ?? e?.description ?? "");
+  const desc = String(row?.desc ?? row?.description ?? "");
   if (/^DR\s*PAYMENT\s*:/i.test(desc)) return true;
 
   return false;
 }
 
-function isShortageEntry(e: any): boolean {
+function isShortageEntry(e: unknown): boolean {
+  const row = e as Record<string, unknown>;
   const cat = entryCategory(e);
   if (cat === "SHORTAGE") return true;
 
-  const desc = String(e?.desc ?? e?.description ?? "").toLowerCase();
+  const desc = String(row?.desc ?? row?.description ?? "").toLowerCase();
   return desc.includes("shortage");
 }
 
-function isRetroPayEntry(e: any): boolean {
+function isRetroPayEntry(e: unknown): boolean {
+  const row = e as Record<string, unknown>;
   const cat = entryCategory(e);
   if (cat === "RETRO_PAY" || cat === "RETROPAY") return true;
 
-  if (upper(e?.source) === "RETRO_PAY") return true;
+  if (upper(row?.source) === "RETRO_PAY") return true;
 
   // Directus row from retro_pay table
-  if (e?.retro_id != null || e?.retroId != null) return true;
+  if (row?.retro_id != null || row?.retroId != null) return true;
 
-  const desc = String(e?.desc ?? e?.description ?? "").toLowerCase();
+  const desc = String(row?.desc ?? row?.description ?? "").toLowerCase();
   return desc.includes("retro");
 }
 
-function isSavingsEntry(e: any): boolean {
+function isSavingsEntry(e: unknown): boolean {
+  const row = e as Record<string, unknown>;
   const cat = entryCategory(e);
   if (cat === "COOP_SAVINGS_MEMBERSHIP" || cat === "SAVINGS") return true;
 
-  if (upper(e?.source) === "COOP_SAVINGS_MEMBERSHIP") return true;
+  if (upper(row?.source) === "COOP_SAVINGS_MEMBERSHIP") return true;
 
-  const desc = String(e?.desc ?? e?.description ?? "").toLowerCase();
+  const desc = String(row?.desc ?? row?.description ?? "").toLowerCase();
   return desc.includes("savings") || desc.includes("coop savings");
 }
 
-function drReceiptNoFromEntry(e: any): string {
-  if (e?.delivery_receipt_number) return String(e.delivery_receipt_number);
-  const desc = String(e?.desc ?? e?.description ?? "");
+function drReceiptNoFromEntry(e: unknown): string {
+  const row = e as Record<string, unknown>;
+  if (row?.delivery_receipt_number) return String(row.delivery_receipt_number);
+  const desc = String(row?.desc ?? row?.description ?? "");
   const fromDesc = extractDrReceiptNo(desc);
   return fromDesc || "";
 }
 
-function drPaymentDateFromEntry(e: any): string {
-  const v =
-    e?.payment_date ??
-    e?.paymentDate ??
-    e?.meta?.payment_date ??
-    e?.meta?.paymentDate ??
-    "";
-  const s = String(v ?? "").slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
-}
 
-function drPaymentMethodFromEntry(e: any): string {
+function drPostedFromEntry(e: unknown): boolean {
+  const row = e as Record<string, unknown>;
   const v =
-    e?.payment_method ??
-    e?.paymentMethod ??
-    e?.meta?.payment_method ??
-    e?.meta?.paymentMethod ??
-    "";
-  return String(v ?? "").trim();
-}
-
-function drPostedFromEntry(e: any): boolean {
-  const v =
-    e?.is_posted_to_payroll ??
-    e?.isPostedToPayroll ??
-    e?.meta?.is_posted_to_payroll ??
-    e?.meta?.isPostedToPayroll ??
+    row?.is_posted_to_payroll ??
+    row?.isPostedToPayroll ??
+    (row?.meta as Record<string, unknown>)?.is_posted_to_payroll ??
+    (row?.meta as Record<string, unknown>)?.isPostedToPayroll ??
     0;
   return Boolean(Number(v) === 1 || v === true);
 }
 
 function resolvePayrollId(line: PayrollComputedLine | null): string {
+  const row = line as unknown as Record<string, unknown>;
   const v =
-    (line as any)?.payroll_run_employee_id ??
-    (line as any)?.payrollRunEmployeeId ??
-    (line as any)?.pre_id ??
-    (line as any)?.id ??
+    row?.payroll_run_employee_id ??
+    row?.payrollRunEmployeeId ??
+    row?.pre_id ??
+    row?.id ??
     "";
   const s = String(v ?? "").trim();
   return s || "—";
 }
 
-function itemizedBadgesForEntry(e: any) {
-  const out: Array<{
-    label: string;
-    variant?: "secondary" | "outline" | "destructive" | "default";
-  }> = [];
 
-  if (isDRPaymentEntry(e))
-    out.push({ label: "DR_PAYMENT", variant: "secondary" });
-  if (isShortageEntry(e)) out.push({ label: "SHORTAGE", variant: "secondary" });
-  if (isRetroPayEntry(e))
-    out.push({ label: "RETRO_PAY", variant: "secondary" });
-  if (isSavingsEntry(e))
-    out.push({ label: "COOP_SAVINGS_MEMBERSHIP", variant: "secondary" });
-
-  return out;
-}
-
-function prettyPayCycle(v: any) {
+function prettyPayCycle(v: unknown) {
   const s = String(v ?? "").trim();
   if (!s) return "—";
   return s.replaceAll("_", " ").toLowerCase();
@@ -407,36 +381,38 @@ function MoneyPill({
  *  - Normal earning -> __source: "ADD"
  *  - Normal deduction -> __source: "DED"
  */
-function normalizeEntry(e: any): any {
-  if (!e || typeof e !== "object") return e;
+function normalizeEntry(e: unknown): Record<string, unknown> {
+  if (!e || typeof e !== "object") return e as Record<string, unknown>;
 
-  const retroId = e?.retro_id ?? e?.retroId ?? null;
-  const drId = e?.dr_payment_id ?? e?.drPaymentId ?? null;
-  const coopId = e?.source_id ?? e?.sourceId ?? null;
+  const row = e as Record<string, unknown>;
+  const retroId = row?.retro_id ?? row?.retroId ?? null;
+  const drId = row?.dr_payment_id ?? row?.drPaymentId ?? null;
+  const coopId = row?.source_id ?? row?.sourceId ?? null;
 
   if (isRetroPayEntry(e) && retroId != null) {
-    return { ...e, __source: "RETRO", id: Number(retroId), type: "EARNING" };
+    return { ...row, __source: "RETRO", id: Number(retroId), type: "EARNING" };
   }
   if (isDRPaymentEntry(e) && drId != null) {
-    return { ...e, __source: "DR", id: Number(drId), type: "DEDUCTION" };
+    return { ...row, __source: "DR", id: Number(drId), type: "DEDUCTION" };
   }
   if (isSavingsEntry(e) && coopId != null) {
-    return { ...e, __source: "COOP", id: Number(coopId), type: "DEDUCTION" };
+    return { ...row, __source: "COOP", id: Number(coopId), type: "DEDUCTION" };
   }
 
-  const t = upper(e?.type);
+  const t = upper(row?.type);
   if (t === "EARNING")
-    return { ...e, __source: "ADD", id: Number(e?.id ?? 0) || e?.id };
+    return { ...row, __source: "ADD", id: Number(row?.id ?? 0) || (row?.id as number | string) };
   if (t === "DEDUCTION")
-    return { ...e, __source: "DED", id: Number(e?.id ?? 0) || e?.id };
+    return { ...row, __source: "DED", id: Number(row?.id ?? 0) || (row?.id as number | string) };
 
   // fallback
-  return { ...e, __source: e?.__source ?? undefined };
+  return { ...row, __source: (row?.__source as string) ?? undefined };
 }
 
 /** ✅ Holiday label helper (handles Holiday + Rest Day) */
-function holidayItemLabel(h: any): string {
-  const flag = String(h?.holiday ?? "").toUpperCase();
+function holidayItemLabel(h: unknown): string {
+  const row = h as Record<string, unknown>;
+  const flag = String(row?.holiday ?? "").toUpperCase();
   const base =
     flag === "REGULAR"
       ? "Regular Holiday"
@@ -444,8 +420,8 @@ function holidayItemLabel(h: any): string {
         ? "Special Holiday"
         : "Holiday";
 
-  const isRest = Boolean(h?.is_rest_day);
-  const desc = String(h?.description ?? "").trim();
+  const isRest = Boolean(row?.is_rest_day);
+  const desc = String(row?.description ?? "").trim();
 
   return `${base}${isRest ? " + Rest Day" : ""}${desc ? ` · ${desc}` : ""}`;
 }
@@ -461,7 +437,7 @@ function MinimalAdjustmentRow({
   onDelete: (e: ManualEntry) => void;
   isPosted?: boolean;
 }) {
-  const e: any = normalizeEntry(entry as any);
+  const e = normalizeEntry(entry) as unknown as ManualEntry;
 
   const isDR = isDRPaymentEntry(e);
   const retro = isRetroPayEntry(e);
@@ -578,114 +554,110 @@ export function EmployeeDetailsSheet({
 
   onOpenChange: (v: boolean) => void;
 }) {
-  const allowanceItems =
-    ((line as any)?.breakdown_json?.earnings?.allowance_items as any[]) ?? [];
+  const breakdown = line?.breakdown_json;
 
-  const coopSavingsItemsFromBreakdown =
-    ((line as any)?.breakdown_json?.deductions?.coop_savings_items as any[]) ??
-    [];
+  const allowanceItems = (breakdown?.earnings?.allowance_items as Record<string, unknown>[]) ?? [];
 
-  const retroItemsFromBreakdown =
-    ((line as any)?.breakdown_json?.earnings?.retro_items as any[]) ?? [];
+  const coopSavingsItemsFromBreakdown = (breakdown?.deductions?.coop_savings_items as Record<string, unknown>[]) ?? [];
+
+  const retroItemsFromBreakdown = (breakdown?.earnings?.retro_items as Record<string, unknown>[]) ?? [];
 
   // ✅ Holiday itemization from compute.ts
-  const holidayItems =
-    ((line as any)?.breakdown_json?.earnings?.holiday_items as any[]) ?? [];
+  const holidayItems = (breakdown?.earnings?.holiday_items as Record<string, unknown>[]) ?? [];
 
   const holidayPaidItems = holidayItems.filter(
-    (x: any) => Number(x?.total ?? 0) > 0,
+    (x) => Number(x?.total ?? 0) > 0,
   );
 
   const [holidayOpen, setHolidayOpen] = React.useState(false);
 
   // ✅ Rest Day itemization from compute.ts
-  const restDayItems =
-    ((line as any)?.breakdown_json?.earnings?.rest_day_items as any[]) ?? [];
+  const restDayItems = (breakdown?.earnings?.rest_day_items as Record<string, unknown>[]) ?? [];
 
   const restDayPaidItems = restDayItems.filter(
-    (x: any) => Number(x?.total ?? 0) > 0,
+    (x) => Number(x?.total ?? 0) > 0,
   );
 
   const [restDayOpen, setRestDayOpen] = React.useState(false);
 
   const rawEntries = Array.isArray(manualEntries) ? manualEntries : [];
-  const entries = rawEntries.map((e) => normalizeEntry(e));
+  const entries = rawEntries.map((e) => normalizeEntry(e) as unknown as ManualEntry);
 
-  const retroEntries = entries.filter((e) => isRetroPayEntry(e as any));
-  const savingsEntries = entries.filter((e) => isSavingsEntry(e as any));
+  const retroEntries = entries.filter((e) => isRetroPayEntry(e));
+  const savingsEntries = entries.filter((e) => isSavingsEntry(e));
 
   const allRetroEntries = [
     ...retroEntries,
-    ...retroItemsFromBreakdown.map((item: any) => ({
+    ...retroItemsFromBreakdown.map((item) => ({
       ...item,
-      retro_id: item.source_id ?? item.retro_id ?? item.id,
-      amount: item.amount,
-      description: item.description ?? item.label,
-      type: "EARNING",
+      retro_id: (item.source_id as string | number) ?? (item.retro_id as string | number) ?? item.id,
+      amount: item.amount as number,
+      description: (item.description ?? item.label) as string,
+      type: "EARNING" as const,
       __source: "RETRO",
-    })),
+    }) as unknown as ManualEntry),
   ];
 
   const allSavingsEntries = [
     ...savingsEntries,
-    ...coopSavingsItemsFromBreakdown.map((item: any) => ({
+    ...coopSavingsItemsFromBreakdown.map((item) => ({
       ...item,
-      id: item.source_id ?? item.id,
-      amount: item.amount,
-      description: item.description ?? item.label ?? "COOP Savings Membership",
-      type: "DEDUCTION",
+      id: (item.source_id as string | number) ?? item.id,
+      amount: item.amount as number,
+      description: (item.description ?? item.label ?? "COOP Savings Membership") as string,
+      type: "DEDUCTION" as const,
       category: "COOP_SAVINGS_MEMBERSHIP",
       __source: "COOP",
-    })),
+    }) as unknown as ManualEntry),
   ];
 
   const nonRetroEarningEntries = entries.filter((e) => {
-    const t = upper((e as any)?.type);
-    if (t === "EARNING" && !isRetroPayEntry(e as any)) return true;
+    const t = upper(e?.type);
+    if (t === "EARNING" && !isRetroPayEntry(e)) return true;
     return false;
-  });
+  }) as unknown as ManualEntry[];
 
   const deductionEntries = entries.filter((e) => {
-    const t = upper((e as any)?.type);
+    const t = upper(e?.type);
     if (t === "DEDUCTION") return true;
-    if (isDRPaymentEntry(e as any)) return true;
-    if (isShortageEntry(e as any)) return true;
-    if (isSavingsEntry(e as any)) return true;
+    if (isDRPaymentEntry(e)) return true;
+    if (isShortageEntry(e)) return true;
+    if (isSavingsEntry(e)) return true;
     return false;
-  });
+  }) as unknown as ManualEntry[];
 
   const allDeductionEntries = [...deductionEntries, ...allSavingsEntries].filter(
-    (e) => !isSavingsEntry(e as any),
+    (e) => !isSavingsEntry(e),
   );
 
   const retroTotal = allRetroEntries.reduce(
-    (sum, e) => sum + readAmount(e as any),
+    (sum, e) => sum + readAmount(e),
     0,
   );
 
   const manualAddsTotal = nonRetroEarningEntries.reduce(
-    (sum, e) => sum + readAmount(e as any),
+    (sum, e) => sum + readAmount(e),
     0,
   );
 
   const savingsTotal = allSavingsEntries.reduce(
-    (sum, e) => sum + readAmount(e as any),
+    (sum, e) => sum + readAmount(e),
     0,
   );
 
   const allowancesTotal = allowanceItems.reduce(
-    (sum: number, a: any) => sum + Number(a?.amount_this_cutoff ?? 0),
+    (sum, a) => sum + Number(a?.amount_this_cutoff ?? 0),
     0,
   );
 
   const additionEntries = [...allRetroEntries, ...nonRetroEarningEntries];
   const additionsTotal = additionEntries.reduce(
-    (sum, e) => sum + readAmount(e as any),
+    (sum, e) => sum + readAmount(e),
     0,
   );
 
   const deductionsAdjTotal = allDeductionEntries.reduce(
-    (sum, e) => sum + readAmount(e as any),
+    (sum, e) => sum + readAmount(e),
     0,
   );
 
@@ -1012,7 +984,8 @@ export function EmployeeDetailsSheet({
                                   </div>
                                 ) : (
                                   <div className="space-y-3 pl-6">
-                                    {holidayItems.map((h: any, idx: number) => {
+                                    {holidayItems.map((hIn: unknown, idx: number) => {
+                                      const h = hIn as Record<string, unknown>;
                                       const total = Number(h?.total ?? 0);
                                       const basePay = Number(h?.pay ?? total);
                                       const otPay = Number(h?.ot_pay ?? 0);
@@ -1139,7 +1112,8 @@ export function EmployeeDetailsSheet({
                               <CollapsibleContent className="data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down overflow-hidden">
                                 {restDayPaidItems.length > 0 && (
                                   <div className="mt-2 space-y-2 pb-3">
-                                    {restDayPaidItems.map((h: any, i: number) => {
+                                    {restDayPaidItems.map((hIn: unknown, i: number) => {
+                                      const h = hIn as Record<string, unknown>;
                                       const total = Number(h?.total ?? h?.amount ?? h?.pay_amount ?? 0);
                                       const basePay = Number(h?.pay ?? total);
                                       const otPay = Number(h?.ot_pay ?? 0);
@@ -1160,13 +1134,13 @@ export function EmployeeDetailsSheet({
                                               </div>
                                               <div className="mt-0.5 text-[11px] text-muted-foreground">
                                                 <span className="font-mono">
-                                                  {h.date && h.date.length >= 10
-                                                    ? h.date.slice(5, 10)
-                                                    : h?.holiday_date
-                                                      ? String(h.holiday_date).slice(5, 10)
+                                                  {(h as Record<string, unknown>).date && String((h as Record<string, unknown>).date).length >= 10
+                                                    ? String((h as Record<string, unknown>).date).slice(5, 10)
+                                                    : (h as Record<string, unknown>)?.holiday_date
+                                                      ? String((h as Record<string, unknown>).holiday_date).slice(5, 10)
                                                       : "—"}
                                                 </span>
-                                                {h?.base_mult != null ? (
+                                                {(h as Record<string, unknown>)?.base_mult != null ? (
                                                   <>
                                                     •{" "}
                                                     <span className="font-mono">
@@ -1326,7 +1300,7 @@ export function EmployeeDetailsSheet({
                           />
                           <Row
                             label="DR Payment"
-                            value={formatPHP((line as any)?.dr_deduction ?? 0)}
+                            value={formatPHP((line as unknown as Record<string, unknown>)?.dr_deduction as number ?? 0)}
                           />
                           <Row
                             label="Other Deductions"
@@ -1439,14 +1413,16 @@ export function EmployeeDetailsSheet({
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          {allowanceItems.map((a: any) => (
+                          {allowanceItems.map((aIn: unknown) => {
+                            const a = aIn as Record<string, unknown>;
+                            return (
                             <div
                               key={String(a.allowance_id)}
                               className="flex items-center justify-between gap-3 rounded-2xl border bg-muted/10 p-3"
                             >
                               <div className="min-w-0">
                                 <div className="truncate text-sm font-semibold">
-                                  {a.description ||
+                                  {(a.description as string) ||
                                     `Allowance #${a.allowance_id}`}
                                 </div>
                                 <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -1470,8 +1446,9 @@ export function EmployeeDetailsSheet({
                                 kind="EARNING"
                               />
                             </div>
-                          ))}
-                        </div>
+                          );
+                        })}
+                      </div>
                       )}
                     </Section>
 
@@ -1496,11 +1473,12 @@ export function EmployeeDetailsSheet({
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          {allRetroEntries.map((e: any) => {
+                          {allRetroEntries.map((eIn: unknown) => {
+                            const e = eIn as ManualEntry;
                             const desc = entryDesc(e);
                             return (
                               <div
-                                key={`retro-${safeId(e)}-${String(desc)}`}
+                                key={`retro-${safeId(eIn)}-${String(desc)}`}
                                 className={cn(
                                   "flex items-start justify-between gap-3 rounded-2xl border p-3",
                                   "border-amber-200/70 bg-amber-50/20",
@@ -1515,7 +1493,7 @@ export function EmployeeDetailsSheet({
                                   <div className="mt-1 text-[11px] text-muted-foreground">
                                     <span className="font-mono">
                                       Retro ID:{" "}
-                                      {String(e?.retro_id ?? e?.id ?? "—")}
+                                      {String((e as unknown as Record<string, unknown>)?.retro_id ?? (e as unknown as Record<string, unknown>)?.id ?? "—")}
                                     </span>
                                   </div>
                                 </div>
@@ -1553,11 +1531,12 @@ export function EmployeeDetailsSheet({
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          {nonRetroEarningEntries.map((e: any) => {
+                          {nonRetroEarningEntries.map((eIn: unknown) => {
+                            const e = eIn as ManualEntry;
                             const desc = entryDesc(e);
                             return (
                               <div
-                                key={`addonly-${safeId(e)}-${String(desc)}`}
+                                key={`addonly-${safeId(eIn)}-${String(desc)}`}
                                 className="flex items-start justify-between gap-3 rounded-2xl border bg-muted/10 p-3"
                               >
                                 <div className="min-w-0">
@@ -1656,7 +1635,7 @@ export function EmployeeDetailsSheet({
                           <div>
                             {additionEntries.map((e) => (
                               <MinimalAdjustmentRow
-                                key={`earn-flat-${safeId(e)}-${entryDesc(e as any)}`}
+                                key={`earn-flat-${safeId(e)}-${entryDesc(e)}`}
                                 entry={e}
                                 onEdit={onEditEntry}
                                 onDelete={onDeleteEntry}
@@ -1694,7 +1673,7 @@ export function EmployeeDetailsSheet({
                           <div>
                             {allDeductionEntries.map((e) => (
                               <MinimalAdjustmentRow
-                                key={`ded-flat-${safeId(e)}-${entryDesc(e as any)}`}
+                                key={`ded-flat-${safeId(e)}-${entryDesc(e)}`}
                                 entry={e}
                                 onEdit={onEditEntry}
                                 onDelete={onDeleteEntry}

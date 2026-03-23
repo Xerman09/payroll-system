@@ -1,0 +1,1 @@
+modules/payroll-run/providers/payrollRunService.ts(1967,18): error TS2698: Spread types may only be created from object types.

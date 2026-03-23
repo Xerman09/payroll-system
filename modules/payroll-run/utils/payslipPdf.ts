@@ -4,7 +4,7 @@ import { formatPHP } from "./compute";
 
 type PageSize = "LEGAL" | "LONG";
 
-function n(v: any): number {
+function n(v: unknown): number {
   if (v === null || v === undefined) return 0;
   if (typeof v === "number") return Number.isFinite(v) ? v : 0;
   if (typeof v === "string") {
@@ -18,16 +18,16 @@ function n(v: any): number {
   return Number.isFinite(x) ? x : 0;
 }
 
-function safeStr(v: any): string {
+function safeStr(v: unknown): string {
   return String(v ?? "").trim();
 }
 
-function parseJsonMaybe(v: any): any | null {
+function parseJsonMaybe(v: unknown): Record<string, unknown> | null {
   if (!v) return null;
-  if (typeof v === "object") return v;
+  if (typeof v === "object") return v as Record<string, unknown>;
   if (typeof v === "string") {
     try {
-      return JSON.parse(v);
+      return JSON.parse(v) as Record<string, unknown>;
     } catch {
       return null;
     }
@@ -40,14 +40,15 @@ function parseJsonMaybe(v: any): any | null {
  * Built-in jsPDF fonts are WinAnsi; `₱` is not safe.
  * Convert "₱1,234.00" -> "PHP 1,234.00".
  */
-function fmtMoney(v: any): string {
+function fmtMoney(v: unknown): string {
   const x = Math.abs(n(v));
   const s = formatPHP(x);
   if (!s) return "PHP 0.00";
   return s.startsWith("₱") ? `PHP ${s.slice(1).trim()}` : s;
 }
 
-function pickPeriodText(r: any, fallbackLabel: string) {
+function pickPeriodText(rIn: unknown, fallbackLabel: string) {
+  const r = rIn as Record<string, unknown>;
   const cutoffLabel = safeStr(r?.cutoff_label ?? r?.cutoffLabel ?? "");
   const cutoffStart = safeStr(r?.cutoff_start ?? r?.cutoffStart ?? "").slice(
     0,
@@ -82,19 +83,6 @@ function truncateToWidth(doc: jsPDF, txt: string, maxW: number): string {
   return s.length ? s + ell : ell;
 }
 
-function uniqLines(lines: string[]) {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const s of lines) {
-    const k = safeStr(s);
-    if (!k) continue;
-    const kk = k.toLowerCase();
-    if (seen.has(kk)) continue;
-    seen.add(kk);
-    out.push(k);
-  }
-  return out;
-}
 
 function setFill(doc: jsPDF, rgb: [number, number, number]) {
   doc.setFillColor(rgb[0], rgb[1], rgb[2]);
@@ -104,20 +92,21 @@ function setDraw(doc: jsPDF, rgb: [number, number, number]) {
   doc.setDrawColor(rgb[0], rgb[1], rgb[2]);
 }
 
-function payslipKey(r: any): string | null {
+function payslipKey(r: unknown): string | null {
+  const obj = r as Record<string, unknown>;
   const preId =
-    r?.id ??
-    r?.payroll_run_employee_id ??
-    r?.payrollRunEmployeeId ??
-    r?.pre_id ??
+    obj?.id ??
+    obj?.payroll_run_employee_id ??
+    obj?.payrollRunEmployeeId ??
+    obj?.pre_id ??
     null;
 
   if (preId !== null && preId !== undefined && String(preId).trim() !== "") {
     return `pre:${String(preId)}`;
   }
 
-  const run = r?.payroll_run_id ?? r?.payrollRunId ?? null;
-  const user = r?.user_id ?? r?.userId ?? r?.employee_id ?? r?.employeeId ?? null;
+  const run = obj?.payroll_run_id ?? obj?.payrollRunId ?? null;
+  const user = obj?.user_id ?? obj?.userId ?? obj?.employee_id ?? obj?.employeeId ?? null;
 
   if (
     run !== null &&
@@ -133,11 +122,11 @@ function payslipKey(r: any): string | null {
   return null;
 }
 
-function dedupeRows(rows: any[]) {
-  const out: any[] = [];
+function dedupeRows(rows: unknown[]) {
+  const out: unknown[] = [];
   const seen = new Set<string>();
   for (const r of rows) {
-    const row = r?.data ?? r;
+    const row = ((r as Record<string, unknown>)?.data ?? r) as Record<string, unknown>;
     const k = payslipKey(row);
     if (!k) {
       out.push(r);
@@ -153,8 +142,8 @@ function dedupeRows(rows: any[]) {
 // =========================
 // ✅ ON-HOLD FILTER (NEW)
 // =========================
-function isRowOnHold(r: any): boolean {
-  const row = r?.data ?? r;
+function isRowOnHold(r: unknown): boolean {
+  const row = ((r as Record<string, unknown>)?.data ?? r) as Record<string, unknown>;
 
   const raw =
     row?.on_hold ??
@@ -182,7 +171,7 @@ type ItemLine =
   | { t: "pair"; label: string; value: string; indent?: number; bold?: boolean };
 
 function moneyPairsFromItems(
-  items: any,
+  items: unknown,
   opts: {
     defaultLabel: string;
     amountKeyCandidates: string[];
@@ -192,7 +181,8 @@ function moneyPairsFromItems(
   if (!Array.isArray(items)) return [];
   const out: Pair[] = [];
 
-  for (const x of items) {
+  for (const xRaw of items) {
+    const x = xRaw as Record<string, unknown>;
     const desc =
       opts.descKeyCandidates.map((k) => safeStr(x?.[k])).find((v) => !!v) ||
       opts.defaultLabel;
@@ -218,8 +208,10 @@ function moneyPairsFromItems(
   });
 }
 
-function extractAllowancePairs(b: any): Pair[] {
-  const items = b?.earnings?.allowance_items ?? b?.earnings?.allowances ?? [];
+function extractAllowancePairs(b: unknown): Pair[] {
+  const obj = b as Record<string, unknown>;
+  const earnings = obj?.earnings as Record<string, unknown>;
+  const items = earnings?.allowance_items ?? earnings?.allowances ?? [];
   return moneyPairsFromItems(items, {
     defaultLabel: "Allowance",
     descKeyCandidates: ["description", "label", "name"],
@@ -227,9 +219,11 @@ function extractAllowancePairs(b: any): Pair[] {
   });
 }
 
-function extractManualAdditionPairs(b: any): Pair[] {
+function extractManualAdditionPairs(b: unknown): Pair[] {
+  const obj = b as Record<string, unknown>;
+  const earnings = obj?.earnings as Record<string, unknown>;
   const items =
-    b?.earnings?.manual_addition_items ?? b?.earnings?.manual_additions ?? [];
+    earnings?.manual_addition_items ?? earnings?.manual_additions ?? [];
   return moneyPairsFromItems(items, {
     defaultLabel: "Manual Addition",
     descKeyCandidates: ["description", "label", "name"],
@@ -242,11 +236,13 @@ function extractManualAdditionPairs(b: any): Pair[] {
  * - breakdown_json.earnings.retro_items (canonical)
  * - breakdown_json.earnings.retro_pay_items (backward compat)
  */
-function extractRetroPayPairs(b: any): Pair[] {
+function extractRetroPayPairs(b: unknown): Pair[] {
+  const obj = b as Record<string, unknown>;
+  const earnings = obj?.earnings as Record<string, unknown>;
   const items =
-    b?.earnings?.retro_items ??
-    b?.earnings?.retro_pay_items ??
-    b?.earnings?.retroItems ??
+    earnings?.retro_items ??
+    earnings?.retro_pay_items ??
+    earnings?.retroItems ??
     [];
   return moneyPairsFromItems(items, {
     defaultLabel: "Retro Pay",
@@ -275,19 +271,22 @@ function uniqEntries(rows: Entry[]) {
   return out;
 }
 
-function extractHolidayDetailEntries(b: any): Entry[] {
+function extractHolidayDetailEntries(b: unknown): Entry[] {
+  const obj = b as Record<string, unknown>;
+  const e = obj?.earnings as Record<string, unknown>;
   const items =
-    b?.earnings?.holiday_items ??
-    b?.earnings?.holidayItems ??
-    b?.earnings?.holiday_pay_items ??
-    b?.earnings?.holidayPayItems ??
+    e?.holiday_items ??
+    e?.holidayItems ??
+    e?.holiday_pay_items ??
+    e?.holidayPayItems ??
     [];
 
   if (!Array.isArray(items)) return [];
 
   const out: Entry[] = [];
 
-  for (const h of items) {
+  for (const hRaw of items) {
+    const h = hRaw as Record<string, unknown>;
     const total = n(h?.total ?? h?.amount ?? h?.pay_amount ?? 0);
     if (total === 0) continue;
 
@@ -340,19 +339,21 @@ function extractHolidayDetailEntries(b: any): Entry[] {
  * ✅ Manual deduction items (base only) from compute.ts:
  * breakdown_json.deductions.manual_deduction_items
  */
-function extractManualDeductionGroupsPairs(b: any): {
+function extractManualDeductionGroupsPairs(b: unknown): {
   sh: Pair[];
   dr: Pair[];
   md: Pair[];
 } {
+  const obj = b as Record<string, unknown>;
+  const d = obj?.deductions as Record<string, unknown>;
   const items =
-    b?.deductions?.manual_deduction_items ?? b?.deductions?.manual_deductions ?? [];
+    d?.manual_deduction_items ?? d?.manual_deductions ?? [];
 
   if (!Array.isArray(items)) return { sh: [], dr: [], md: [] };
 
   const sh = moneyPairsFromItems(
     items.filter(
-      (x: any) => String(x?.category ?? "").toUpperCase() === "SHORTAGE",
+      (x: unknown) => String((x as Record<string, unknown>)?.category ?? "").toUpperCase() === "SHORTAGE",
     ),
     {
       defaultLabel: "Shortage",
@@ -363,7 +364,7 @@ function extractManualDeductionGroupsPairs(b: any): {
 
   const dr = moneyPairsFromItems(
     items.filter(
-      (x: any) => String(x?.category ?? "").toUpperCase() === "DR_PAYMENT",
+      (x: unknown) => String((x as Record<string, unknown>)?.category ?? "").toUpperCase() === "DR_PAYMENT",
     ),
     {
       defaultLabel: "DR Payment",
@@ -373,8 +374,8 @@ function extractManualDeductionGroupsPairs(b: any): {
   );
 
   const md = moneyPairsFromItems(
-    items.filter((x: any) => {
-      const cat = String(x?.category ?? "").toUpperCase();
+    items.filter((x: unknown) => {
+      const cat = String((x as Record<string, unknown>)?.category ?? "").toUpperCase();
       return cat !== "SHORTAGE" && cat !== "DR_PAYMENT";
     }),
     {
@@ -395,15 +396,17 @@ function extractManualDeductionGroupsPairs(b: any): {
  * - items (unified)
  * - deductions.manual_deduction_items (some implementations push everything here)
  */
-function collectEmployeeLoanItems(b: any): any[] {
-  const buckets: any[] = [];
+function collectEmployeeLoanItems(b: unknown): unknown[] {
+  const obj = b as Record<string, unknown>;
+  const d = obj?.deductions as Record<string, unknown>;
+  const buckets: unknown[] = [];
   const candidates = [
-    b?.deductions?.employee_loan_items,
-    b?.deductions?.employee_loans?.items,
-    b?.deductions?.items,
-    b?.items,
-    b?.deductions?.manual_deduction_items,
-    b?.deductions?.other_deductions,
+    d?.employee_loan_items,
+    (d?.employee_loans as Record<string, unknown>)?.items,
+    d?.items,
+    obj?.items,
+    d?.manual_deduction_items,
+    d?.other_deductions,
   ];
 
   for (const arr of candidates) {
@@ -411,7 +414,8 @@ function collectEmployeeLoanItems(b: any): any[] {
   }
 
   // filter likely loan rows
-  return buckets.filter((x: any) => {
+  return buckets.filter((xRaw: unknown) => {
+    const x = xRaw as Record<string, unknown>;
     const cat = String(x?.category ?? "").toUpperCase();
     const itemKey = safeStr(x?.item_key ?? x?.itemKey ?? "");
     const desc = safeStr(x?.description ?? "");
@@ -422,26 +426,29 @@ function collectEmployeeLoanItems(b: any): any[] {
   });
 }
 
-function loanTypeUpper(x: any): string {
+function loanTypeUpper(x: unknown): string {
+  const obj = x as Record<string, unknown>;
+  const meta = obj?.meta as Record<string, unknown>;
   const code = safeStr(
-    x?.meta?.loan_type ??
-    x?.loan_type ??
-    x?.meta?.loanType ??
-    x?.code ??
+    meta?.loan_type ??
+    obj?.loan_type ??
+    meta?.loanType ??
+    obj?.code ??
     "",
   );
   return code.toUpperCase();
 }
 
 function sumEmployeeLoans(
-  items: any[],
+  items: unknown[],
   opts?: { onlyCoop?: boolean; excludeCoop?: boolean },
 ) {
   const onlyCoop = !!opts?.onlyCoop;
   const excludeCoop = !!opts?.excludeCoop;
 
   let total = 0;
-  for (const x of items) {
+  for (const xRaw of items) {
+    const x = xRaw as Record<string, unknown>;
     const t = loanTypeUpper(x);
     const isCoop = t === "COOP" || /COOP/i.test(safeStr(x?.description ?? ""));
     if (onlyCoop && !isCoop) continue;
@@ -463,12 +470,13 @@ function uniqPairs(pairs: Pair[]) {
   return out;
 }
 
-function extractEmployeeLoanPairsExcludingCoop(row: any, b: any): Pair[] {
+function extractEmployeeLoanPairsExcludingCoop(row: unknown, b: unknown): Pair[] {
   const items = collectEmployeeLoanItems(b);
 
   if (items.length) {
     const out: Pair[] = [];
-    for (const x of items) {
+    for (const xRaw of items) {
+      const x = xRaw as Record<string, unknown>;
       const amt = Math.max(0, n(x?.amount ?? 0));
       if (amt === 0) continue;
 
@@ -489,22 +497,27 @@ function extractEmployeeLoanPairsExcludingCoop(row: any, b: any): Pair[] {
   }
 
   // fallback (exclude coop)
-  const loanVale = Math.max(0, n(row?.loan_vale ?? 0));
-  const loanCar = Math.max(0, n(row?.loan_car ?? 0));
+  const r = row as Record<string, unknown>;
+  const loanVale = Math.max(0, n(r?.loan_vale ?? 0));
+  const loanCar = Math.max(0, n(r?.loan_car ?? 0));
   const out: Pair[] = [];
   if (loanVale) out.push({ label: "VA", value: fmtMoney(loanVale) });
   if (loanCar) out.push({ label: "CAR", value: fmtMoney(loanCar) });
   return uniqPairs(out);
 }
 
-function extractBenefitLoanPairs(b: any): Pair[] {
+function extractBenefitLoanPairs(b: unknown): Pair[] {
+  const obj = b as Record<string, unknown>;
+  const d = obj?.deductions as Record<string, unknown>;
+  const bl = d?.benefit_loans as Record<string, unknown>;
   const items =
-    b?.deductions?.benefit_loans?.items ?? b?.deductions?.benefit_loan_items ?? [];
+    bl?.items ?? d?.benefit_loan_items ?? [];
 
   if (!Array.isArray(items)) return [];
 
   const out: Pair[] = [];
-  for (const x of items) {
+  for (const xRaw of items) {
+    const x = xRaw as Record<string, unknown>;
     const code = safeStr(x?.benefit_code ?? x?.code ?? "").toUpperCase();
     const amt = n(
       x?.amount_this_cutoff ?? x?.amortization_amount ?? x?.amount ?? 0,
@@ -524,7 +537,7 @@ function extractBenefitLoanPairs(b: any): Pair[] {
 // =========================
 
 function buildEntries(
-  items: Array<{ label: string; value: any }>,
+  items: Array<{ label: string; value: unknown }>,
   opts?: { includeZero?: boolean },
 ): Entry[] {
   const includeZero = !!opts?.includeZero;
@@ -680,9 +693,9 @@ function drawItemLines3ColCompact(args: {
   if (maxY < y0) return;
 
   // dashed separator
-  (doc as any).setLineDash([1.5, 2], 0);
+  (doc as unknown as { setLineDash: (arr: number[], offset: number) => void }).setLineDash([1.5, 2], 0);
   doc.line(x0, y0 - 8, x0 + w0, y0 - 8);
-  (doc as any).setLineDash([], 0);
+  (doc as unknown as { setLineDash: (arr: number[], offset: number) => void }).setLineDash([], 0);
 
   const availH = Math.max(0, maxY - y0);
   const rowsPerCol = Math.max(0, Math.floor(availH / rowH) + 1);
@@ -771,7 +784,7 @@ function drawItemLines3ColCompact(args: {
 // =========================
 
 export async function buildPayslipsPdf(args: {
-  rows: any[];
+  rows: unknown[];
   payrollPeriodLabel: string;
   pageSize?: PageSize;
   payrollRefNo?: string;
@@ -820,8 +833,8 @@ export async function buildPayslipsPdf(args: {
   const C_SOFT_GREEN: [number, number, number] = [233, 248, 239];
   const C_TEXT_DIM: [number, number, number] = [70, 70, 70];
 
-  function drawSlip(r: any, x: number, y: number) {
-    const row = r?.data ?? r;
+  function drawSlip(r: unknown, x: number, y: number) {
+    const row = ((r as Record<string, unknown>)?.data ?? r) as Record<string, unknown>;
 
     setDraw(doc, C_BORDER);
     doc.setLineWidth(0.9);
@@ -835,7 +848,9 @@ export async function buildPayslipsPdf(args: {
     const innerW = slipW - pad * 2;
     const bottomY = y + slipH - pad;
 
-    const b = parseJsonMaybe(row?.breakdown_json ?? row?.breakdownJson) ?? {};
+    const b = (parseJsonMaybe(row?.breakdown_json ?? row?.breakdownJson) ?? {}) as Record<string, unknown>;
+    const be = (b?.earnings ?? {}) as Record<string, unknown>;
+    const bd = (b?.deductions ?? {}) as Record<string, unknown>;
 
     const payrollId = safeStr(
       args.payrollRefNo ??
@@ -905,7 +920,7 @@ export async function buildPayslipsPdf(args: {
     const manualAdditions = n(row?.manual_additions ?? 0);
 
     const retroPayTotal = n(
-      row?.retro_pay ?? row?.retroPay ?? b?.earnings?.retro_pay ?? 0,
+      row?.retro_pay ?? row?.retroPay ?? be?.retro_pay ?? 0,
     );
 
     const lateDed = n(row?.late_deduction ?? 0);
@@ -930,7 +945,7 @@ export async function buildPayslipsPdf(args: {
     const coopLoanTotal =
       coopLoanFromItems !== 0
         ? coopLoanFromItems
-        : n(row?.coop_loan ?? row?.coopLoan ?? b?.deductions?.coop_loan ?? 0);
+        : n(row?.coop_loan ?? row?.coopLoan ?? bd?.coop_loan ?? 0);
 
     // total employee loans (prefer row loan_total, else derive from items, else fallback)
     const empLoansFromItemsAll = employeeLoanItems.length
@@ -950,7 +965,7 @@ export async function buildPayslipsPdf(args: {
       row?.coop_savings ??
       row?.coopSavings ??
       row?.coop_savings_membership ??
-      b?.deductions?.coop_savings ??
+      bd?.coop_savings ??
       0,
     );
 
@@ -959,7 +974,7 @@ export async function buildPayslipsPdf(args: {
     const benPag = n(row?.benefit_pagibig ?? 0);
 
     const benefitLoansTotal = n(
-      b?.deductions?.benefit_loans?.total ?? row?.benefit_loan_total ?? 0,
+      (bd?.benefit_loans as Record<string, unknown>)?.total ?? row?.benefit_loan_total ?? 0,
     );
     const manualDedTotal = n(row?.other_deductions ?? 0);
 
@@ -1412,7 +1427,7 @@ export async function buildPayslipsPdf(args: {
 }
 
 export async function downloadPayslipsPdf(args: {
-  rows: any[];
+  rows: unknown[];
   payrollPeriodLabel: string;
   pageSize?: PageSize;
   fileName?: string;

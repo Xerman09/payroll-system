@@ -17,6 +17,7 @@ import type {
   PayrollBreakdownJson,
   PayrollComputedLine,
   PayrollRunHeader,
+  PayrollRunStatus,
   PayrollSummary,
   PayrollWorkspace,
   RetroPayRow,
@@ -24,9 +25,7 @@ import type {
   WageProfile,
   WageProrationLog,
   CutoffType,
-  // ✅ Benefit Logs
-  BenefitLog,
-  BenefitLogType,
+  AllowancePayCycle,
 } from "../types";
 
 import { computeEmployeeLine } from "../utils/compute";
@@ -134,16 +133,19 @@ function normalizeJsonOrNull(v: unknown): unknown | null {
 }
 
 function isRecordNotUnique(err: unknown): boolean {
-  const e = err as any;
+  const e = err as Record<string, unknown>;
+  const errors = e?.errors as Array<Record<string, unknown>> | undefined;
+  const extensions = errors?.[0]?.extensions as Record<string, unknown> | undefined;
+
   const code =
-    e?.errors?.[0]?.extensions?.code ??
-    e?.extensions?.code ??
+    extensions?.code ??
+    (e?.extensions as Record<string, unknown> | undefined)?.code ??
     e?.code ??
     null;
 
   if (code === "RECORD_NOT_UNIQUE") return true;
 
-  const msg = String(e?.errors?.[0]?.message ?? e?.message ?? "").toUpperCase();
+  const msg = String(errors?.[0]?.message ?? e?.message ?? "").toUpperCase();
 
   return (
     msg.includes("RECORD_NOT_UNIQUE") ||
@@ -185,15 +187,10 @@ async function runWithConcurrency<T>(
   return results;
 }
 
-function withRerunSuffix(base: string, attempt: number) {
-  const clean = String(base ?? "").trim();
-  const a = Math.max(1, Math.floor(attempt || 1));
-  return clean ? `${clean}-R${a}` : `PR-R${a}`;
-}
 
 // ✅ helpers for unique payroll_ref_no (race-safe)
 function yyyymmdd(d: string) {
-  return String(d ?? "").slice(0, 10).replaceAll("-", "");
+  return String(d ?? "").slice(0, 10).replace(/-/g, "");
 }
 function toBase36Id(id: unknown): string {
   const s0 = String(id ?? "").trim();
@@ -289,45 +286,46 @@ function normalizeWage(row: unknown): WageProfile {
   };
 }
 
-function normalizeRunHeader(row: any): PayrollRunHeader {
+function normalizeRunHeader(row: unknown): PayrollRunHeader {
+  const r = (row ?? {}) as Record<string, unknown>;
   return {
-    payroll_run_id: n(row.payroll_run_id ?? row.id),
-    cutoff_id: n(row.cutoff_id),
-    cutoff_type: (row.cutoff_type ?? "FIRST") as any,
-    cutoff_start: s(row.cutoff_start),
-    cutoff_end: s(row.cutoff_end),
-    department_id: row.department_id == null ? null : n(row.department_id),
-    status: (row.status ?? "DRAFT") as any,
-    payroll_ref_no: s(row.payroll_ref_no),
-    headcount: n(row.headcount),
-    total_gross: n(row.total_gross),
-    total_deductions: n(row.total_deductions),
-    total_net: n(row.total_net),
-    variance_alert_count: n(row.variance_alert_count),
-    remarks: row.remarks ?? null,
-    created_by: n(row.created_by),
-    created_at: s(row.created_at),
-    processed_at: row.processed_at ?? null,
-    posted_by: row.posted_by ?? null,
-    posted_at: row.posted_at ?? null,
+    payroll_run_id: n(r.payroll_run_id ?? r.id),
+    cutoff_id: n(r.cutoff_id),
+    cutoff_type: (r.cutoff_type ?? "FIRST") as CutoffType,
+    cutoff_start: s(r.cutoff_start),
+    cutoff_end: s(r.cutoff_end),
+    department_id: r.department_id == null ? null : n(r.department_id),
+    status: (r.status ?? "DRAFT") as PayrollRunStatus,
+    payroll_ref_no: s(r.payroll_ref_no),
+    headcount: n(r.headcount),
+    total_gross: n(r.total_gross),
+    total_deductions: n(r.total_deductions),
+    total_net: n(r.total_net),
+    variance_alert_count: n(r.variance_alert_count),
+    remarks: (r.remarks as string) ?? null,
+    created_by: n(r.created_by),
+    created_at: s(r.created_at),
+    processed_at: (r.processed_at as string) ?? null,
+    posted_by: (r.posted_by as number) ?? null,
+    posted_at: (r.posted_at as string) ?? null,
   };
 }
 
-function normalizeBenefitSetting(row: any): BenefitCutoffSetting {
-  const r = row as Record<string, unknown>;
+function normalizeBenefitSetting(row: unknown): BenefitCutoffSetting {
+  const r = (row ?? {}) as Record<string, unknown>;
   return {
     id: n(r.id),
-    benefit_code: (r.benefit_code as string) as any,
+    benefit_code: (r.benefit_code as string) as BenefitCode,
     benefit_name: s(r.benefit_name),
-    cutoff: (r.cutoff as string) as any,
+    cutoff: (r.cutoff as string) as CutoffType,
     is_active: n(r.is_active ?? 0),
     effective_from: r.effective_from ? s(r.effective_from) : null,
     effective_to: r.effective_to ? s(r.effective_to) : null,
   };
 }
 
-function normalizeEmployeeLoan(row: any): EmployeeLoan {
-  const r = row as Record<string, unknown>;
+function normalizeEmployeeLoan(row: unknown): EmployeeLoan {
+  const r = (row ?? {}) as Record<string, unknown>;
   return {
     loan_id: n(r.loan_id ?? r.id),
     user_id: n(r.user_id),
@@ -339,8 +337,8 @@ function normalizeEmployeeLoan(row: any): EmployeeLoan {
   };
 }
 
-function normalizeAllowance(row: any): EmployeeAllowance {
-  const r = row as Record<string, unknown>;
+function normalizeAllowance(row: unknown): EmployeeAllowance {
+  const r = (row ?? {}) as Record<string, unknown>;
   return {
     allowance_id: n(r.allowance_id ?? r.id),
     user_id: n(r.user_id),
@@ -352,7 +350,7 @@ function normalizeAllowance(row: any): EmployeeAllowance {
 
     is_recurring: bitToNum(r.is_recurring),
     is_active: bitToNum(r.is_active),
-    pay_cycle: (r.pay_cycle as any) ?? "N/A",
+    pay_cycle: (r.pay_cycle as AllowancePayCycle) ?? "N/A",
 
     start_date: r.start_date ? s(r.start_date) : null,
     end_date: r.end_date ? s(r.end_date) : null,
@@ -427,18 +425,21 @@ function normalizeManualCategory(row: unknown): string | null {
 // public API
 // ------------------------------
 export function isActiveByDeletedFlags(args: { user?: UserRow | null; wage?: WageProfile | null }): boolean {
-  const uDel = bitToNum((args.user as any)?.is_deleted ?? (args.user as any)?.isDeleted);
-  const wDel = bitToNum((args.wage as any)?.is_deleted ?? (args.wage as any)?.isDeleted);
+  const user = args.user as UserRow;
+  const wage = args.wage as WageProfile;
+
+  const uDel = bitToNum(user?.is_deleted);
+  const wDel = bitToNum(wage?.is_deleted ?? wage?.isCard); // alias
   return !(uDel === 1 || wDel === 1);
 }
 
 export async function listCutoffs(): Promise<CutoffSetting[]> {
-  const rows = await api.listItems<any>(RES.cutoffs, { sort: "-id", limit: 50 });
+  const rows = await api.listItems<CutoffSetting>(RES.cutoffs, { sort: "-id", limit: 50 });
   return (rows ?? []).map(normalizeCutoff);
 }
 
 export async function listDepartments(): Promise<Department[]> {
-  const rows = await api.listItems<any>(RES.departments, { sort: "department_name", limit: 200 });
+  const rows = await api.listItems<Department>(RES.departments, { sort: "department_name", limit: 200 });
   return (rows ?? []).map(normalizeDepartment);
 }
 
@@ -450,7 +451,7 @@ export async function findExistingPostedRun(args: {
 }): Promise<PayrollRunHeader | null> {
   const { cutoffId, departmentId, cutoffStart, cutoffEnd } = args;
 
-  const rows = await api.listItems<any>(RES.payrollRun, {
+  const rows = await api.listItems<PayrollRunHeader>(RES.payrollRun, {
     "filter[cutoff_id][_eq]": cutoffId,
 
     ...(cutoffStart ? { "filter[cutoff_start][_eq]": cutoffStart } : {}),
@@ -480,7 +481,7 @@ export async function findExistingDraftRun(args: {
 }): Promise<PayrollRunHeader | null> {
   const { cutoffId, departmentId, cutoffStart, cutoffEnd } = args;
 
-  const rows = await api.listItems<any>(RES.payrollRun, {
+  const rows = await api.listItems<PayrollRunHeader>(RES.payrollRun, {
     "filter[cutoff_id][_eq]": cutoffId,
 
     ...(cutoffStart ? { "filter[cutoff_start][_eq]": cutoffStart } : {}),
@@ -502,14 +503,14 @@ export async function findExistingDraftRun(args: {
 // ✅ make it short + stable (prevents long department-name refs)
 export function generatePayrollRefNo(args: { cutoff: CutoffSetting; department?: Department | null }) {
   const dep = args.department?.id != null ? String(args.department.id) : "ALL";
-  return `PR-${dep}-${args.cutoff.start_date.replaceAll("-", "")}-${args.cutoff.end_date.replaceAll("-", "")}`;
+  return `PR-${dep}-${args.cutoff.start_date.replace(/-/g, "")}-${args.cutoff.end_date.replace(/-/g, "")}`;
 }
 
 async function postedRunHasOnHoldEmployees(payrollRunId: number): Promise<boolean> {
   const pid = n(payrollRunId);
   if (!pid) return false;
 
-  const rows = await safeList<any>(
+  const rows = await safeList<Record<string, unknown>>(
     RES.payrollLines,
     {
       "filter[payroll_run_id][_eq]": pid,
@@ -575,13 +576,13 @@ export async function createOrGetActiveRun(args: {
     created_by: args.createdBy,
   };
 
-  let created: any;
+  let created: Record<string, unknown>;
   try {
-    created = await api.createItem<any>(RES.payrollRun, {
+    created = await api.createItem<Record<string, unknown>>(RES.payrollRun, {
       ...basePayload,
       payroll_ref_no: makeTempPayrollRefNo({ cutoffId, departmentId: args.departmentId }),
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRecordNotUnique(e)) {
       const again = await findExistingDraftRun({ cutoffId, departmentId: args.departmentId });
       if (again) return again;
@@ -589,7 +590,7 @@ export async function createOrGetActiveRun(args: {
     throw e;
   }
 
-  const payrollRunId = created?.payroll_run_id ?? created?.id;
+  const payrollRunId = n(created?.payroll_run_id ?? created?.id);
   const pid = n(payrollRunId);
   if (!pid) throw new Error("Create payroll_run failed: missing payroll_run_id");
 
@@ -603,7 +604,7 @@ export async function createOrGetActiveRun(args: {
 
   try {
     await api.patchItem(RES.payrollRun, pid, { payroll_ref_no: finalRef });
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRecordNotUnique(e)) {
       const fallback = `${finalRef.slice(0, Math.max(1, 47))}-${Math.random()
         .toString(36)
@@ -615,7 +616,7 @@ export async function createOrGetActiveRun(args: {
     }
   }
 
-  const updated = await api.getItem<any>(RES.payrollRun, pid, {});
+  const updated = await api.getItem<Record<string, unknown>>(RES.payrollRun, pid, {});
   return normalizeRunHeader(updated);
 }
 
@@ -680,21 +681,21 @@ export async function loadWorkspace(args: {
   const department =
     departmentId == null
       ? null
-      : normalizeDepartment(await api.getItem<any>(RES.departments, departmentId, {}));
+      : normalizeDepartment(await api.getItem<Record<string, unknown>>(RES.departments, departmentId, {}));
 
-  const rawEmployees = await api.listItemsWithMeta<any>(RES.users, {
+  const rawEmployees = await api.listItemsWithMeta<Record<string, unknown>>(RES.users, {
     ...(departmentId == null ? {} : { "filter[user_department][_eq]": departmentId }),
     limit: 5000,
   });
 
-  const companyName = rawEmployees.meta?.companyName;
+  const companyName = (rawEmployees.meta as Record<string, unknown> | undefined)?.companyName as string | undefined;
 
   const employees = (rawEmployees.data ?? []).map(normalizeUser);
   const userIds = employees.map((u) => u.id);
 
   const wagesArr = userIds.length
     ? (
-      await api.listItems<any>(RES.wages, {
+      await api.listItems<Record<string, unknown>>(RES.wages, {
         "filter[user_id][_in]": userIds.join(","),
         limit: 5000,
       })
@@ -705,7 +706,7 @@ export async function loadWorkspace(args: {
   for (const w of wagesArr) wages.set(w.user_id, w);
 
   const attendanceArr = userIds.length
-    ? await api.listItems<any>(RES.attendance, {
+    ? await api.listItems<AttendanceApproval>(RES.attendance, {
       "filter[employee_id][_in]": userIds.join(","),
       "filter[date_schedule][_between]": `${cutoff.start_date},${cutoff.end_date}`,
       "filter[status][_eq]": "approved",
@@ -731,7 +732,7 @@ export async function loadWorkspace(args: {
 
   // ✅ Wage proration logs (effective-date driven within cutoff window)
   const prorationRows = userIds.length
-    ? await safeList<any>(RES.wageProration, {
+    ? await safeList<Record<string, unknown>>(RES.wageProration, {
       "filter[user_id][_in]": userIds.join(","),
       "filter[effective_date][_lte]": cutoff.end_date,
       sort: "effective_date,created_at,id",
@@ -748,7 +749,7 @@ export async function loadWorkspace(args: {
     wageProrationLogs.get(uid)!.push(r);
   }
 
-  for (const [uid, rows] of wageProrationLogs.entries()) {
+  wageProrationLogs.forEach((rows, uid) => {
     rows.sort((a, b) => {
       if (a.effective_date !== b.effective_date)
         return a.effective_date < b.effective_date ? -1 : 1;
@@ -758,11 +759,11 @@ export async function loadWorkspace(args: {
       return n(a.id) - n(b.id);
     });
     wageProrationLogs.set(uid, rows);
-  }
+  });
 
   // Manual additions/deductions (per-cutoff overlap)
   const adds = userIds.length
-    ? await safeList<any>(RES.otherAdds, {
+    ? await safeList<ManualEntry>(RES.otherAdds, {
       "filter[user_id][_in]": userIds.join(","),
       "filter[cutoff_start][_lte]": cutoff.end_date,
       "filter[cutoff_end][_gte]": cutoff.start_date,
@@ -771,7 +772,7 @@ export async function loadWorkspace(args: {
     : [];
 
   const deds = userIds.length
-    ? await safeList<any>(RES.otherDeds, {
+    ? await safeList<ManualEntry>(RES.otherDeds, {
       "filter[user_id][_in]": userIds.join(","),
       "filter[cutoff_start][_lte]": cutoff.end_date,
       "filter[cutoff_end][_gte]": cutoff.start_date,
@@ -781,7 +782,7 @@ export async function loadWorkspace(args: {
 
   // DR payments as system deductions (read-only)
   const drPays = userIds.length
-    ? await safeList<any>(RES.drPayments, {
+    ? await safeList<Record<string, unknown>>(RES.drPayments, {
       "filter[employee_id][_in]": userIds.join(","),
       "filter[cutoff_from][_lte]": cutoff.end_date,
       "filter[cutoff_to][_gte]": cutoff.start_date,
@@ -812,27 +813,29 @@ export async function loadWorkspace(args: {
   }
 
   for (const d of deds ?? []) {
-    const entry = {
-      id: n(d.id),
+    const dRow = d as Record<string, unknown>;
+    const entry: ManualEntry = {
+      id: n(dRow.id),
       cutoff_id: cutoff.id,
-      user_id: n(d.user_id),
+      user_id: n(dRow.user_id),
       type: "DEDUCTION",
-      desc: s(d.description ?? d.desc ?? "Manual Deduction"),
-      amount: n(d.amount),
-      category: normalizeManualCategory(d),
-    } as any as ManualEntry;
-    pushME(n(d.user_id), entry);
+      desc: s(dRow.description ?? dRow.desc ?? "Manual Deduction"),
+      amount: n(dRow.amount),
+      category: normalizeManualCategory(dRow as unknown),
+    };
+    pushME(n(dRow.user_id), entry);
   }
 
   for (const p of drPays ?? []) {
-    const userId = n(p.employee_id);
-    const drId = n(p.dr_payment_id ?? p.id);
-    const drNo = s(p.delivery_receipt_number ?? "");
-    const amt = n(p.amount_paid);
+    const pRow = p as Record<string, unknown>;
+    const userId = n(pRow.employee_id);
+    const drId = n(pRow.dr_payment_id ?? pRow.id);
+    const drNo = s(pRow.delivery_receipt_number ?? "");
+    const amt = n(pRow.amount_paid);
 
     if (!userId || !drId || amt <= 0) continue;
 
-    const entry = {
+    const entry: ManualEntry = {
       id: -Math.abs(drId),
       cutoff_id: cutoff.id,
       user_id: userId,
@@ -840,14 +843,14 @@ export async function loadWorkspace(args: {
       desc: `${drNo || `#${drId}`}`,
       amount: amt,
       category: "DR_PAYMENT",
-    } as any as ManualEntry;
+    };
 
     pushME(userId, entry);
   }
 
   // ✅ Retro Pay (strict containment: retro_start >= cutoff_start AND retro_end <= cutoff_end)
-  const retroArr = userIds.length
-    ? await safeList<any>(RES.retro_pay, {
+  const retroArrRaw = userIds.length
+    ? await safeList<Record<string, unknown>>(RES.retro_pay, {
       "filter[user_id][_in]": userIds.join(","),
       "filter[cutoff_start][_gte]": cutoff.start_date,
       "filter[cutoff_end][_lte]": cutoff.end_date,
@@ -857,7 +860,7 @@ export async function loadWorkspace(args: {
     : [];
 
   const retroPays = new Map<number, RetroPayRow[]>();
-  for (const raw of retroArr ?? []) {
+  for (const raw of (retroArrRaw ?? []) as Record<string, unknown>[]) {
     const userId = n(raw.user_id);
     if (!userId) continue;
 
@@ -865,15 +868,14 @@ export async function loadWorkspace(args: {
       retro_id: n(raw.retro_id ?? raw.id),
       user_id: userId,
       amount: n(raw.amount),
-      description: raw.description ?? null,
+      description: (raw.description as string) ?? null,
       cutoff_start: s(raw.cutoff_start).slice(0, 10),
       cutoff_end: s(raw.cutoff_end).slice(0, 10),
       is_processed: bitToNum(raw.is_processed),
-      created_by: raw.created_by ?? null,
-      created_date: raw.created_date ?? raw.created_at ?? null,
-      updated_by: raw.updated_by ?? null,
-      updated_date: raw.updated_date ?? raw.updated_at ?? null,
-      ...raw,
+      created_by: (raw.created_by as number) ?? null,
+      created_date: s(raw.created_date ?? raw.created_at ?? raw.date_created ?? ""),
+      updated_by: (raw.updated_by as number) ?? null,
+      updated_date: s(raw.updated_date ?? raw.updated_at ?? raw.date_updated ?? ""),
     };
 
     if (!retroPays.has(userId)) retroPays.set(userId, []);
@@ -881,8 +883,8 @@ export async function loadWorkspace(args: {
   }
 
   // ✅ COOP Savings Membership (NO cutoff fields; uses start_date/end_date + monthly_amount)
-  const coopArr = userIds.length
-    ? await safeList<any>(RES.coop_savings, {
+  const coopArrRaw = userIds.length
+    ? await safeList<Record<string, unknown>>(RES.coop_savings, {
       "filter[user_id][_in]": userIds.join(","),
       "filter[is_active][_eq]": 1,
       "filter[start_date][_lte]": cutoff.end_date,
@@ -893,7 +895,7 @@ export async function loadWorkspace(args: {
     : [];
 
   const coopSavingsMemberships = new Map<number, CoopSavingsMembershipRow[]>();
-  for (const raw of coopArr ?? []) {
+  for (const raw of (coopArrRaw ?? []) as Record<string, unknown>[]) {
     const userId = n(raw.user_id);
     if (!userId) continue;
 
@@ -907,18 +909,17 @@ export async function loadWorkspace(args: {
       start_date: s(raw.start_date).slice(0, 10),
       end_date: raw.end_date ? s(raw.end_date).slice(0, 10) : null,
       is_active: bitToNum(raw.is_active),
-      created_by: raw.created_by ?? null,
-      created_date: raw.created_date ?? raw.created_at ?? null,
-      updated_by: raw.updated_by ?? null,
-      updated_date: raw.updated_date ?? raw.updated_at ?? null,
-      ...raw,
+      created_by: (raw.created_by as number) ?? null,
+      created_date: s(raw.created_date ?? raw.created_at ?? raw.date_created ?? ""),
+      updated_by: (raw.updated_by as number) ?? null,
+      updated_date: s(raw.updated_date ?? raw.updated_at ?? raw.date_updated ?? ""),
     };
 
     if (!coopSavingsMemberships.has(userId)) coopSavingsMemberships.set(userId, []);
     coopSavingsMemberships.get(userId)!.push(row);
   }
 
-  const rawBenefitSettings = await safeList<any>(RES.benefitSettings, {
+  const rawBenefitSettings = await safeList<BenefitCutoffSetting>(RES.benefitSettings, {
     "filter[is_active][_eq]": 1,
     limit: 50,
   });
@@ -952,7 +953,7 @@ export async function loadWorkspace(args: {
   }
 
   const rawLoans = userIds.length
-    ? await safeList<any>(RES.employeeLoans, {
+    ? await safeList<Record<string, unknown>>(RES.employeeLoans, {
       "filter[user_id][_in]": userIds.join(","),
       "filter[status][_eq]": "ACTIVE",
       limit: 5000,
@@ -975,7 +976,7 @@ export async function loadWorkspace(args: {
   }
 
   const rawBenefitLoans = userIds.length
-    ? await safeList<any>(RES.benefitLoans, {
+    ? await safeList<Record<string, unknown>>(RES.benefitLoans, {
       "filter[user_id][_in]": userIds.join(","),
       "filter[status][_eq]": "ACTIVE",
       "filter[remaining_balance][_gt]": 0,
@@ -987,11 +988,11 @@ export async function loadWorkspace(args: {
   for (const r of rawBenefitLoans ?? []) {
     const userId = n(r.user_id);
     if (!benefitLoans.has(userId)) benefitLoans.set(userId, []);
-    benefitLoans.get(userId)!.push(r as BenefitLoanRow);
+    benefitLoans.get(userId)!.push(r as unknown as BenefitLoanRow);
   }
 
   const rawAllowances = userIds.length
-    ? await safeList<any>(RES.allowances, {
+    ? await safeList<Record<string, unknown>>(RES.allowances, {
       "filter[user_id][_in]": userIds.join(","),
       "filter[is_active][_eq]": 1,
       limit: 20000,
@@ -1116,7 +1117,7 @@ export function computeRegister(args: {
 
       retroPays: retro,
       coopSavingsMemberships: coop,
-    });
+    }) as PayrollComputedLine;
 
     lines.push(line);
 
@@ -1188,10 +1189,11 @@ function normalizeHoldMapForUsers(
 
 function holdMapEquals(a: Map<number, boolean>, b: Map<number, boolean>): boolean {
   if (a.size !== b.size) return false;
-  for (const [k, v] of a.entries()) {
-    if (Boolean(b.get(k)) !== Boolean(v)) return false;
-  }
-  return true;
+  let eq = true;
+  a.forEach((v, k) => {
+    if (Boolean(b.get(k)) !== Boolean(v)) eq = false;
+  });
+  return eq;
 }
 
 export async function loadPersistedHoldMap(payrollRunId: number): Promise<Map<number, boolean>> {
@@ -1199,7 +1201,7 @@ export async function loadPersistedHoldMap(payrollRunId: number): Promise<Map<nu
   const map = new Map<number, boolean>();
   if (!pid) return map;
 
-  const rows = await safeList<any>(
+  const rows = await safeList<Record<string, unknown>>(
     RES.payrollLines,
     {
       "filter[payroll_run_id][_eq]": pid,
@@ -1229,7 +1231,7 @@ export async function loadPostedEmployeesMap(payrollRunId: number): Promise<Map<
   const map = new Map<number, boolean>();
   if (!pid) return map;
 
-  const rows = await safeList<any>(
+  const rows = await safeList<Record<string, unknown>>(
     RES.payrollLines,
     {
       "filter[payroll_run_id][_eq]": pid,
@@ -1271,7 +1273,7 @@ export async function enforceOnHoldEmployeesAndMaybeRerun(args: {
   didRerun: boolean;
   rerunReason: string | null;
 }> {
-  const payrollRunId = n(args.payrollRun?.payroll_run_id ?? (args.payrollRun as any)?.id);
+  const payrollRunId = n(args.payrollRun?.payroll_run_id);
   if (!payrollRunId) throw new Error("Invalid payrollRunId.");
 
   const status = String(args.payrollRun?.status ?? "DRAFT").toUpperCase();
@@ -1363,7 +1365,7 @@ export async function postDRPaymentsToPayroll(args: {
   const employeeIds = (args.employeeIds ?? []).filter((x) => Number.isFinite(x) && x > 0);
   if (!employeeIds.length) return;
 
-  const rows = await safeList<any>(RES.drPayments, {
+  const rows = await safeList<Record<string, unknown>>(RES.drPayments, {
     "filter[employee_id][_in]": employeeIds.join(","),
     "filter[cutoff_from][_lte]": args.cutoff.end_date,
     "filter[cutoff_to][_gte]": args.cutoff.start_date,
@@ -1404,7 +1406,7 @@ export async function createManualEntry(args: {
 }): Promise<ManualEntry> {
   const resource = resourceForManualType(args.type);
 
-  const payload: Record<string, any> = {
+  const payload: Record<string, unknown> = {
     user_id: args.userId,
     amount: args.amount,
     description: args.desc,
@@ -1419,9 +1421,9 @@ export async function createManualEntry(args: {
     payload.type = t === "SHORTAGE" ? "SHORTAGE" : "MANUAL";
   }
 
-  const created = await api.createItem<any>(resource, payload);
+  const created = await api.createItem<Record<string, unknown>>(resource, payload);
 
-  return ({
+  return {
     id: n(created?.id),
     cutoff_id: args.cutoff.id,
     user_id: args.userId,
@@ -1429,7 +1431,7 @@ export async function createManualEntry(args: {
     desc: s(created?.description ?? args.desc),
     amount: n(created?.amount ?? args.amount),
     category: args.type === "DEDUCTION" ? normalizeManualCategory(created) : null,
-  } as any) as ManualEntry;
+  };
 }
 
 export async function updateManualEntry(args: {
@@ -1441,7 +1443,7 @@ export async function updateManualEntry(args: {
 }): Promise<void> {
   const resource = resourceForManualType(args.type);
 
-  const payload: Record<string, any> = {
+  const payload: Record<string, unknown> = {
     description: args.desc,
     amount: args.amount,
   };
@@ -1478,10 +1480,10 @@ export async function createDRPaymentDeduction(args: {
 }): Promise<ManualEntry> {
   const payment_date =
     (args.paymentDate && String(args.paymentDate).trim()) ||
-    (args.cutoff as any)?.payout_date ||
+    args.cutoff.payout_date ||
     args.cutoff.end_date;
 
-  const payload: Record<string, any> = {
+  const payload: Record<string, unknown> = {
     employee_id: args.userId,
     delivery_receipt_number: String(args.drNo ?? "").trim(),
     cutoff_from: args.cutoff.start_date,
@@ -1498,13 +1500,13 @@ export async function createDRPaymentDeduction(args: {
     created_by: args.createdBy ?? null,
   };
 
-  const created = await api.createItem<any>(RES.drPayments, payload);
+  const created = await api.createItem<Record<string, unknown>>(RES.drPayments, payload);
 
   const drId = n(created?.dr_payment_id ?? created?.id);
   const drNo = s(created?.delivery_receipt_number ?? payload.delivery_receipt_number);
   const amt = n(created?.amount_paid ?? payload.amount_paid);
 
-  return ({
+  return {
     id: -Math.abs(drId || Date.now()),
     cutoff_id: args.cutoff.id,
     user_id: args.userId,
@@ -1512,15 +1514,15 @@ export async function createDRPaymentDeduction(args: {
     desc: `${drNo || `#${drId || "NEW"}`}`,
     amount: amt,
     category: "DR_PAYMENT",
-  } as any) as ManualEntry;
+  };
 }
 
 function drIdFromManualEntry(e: ManualEntry): number {
-  const meta = (e as any)?.dr_payment_id ?? (e as any)?.source_id ?? null;
+  const meta = (e.meta as Record<string, unknown>)?.dr_payment_id ?? (e.meta as Record<string, unknown>)?.source_id ?? null;
   const id = n(meta);
   if (id > 0) return id;
 
-  const fallback = Math.abs(n((e as any)?.id));
+  const fallback = Math.abs(n(e.id));
   return fallback > 0 ? fallback : 0;
 }
 
@@ -1539,7 +1541,7 @@ export async function updateDRPayment(args: {
   const id = drIdFromManualEntry(args.entry);
   if (!id) throw new Error("Invalid DR payment id.");
 
-  const payload: Record<string, any> = {
+  const payload: Record<string, unknown> = {
     delivery_receipt_number: stripDRPrefix(args.desc),
     amount_paid: Number(args.amount ?? 0),
   };
@@ -1567,7 +1569,7 @@ export async function updateDRPaymentDeduction(args: {
   amount: number;
   remarks?: string | null;
 }): Promise<void> {
-  const entry = { id: -Math.abs(args.drPaymentId) } as any;
+  const entry = { id: -Math.abs(args.drPaymentId) } as unknown as ManualEntry;
   await updateDRPayment({
     entry,
     desc: String(args.drReceiptNo ?? "").trim(),
@@ -1577,7 +1579,7 @@ export async function updateDRPaymentDeduction(args: {
 }
 
 export async function deleteDRPaymentDeduction(args: { drPaymentId: number }): Promise<void> {
-  const entry = { id: -Math.abs(args.drPaymentId) } as any;
+  const entry = { id: -Math.abs(args.drPaymentId) } as unknown as ManualEntry;
   await deleteDRPayment({ entry });
 }
 
@@ -1756,7 +1758,7 @@ type PayrollRunEmployeeItemPayload = {
   source_table?: string | null;
   source_id?: number | null;
 
-  meta?: any | null;
+  meta?: unknown | null;
 };
 
 function buildItemPayloadsFromBreakdown(args: {
@@ -1778,16 +1780,16 @@ function buildItemPayloadsFromBreakdown(args: {
     cutoff_end: s(args.cutoff.end_date),
   };
 
-  const earnings = (b as any)?.earnings ?? {};
-  const deductions = (b as any)?.deductions ?? {};
+  const earnings = b?.earnings ?? {};
+  const deductions = b?.deductions ?? {};
 
   // 1) Allowances
-  for (const [idx, it] of arr<any>(earnings?.allowance_items).entries()) {
+  arr<Record<string, unknown>>(earnings?.allowance_items as Record<string, unknown>[]).forEach((it, idx) => {
     const allowanceId = n(it?.allowance_id ?? it?.id);
     const key = allowanceId ? `ALW:${allowanceId}` : `ALW:IDX${idx + 1}`;
 
     const amount = round2(n(it?.amount_this_cutoff ?? it?.amount ?? it?.amount_full ?? 0));
-    if (amount === 0) continue;
+    if (amount === 0) return;
 
     out.push({
       ...base,
@@ -1807,10 +1809,10 @@ function buildItemPayloadsFromBreakdown(args: {
         source: it?.source ?? null,
       }),
     });
-  }
+  });
 
   // 2) Manual additions
-  for (const [idx, it] of arr<any>(earnings?.manual_addition_items).entries()) {
+  arr<Record<string, unknown>>(earnings?.manual_addition_items).forEach((it, idx) => {
     const itemKeyRaw = it?.item_key ?? it?.key ?? null;
     const sourceIdRaw = n(it?.source_id ?? it?.id ?? 0);
     const sourceId = sourceIdRaw > 0 ? sourceIdRaw : Math.abs(sourceIdRaw);
@@ -1818,7 +1820,7 @@ function buildItemPayloadsFromBreakdown(args: {
     const key = (itemKeyRaw && s(itemKeyRaw)) || (sourceId ? `MA:${sourceId}` : `MA:IDX${idx + 1}`);
 
     const amount = round2(n(it?.amount ?? 0));
-    if (amount === 0) continue;
+    if (amount === 0) return;
 
     out.push({
       ...base,
@@ -1832,16 +1834,16 @@ function buildItemPayloadsFromBreakdown(args: {
       source_id: sourceId > 0 ? sourceId : null,
       meta: normalizeJsonOrNull(it?.meta ?? null),
     });
-  }
+  });
 
   // 2.1) Retro pay items
-  for (const [idx, it] of arr<any>(earnings?.retro_items ?? earnings?.retro_pay_items).entries()) {
+  arr<Record<string, unknown>>(earnings?.retro_items ?? earnings?.retro_pay_items).forEach((it, idx) => {
     const sourceIdRaw = n(it?.source_id ?? it?.retro_id ?? it?.id ?? 0);
     const sourceId = sourceIdRaw > 0 ? sourceIdRaw : Math.abs(sourceIdRaw);
     const key = sourceId ? `RP:${sourceId}` : `RP:IDX${idx + 1}`;
 
     const amount = round2(n(it?.amount ?? 0));
-    if (amount === 0) continue;
+    if (amount === 0) return;
 
     const desc =
       (it?.description != null ? s(it.description) : "") ||
@@ -1860,10 +1862,10 @@ function buildItemPayloadsFromBreakdown(args: {
       source_id: sourceId > 0 ? sourceId : null,
       meta: normalizeJsonOrNull(it?.meta ?? null),
     });
-  }
+  });
 
   // 3) Employee loans
-  for (const [idx, it] of arr<any>(deductions?.employee_loan_items).entries()) {
+  arr<Record<string, unknown>>(deductions?.employee_loan_items as Record<string, unknown>[]).forEach((it, idx) => {
     const itemKeyRaw = it?.item_key ?? it?.key ?? null;
     const loanIdRaw = n(it?.loan_id ?? it?.source_id ?? it?.id ?? 0);
     const loanId = loanIdRaw > 0 ? loanIdRaw : Math.abs(loanIdRaw);
@@ -1871,7 +1873,7 @@ function buildItemPayloadsFromBreakdown(args: {
     const key = (itemKeyRaw && s(itemKeyRaw)) || (loanId ? `EL:${loanId}` : `EL:IDX${idx + 1}`);
 
     const amount = round2(n(it?.amount ?? 0));
-    if (amount === 0) continue;
+    if (amount === 0) return;
 
     out.push({
       ...base,
@@ -1885,17 +1887,17 @@ function buildItemPayloadsFromBreakdown(args: {
       source_id: loanId > 0 ? loanId : null,
       meta: normalizeJsonOrNull(it?.meta ?? null),
     });
-  }
+  });
 
   // 4) Benefit loans
-  const benefitLoanItems = arr<any>(deductions?.benefit_loans?.items);
-  for (const [idx, it] of benefitLoanItems.entries()) {
+  const benefitLoanItems = arr<Record<string, unknown>>((deductions as Record<string, unknown>)?.benefit_loans ? (deductions.benefit_loans as Record<string, unknown>)?.items : null);
+  benefitLoanItems.forEach((it, idx) => {
     const loanIdRaw = n(it?.loan_id ?? it?.id ?? 0);
     const loanId = loanIdRaw > 0 ? loanIdRaw : Math.abs(loanIdRaw);
     const key = loanId ? `BL:${loanId}` : `BL:IDX${idx + 1}`;
 
     const amount = round2(n(it?.amount_this_cutoff ?? it?.amount ?? 0));
-    if (amount === 0) continue;
+    if (amount === 0) return;
 
     out.push({
       ...base,
@@ -1919,10 +1921,10 @@ function buildItemPayloadsFromBreakdown(args: {
         amount_this_cutoff: it?.amount_this_cutoff ?? null,
       }),
     });
-  }
+  });
 
   // 5) Manual deductions (ensure source_id NEVER negative)
-  for (const [idx, it] of arr<any>(deductions?.manual_deduction_items).entries()) {
+  arr<Record<string, unknown>>(deductions?.manual_deduction_items as Record<string, unknown>[]).forEach((it, idx) => {
     const itemKeyRaw = it?.item_key ?? it?.key ?? null;
 
     const sourceIdRaw = n(it?.source_id ?? it?.id ?? 0);
@@ -1932,7 +1934,7 @@ function buildItemPayloadsFromBreakdown(args: {
     const key = (itemKeyRaw && s(itemKeyRaw)) || (sourceId ? `MD:${sourceId}` : `MD:IDX${idx + 1}`);
 
     const amount = round2(n(it?.amount ?? 0));
-    if (amount === 0) continue;
+    if (amount === 0) return;
 
     const cat =
       it?.category != null && String(it.category).trim()
@@ -1954,13 +1956,13 @@ function buildItemPayloadsFromBreakdown(args: {
       source_table: sourceTable,
       source_id: sourceId > 0 ? sourceId : null,
       meta: normalizeJsonOrNull(
-        isDR ? { ...(it?.meta ?? null), original_source_id: sourceIdRaw } : it?.meta ?? null,
+        isDR ? { ...((it?.meta as Record<string, unknown>) ?? {}), original_source_id: sourceIdRaw } : it?.meta ?? null,
       ),
     });
-  }
+  });
 
   // 5.1) COOP savings membership items
-  for (const [idx, it] of arr<any>(deductions?.coop_savings_items).entries()) {
+  arr<Record<string, unknown>>(deductions?.coop_savings_items).forEach((it, idx) => {
     const membershipId = it?.membership_id != null ? s(it.membership_id) : "";
     const sourceId = n(it?.source_id ?? it?.id ?? 0);
     const key = membershipId
@@ -1970,7 +1972,7 @@ function buildItemPayloadsFromBreakdown(args: {
         : `CSM:IDX${idx + 1}`;
 
     const amount = round2(n(it?.amount ?? 0));
-    if (amount === 0) continue;
+    if (amount === 0) return;
 
     out.push({
       ...base,
@@ -1982,9 +1984,9 @@ function buildItemPayloadsFromBreakdown(args: {
       amount,
       source_table: "coop_savings_membership",
       source_id: Number.isFinite(sourceId) && sourceId > 0 ? sourceId : null,
-      meta: normalizeJsonOrNull(it?.meta ?? null),
+      meta: normalizeJsonOrNull((it?.meta as Record<string, unknown>) ?? null),
     });
-  }
+  });
 
   const seen = new Set<string>();
   return out.filter((x) => {
@@ -2000,9 +2002,9 @@ async function deleteAllLineItemsForEmployee(args: { payrollRunEmployeeId: numbe
   const preId = n(args.payrollRunEmployeeId);
   if (!preId) return;
 
-  let rows: any[] = [];
+  let rows: Record<string, unknown>[] = [];
   try {
-    rows = await safeList<any>(
+    rows = await safeList<Record<string, unknown>>(
       RES.payrollLineItems,
       {
         "filter[payroll_run_employee_id][_eq]": preId,
@@ -2030,7 +2032,7 @@ async function syncLineItemsForEmployee(args: {
   payrollRunId: number;
   userId: number;
   cutoff: CutoffSetting;
-  breakdownJson: any | null;
+  breakdownJson: unknown | null;
 }): Promise<void> {
   const preId = n(args.payrollRunEmployeeId);
   if (!preId) return;
@@ -2049,7 +2051,7 @@ async function syncLineItemsForEmployee(args: {
 
   try {
     const tasks = payloads.map((p) => async () => {
-      await api.createItem<any>(RES.payrollLineItems, p);
+      await api.createItem<Record<string, unknown>>(RES.payrollLineItems, p);
     });
     await runWithConcurrency(tasks, 10);
   } catch (e) {
@@ -2070,7 +2072,7 @@ export async function saveLines(args: {
 
   const lines = Array.isArray(args.lines) ? args.lines : [];
 
-  const existing = await safeList<any>(
+  const existing = await safeList<Record<string, unknown>>(
     RES.payrollLines,
     {
       "filter[payroll_run_id][_eq]": payrollRunId,
@@ -2080,7 +2082,7 @@ export async function saveLines(args: {
     [],
   );
 
-  const existingByUser = new Map<number, any>();
+  const existingByUser = new Map<number, Record<string, unknown>>();
   for (const r of existing ?? []) {
     const uid = n(r?.user_id ?? r?.employee_id ?? r?.userId ?? r?.employeeId);
     if (!uid) continue;
@@ -2091,11 +2093,12 @@ export async function saveLines(args: {
   const tasks: Array<() => Promise<void>> = [];
 
   for (const line of lines) {
+    const l = line as unknown as Record<string, unknown>;
     const userId =
-      n((line as any)?.user_id) ||
-      n((line as any)?.employee_id) ||
-      n((line as any)?.userId) ||
-      n((line as any)?.id);
+      n(line.user_id) ||
+      n(l.employee_id) ||
+      n(l.userId) ||
+      n(l.id);
 
     if (!userId) continue;
 
@@ -2114,7 +2117,7 @@ export async function saveLines(args: {
       const id = n(ex?.id);
       if (!id) {
         tasks.push(async () => {
-          const created = await api.createItem<any>(RES.payrollLines, payload);
+          const created = await api.createItem<Record<string, unknown>>(RES.payrollLines, payload);
           const preId = n(created?.id ?? created?.payroll_run_employee_id);
           await syncLineItemsForEmployee({
             payrollRunEmployeeId: preId,
@@ -2138,7 +2141,7 @@ export async function saveLines(args: {
       }
     } else {
       tasks.push(async () => {
-        const created = await api.createItem<any>(RES.payrollLines, payload);
+        const created = await api.createItem<Record<string, unknown>>(RES.payrollLines, payload);
         const preId = n(created?.id ?? created?.payroll_run_employee_id);
         await syncLineItemsForEmployee({
           payrollRunEmployeeId: preId,
@@ -2178,7 +2181,7 @@ export async function postRun(args: { payrollRunId: number; postedBy: number }):
   // ✅ Fetch payroll run to get payroll_ref_no
   let payrollRefNo: string | null = null;
   try {
-    const cur = await api.getItem<any>(RES.payrollRun, pid, { fields: "payroll_run_id,payroll_ref_no" });
+    const cur = await api.getItem<PayrollRunHeader>(RES.payrollRun, pid, { fields: "payroll_run_id,payroll_ref_no" });
     payrollRefNo = cur?.payroll_ref_no ? String(cur.payroll_ref_no) : null;
   } catch {
     // if read fails, fall through and try patch (existing behavior)
@@ -2192,25 +2195,28 @@ export async function postRun(args: { payrollRunId: number; postedBy: number }):
   // Note: Idempotency is handled within each function using payroll_ref_no + user_id tracking
   try {
     await updateEmployeeLoanAccumulations({ payrollRunId: pid, payrollRefNo });
-  } catch (e: any) {
-    throw new Error(`Failed to update employee loan accumulations: ${e.message}`);
+  } catch (e: unknown) {
+    const err = e as Error;
+    throw new Error(`Failed to update employee loan accumulations: ${err.message}`);
   }
 
   try {
     await updateBenefitLoanAccumulations({ payrollRunId: pid, payrollRefNo });
-  } catch (e: any) {
-    throw new Error(`Failed to update benefit loan accumulations: ${e.message}`);
+  } catch (e: unknown) {
+    const err = e as Error;
+    throw new Error(`Failed to update benefit loan accumulations: ${err.message}`);
   }
 
   try {
     await updateCoopSavingsAccumulations({ payrollRunId: pid, payrollRefNo });
-  } catch (e: any) {
-    throw new Error(`Failed to update coop savings accumulations: ${e.message}`);
+  } catch (e: unknown) {
+    const err = e as Error;
+    throw new Error(`Failed to update coop savings accumulations: ${err.message}`);
   }
 
   try {
     await createBenefitLogs({ payrollRunId: pid, payrollRefNo });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error("Failed to create benefit logs:", e);
     // Don't block posting for logging failure, just warn
   }
@@ -2232,7 +2238,7 @@ async function updateEmployeeLoanAccumulations(args: { payrollRunId: number; pay
   const payrollRefNo = args.payrollRefNo;
 
   // 1. Fetch all payroll_run_employee records for this run (excluding on-hold)
-  const employees = await safeList<any>(
+  const employees = await safeList<Record<string, unknown>>(
     RES.payrollLines,
     {
       "filter[payroll_run_id][_eq]": args.payrollRunId,
@@ -2270,10 +2276,10 @@ async function updateEmployeeLoanAccumulations(args: { payrollRunId: number; pay
   }
 
   // 4. Update each loan's accumulated_amount with validation and auto-close
-  for (const [loanId, deductedAmount] of grouped.entries()) {
+  for (const [loanId, deductedAmount] of Array.from(grouped)) {
     try {
       // Read current loan data
-      const loan = await api.getItem<any>(RES.employeeLoans, loanId, {
+      const loan = await api.getItem<Record<string, unknown>>(RES.employeeLoans, loanId, {
         fields: "loan_id,accumulated_amount,loan_amount,interest_amount,status,last_paid_cutoff_id",
       });
 
@@ -2321,7 +2327,7 @@ async function updateBenefitLoanAccumulations(args: { payrollRunId: number; payr
   const payrollRefNo = args.payrollRefNo;
 
   // 1. Fetch all payroll_run_employee records (excluding on-hold)
-  const employees = await safeList<any>(
+  const employees = await safeList<Record<string, unknown>>(
     RES.payrollLines,
     {
       "filter[payroll_run_id][_eq]": args.payrollRunId,
@@ -2352,7 +2358,7 @@ async function updateBenefitLoanAccumulations(args: { payrollRunId: number; payr
   for (const u of updates) {
     try {
       // Find active benefit loan for this user and benefit code
-      const loans = await safeList<any>(
+      const loans = await safeList<Record<string, unknown>>(
         RES.benefitLoans,
         {
           "filter[user_id][_eq]": u.user_id,
@@ -2426,7 +2432,7 @@ async function updateCoopSavingsAccumulations(args: { payrollRunId: number; payr
   const payrollRefNo = args.payrollRefNo;
 
   // 1. Fetch all payroll_run_employee records (excluding on-hold)
-  const employees = await safeList<any>(
+  const employees = await safeList<Record<string, unknown>>(
     RES.payrollLines,
     {
       "filter[payroll_run_id][_eq]": args.payrollRunId,
@@ -2464,10 +2470,10 @@ async function updateCoopSavingsAccumulations(args: { payrollRunId: number; payr
   }
 
   // 4. Update each membership's total_collection
-  for (const [membershipId, amount] of grouped.entries()) {
+  for (const [membershipId, amount] of Array.from(grouped)) {
     try {
       // Find membership by membership_id
-      const memberships = await safeList<any>(
+      const memberships = await safeList<Record<string, unknown>>(
         RES.coop_savings,
         {
           "filter[membership_id][_eq]": membershipId,
@@ -2538,10 +2544,9 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
   const cutoffStart = header.cutoff_start ?? null;
   const cutoffEnd = header.cutoff_end ?? null;
   const cutoffType = header.cutoff_type ?? null;
-  const payrollDetailId = String(args.payrollRefNo);
 
   // 2. Fetch all employee lines (excluding on-hold)
-  const employees = await safeList<any>(
+  const employees = await safeList<Record<string, unknown>>(
     RES.payrollLines,
     {
       "filter[payroll_run_id][_eq]": payrollRunId,
@@ -2567,7 +2572,7 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
 
   // A1. Fetch existing CONTRIBUTION logs for affected users in this cutoff, build lookup map.
   const existingContribMap = new Map<string, number>(); // key: "userId|benefitCode|payrollRunId" → record id
-  const allContributions = await safeList<any>(
+  const allContributions = await safeList<Record<string, unknown>>(
     RES.benefitLogs,
     {
       "filter[cutoff_id][_eq]": cutoffId,
@@ -2587,7 +2592,7 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
   }
 
   // A2. Build and upsert CONTRIBUTION rows
-  const contributionLogs: any[] = [];
+  const contributionLogs: Record<string, unknown>[] = [];
   for (const emp of employees) {
     const userId = n(emp.user_id);
     if (!userId) continue;
@@ -2639,7 +2644,7 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
         deducted_amount: hdmf,
         payroll_run_id: payrollRunId,
         payroll_detail_id: null,
-      });
+      } as Record<string, unknown>);
     }
   }
 
@@ -2677,7 +2682,7 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
   // B1. Fetch existing LOAN logs for affected users in this cutoff, build lookup map.
   // ⚠️ Same as above: avoid _in filter, fetch all loans for this cutoff and filter in JS.
   const existingLoanMap = new Map<string, number>(); // key: "userId|benefitCode|loanId|payrollRunId" → record id
-  const allLoans = await safeList<any>(
+  const allLoans = await safeList<Record<string, unknown>>(
     RES.benefitLogs,
     {
       "filter[cutoff_id][_eq]": cutoffId,

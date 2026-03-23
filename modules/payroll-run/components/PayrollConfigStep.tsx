@@ -48,30 +48,30 @@ type Props = {
   onNext: () => void;
 };
 
-function normalizeText(v: any) {
+function normalizeText(v: unknown) {
   return String(v ?? "").trim();
 }
 
 
 function cutoffRangeHint(c: CutoffSetting) {
   // optional: show start/end if present (won't break if absent)
-  const anyC = c as any;
+  const anyC = c as unknown as Record<string, unknown>;
   const a = normalizeText(
-    anyC.start_date ?? anyC.cutoff_start ?? anyC.date_from,
+    c.start_date ?? anyC.cutoff_start ?? anyC.date_from,
   );
-  const b = normalizeText(anyC.end_date ?? anyC.cutoff_end ?? anyC.date_to);
+  const b = normalizeText(c.end_date ?? anyC.cutoff_end ?? anyC.date_to);
   if (!a && !b) return "";
   if (a && b) return `${a} → ${b}`;
   return a || b;
 }
 
 function deptLabel(d: Department) {
-  const anyD = d as any;
+  const anyD = d as unknown as Record<string, unknown>;
   return (
-    normalizeText(anyD.name) ||
+    normalizeText(d.name) ||
     normalizeText(anyD.department_name) ||
     normalizeText(anyD.dept_name) ||
-    `Department #${String(anyD.id ?? "")}`
+    `Department #${String(d.id ?? "")}`
   );
 }
 
