@@ -17,16 +17,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -43,8 +34,8 @@ import {
   Search, 
   Plus, 
   Edit, 
-  Trash2, 
   RefreshCw, 
+
   Calendar, 
   Layers, 
   PhilippinePeso, 
@@ -53,8 +44,7 @@ import {
   TrendingUp,
   Activity, 
   Award, 
-  Wallet, 
-  Clock,
+  Wallet,
   AlertTriangle,
   RotateCcw
 } from "lucide-react";
@@ -674,7 +664,7 @@ export function SalaryGradeManagement() {
                   htmlFor="dontAsk" 
                   className="text-[10px] font-black text-amber-800 dark:text-amber-500 uppercase tracking-widest cursor-pointer select-none"
                 >
-                  Don't show this again
+                  Don&apos;t show this again
                 </label>
               </div>
             </div>

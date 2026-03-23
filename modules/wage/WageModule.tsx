@@ -40,7 +40,7 @@ export function WageModule() {
   const [sortField, setSortField] = useState<keyof Employee>("user_id");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage] = useState(5);
 
   // Salary schedules list (for the grade picker in WageTab)
   const [salarySchedules, setSalarySchedules] = useState<SalarySchedule[]>([]);
@@ -80,7 +80,7 @@ export function WageModule() {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
+    const handleLoad = setTimeout(() => setLoading(true), 0);
     wageApi
       .fetchEmployeesPaged({
         page: currentPage,
@@ -99,6 +99,8 @@ export function WageModule() {
         toast.error("Failed to load employees.");
       })
       .finally(() => setLoading(false));
+
+    return () => clearTimeout(handleLoad);
   }, [
     currentPage,
     rowsPerPage,
@@ -428,7 +430,6 @@ export function WageModule() {
                       onOpenPassword={openPasswordDialog}
                       handleSort={handleSort as (key: keyof Employee) => void}
                       rowsPerPage={rowsPerPage}
-                      setRowsPerPage={setRowsPerPage}
                       currentPage={currentPage}
                       setCurrentPage={setCurrentPage}
                       totalEmployees={totalEmployees}

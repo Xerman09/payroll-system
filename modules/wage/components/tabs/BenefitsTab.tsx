@@ -780,7 +780,8 @@ export function BenefitsTab({
     logDraft,
     editingLogId,
     loadBenefitLogs,
-    resetLogDraft
+    resetLogDraft,
+    cutoffs
   ]);
 
   const deleteBenefitLog = React.useCallback(async (id: number) => {
@@ -843,7 +844,7 @@ export function BenefitsTab({
     });
     if (cutoffs.length === 0 && !cutoffsLoading) ensureCutoffs();
     setFormOpen(true);
-  }, [cutoffs, cutoffs.length, cutoffsLoading, defaultDraft, ensureCutoffs]);
+  }, [cutoffs, cutoffsLoading, defaultDraft, ensureCutoffs]);
 
   const deleteLoan = React.useCallback(
     async (r: BenefitLoanRecord) => {

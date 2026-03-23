@@ -36,7 +36,6 @@ type Props = {
   currentPage: number;
   setCurrentPage: (page: number) => void;
   rowsPerPage: number;
-  setRowsPerPage: (rows: number) => void;
   totalEmployees: number;
   onRefresh: () => void;
   onReset: () => void;
@@ -55,7 +54,6 @@ export default function EmployeeTable({
   currentPage,
   setCurrentPage,
   rowsPerPage,
-  setRowsPerPage,
   totalEmployees,
   onRefresh,
   onReset,
