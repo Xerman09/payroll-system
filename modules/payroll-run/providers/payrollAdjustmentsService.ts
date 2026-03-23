@@ -99,8 +99,10 @@ function buildProxyUrl(
   return `/api/payroll-run?${sp.toString()}`;
 }
 
-function jsonErrorMessage(json: any, fallback: string) {
-  return json?.errors?.[0]?.message || json?.error || json?.message || fallback;
+function jsonErrorMessage(json: unknown, fallback: string) {
+  const e = json as Record<string, unknown>;
+  const errors = e?.errors as Record<string, unknown>[];
+  return (errors?.[0]?.message as string) || (e?.error as string) || (e?.message as string) || fallback;
 }
 
 async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
@@ -108,7 +110,7 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
     cache: "no-store",
     headers: {
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...(init?.headers as any),
+      ...(init?.headers as Record<string, string>),
     },
     ...init,
   });
@@ -117,7 +119,7 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   if (res.status === 204 || res.status === 205) return null as unknown as T;
 
   const text = await res.text();
-  let json: any = null;
+  let json: unknown = null;
   try {
     json = text ? JSON.parse(text) : null;
   } catch {

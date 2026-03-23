@@ -1,0 +1,2 @@
+modules/payroll-run/providers/payrollRunService.ts(2327,1): error TS1005: ',' expected.
+modules/payroll-run/providers/payrollRunService.ts(2525,1): error TS1005: ',' expected.

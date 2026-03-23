@@ -1,0 +1,10 @@
+modules/payroll-run/components/PayrollConfigStep.tsx(16,20): error TS2307: Cannot find module '@/lib/utils' or its corresponding type declarations.
+modules/payroll-run/components/PayrollConfigStep.tsx(17,24): error TS2307: Cannot find module '@/components/ui/button' or its corresponding type declarations.
+modules/payroll-run/components/PayrollConfigStep.tsx(18,22): error TS2307: Cannot find module '@/components/ui/card' or its corresponding type declarations.
+modules/payroll-run/components/PayrollConfigStep.tsx(19,23): error TS2307: Cannot find module '@/components/ui/label' or its corresponding type declarations.
+modules/payroll-run/components/PayrollConfigStep.tsx(20,23): error TS2307: Cannot find module '@/components/ui/badge' or its corresponding type declarations.
+modules/payroll-run/components/PayrollConfigStep.tsx(21,27): error TS2307: Cannot find module '@/components/ui/separator' or its corresponding type declarations.
+modules/payroll-run/components/PayrollConfigStep.tsx(26,8): error TS2307: Cannot find module '@/components/ui/popover' or its corresponding type declarations.
+modules/payroll-run/components/PayrollConfigStep.tsx(34,8): error TS2307: Cannot find module '@/components/ui/command' or its corresponding type declarations.
+modules/payroll-run/components/PayrollConfigStep.tsx(39,8): error TS2307: Cannot find module '@/components/ui/dialog' or its corresponding type declarations.
+modules/payroll-run/components/PayrollConfigStep.tsx(40,26): error TS2307: Cannot find module '@/components/ui/skeleton' or its corresponding type declarations.

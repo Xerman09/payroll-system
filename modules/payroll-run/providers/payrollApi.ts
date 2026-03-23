@@ -1,7 +1,7 @@
-// modules/payroll-run/providers/payrollApi.ts
+import type { UserRow } from "../types";
 
-type DirectusList<T> = { data: T[]; meta?: any };
-type DirectusSingle<T> = { data: T; meta?: any };
+type DirectusList<T> = { data: T[]; meta?: unknown };
+type DirectusSingle<T> = { data: T; meta?: unknown };
 
 const BASE = "/api/payroll-run";
 
@@ -21,10 +21,10 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   return json as T;
 }
 
-function qs(params: Record<string, any>) {
+function qs(params: Record<string, unknown>) {
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
-    if (v === undefined || v === null || v === "") continue;
+    if (v === undefined || v === null || String(v) === "") continue;
     sp.set(k, String(v));
   }
   return sp.toString();
@@ -32,7 +32,7 @@ function qs(params: Record<string, any>) {
 
 export async function listItems<T>(
   resource: string,
-  params: Record<string, any>,
+  params: Record<string, unknown>,
 ): Promise<T[]> {
   const res = await listItemsWithMeta<T>(resource, params);
   return res.data;
@@ -40,7 +40,7 @@ export async function listItems<T>(
 
 export async function listItemsWithMeta<T>(
   resource: string,
-  params: Record<string, any>,
+  params: Record<string, unknown>,
 ): Promise<DirectusList<T>> {
   const query = qs({ resource, ...params });
   const json = await apiFetch<DirectusList<T>>(`${BASE}?${query}`, {
@@ -54,8 +54,8 @@ export async function listItemsWithMeta<T>(
 
 export async function getItem<T>(
   resource: string,
-  id: number,
-  params: Record<string, any>,
+  id: number | string,
+  params: Record<string, unknown>,
 ): Promise<T> {
   const res = await getItemWithMeta<T>(resource, id, params);
   return res.data;
@@ -63,8 +63,8 @@ export async function getItem<T>(
 
 export async function getItemWithMeta<T>(
   resource: string,
-  id: number,
-  params: Record<string, any>,
+  id: number | string,
+  params: Record<string, unknown>,
 ): Promise<DirectusSingle<T>> {
   const query = qs({ resource, id, ...params });
   const json = await apiFetch<DirectusSingle<T>>(`${BASE}?${query}`, {
@@ -73,7 +73,7 @@ export async function getItemWithMeta<T>(
   return json;
 }
 
-export async function createItem<T>(resource: string, payload: any): Promise<T> {
+export async function createItem<T>(resource: string, payload: unknown): Promise<T> {
   const query = qs({ resource });
   const json = await apiFetch<DirectusSingle<T>>(`${BASE}?${query}`, {
     method: "POST",
@@ -85,8 +85,8 @@ export async function createItem<T>(resource: string, payload: any): Promise<T> 
 
 export async function patchItem<T>(
   resource: string,
-  id: number,
-  payload: any,
+  id: number | string,
+  payload: unknown,
 ): Promise<T> {
   const query = qs({ resource, id });
   const json = await apiFetch<DirectusSingle<T>>(`${BASE}?${query}`, {
@@ -97,7 +97,7 @@ export async function patchItem<T>(
   return json.data as T;
 }
 
-export async function deleteItem(resource: string, id: number): Promise<void> {
+export async function deleteItem(resource: string, id: number | string): Promise<void> {
   const query = qs({ resource, id });
   await apiFetch(`${BASE}?${query}`, { method: "DELETE" });
 }
@@ -106,9 +106,9 @@ export async function deleteItem(resource: string, id: number): Promise<void> {
 // USER AUTHENTICATION & ACCESS LOGGING
 // ----------------------------------------------------------------------
 
-export async function fetchUserById(userId: number) {
+export async function fetchUserById(userId: number): Promise<UserRow> {
   const query = qs({ resource: "user", id: userId });
-  const json = await apiFetch<DirectusSingle<any>>(`${BASE}?${query}`, {
+  const json = await apiFetch<DirectusSingle<UserRow>>(`${BASE}?${query}`, {
     method: "GET",
   });
   return json.data;
@@ -134,11 +134,12 @@ export async function logPayrollRunAccess(
         },
       }),
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error("logPayrollRunAccess failed - payrollApi.ts", e);
+    const err = e as Record<string, unknown>;
     console.error("Error details:", {
-      message: e?.message,
-      stack: e?.stack,
+      message: err?.message,
+      stack: err?.stack,
       openedById,
       cutoffId,
       departmentId,

@@ -1,0 +1,46 @@
+Pages directory cannot be found at C:\Users\mark_\payroll_system\modules\payroll-run\pages or C:\Users\mark_\payroll_system\modules\payroll-run\src\pages. If using a custom path, please configure with the `no-html-link-for-pages` rule in your eslint config file.
+
+c:\Users\mark_\payroll_system\modules\payroll-run\components\AddEmployeeAdjustmentsDialog.tsx
+  12:3  warning  'deleteDRPayment' is defined but never used       @typescript-eslint/no-unused-vars
+  13:3  warning  'deleteOtherAddition' is defined but never used   @typescript-eslint/no-unused-vars
+  14:3  warning  'deleteOtherDeduction' is defined but never used  @typescript-eslint/no-unused-vars
+  15:3  warning  'deleteRetroPay' is defined but never used        @typescript-eslint/no-unused-vars
+
+c:\Users\mark_\payroll_system\modules\payroll-run\components\PasswordDialog.tsx
+  29:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+c:\Users\mark_\payroll_system\modules\payroll-run\components\PasswordDialog.tsx:29:7
+  27 |   useEffect(() => {
+  28 |     if (open) {
+> 29 |       setPassword("");
+     |       ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  30 |     }
+  31 |   }, [open]);
+  32 |  react-hooks/set-state-in-effect
+
+c:\Users\mark_\payroll_system\modules\payroll-run\components\PayrollReviewStep.tsx
+   20:10  warning  'downloadPayslipsPdf' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-unused-vars
+  322:9   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-explicit-any
+  512:17  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-explicit-any
+  516:6   warning  React Hook React.useCallback has missing dependencies: 'props?.run?.payroll_ref_no', 'props?.run?.posted_at', and 'props.summary?.companyName'. Either include them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            react-hooks/exhaustive-deps
+  668:40  error    Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+c:\Users\mark_\payroll_system\modules\payroll-run\components\PayrollReviewStep.tsx:668:40
+  666 |                     const rowTyped = row as Record<string, unknown>;
+  667 |                     const id =
+> 668 |                       getRowId(row) || Math.random().toString(16).slice(2);
+      |                                        ^^^^^^^^^^^^^ Cannot call impure function
+  669 |                     const name = getRowName(row);
+  670 |                     const dept =
+  671 |                       rowTyped?.department_name ?? rowTyped?.departmentName ?? null;  react-hooks/purity
+
+✖ 10 problems (4 errors, 6 warnings)
+

@@ -3,7 +3,6 @@ import type {
   CutoffSetting,
   EmployeeRow,
   PayrollComputedLine,
-  PayrollCutoffOption,
   PayrollSummary,
   ProratedPayResult,
   SalaryHistoryEntry,

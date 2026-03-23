@@ -644,7 +644,10 @@ export function BenefitsTab({
   const defaultLogDraft = React.useCallback((): BenefitLogDraft => {
     return {
       benefit_code: "SSS",
-      cutoff_period: "1",
+      cutoff_setting_id: "",
+      manual_cutoff_start: "",
+      manual_cutoff_end: "",
+      manual_cutoff_type: "",
       payroll_id_input: "",
       deducted_amount: "0.00",
       note: "",
@@ -699,6 +702,11 @@ export function BenefitsTab({
       return;
     }
 
+    if (!logDraft.cutoff_setting_id) {
+       toast.error("Cutoff period is required.");
+       return;
+    }
+
     // Logic: payroll_run_id is always 0. 
     // payroll_detail_id takes the input value.
     const payrollRunId = 0;
@@ -706,9 +714,35 @@ export function BenefitsTab({
 
     setSaving(true);
     try {
+      const isManual = logDraft.cutoff_setting_id === "other" || logDraft.cutoff_setting_id === "0";
+      let cId = Number(logDraft.cutoff_setting_id) || 0;
+      let cStart = null;
+      let cEnd = null;
+      let cType: "FIRST" | "SECOND" | null = null;
+
+      if (isManual) {
+        cId = 0; // or some other flag
+        cStart = logDraft.manual_cutoff_start || null;
+        cEnd = logDraft.manual_cutoff_end || null;
+        cType = logDraft.manual_cutoff_type || null;
+
+        if (!cStart || !cEnd) {
+          toast.error("Manual cutoff start and end dates are required.");
+          return;
+        }
+      } else {
+        const selCutoff = cutoffs.find(c => Number(c.id) === cId);
+        cStart = selCutoff?.start_date || null;
+        cEnd = selCutoff?.end_date || null;
+        cType = (selCutoff?.cutoff_type as "FIRST" | "SECOND" | null) || null;
+      }
+
       const basePayload = {
         benefit_code: logDraft.benefit_code as BenefitCode,
-        cutoff_id: Number(logDraft.cutoff_period) as 1 | 2,
+        cutoff_id: cId,
+        cutoff_start: cStart,
+        cutoff_end: cEnd,
+        cutoff_type: cType,
         log_type: "CONTRIBUTION" as BenefitLogType,
         loan_id: null,
         source_amount: 0,
@@ -717,7 +751,6 @@ export function BenefitsTab({
         payroll_detail_id: payrollDetailId,
         note: logDraft.note.trim() || null,
         created_date: logDraft.created_date,
-        updated_by: loggedUserId,
       };
 
       if (editingLogId) {
@@ -727,7 +760,6 @@ export function BenefitsTab({
          const createPayload: BenefitLogCreatePayload = {
            ...basePayload,
            user_id: selectedEmployee.user_id,
-           created_by: loggedUserId,
          };
          await wageApi.createBenefitLog(createPayload);
          toast.success("Benefit log created.");
@@ -770,17 +802,14 @@ export function BenefitsTab({
   const startEditLog = React.useCallback((r: BenefitLogRecord) => {
     setEditingLogId(r.benefit_log_id);
     
-    // Reverse map cutoff_id (1 or preferably use string)
-    const cPeriod = String(r.cutoff_id) === "2" ? "2" : "1";
-    
-    // If payroll_run_id was 0, we used detail_id as the "ID"
-    // But here we just map back what we stored.
-    // The requirement said: "display logic... if 0 display detail_id"
-    // For editing, we map the fields back to inputs.
-    
+    const isManual = !r.cutoff_id || r.cutoff_id === 0;
+
     setLogDraft({
         benefit_code: r.benefit_code,
-        cutoff_period: cPeriod as "1" | "2",
+        cutoff_setting_id: isManual ? "other" : String(r.cutoff_id),
+        manual_cutoff_start: r.cutoff_start || "",
+        manual_cutoff_end: r.cutoff_end || "",
+        manual_cutoff_type: (r.cutoff_type as "FIRST" | "SECOND" | "") || "",
         payroll_id_input: r.payroll_detail_id || "", 
         deducted_amount: fmtMoneyPlain(r.deducted_amount),
         note: r.note || "",
@@ -1688,7 +1717,14 @@ export function BenefitsTab({
                         {pidDisplay}
                       </TableCell>
                       <TableCell>
-                        {Number(r.cutoff_id) === 1 ? "1st" : Number(r.cutoff_id) === 2 ? "2nd" : r.cutoff_id}
+                        {r.cutoff_start && r.cutoff_end ? (
+                          <div className="flex flex-col">
+                            <span>{r.cutoff_start}</span>
+                            <span className="text-[10px] text-gray-400">to {r.cutoff_end}</span>
+                          </div>
+                        ) : (
+                          <span>{r.cutoff_id}</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-medium text-gray-900 dark:text-gray-100">
                         {money(r.deducted_amount)}
@@ -1783,19 +1819,61 @@ export function BenefitsTab({
                <div className="space-y-1">
                   <Label>Cutoff Period</Label>
                   <Select 
-                    value={logDraft.cutoff_period} 
-                    onValueChange={(v: string) => setLogDraft(d => ({ ...d, cutoff_period: v as "1" | "2" }))}
+                    value={logDraft.cutoff_setting_id} 
+                    onValueChange={(v: string) => setLogDraft(d => ({ ...d, cutoff_setting_id: v }))}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select Cutoff" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1">First Cutoff</SelectItem>
-                      <SelectItem value="2">Second Cutoff</SelectItem>
+                      {cutoffs.map((c) => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          ({c.cutoff_type}) {c.start_date} to {c.end_date}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="other">Other / Manual Entry</SelectItem>
                     </SelectContent>
                   </Select>
                </div>
              </div>
+
+             {(logDraft.cutoff_setting_id === "other" || logDraft.cutoff_setting_id === "0") && (
+               <div className="grid grid-cols-2 gap-4 border p-3 rounded-md bg-gray-50 dark:bg-gray-800/20">
+                 <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-gray-400">Manual Start</Label>
+                    <Input 
+                      type="date"
+                      value={logDraft.manual_cutoff_start}
+                      onChange={e => setLogDraft(d => ({ ...d, manual_cutoff_start: e.target.value }))}
+                      className="h-8 text-xs"
+                    />
+                 </div>
+                 <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-gray-400">Manual End</Label>
+                    <Input 
+                      type="date"
+                      value={logDraft.manual_cutoff_end}
+                      onChange={e => setLogDraft(d => ({ ...d, manual_cutoff_end: e.target.value }))}
+                      className="h-8 text-xs"
+                    />
+                 </div>
+                 <div className="col-span-2 space-y-1">
+                    <Label className="text-[10px] uppercase text-gray-400">Cutoff Type</Label>
+                    <Select 
+                      value={logDraft.manual_cutoff_type} 
+                      onValueChange={(v: "FIRST" | "SECOND") => setLogDraft(d => ({ ...d, manual_cutoff_type: v }))}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Select Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="FIRST">First Cutoff</SelectItem>
+                        <SelectItem value="SECOND">Second Cutoff</SelectItem>
+                      </SelectContent>
+                    </Select>
+                 </div>
+               </div>
+             )}
 
              <div className="space-y-1">
                <Label>Date</Label>

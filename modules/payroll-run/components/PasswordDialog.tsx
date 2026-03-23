@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,13 +22,12 @@ export default function PasswordDialog({
   onSubmit,
 }: Props) {
   const [password, setPassword] = useState("");
+  const [prevOpen, setPrevOpen] = useState(open);
 
-  // 🟢 Clear password every time modal opens
-  useEffect(() => {
-    if (open) {
-      setPassword("");
-    }
-  }, [open]);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) setPassword("");
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

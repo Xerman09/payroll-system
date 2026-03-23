@@ -1,0 +1,5 @@
+modules/payroll-run/providers/payrollRunService.ts(1967,18): error TS2698: Spread types may only be created from object types.
+modules/payroll-run/providers/payrollRunService.ts(2290,20): error TS1308: 'await' expressions are only allowed within async functions and at the top levels of modules.
+modules/payroll-run/providers/payrollRunService.ts(2317,7): error TS1308: 'await' expressions are only allowed within async functions and at the top levels of modules.
+modules/payroll-run/providers/payrollRunService.ts(2484,27): error TS1308: 'await' expressions are only allowed within async functions and at the top levels of modules.
+modules/payroll-run/providers/payrollRunService.ts(2512,7): error TS1308: 'await' expressions are only allowed within async functions and at the top levels of modules.

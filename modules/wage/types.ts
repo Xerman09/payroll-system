@@ -606,6 +606,11 @@ export type BenefitLogType = "CONTRIBUTION" | "LOAN";
 export type BenefitLogRecord = {
   benefit_log_id: number;
   cutoff_id: number;
+
+  cutoff_start: string | null;
+  cutoff_end: string | null;
+  cutoff_type: "FIRST" | "SECOND" | null;
+
   user_id: number;
 
   benefit_code: BenefitCode;
@@ -626,8 +631,12 @@ export type BenefitLogRecord = {
 export type BenefitLogDraft = {
   benefit_code: BenefitCode;
 
-  // Maps to cutoff_id (1=First, 2=Second)
-  cutoff_period: "1" | "2";
+  // Selected cutoff_settings.id; "0" or "other" for manual
+  cutoff_setting_id: string;
+
+  manual_cutoff_start: string;
+  manual_cutoff_end: string;
+  manual_cutoff_type: "FIRST" | "SECOND" | "";
 
   // Input for payroll_detail_id
   payroll_id_input: string;
@@ -640,6 +649,11 @@ export type BenefitLogDraft = {
 
 export type BenefitLogCreatePayload = {
   cutoff_id: number;
+
+  cutoff_start: string | null;
+  cutoff_end: string | null;
+  cutoff_type: "FIRST" | "SECOND" | null;
+
   user_id: number;
   benefit_code: BenefitCode;
   log_type: BenefitLogType;
@@ -654,9 +668,6 @@ export type BenefitLogCreatePayload = {
 
   note: string | null;
   created_date?: string;
-
-  created_by?: number | null;
-  updated_by?: number | null;
 };
 
 export type BenefitLogPatchPayload = Partial<
