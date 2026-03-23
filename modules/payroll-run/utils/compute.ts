@@ -1,6 +1,9 @@
 // modules/payroll-run/utils/compute.ts
 import type {
+  AttendanceApproval,
   BenefitCode,
+  BenefitLoanRow,
+  BreakdownItem,
   CoopSavingsMembershipRow,
   EmployeeAllowance,
   EmployeeLoan,
@@ -16,7 +19,7 @@ import type {
 type ComputeArgs = {
   user: UserRow;
   wage: WageProfile | null;
-  attendance: any[];
+  attendance: AttendanceApproval[];
   holidays: HolidayRow[];
   cutoffStart: string;
   cutoffEnd: string;
@@ -28,19 +31,19 @@ type ComputeArgs = {
   benefitMultipliers: Record<BenefitCode, number>;
   employeeLoans: EmployeeLoan[];
 
-  benefitLoans?: any[];
+  benefitLoans?: BenefitLoanRow[];
   cutoffType?: "FIRST" | "SECOND";
   cutoffId?: number;
 
   // ✅ Allowances fetched from employee_allowance
-  allowances?: EmployeeAllowance[] | any[];
+  allowances?: EmployeeAllowance[];
 
   // ✅ wage proration logs for this user (effective-date driven)
-  wageProrationLogs?: WageProrationLog[] | any[];
+  wageProrationLogs?: WageProrationLog[];
 
   // ✅ Option B tables (dedicated collections)
-  retroPays?: RetroPayRow[] | any[];
-  coopSavingsMemberships?: CoopSavingsMembershipRow[] | any[];
+  retroPays?: RetroPayRow[];
+  coopSavingsMemberships?: CoopSavingsMembershipRow[];
 };
 
 /**
@@ -52,15 +55,15 @@ export function parseCutoffValue(value: string): { start: string; end: string } 
   return { start: parts[0] ?? "", end: parts[1] ?? "" };
 }
 
-function s(v: any): string {
-  return String(v ?? "");
+function s(v: unknown): string {
+  return v == null ? "" : String(v);
 }
 
 function round2(x: number): number {
   return Math.round((x + Number.EPSILON) * 100) / 100;
 }
 
-function ymdOrNull(v: any): string | null {
+function ymdOrNull(v: unknown): string | null {
   const x = s(v).slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : null;
 }
@@ -80,19 +83,20 @@ export function formatPHP(amount: number): string {
   }).format(v);
 }
 
-function n(v: any): number {
+function n(v: unknown): number {
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
   const x = Number(v ?? 0);
   return Number.isFinite(x) ? x : 0;
 }
 
-function normKey(v: any): string {
-  return String(v ?? "")
+function normKey(v: unknown): string {
+  return s(v)
     .toLowerCase()
     .replaceAll(/[\s_-]+/g, "")
     .trim();
 }
 
-function matchesAny(label: any, needles: string[]): boolean {
+function matchesAny(label: unknown, needles: string[]): boolean {
   const k = normKey(label);
   return needles.some((x) => k.includes(normKey(x)));
 }
@@ -115,21 +119,14 @@ function overlapsWindow(args: {
 /* ---------------------------- user display helpers ---------------------------- */
 
 function buildName(u: UserRow): string {
-  const fn = s((u as any).first_name).trim();
-  const ln = s((u as any).last_name).trim();
+  const fn = s(u.first_name).trim();
+  const ln = s(u.last_name).trim();
   const full = `${fn} ${ln}`.trim();
-  return full || `Employee #${(u as any).id}`;
+  return full || `Employee #${u.id}`;
 }
 
 function resolvePosition(u: UserRow): string | null {
-  const raw =
-    (u as any).position ??
-    (u as any).position_name ??
-    (u as any).user_position ??
-    (u as any).userPosition ??
-    (u as any).job_title ??
-    (u as any).jobTitle ??
-    null;
+  const raw = u.position;
   const v = raw == null ? "" : String(raw).trim();
   return v ? v : null;
 }
@@ -140,26 +137,14 @@ function resolvePosition(u: UserRow): string | null {
 function resolveDepartmentName(args: { user: UserRow; fallback: string | null }): string | null {
   if (args.fallback && String(args.fallback).trim()) return String(args.fallback).trim();
 
-  const u: any = args.user;
+  const u = args.user as unknown as Record<string, unknown>;
 
-  const candidates: any[] = [
+  const candidates: unknown[] = [
     u.department_name,
     u.departmentName,
     u.department,
     u.department_text,
     u.departmentText,
-
-    u.user_department?.department_name,
-    u.user_department?.name,
-    u.department_rel?.department_name,
-    u.department_rel?.name,
-    u.department_obj?.department_name,
-    u.department_obj?.name,
-    u.department_info?.department_name,
-    u.department_info?.name,
-
-    u.department_id?.department_name,
-    u.department_id?.name,
   ];
 
   for (const c of candidates) {
@@ -187,19 +172,20 @@ type AttendanceNorm = {
   status: string;
 };
 
-function normAttendance(row: any): AttendanceNorm {
-  const date = ymdOrNull(row.date_schedule ?? row.dateSchedule) ?? "";
+function normAttendance(row: unknown): AttendanceNorm {
+  const r = row as Record<string, unknown>;
+  const date = ymdOrNull(r.date_schedule ?? r.dateSchedule) ?? "";
 
   return {
-    approval_id: n(row.approval_id ?? row.approvalId ?? row.id),
-    employee_id: n(row.employee_id ?? row.employeeId ?? row.user_id ?? row.userId),
+    approval_id: n(r.approval_id ?? r.approvalId ?? r.id),
+    employee_id: n(r.employee_id ?? r.employeeId ?? r.user_id ?? r.userId),
     date_schedule: date, // ✅ normalized YYYY-MM-DD
-    work_minutes: n(row.work_minutes ?? row.workMinutes),
-    late_minutes: n(row.late_minutes ?? row.lateMinutes),
-    undertime_minutes: n(row.undertime_minutes ?? row.undertimeMinutes),
-    overtime_minutes: n(row.overtime_minutes ?? row.overtimeMinutes),
-    night_diff_minutes: row.night_diff_minutes ?? row.nightDiffMinutes ?? null,
-    status: String(row.status ?? "approved"),
+    work_minutes: n(r.work_minutes ?? r.workMinutes),
+    late_minutes: n(r.late_minutes ?? r.lateMinutes),
+    undertime_minutes: n(r.undertime_minutes ?? r.undertimeMinutes),
+    overtime_minutes: n(r.overtime_minutes ?? r.overtimeMinutes),
+    night_diff_minutes: n(r.night_diff_minutes ?? r.nightDiffMinutes) || null,
+    status: String(r.status ?? "approved"),
   };
 }
 
@@ -215,13 +201,14 @@ type HolidayInfo = {
   last_working_day: string | null;
 };
 
-function normHoliday(row: any): HolidayInfo {
+function normHoliday(row: unknown): HolidayInfo {
+  const r = row as Record<string, unknown>;
   return {
-    date: ymdOrNull(row.holiday_date ?? row.holidayDate ?? row.date ?? row.holiday_date) ?? "",
-    type: String(row.holiday_type ?? row.holidayType ?? "regular").toLowerCase() as HolidayKind,
-    description: s(row.description ?? row.name ?? ""),
-    is_paid: n(row.is_paid ?? row.isPaid ?? 1) ? 1 : 0,
-    last_working_day: ymdOrNull(row.last_working_day ?? row.lastWorkingDay),
+    date: ymdOrNull(r.holiday_date ?? r.holidayDate ?? r.date) ?? "",
+    type: String(r.holiday_type ?? r.holidayType ?? "regular").toLowerCase() as HolidayKind,
+    description: s(r.description ?? r.name ?? ""),
+    is_paid: n(r.is_paid ?? r.isPaid ?? 1) ? 1 : 0,
+    last_working_day: ymdOrNull(r.last_working_day ?? r.lastWorkingDay),
   };
 }
 
@@ -293,37 +280,46 @@ type AllowanceNorm = {
   is_processed: number;
 };
 
-function normAllowance(row: any): AllowanceNorm {
-  const payCycleRaw = String(row?.pay_cycle ?? row?.payCycle ?? "N/A").toUpperCase();
+function normAllowance(row: unknown): AllowanceNorm {
+  const r = row as Record<string, unknown>;
+  const payCycleRaw = String(r.pay_cycle ?? r.payCycle ?? "N/A").toUpperCase();
   const pay_cycle: AllowancePayCycle =
     payCycleRaw === "PER_CUTOFF" ? "PER_CUTOFF" : payCycleRaw === "PER_MONTH" ? "PER_MONTH" : "N/A";
 
   return {
-    allowance_id: n(row?.allowance_id ?? row?.allowanceId ?? row?.id),
-    user_id: n(row?.user_id ?? row?.userId),
-    amount: n(row?.amount),
-    description: row?.description ?? null,
+    allowance_id: n(r.allowance_id ?? r.allowanceId ?? r.id),
+    user_id: n(r.user_id ?? r.userId),
+    amount: n(r.amount),
+    description: s(r.description) || null,
 
-    cutoff_start: ymdOrNull(row?.cutoff_start ?? row?.cutoffStart),
-    cutoff_end: ymdOrNull(row?.cutoff_end ?? row?.cutoffEnd),
+    cutoff_start: ymdOrNull(r.cutoff_start ?? r.cutoffStart),
+    cutoff_end: ymdOrNull(r.cutoff_end ?? r.cutoffEnd),
 
-    is_recurring: n(row?.is_recurring ?? row?.isRecurring) ? 1 : 0,
-    is_active: n(row?.is_active ?? row?.isActive) ? 1 : 0,
+    is_recurring: n(r.is_recurring ?? r.isRecurring) ? 1 : 0,
+    is_active: n(r.is_active ?? r.isActive) ? 1 : 0,
     pay_cycle,
 
-    start_date: ymdOrNull(row?.start_date ?? row?.startDate),
-    end_date: ymdOrNull(row?.end_date ?? row?.endDate),
+    start_date: ymdOrNull(r.start_date ?? r.startDate),
+    end_date: ymdOrNull(r.end_date ?? r.endDate),
 
-    is_processed: n(row?.is_processed ?? row?.isProcessed) ? 1 : 0,
+    is_processed: n(r.is_processed ?? r.isProcessed) ? 1 : 0,
   };
 }
 
 function allowanceAmountForCutoff(args: {
-  allowances: any[];
+  allowances: EmployeeAllowance[];
   cutoffStart: string;
   cutoffEnd: string;
   cutoffType?: string;
-}): { total: number; items: any[] } {
+}): { total: number; items: Array<{
+  allowance_id: number;
+  description: string | null;
+  pay_cycle: AllowancePayCycle;
+  is_recurring: number;
+  amount_full: number;
+  amount_this_cutoff: number;
+  source: "RECURRING" | "ONE_TIME";
+}> } {
   const cutoffType = String(args.cutoffType ?? "").toUpperCase();
   const rows = (Array.isArray(args.allowances) ? args.allowances : []).map(normAllowance);
 
@@ -404,19 +400,20 @@ function allowanceAmountForCutoff(args: {
 
 /* ------------------------------ Benefit loans ------------------------------ */
 
-function normBenefitLoan(row: any) {
+function normBenefitLoan(row: unknown) {
+  const r = row as Record<string, unknown>;
   return {
-    loan_id: n(row.loan_id ?? row.id),
-    user_id: n(row.user_id),
-    benefit_code: String(row.benefit_code ?? "").toUpperCase(),
-    loan_name: row.loan_name ?? null,
-    reference_no: row.reference_no ?? null,
-    amortization_amount: n(row.amortization_amount),
-    deduct_on: String(row.deduct_on ?? "BOTH").toUpperCase(),
-    start_cutoff_id: n(row.start_cutoff_id),
-    remaining_balance: n(row.remaining_balance),
-    last_paid_cutoff_id: row.last_paid_cutoff_id == null ? null : n(row.last_paid_cutoff_id),
-    status: String(row.status ?? "ACTIVE").toUpperCase(),
+    loan_id: n(r.loan_id ?? r.id),
+    user_id: n(r.user_id),
+    benefit_code: String(r.benefit_code ?? "").toUpperCase(),
+    loan_name: s(r.loan_name) || null,
+    reference_no: s(r.reference_no) || null,
+    amortization_amount: n(r.amortization_amount),
+    deduct_on: String(r.deduct_on ?? "BOTH").toUpperCase(),
+    start_cutoff_id: n(r.start_cutoff_id),
+    remaining_balance: n(r.remaining_balance),
+    last_paid_cutoff_id: r.last_paid_cutoff_id == null ? null : n(r.last_paid_cutoff_id),
+    status: String(r.status ?? "ACTIVE").toUpperCase(),
   };
 }
 
@@ -432,17 +429,18 @@ function benefitLoanAmountForCutoff(args: { loan: ReturnType<typeof normBenefitL
 
 /* ------------------------- Wage proration (effective-date) ------------------------- */
 
-function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationLogs?: any[] }) {
+function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationLogs?: WageProrationLog[] }) {
   const wage = args.wage;
 
   let baseDaily = (() => {
-    const d = n((wage as any)?.daily_wage);
+    const w = wage as unknown as Record<string, unknown>;
+    const d = n(w?.daily_wage);
     if (d > 0) return d;
 
-    const h = n((wage as any)?.hourly_wage);
+    const h = n(w?.hourly_wage);
     if (h > 0) return h * 8;
 
-    const m = n((wage as any)?.monthly_wage);
+    const m = n(w?.monthly_wage);
     if (m > 0) return m / 26;
 
     return 0;
@@ -450,9 +448,10 @@ function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationL
 
   const eqMoney = (a: number, b: number) => Math.abs(a - b) < 0.005;
 
-  const pickFirstNumber = (row: any, keys: string[]): number => {
+  const pickFirstNumber = (row: unknown, keys: string[]): number => {
+    const r = row as Record<string, unknown>;
     for (const k of keys) {
-      const v = n(row?.[k]);
+      const v = n(r?.[k]);
       if (v > 0) return v;
     }
     return 0;
@@ -460,17 +459,18 @@ function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationL
 
   const toDailyFromMonthly = (monthly: number) => (monthly > 0 ? monthly / 26 : 0);
 
-  const parseEffectiveDate = (row: any): string => {
+  const parseEffectiveDate = (row: unknown): string => {
+    const r = row as Record<string, unknown>;
     const v =
-      row?.effective_date ??
-      row?.effectivity_date ??
-      row?.effectiveDate ??
-      row?.effectivityDate ??
-      row?.date_effective ??
-      row?.effectiveFrom ??
-      row?.effective_from ??
-      row?.start_date ??
-      row?.date ??
+      r?.effective_date ??
+      r?.effectivity_date ??
+      r?.effectiveDate ??
+      r?.effectivityDate ??
+      r?.date_effective ??
+      r?.effectiveFrom ??
+      r?.effective_from ??
+      r?.start_date ??
+      r?.date ??
       "";
     const d = s(v).slice(0, 10);
     return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "";
@@ -479,11 +479,12 @@ function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationL
   const logs = Array.isArray(args.wageProrationLogs) ? args.wageProrationLogs : [];
 
   let events = logs
-    .map((row: any) => {
-      const effective_date = parseEffectiveDate(row);
+    .map((row) => {
+      const r = (row as unknown) as Record<string, unknown>;
+      const effective_date = parseEffectiveDate(r);
       if (!effective_date) return null;
 
-      let old_daily = pickFirstNumber(row, [
+      let old_daily = pickFirstNumber(r, [
         "previous_daily_wage",
         "previous_daily_rate",
         "old_daily_wage",
@@ -495,7 +496,7 @@ function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationL
         "daily_old",
       ]);
 
-      let new_daily = pickFirstNumber(row, [
+      let new_daily = pickFirstNumber(r, [
         "new_daily_wage",
         "new_daily_rate",
         "to_daily_wage",
@@ -505,7 +506,7 @@ function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationL
       ]);
 
       if (old_daily <= 0) {
-        const old_monthly = pickFirstNumber(row, [
+        const old_monthly = pickFirstNumber(r, [
           "old_monthly_wage",
           "previous_monthly_wage",
           "from_monthly_wage",
@@ -516,7 +517,7 @@ function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationL
       }
 
       if (new_daily <= 0) {
-        const new_monthly = pickFirstNumber(row, ["new_monthly_wage", "to_monthly_wage", "new_basic", "new_monthly"]);
+        const new_monthly = pickFirstNumber(r, ["new_monthly_wage", "to_monthly_wage", "new_basic", "new_monthly"]);
         new_daily = toDailyFromMonthly(new_monthly);
       }
 
@@ -527,15 +528,15 @@ function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationL
         effective_date,
         old_daily: round2(old_daily),
         new_daily: round2(new_daily),
-        created_at: row?.created_at ?? row?.date_created ?? null,
-        id: n(row?.id),
+        created_at: r?.created_at ?? r?.date_created ?? null,
+        id: n(r?.id),
       };
     })
     .filter(Boolean) as Array<{
       effective_date: string;
       old_daily: number;
       new_daily: number;
-      created_at: any;
+      created_at: unknown;
       id: number;
     }>;
 
@@ -614,65 +615,63 @@ function buildDailyRateResolver(args: { wage: WageProfile | null; wageProrationL
 /* ------------------------------ Manual itemizations ------------------------------ */
 
 // more tolerant type normalizer
-function manualKind(m: any): "EARNING" | "DEDUCTION" | "UNKNOWN" {
-  const t = String(m?.type ?? m?.entry_type ?? m?.entryType ?? "").toUpperCase().trim();
+function manualKind(m: unknown): "EARNING" | "DEDUCTION" | "UNKNOWN" {
+  const r = m as Record<string, unknown>;
+  const t = String(r?.type ?? r?.entry_type ?? r?.entryType ?? "").toUpperCase().trim();
   if (!t) return "UNKNOWN";
   if (t === "EARNING" || t.includes("EARN") || t.includes("ADD")) return "EARNING";
   if (t === "DEDUCTION" || t.includes("DEDUCT")) return "DEDUCTION";
   return "UNKNOWN";
 }
 
-function cleanDesc(v: any): string {
-  return String(v ?? "").trim();
+function cleanDesc(v: unknown): string {
+  return s(v).trim();
 }
 
-type BreakdownItem = {
-  item_key: string;
-  type: "EARNING" | "DEDUCTION";
-  category: string;
-  code?: string | null;
-  description: string;
-  amount: number;
-  source_table?: string | null;
-  source_id?: string | number | null;
-  meta?: any;
-};
+// Using global BreakdownItem from ../types
 
-function manualSourceTable(m: any): string | null {
-  return m?.source_table ?? m?.sourceTable ?? m?.meta?.source_table ?? m?.meta?.sourceTable ?? null;
+function manualSourceTable(m: unknown): string | null {
+  const r = m as Record<string, unknown>;
+  const meta = (r?.meta ?? {}) as Record<string, unknown>;
+  return s(r?.source_table ?? r?.sourceTable ?? meta?.source_table ?? meta?.sourceTable) || null;
 }
 
-function manualSourceId(m: any): any {
-  return m?.source_id ?? m?.sourceId ?? m?.meta?.source_id ?? m?.meta?.sourceId ?? m?.id ?? null;
+function manualSourceId(m: unknown): unknown {
+  const r = m as Record<string, unknown>;
+  const meta = (r?.meta ?? {}) as Record<string, unknown>;
+  return r?.source_id ?? r?.sourceId ?? meta?.source_id ?? meta?.sourceId ?? r?.id ?? null;
 }
 
-function manualStableKey(prefix: string, m: any, fallbackIndex: number): string {
+function manualStableKey(prefix: string, m: unknown, fallbackIndex: number): string {
+  const r = m as Record<string, unknown>;
   const sid = manualSourceId(m);
   if (sid != null && String(sid).trim() !== "") return `${prefix}:${String(sid)}`;
 
-  const id = m?.id ?? null;
+  const id = r?.id ?? null;
   if (id != null && String(id).trim() !== "") return `${prefix}:ID:${String(id)}`;
 
-  const d = cleanDesc(m?.desc ?? m?.description ?? "");
-  const a = n(m?.amount ?? 0);
+  const d = cleanDesc(r?.desc ?? r?.description ?? "");
+  const a = n(r?.amount ?? 0);
   return `${prefix}:X:${fallbackIndex}:${d.slice(0, 40)}:${a.toFixed(2)}`;
 }
 
-function isDRPaymentManualEntry(m: any): boolean {
-  const cat = String(m?.category ?? m?.deduction_type ?? m?.other_deduction_type ?? m?.deductionKind ?? "")
+function isDRPaymentManualEntry(m: unknown): boolean {
+  const r = m as Record<string, unknown>;
+  const cat = String(r?.category ?? r?.deduction_type ?? r?.other_deduction_type ?? r?.deductionKind ?? "")
     .trim()
     .toLowerCase();
   if (cat === "dr_payment") return true;
 
-  const desc = String(m?.desc ?? m?.description ?? "").trim().toLowerCase();
+  const desc = String(r?.desc ?? r?.description ?? "").trim().toLowerCase();
   return desc.startsWith("dr payment:");
 }
 
-function isShortageManualEntry(m: any): boolean {
-  const cat = String(m?.category ?? m?.deduction_type ?? m?.other_deduction_type ?? "").trim().toLowerCase();
+function isShortageManualEntry(m: unknown): boolean {
+  const r = m as Record<string, unknown>;
+  const cat = String(r?.category ?? r?.deduction_type ?? r?.other_deduction_type ?? "").trim().toLowerCase();
   if (cat === "shortage") return true;
 
-  const desc = String(m?.desc ?? m?.description ?? "").trim().toLowerCase();
+  const desc = String(r?.desc ?? r?.description ?? "").trim().toLowerCase();
   return desc.includes("shortage");
 }
 
@@ -682,34 +681,41 @@ function extractDRReceiptNo(desc: string): string {
   return ss.replace(prefix, "").trim();
 }
 
-function drReceiptNoFromEntry(m: any): string {
-  if (m?.delivery_receipt_number) return String(m.delivery_receipt_number);
-  const d = cleanDesc(m?.desc ?? m?.description ?? "");
+function drReceiptNoFromEntry(m: unknown): string {
+  const r = m as Record<string, unknown>;
+  if (r?.delivery_receipt_number) return String(r.delivery_receipt_number);
+  const d = cleanDesc(r?.desc ?? r?.description ?? "");
   return extractDRReceiptNo(d) || "";
 }
 
-function drPaymentDateFromEntry(m: any): string {
-  const v = m?.payment_date ?? m?.paymentDate ?? m?.meta?.payment_date ?? m?.meta?.paymentDate ?? "";
+function drPaymentDateFromEntry(m: unknown): string {
+  const r = m as Record<string, unknown>;
+  const meta = (r?.meta ?? {}) as Record<string, unknown>;
+  const v = r?.payment_date ?? r?.paymentDate ?? meta?.payment_date ?? meta?.paymentDate ?? "";
   const ss = String(v ?? "").slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(ss) ? ss : "";
 }
 
-function drPaymentMethodFromEntry(m: any): string {
-  const v = m?.payment_method ?? m?.paymentMethod ?? m?.meta?.payment_method ?? m?.meta?.paymentMethod ?? "";
+function drPaymentMethodFromEntry(m: unknown): string {
+  const r = m as Record<string, unknown>;
+  const meta = (r?.meta ?? {}) as Record<string, unknown>;
+  const v = r?.payment_method ?? r?.paymentMethod ?? meta?.payment_method ?? meta?.paymentMethod ?? "";
   return String(v ?? "").trim();
 }
 
-function drPostedFromEntry(m: any): boolean {
+function drPostedFromEntry(m: unknown): boolean {
+  const r = m as Record<string, unknown>;
+  const meta = (r?.meta ?? {}) as Record<string, unknown>;
   const v =
-    m?.is_posted_to_payroll ??
-    m?.isPostedToPayroll ??
-    m?.meta?.is_posted_to_payroll ??
-    m?.meta?.isPostedToPayroll ??
+    r?.is_posted_to_payroll ??
+    r?.isPostedToPayroll ??
+    meta?.is_posted_to_payroll ??
+    meta?.isPostedToPayroll ??
     0;
   return Boolean(Number(v) === 1 || v === true);
 }
 
-export function buildManualItemizationsForBreakdown(manualEntries: any[]): {
+export function buildManualItemizationsForBreakdown(manualEntries: ManualEntry[]): {
   manual_addition_items: BreakdownItem[];
   manual_deduction_items: BreakdownItem[];
   manual_deduction_summary: {
@@ -725,7 +731,7 @@ export function buildManualItemizationsForBreakdown(manualEntries: any[]): {
   const deductions = rows.filter((m) => manualKind(m) === "DEDUCTION");
 
   const manual_addition_items: BreakdownItem[] = additions.map((m, idx) => {
-    const desc = cleanDesc(m?.desc ?? m?.description ?? "") || "Manual Addition";
+    const desc = cleanDesc(m.desc || (m as Record<string, unknown>).description || "") || "Manual Addition";
     const amt = round2(n(m?.amount));
     return {
       item_key: manualStableKey("MA", m, idx),
@@ -734,13 +740,13 @@ export function buildManualItemizationsForBreakdown(manualEntries: any[]): {
       description: desc,
       amount: amt,
       source_table: manualSourceTable(m),
-      source_id: manualSourceId(m),
-      meta: m?.meta ?? null,
+      source_id: manualSourceId(m) as string | number | null,
+      meta: (m as Record<string, unknown>)?.meta ?? null,
     };
   });
 
   const manual_deduction_items: BreakdownItem[] = deductions.map((m, idx) => {
-    const rawDesc = cleanDesc(m?.desc ?? m?.description ?? "") || "Manual Deduction";
+    const rawDesc = cleanDesc(m.desc || (m as Record<string, unknown>).description || "") || "Manual Deduction";
     const amt = round2(n(m?.amount));
 
     const isDR = isDRPaymentManualEntry(m);
@@ -765,16 +771,16 @@ export function buildManualItemizationsForBreakdown(manualEntries: any[]): {
       description: displayDesc,
       amount: amt,
       source_table: manualSourceTable(m),
-      source_id: manualSourceId(m),
+      source_id: manualSourceId(m) as string | number | null,
       meta: isDR
         ? {
-          ...(m?.meta ?? {}),
-          delivery_receipt_number: drNo || (m?.delivery_receipt_number ?? null),
-          payment_date: drDate || (m?.payment_date ?? null),
-          payment_method: drMethod || (m?.payment_method ?? null),
+          ...((m as Record<string, unknown>)?.meta as Record<string, unknown> ?? {}),
+          delivery_receipt_number: drNo || ((m as Record<string, unknown>)?.delivery_receipt_number as string ?? null),
+          payment_date: drDate || ((m as Record<string, unknown>)?.payment_date as string ?? null),
+          payment_method: drMethod || ((m as Record<string, unknown>)?.payment_method as string ?? null),
           is_posted_to_payroll: drPosted ? 1 : 0,
         }
-        : m?.meta ?? null,
+        : (m as Record<string, unknown>)?.meta ?? null,
     };
   });
 
@@ -797,14 +803,14 @@ export function buildManualItemizationsForBreakdown(manualEntries: any[]): {
   };
 }
 
-export function buildEmployeeLoanItemsForBreakdown(employeeLoans: any[]): BreakdownItem[] {
+export function buildEmployeeLoanItemsForBreakdown(employeeLoans: EmployeeLoan[]): BreakdownItem[] {
   const rows = Array.isArray(employeeLoans) ? employeeLoans : [];
 
   // rule: 50/50 per cutoff
   return rows.map((L, idx) => {
-    const loanId = n(L?.loan_id ?? L?.loanId ?? L?.id);
-    const loanType = String(L?.loan_type ?? L?.loanType ?? "").toUpperCase();
-    const monthly = round2(n(L?.monthly_payment ?? L?.monthlyPayment));
+    const loanId = n(L.loan_id);
+    const loanType = String(L.loan_type ?? "").toUpperCase();
+    const monthly = round2(n(L.monthly_payment));
     const amt = round2(monthly / 2);
 
     return {
@@ -848,27 +854,29 @@ function eligibleForUnworkedHolidayPay(args: {
 
 /* ------------------------------ Option B normalizers ------------------------------ */
 
-function normRetroPayRow(row: any) {
+function normRetroPayRow(row: unknown) {
+  const r = row as Record<string, unknown>;
   return {
-    retro_id: n(row?.retro_id ?? row?.id),
-    user_id: n(row?.user_id),
-    amount: n(row?.amount),
-    description: row?.description ?? row?.remarks ?? row?.note ?? null,
-    cutoff_start: ymdOrNull(row?.cutoff_start ?? row?.cutoffStart),
-    cutoff_end: ymdOrNull(row?.cutoff_end ?? row?.cutoffEnd),
-    is_processed: n(row?.is_processed ?? row?.isProcessed) ? 1 : 0,
+    retro_id: n(r.retro_id ?? r.id),
+    user_id: n(r.user_id),
+    amount: n(r.amount),
+    description: s(r.description ?? r.remarks ?? r.note) || null,
+    cutoff_start: ymdOrNull(r.cutoff_start ?? r.cutoffStart),
+    cutoff_end: ymdOrNull(r.cutoff_end ?? r.cutoffEnd),
+    is_processed: n(r.is_processed ?? r.isProcessed) ? 1 : 0,
   };
 }
 
-function normCoopSavingsRow(row: any) {
+function normCoopSavingsRow(row: unknown) {
+  const r = row as Record<string, unknown>;
   return {
-    id: n(row?.id),
-    user_id: n(row?.user_id),
-    membership_id: row?.membership_id != null ? String(row.membership_id) : "",
-    monthly_amount: n(row?.monthly_amount ?? row?.amount ?? 0),
-    start_date: ymdOrNull(row?.start_date ?? row?.startDate),
-    end_date: ymdOrNull(row?.end_date ?? row?.endDate),
-    is_active: n(row?.is_active ?? row?.isActive) ? 1 : 0,
+    id: n(r.id),
+    user_id: n(r.user_id),
+    membership_id: r.membership_id != null ? String(r.membership_id) : "",
+    monthly_amount: n(r.monthly_amount ?? r.amount ?? 0),
+    start_date: ymdOrNull(r.start_date ?? r.startDate),
+    end_date: ymdOrNull(r.end_date ?? r.endDate),
+    is_active: n(r.is_active ?? r.isActive) ? 1 : 0,
   };
 }
 
@@ -898,16 +906,16 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const position = resolvePosition(args.user);
   const departmentResolved = resolveDepartmentName({ user: args.user, fallback: args.departmentName });
 
-  const dailyBase = n((args.wage as any)?.daily_wage);
+  const dailyBase = n(args.wage?.daily_wage);
   const hourlyBase =
-    (args.wage as any)?.hourly_wage != null ? n((args.wage as any).hourly_wage) : dailyBase > 0 ? dailyBase / 8 : 0;
+    args.wage?.hourly_wage != null ? n(args.wage.hourly_wage) : dailyBase > 0 ? dailyBase / 8 : 0;
 
   const monthlyBase =
-    (args.wage as any)?.monthly_wage != null ? n((args.wage as any).monthly_wage) : dailyBase > 0 ? dailyBase * 26 : 0;
+    args.wage?.monthly_wage != null ? n(args.wage.monthly_wage) : dailyBase > 0 ? dailyBase * 26 : 0;
 
   const rate = buildDailyRateResolver({
     wage: args.wage,
-    wageProrationLogs: (args.wageProrationLogs ?? []) as any[],
+    wageProrationLogs: args.wageProrationLogs ?? [],
   });
 
   // ✅ attendance is cutoff-scoped and approved
@@ -955,8 +963,8 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
   let nightDiffAmount = 0;
 
-  const holidayItems: Array<any> = [];
-  const restDayItems: Array<any> = [];
+  const holidayItems: Array<Record<string, unknown>> = [];
+  const restDayItems: Array<Record<string, unknown>> = [];
 
   for (const r of att) {
     const date = r.date_schedule;
@@ -1116,36 +1124,34 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     });
   }
 
-  const totalDaysWorked = new Set(att.filter((x) => n(x.work_minutes) > 0).map((x) => x.date_schedule)).size;
-  const totalHoursWorked = round2(totalWorkMinutes / 60);
-  const holidayDays = round2(holidayItems.filter((x) => n(x?.total) > 0).length);
-
   /* ------------------------------ Manual entries (split) ------------------------------ */
 
   const manualRows = Array.isArray(args.manualEntries) ? args.manualEntries : [];
 
-  const manualText = (m: any) =>
-    [
-      m?.category,
-      m?.deduction_type,
-      m?.other_deduction_type,
-      m?.code,
-      m?.entry_code,
-      m?.type,
-      m?.desc,
-      m?.description,
-      m?.note,
-      m?.remarks,
-      m?.memo,
+  const manualText = (m: unknown) => {
+    const r = m as Record<string, unknown>;
+    return [
+      r.category,
+      r.deduction_type,
+      r.other_deduction_type,
+      r.code,
+      r.entry_code,
+      r.type,
+      r.desc,
+      r.description,
+      r.note,
+      r.remarks,
+      r.memo,
     ]
       .filter((x) => x != null && String(x).trim() !== "")
       .join(" ");
+  };
 
-  const isRetroRow = (m: any) =>
+  const isRetroRow = (m: unknown) =>
     manualKind(m) === "EARNING" &&
     matchesAny(manualText(m), ["retro_pay", "retro pay", "retro", "backpay", "back pay"]);
 
-  const isCoopSavingsRow = (m: any) =>
+  const isCoopSavingsRow = (m: unknown) =>
     manualKind(m) === "DEDUCTION" &&
     matchesAny(manualText(m), [
       "coop_savings_membership",
@@ -1156,7 +1162,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
       "savings(coop_savings_membership)",
     ]);
 
-  const isCoopLoanRow = (m: any) =>
+  const isCoopLoanRow = (m: unknown) =>
     manualKind(m) === "DEDUCTION" && matchesAny(manualText(m), ["coop_loan", "coop loan", "cooploan"]);
 
   const retroRows = manualRows.filter(isRetroRow);
@@ -1285,13 +1291,13 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
   /* ------------------------------ Govt benefits ------------------------------ */
 
-  const multSSS = n((args.benefitMultipliers as any)?.SSS ?? 0);
-  const multPhil = n((args.benefitMultipliers as any)?.PHILHEALTH ?? 0);
-  const multPagibig = n((args.benefitMultipliers as any)?.PAGIBIG ?? 0);
+  const multSSS = n(args.benefitMultipliers?.SSS ?? 0);
+  const multPhil = n(args.benefitMultipliers?.PHILHEALTH ?? 0);
+  const multPagibig = n(args.benefitMultipliers?.PAGIBIG ?? 0);
 
-  const sssMonthly = n((args.wage as any)?.sss_employee);
-  const philMonthly = n((args.wage as any)?.philhealth_employee);
-  const pagibigMonthly = n((args.wage as any)?.pagibig_employee);
+  const sssMonthly = n(args.wage?.sss_employee);
+  const philMonthly = n(args.wage?.philhealth_employee);
+  const pagibigMonthly = n(args.wage?.pagibig_employee);
 
   const benefitSSS = round2(sssMonthly * multSSS);
   const benefitPhilhealth = round2(philMonthly * multPhil);
@@ -1367,27 +1373,18 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   /* ------------------------------- Allowances ------------------------------- */
 
   const allowanceCalc = allowanceAmountForCutoff({
-    allowances: (args.allowances ?? []) as any[],
+    allowances: args.allowances ?? [],
     cutoffStart: args.cutoffStart,
     cutoffEnd: args.cutoffEnd,
     cutoffType,
   });
 
   const allowance = round2(allowanceCalc.total);
-  const allowanceItems = allowanceCalc.items.map((x) => ({
-    allowance_id: x.allowance_id,
-    description: x.description,
-    pay_cycle: x.pay_cycle,
-    is_recurring: x.is_recurring,
-    amount_full: x.amount_full,
-    amount_this_cutoff: x.amount_this_cutoff,
-    source: x.source,
-  }));
 
   /* ------------------------------- Proration flags ------------------------------- */
 
-  const prorationEventsInCutoff = (rate.events ?? []).filter((ev: any) =>
-    inRange(String(ev?.effective_date ?? ""), args.cutoffStart, args.cutoffEnd),
+  const prorationEventsInCutoff = (rate.events ?? []).filter((ev) =>
+    inRange(s(ev?.effective_date), args.cutoffStart, args.cutoffEnd),
   );
 
   const isProrated = prorationEventsInCutoff.length > 0;
@@ -1425,42 +1422,55 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const netPay = round2(grossPay - totalDeductions);
 
   const prev = n(args.previousNetPay);
+  const varianceAmountUI = round2(netPay - prev);
   const variancePct = prev > 0 ? round2(((netPay - prev) / prev) * 100) : null;
   const varianceFlag = prev > 0 && Math.abs(n(variancePct)) >= 10;
-  const varianceAmountUI = round2(netPay - prev);
+
+  const daysWorked = new Set(att.filter((x) => n(x.work_minutes) > 0).map((x) => x.date_schedule)).size;
+  const totalEarnings = round2(basicPay + otAmount + holidayPay + restDayAmount + nightDiffAmount + allowance + retroPay + manualAdds);
+
+  const allowance_items: BreakdownItem[] = allowanceCalc.items.map((x) => ({
+    item_key: `AL:${x.allowance_id}`,
+    type: "EARNING",
+    category: "ALLOWANCE",
+    description: x.description || "Allowance",
+    label: x.description || "Allowance",
+    amount: x.amount_this_cutoff,
+    source_table: "employee_allowance",
+    source_id: x.allowance_id,
+    meta: { pay_cycle: x.pay_cycle, source: x.source },
+  }));
 
   return {
-    user_id: n((args.user as any).id),
+    user_id: n(args.user.id),
     employee_name: empName,
-    first_name: (args.user as any).first_name ?? null,
-    last_name: (args.user as any).last_name ?? null,
+    first_name: args.user.first_name ?? null,
+    last_name: args.user.last_name ?? null,
     position,
     department_name: departmentResolved,
 
-    daily_rate: round2(dailyBase),
-    hourly_rate: round2(hourlyBase),
-    monthly_rate: round2(monthlyBase),
+    // rates
+    daily_rate: round2(rate.baseDaily),
+    hourly_rate: hourlyBase,
+    monthly_rate: monthlyBase,
 
-    total_days_worked: new Set(att.filter((x) => n(x.work_minutes) > 0).map((x) => x.date_schedule)).size,
+    // attendance
+    total_days_worked: daysWorked,
     total_work_minutes: totalWorkMinutes,
-    total_hours_worked: round2(totalWorkMinutes / 60),
-
     late_minutes: lateMinutes,
     undertime_minutes: undertimeMinutes,
     overtime_minutes: overtimeMinutes,
     night_diff_minutes: nightDiffMinutes,
 
+    // earnings
     basic_pay: round2(basicPay),
     ot_amount: round2(otAmount),
-
-    holiday: round2(holidayPay),
     holiday_pay: round2(holidayPay),
-    holiday_days: round2(holidayItems.filter((x) => n(x?.total) > 0).length),
+    holiday_days: round2(holidayItems.filter((x) => n(x.total) > 0).length),
 
     rest_day_amount: round2(restDayAmount),
     night_diff_amount: round2(nightDiffAmount),
-
-    allowance,
+    allowance: round2(allowance),
     retro_pay: round2(retroPay),
     manual_additions: round2(manualAdds),
 
@@ -1489,9 +1499,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     other_deductions: round2(otherDeductions),
     manual_deductions: round2(manualDeductions),
 
-    total_additions: round2(
-      manualAdds + allowance + retroPay + holidayPay + restDayAmount + nightDiffAmount + otAmount,
-    ),
+    total_additions: totalEarnings,
     total_deductions: round2(totalDeductions),
     gross_pay: round2(grossPay),
     net_pay: round2(netPay),
@@ -1502,12 +1510,14 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     variance_flag: Boolean(varianceFlag),
 
     on_hold: Boolean(args.onHold),
-    is_card: n((args.wage as any)?.isCard ?? (args.wage as any)?.is_card),
+    is_card: n(args.wage?.isCard ?? args.wage?.is_card),
 
     is_prorated: Boolean(isProrated),
     proration_json: prorationJson,
 
     breakdown_json: {
+      is_card: n(args.wage?.isCard ?? args.wage?.is_card),
+      flags: { on_hold: Boolean(args.onHold), variance_flag: Boolean(varianceFlag) },
       rates: {
         base_daily: round2(rate.baseDaily),
         base_hourly: round2(rate.baseDaily > 0 ? rate.baseDaily / 8 : 0),
@@ -1529,7 +1539,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         night_diff_amount: round2(nightDiffAmount),
 
         allowance_total: round2(allowance),
-        allowance_items: allowanceItems,
+        allowance_items: allowance_items,
 
         // ✅ base manual additions (retro excluded)
         manual_additions: round2(manualAdds),
@@ -1540,24 +1550,18 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
         // NEW canonical field for payroll_run_employee_item sync
         retro_items: retro_items_all.map((x) => ({
-          item_key: x.item_key,
-          amount: x.amount,
-          description: x.description,
-          label: x.description, // compatibility with older consumers
-          source_table: x.source_table ?? "retro_pay",
-          source_id: x.source_id ?? null,
-          meta: x.meta ?? null,
+          ...x,
+          type: "EARNING",
+          category: "RETRO_PAY",
+          label: x.description,
         })),
 
         // Backward-compat (your older UI may be reading this)
         retro_pay_items: retro_pay_items.map((x) => ({
-          item_key: x.item_key,
-          amount: x.amount,
-          description: x.description,
+          ...x,
+          type: "EARNING",
+          category: "RETRO_PAY",
           label: x.description,
-          source_table: x.source_table ?? "retro_pay",
-          source_id: x.source_id ?? null,
-          meta: x.meta ?? null,
         })),
 
         holiday_items: holidayItems,
@@ -1606,20 +1610,18 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         // ✅ coop savings membership (now comes from Option B table)
         coop_savings: round2(coopSavings),
         coop_savings_items: coop_savings_items.map((x) => ({
-          item_key: x.item_key,
-          amount: x.amount,
-          description: x.description,
+          ...x,
+          type: "DEDUCTION",
+          category: "COOP_SAVINGS",
           label: x.description,
-          membership_id: (x.meta?.membership_id ?? null) as any,
-          source_table: x.source_table ?? "coop_savings_membership",
-          source_id: x.source_id ?? null,
-          meta: x.meta ?? null,
         })),
 
         coop_loan: round2(coopLoan),
         coop_loan_items: coopLoanItemized.manual_deduction_items.map((x) => ({
           ...x,
+          type: "DEDUCTION",
           category: "COOP_LOAN",
+          label: x.description,
         })),
       },
 
@@ -1634,8 +1636,6 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         type: args.cutoffType,
         id: args.cutoffId,
       },
-      flags: { on_hold: Boolean(args.onHold), variance_flag: Boolean(varianceFlag) },
-      is_card: n((args.wage as any)?.isCard ?? (args.wage as any)?.is_card),
       policies: {
         unworked_holiday_pay_rule:
           "Pay unworked holiday ONLY if holiday.last_working_day is within cutoff and employee has approved attendance on that last_working_day.",
@@ -1645,5 +1645,5 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         events_in_cutoff: prorationEventsInCutoff,
       },
     },
-  } as any;
+  } as PayrollComputedLine;
 }

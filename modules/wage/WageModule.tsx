@@ -347,9 +347,9 @@ export function WageModule() {
             updated_by: logged.user_id,
           });
           console.log("[Wage] Proration log created successfully!");
-        } catch (e: any) {
+        } catch (e: unknown) {
           console.error("[Wage] Proration log failed to create", e);
-          const msg = e?.message || String(e);
+          const msg = e instanceof Error ? e.message : String(e);
           toast.error(
             `Wage saved, but proration log failed: ${msg}. Check console.`
           );

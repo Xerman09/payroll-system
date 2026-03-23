@@ -2,8 +2,10 @@
 "use client";
 
 import type {
+  AttendanceApproval,
   BenefitCode,
   BenefitCutoffSetting,
+  BenefitLoanRow,
   CoopSavingsMembershipRow,
   CutoffSetting,
   Department,
@@ -12,6 +14,7 @@ import type {
   HolidayRow,
   ManualEntry,
   ManualEntryType,
+  PayrollBreakdownJson,
   PayrollComputedLine,
   PayrollRunHeader,
   PayrollSummary,
@@ -20,6 +23,7 @@ import type {
   UserRow,
   WageProfile,
   WageProrationLog,
+  CutoffType,
   // ✅ Benefit Logs
   BenefitLog,
   BenefitLogType,
@@ -68,7 +72,7 @@ export const RES = {
 // ------------------------------
 // helpers
 // ------------------------------
-function bitToNum(v: any): number {
+function bitToNum(v: unknown): number {
   if (v === null || v === undefined) return 0;
   if (typeof v === "number") return v ? 1 : 0;
   if (typeof v === "boolean") return v ? 1 : 0;
@@ -78,20 +82,21 @@ function bitToNum(v: any): number {
     return 0;
   }
   if (typeof v === "object") {
-    const maybe = v as any;
+    const maybe = v as Record<string, unknown>;
     if (maybe?.type === "Buffer" && Array.isArray(maybe?.data)) {
-      return maybe.data?.[0] ? 1 : 0;
+      const data = maybe.data as unknown[];
+      return data?.[0] ? 1 : 0;
     }
   }
   return 0;
 }
 
-function n(v: any): number {
+function n(v: unknown): number {
   const x = Number(v ?? 0);
   return Number.isFinite(x) ? x : 0;
 }
 
-function s(v: any): string {
+function s(v: unknown): string {
   return String(v ?? "");
 }
 
@@ -101,11 +106,11 @@ function round2(x: number): number {
   return Math.round(n0 * 100) / 100;
 }
 
-function arr<T = any>(v: any): T[] {
+function arr<T = unknown>(v: unknown): T[] {
   return Array.isArray(v) ? (v as T[]) : [];
 }
 
-function normalizeJsonOrNull(v: any): any | null {
+function normalizeJsonOrNull(v: unknown): unknown | null {
   if (v === null || v === undefined) return null;
 
   if (typeof v === "object") {
@@ -118,7 +123,7 @@ function normalizeJsonOrNull(v: any): any | null {
     const s0 = v.trim();
     if (!s0) return null;
     try {
-      const parsed = JSON.parse(s0);
+      const parsed = JSON.parse(s0) as unknown;
       return normalizeJsonOrNull(parsed);
     } catch {
       return null;
@@ -128,16 +133,17 @@ function normalizeJsonOrNull(v: any): any | null {
   return null;
 }
 
-function isRecordNotUnique(err: any): boolean {
+function isRecordNotUnique(err: unknown): boolean {
+  const e = err as any;
   const code =
-    err?.errors?.[0]?.extensions?.code ??
-    err?.extensions?.code ??
-    err?.code ??
+    e?.errors?.[0]?.extensions?.code ??
+    e?.extensions?.code ??
+    e?.code ??
     null;
 
   if (code === "RECORD_NOT_UNIQUE") return true;
 
-  const msg = String(err?.errors?.[0]?.message ?? err?.message ?? "").toUpperCase();
+  const msg = String(e?.errors?.[0]?.message ?? e?.message ?? "").toUpperCase();
 
   return (
     msg.includes("RECORD_NOT_UNIQUE") ||
@@ -148,7 +154,7 @@ function isRecordNotUnique(err: any): boolean {
 
 async function safeList<T>(
   resource: string,
-  params: Record<string, any>,
+  params: Record<string, unknown>,
   fallback: T[] = [],
 ): Promise<T[]> {
   try {
@@ -189,7 +195,7 @@ function withRerunSuffix(base: string, attempt: number) {
 function yyyymmdd(d: string) {
   return String(d ?? "").slice(0, 10).replaceAll("-", "");
 }
-function toBase36Id(id: any): string {
+function toBase36Id(id: unknown): string {
   const s0 = String(id ?? "").trim();
   if (!s0) return "";
   try {
@@ -208,7 +214,7 @@ function formatFinalPayrollRefNo(args: {
   cutoffStart: string;
   cutoffEnd: string;
   departmentId: number | null;
-  payrollRunId: any;
+  payrollRunId: number | string;
   baseRef?: string | null;
 }) {
   const dep = args.departmentId == null ? "ALL" : String(args.departmentId);
@@ -230,57 +236,57 @@ function formatFinalPayrollRefNo(args: {
 // ------------------------------
 // normalizers
 // ------------------------------
-function normalizeCutoff(row: any): CutoffSetting {
+function normalizeCutoff(row: unknown): CutoffSetting {
+  const r = (row ?? {}) as Record<string, unknown>;
   return {
-    id: n(row.id),
-    cutoff_type: (row.cutoff_type ?? row.cutoffType) as any,
-    start_date: s(row.start_date),
-    end_date: s(row.end_date),
-    payout_date: row.payout_date ?? null,
-    status: row.status ?? null,
+    id: n(r.id),
+    cutoff_type: (r.cutoff_type ?? r.cutoffType) as CutoffType,
+    start_date: s(r.start_date),
+    end_date: s(r.end_date),
+    payout_date: (r.payout_date as string) ?? null,
+    status: (r.status as string) ?? null,
   };
 }
 
-function normalizeDepartment(row: any): Department {
+function normalizeDepartment(row: unknown): Department {
+  const r = (row ?? {}) as Record<string, unknown>;
   return {
-    id: n(row.id ?? row.department_id),
-    name: s(row.name ?? row.department_name),
-    ...row,
-  } as Department;
+    id: n(r.id ?? r.department_id),
+    name: s(r.name ?? r.department_name),
+  };
 }
 
-function normalizeUser(row: any): UserRow {
+function normalizeUser(row: unknown): UserRow {
+  const r = (row ?? {}) as Record<string, unknown>;
   return {
-    id: n(row.id ?? row.user_id),
-    first_name: row.first_name ?? row.user_fname ?? null,
-    last_name: row.last_name ?? row.user_lname ?? null,
-    department_id: row.department_id ?? row.user_department ?? null,
-    position: row.position ?? row.user_position ?? null,
-    is_deleted: bitToNum(row.is_deleted ?? row.isDeleted),
-    ...row,
-  } as UserRow;
+    id: n(r.id ?? r.user_id),
+    first_name: (r.first_name as string) ?? (r.user_fname as string) ?? null,
+    last_name: (r.last_name as string) ?? (r.user_lname as string) ?? null,
+    department_id: (r.department_id as number) ?? (r.user_department as number) ?? null,
+    position: (r.position as string) ?? (r.user_position as string) ?? null,
+    is_deleted: bitToNum(r.is_deleted ?? r.isDeleted),
+  };
 }
 
-function normalizeWage(row: any): WageProfile {
-  const daily = n(row.daily_wage);
-  const hourly = row.hourly_wage != null ? n(row.hourly_wage) : daily > 0 ? daily / 8 : 0;
+function normalizeWage(row: unknown): WageProfile {
+  const r = (row ?? {}) as Record<string, unknown>;
+  const daily = n(r.daily_wage);
+  const hourly = r.hourly_wage != null ? n(r.hourly_wage) : daily > 0 ? daily / 8 : 0;
   const monthly =
-    row.monthly_wage != null ? n(row.monthly_wage) : daily > 0 ? daily * 26 : 0;
+    r.monthly_wage != null ? n(r.monthly_wage) : daily > 0 ? daily * 26 : 0;
 
   return {
-    id: n(row.id),
-    user_id: n(row.user_id),
+    id: n(r.id),
+    user_id: n(r.user_id),
     daily_wage: daily,
     hourly_wage: hourly,
     monthly_wage: monthly,
-    is_deleted: bitToNum(row.is_deleted ?? row.isDeleted),
+    is_deleted: bitToNum(r.is_deleted ?? r.isDeleted),
 
-    sss_employee: n(row.sss_employee ?? row.sss_contribution_monthly),
-    philhealth_employee: n(row.philhealth_employee ?? row.philhealth_contribution_monthly),
-    pagibig_employee: n(row.pagibig_employee ?? row.pagibig_contribution_monthly),
-
-    ...row,
-  } as WageProfile;
+    sss_employee: n(r.sss_employee ?? r.sss_contribution_monthly),
+    philhealth_employee: n(r.philhealth_employee ?? r.philhealth_contribution_monthly),
+    pagibig_employee: n(r.pagibig_employee ?? r.pagibig_contribution_monthly),
+  };
 }
 
 function normalizeRunHeader(row: any): PayrollRunHeader {
@@ -308,80 +314,84 @@ function normalizeRunHeader(row: any): PayrollRunHeader {
 }
 
 function normalizeBenefitSetting(row: any): BenefitCutoffSetting {
+  const r = row as Record<string, unknown>;
   return {
-    id: n(row.id),
-    benefit_code: row.benefit_code as any,
-    benefit_name: s(row.benefit_name),
-    cutoff: row.cutoff as any,
-    is_active: n(row.is_active ?? 0),
-    effective_from: row.effective_from ? s(row.effective_from) : null,
-    effective_to: row.effective_to ? s(row.effective_to) : null,
+    id: n(r.id),
+    benefit_code: (r.benefit_code as string) as any,
+    benefit_name: s(r.benefit_name),
+    cutoff: (r.cutoff as string) as any,
+    is_active: n(r.is_active ?? 0),
+    effective_from: r.effective_from ? s(r.effective_from) : null,
+    effective_to: r.effective_to ? s(r.effective_to) : null,
   };
 }
 
 function normalizeEmployeeLoan(row: any): EmployeeLoan {
+  const r = row as Record<string, unknown>;
   return {
-    loan_id: n(row.loan_id ?? row.id),
-    user_id: n(row.user_id),
-    loan_type: row.loan_type as any,
-    monthly_payment: n(row.monthly_payment),
-    start_date: s(row.start_date),
-    end_date: row.end_date ? s(row.end_date) : null,
-    status: row.status as any,
+    loan_id: n(r.loan_id ?? r.id),
+    user_id: n(r.user_id),
+    loan_type: s(r.loan_type),
+    monthly_payment: n(r.monthly_payment),
+    start_date: s(r.start_date),
+    end_date: r.end_date ? s(r.end_date) : null,
+    status: s(r.status),
   };
 }
 
 function normalizeAllowance(row: any): EmployeeAllowance {
+  const r = row as Record<string, unknown>;
   return {
-    allowance_id: n(row.allowance_id ?? row.id),
-    user_id: n(row.user_id),
-    amount: n(row.amount),
-    description: row.description ?? null,
+    allowance_id: n(r.allowance_id ?? r.id),
+    user_id: n(r.user_id),
+    amount: n(r.amount),
+    description: (r.description as string) ?? null,
 
-    cutoff_start: row.cutoff_start ? s(row.cutoff_start) : null,
-    cutoff_end: row.cutoff_end ? s(row.cutoff_end) : null,
+    cutoff_start: r.cutoff_start ? s(r.cutoff_start) : null,
+    cutoff_end: r.cutoff_end ? s(r.cutoff_end) : null,
 
-    is_recurring: bitToNum(row.is_recurring),
-    is_active: bitToNum(row.is_active),
-    pay_cycle: (row.pay_cycle ?? "N/A") as any,
+    is_recurring: bitToNum(r.is_recurring),
+    is_active: bitToNum(r.is_active),
+    pay_cycle: (r.pay_cycle as any) ?? "N/A",
 
-    start_date: row.start_date ? s(row.start_date) : null,
-    end_date: row.end_date ? s(row.end_date) : null,
+    start_date: r.start_date ? s(r.start_date) : null,
+    end_date: r.end_date ? s(r.end_date) : null,
 
-    is_processed: bitToNum(row.is_processed),
+    is_processed: bitToNum(r.is_processed),
   };
 }
 
 // ✅ Wage proration normalization (effective-date driven)
-function normalizeProrationLog(row: any): WageProrationLog {
+function normalizeProrationLog(row: unknown): WageProrationLog {
+  const r = row as Record<string, unknown>;
   const effRaw =
-    row?.effective_date ??
-    row?.effectivity_date ??
-    row?.effectiveDate ??
-    row?.effectivityDate ??
+    r?.effective_date ??
+    r?.effectivity_date ??
+    r?.effectiveDate ??
+    r?.effectivityDate ??
     "";
 
   const eff = String(effRaw ?? "").trim();
   const effective_date = eff.length >= 10 ? eff.slice(0, 10) : eff;
 
   return {
-    id: n(row?.id),
-    user_id: n(row?.user_id),
+    id: n(r?.id),
+    user_id: n(r?.user_id),
     previous_daily_wage: n(
-      row?.previous_daily_wage ??
-      row?.previous_daily_rate ??
-      row?.old_daily_wage ??
-      row?.old_daily_rate,
+      r?.previous_daily_wage ??
+      r?.previous_daily_rate ??
+      r?.old_daily_wage ??
+      r?.old_daily_rate,
     ),
     new_daily_wage: n(
-      row?.new_daily_wage ?? row?.new_daily_rate ?? row?.daily_wage ?? row?.daily_rate,
+      r?.new_daily_wage ?? r?.new_daily_rate ?? r?.daily_wage ?? r?.daily_rate,
     ),
     effective_date,
     created_at:
-      row?.created_at != null
-        ? String(row.created_at)
-        : row?.date_created != null
-          ? String(row.date_created)
+      r?.created_at != null
+        ? String(r.created_at)
+        : r?.date_created != null
+          ? String(r.date_created)
           : null,
   };
 }
@@ -389,16 +399,17 @@ function normalizeProrationLog(row: any): WageProrationLog {
 /**
  * Manual category normalization
  */
-function normalizeManualCategory(row: any): string | null {
+function normalizeManualCategory(row: unknown): string | null {
+  const r = row as Record<string, unknown>;
   const raw =
-    row?.category ??
-    row?.deduction_type ??
-    row?.entry_category ??
-    row?.entryCategory ??
-    row?.category_name ??
+    r?.category ??
+    r?.deduction_type ??
+    r?.entry_category ??
+    r?.entryCategory ??
+    r?.category_name ??
     null;
 
-  const fromType = row?.type;
+  const fromType = r?.type;
   const pick =
     raw ??
     (fromType &&
@@ -702,13 +713,14 @@ export async function loadWorkspace(args: {
     })
     : [];
 
-  const attendance = new Map<number, any[]>();
+  const attendance = new Map<number, AttendanceApproval[]>();
   for (const row of attendanceArr ?? []) {
-    const empId = n(row.employee_id);
+    const r = row as AttendanceApproval;
+    const empId = n(r.employee_id);
     if (!attendance.has(empId)) attendance.set(empId, []);
     attendance.get(empId)!.push({
-      ...row,
-      night_diff_minutes: row.night_diff_minutes ?? 0,
+      ...r,
+      night_diff_minutes: n(r.night_diff_minutes),
     });
   }
 
@@ -786,16 +798,17 @@ export async function loadWorkspace(args: {
   }
 
   for (const a of adds ?? []) {
-    const entry = {
-      id: n(a.id),
+    const aRow = a as Record<string, unknown>;
+    const entry: ManualEntry = {
+      id: n(aRow.id),
       cutoff_id: cutoff.id,
-      user_id: n(a.user_id),
+      user_id: n(aRow.user_id),
       type: "EARNING",
-      desc: s(a.description ?? a.desc ?? "Manual Addition"),
-      amount: n(a.amount),
+      desc: s(aRow.description ?? aRow.desc ?? "Manual Addition"),
+      amount: n(aRow.amount),
       category: null,
-    } as any as ManualEntry;
-    pushME(n(a.user_id), entry);
+    };
+    pushME(n(aRow.user_id), entry);
   }
 
   for (const d of deds ?? []) {
@@ -970,11 +983,11 @@ export async function loadWorkspace(args: {
     })
     : [];
 
-  const benefitLoans = new Map<number, any[]>();
+  const benefitLoans = new Map<number, BenefitLoanRow[]>();
   for (const r of rawBenefitLoans ?? []) {
     const userId = n(r.user_id);
     if (!benefitLoans.has(userId)) benefitLoans.set(userId, []);
-    benefitLoans.get(userId)!.push(r);
+    benefitLoans.get(userId)!.push(r as BenefitLoanRow);
   }
 
   const rawAllowances = userIds.length
@@ -1131,7 +1144,7 @@ export function computeRegister(args: {
 
 // --- On-hold helpers ---------------------------------------------------------
 export function isEmployeeOnHold(user: UserRow): boolean {
-  const u: any = user ?? {};
+  const u = (user ?? {}) as unknown as Record<string, unknown>;
   return (
     bitToNum(
       u.on_hold ??
@@ -1146,7 +1159,7 @@ export function isEmployeeOnHold(user: UserRow): boolean {
 }
 
 export function isLineOnHold(line: PayrollComputedLine, holdMap?: Map<number, boolean>): boolean {
-  const l: any = line ?? {};
+  const l = (line ?? {}) as unknown as Record<string, unknown>;
   const userId =
     n(l.user_id ?? l.userId ?? l.employee_id ?? l.employeeId ?? l.id) || 0;
 
@@ -1576,71 +1589,70 @@ function buildPayrollRunEmployeePayload(args: {
   cutoff: CutoffSetting;
   userId: number;
   line: PayrollComputedLine;
-}): Record<string, any> {
-  const l: any = args.line;
+}): Record<string, unknown> {
+  const l = args.line;
 
   const cutoffLabel =
     (args.cutoff.cutoff_type ? String(args.cutoff.cutoff_type) : "") +
     ` ${s(args.cutoff.start_date)}-${s(args.cutoff.end_date)}`;
 
-  const onHold = bitToNum(l?.on_hold ?? l?.onHold ?? l?.hold ?? 0);
+  const onHold = bitToNum(l.on_hold);
 
   const totalAdditions =
-    n(l?.total_additions) ||
+    n(l.total_additions) ||
     round2(
-      n(l?.allowance) +
-      n(l?.manual_additions) +
-      n(l?.ot_amount) +
-      n(l?.holiday_pay) +
-      n(l?.rest_day_amount) +
-      n(l?.night_diff_amount) +
-      n(l?.leave_amount) +
-      n(l?.retro_pay),
+      n(l.allowance) +
+      n(l.manual_additions) +
+      n(l.ot_amount) +
+      n(l.holiday_pay) +
+      n(l.rest_day_amount) +
+      n(l.night_diff_amount) +
+      n(l.leave_amount) +
+      n(l.retro_pay),
     );
 
   const totalDeductions =
-    n(l?.total_deductions) ||
+    n(l.total_deductions) ||
     round2(
-      n(l?.late_deduction) +
-      n(l?.undertime_deduction) +
-      n(l?.shortage_deduction) +
-      n(l?.dr_deduction) +
-      n(l?.manual_deductions) +
-      n(l?.other_deductions) +
-      n(l?.loan_total) +
-      n(l?.benefit_loan_total) +
-      n(l?.benefit_sss) +
-      n(l?.benefit_philhealth) +
-      n(l?.benefit_pagibig) +
-      n(l?.coop_savings),
+      n(l.late_deduction) +
+      n(l.undertime_deduction) +
+      n(l.shortage_deduction) +
+      n(l.dr_deduction) +
+      n(l.manual_deductions) +
+      n(l.other_deductions) +
+      n(l.loan_total) +
+      n(l.benefit_loan_total) +
+      n(l.benefit_sss) +
+      n(l.benefit_philhealth) +
+      n(l.benefit_pagibig) +
+      n(l.coop_savings),
     );
 
-  const grossPay = n(l?.gross_pay) || round2(n(l?.basic_pay) + totalAdditions);
-  const netPay = n(l?.net_pay) || round2(grossPay - totalDeductions);
+  const grossPay = n(l.gross_pay) || round2(n(l.basic_pay) + totalAdditions);
+  const netPay = n(l.net_pay) || round2(grossPay - totalDeductions);
 
-  const previousNet = n(l?.previous_net_pay ?? l?.previousNetPay ?? 0);
+  const previousNet = n(l.previous_net_pay ?? 0);
   const varianceAmount =
-    n(l?.variance_amount) || round2(n(l?.variance_amount_ui) || (netPay - previousNet));
+    n(l.variance_amount) || round2(n(l.variance_amount_ui) || (netPay - previousNet));
 
-  const prorationJson = normalizeJsonOrNull(l?.proration_json ?? l?.prorationJson);
-  const breakdownJson = normalizeJsonOrNull(l?.breakdown_json ?? l?.breakdownJson);
+  const prorationJson = normalizeJsonOrNull(l.proration_json);
+  const breakdownJson = normalizeJsonOrNull(l.breakdown_json);
 
-  const sssLoan = n(l?.benefit_loan_sss ?? 0);
-  const pagibigLoan = n(l?.benefit_loan_pagibig ?? 0);
+  const sssLoan = n(l.benefit_loan_sss ?? 0);
+  const pagibigLoan = n(l.benefit_loan_pagibig ?? 0);
 
   return {
     payroll_run_id: args.payrollRunId,
     user_id: args.userId,
 
-    employee_name: l?.employee_name ?? l?.employeeName ?? null,
-    position: l?.position ?? null,
-    department_name: l?.department_name ?? l?.departmentName ?? null,
-    position_name: l?.position_name ?? l?.positionName ?? l?.position ?? null,
+    employee_name: l.employee_name,
+    position: l.position ?? null,
+    department_name: l.department_name ?? null,
+    position_name: l.position_name ?? l.position ?? null,
     department_name_snapshot:
-      l?.department_name_snapshot ??
-      l?.departmentSnapshot ??
-      l?.department_name ??
-      l?.departmentName ??
+      l.department_name_snapshot ??
+      l.department_snapshot ??
+      l.department_name ??
       null,
 
     cutoff_start: s(args.cutoff.start_date),
@@ -1649,77 +1661,75 @@ function buildPayrollRunEmployeePayload(args: {
     cutoff_type: args.cutoff.cutoff_type ?? null,
     cutoff_id: n(args.cutoff.id) || null,
 
-    daily_rate: n(l?.daily_rate ?? l?.daily_wage ?? l?.dailyRate ?? 0),
-    basic_daily_rate: n(
-      l?.basic_daily_rate ?? l?.basicDailyRate ?? l?.daily_rate ?? l?.daily_wage ?? 0,
-    ),
-    hourly_rate: n(l?.hourly_rate ?? l?.hourly_wage ?? l?.hourlyRate ?? 0),
-    monthly_rate: n(l?.monthly_rate ?? l?.monthly_wage ?? l?.monthlyRate ?? 0),
+    daily_rate: n(l.daily_rate),
+    basic_daily_rate: n(l.basic_daily_rate ?? l.daily_rate),
+    hourly_rate: n(l.hourly_rate),
+    monthly_rate: n(l.monthly_rate),
 
-    total_days_worked: n(l?.total_days_worked ?? l?.days_worked ?? l?.daysWorked ?? 0),
-    total_work_minutes: n(l?.total_work_minutes ?? l?.work_minutes ?? l?.workMinutes ?? 0),
-    late_minutes: n(l?.late_minutes ?? 0),
-    undertime_minutes: n(l?.undertime_minutes ?? 0),
-    overtime_minutes: n(l?.overtime_minutes ?? 0),
-    night_diff_minutes: n(l?.night_diff_minutes ?? 0),
-    total_hours_worked: n(l?.total_hours_worked ?? l?.hours_worked ?? l?.hoursWorked ?? 0),
+    total_days_worked: n(l.total_days_worked),
+    total_work_minutes: n(l.total_work_minutes),
+    late_minutes: n(l.late_minutes),
+    undertime_minutes: n(l.undertime_minutes),
+    overtime_minutes: n(l.overtime_minutes),
+    night_diff_minutes: n(l.night_diff_minutes),
+    total_hours_worked: n(l.total_hours_worked),
 
-    basic_pay: n(l?.basic_pay ?? 0),
-    ot_amount: n(l?.ot_amount ?? 0),
-    leave_amount: n(l?.leave_amount ?? 0),
-    retro_pay: n(l?.retro_pay ?? 0),
-    retro_remarks: l?.retro_remarks ?? null,
+    basic_pay: n(l.basic_pay),
+    ot_amount: n(l.ot_amount),
+    leave_amount: n(l.leave_amount ?? 0),
+    retro_pay: n(l.retro_pay),
+    retro_remarks: l.retro_remarks ?? null,
 
-    holiday: n(l?.holiday ?? l?.holiday_days ?? 0),
-    holiday_pay: n(l?.holiday_pay ?? 0),
-    holiday_days: n(l?.holiday_days ?? 0),
-    rest_day_amount: n(l?.rest_day_amount ?? 0),
-    night_diff_amount: n(l?.night_diff_amount ?? 0),
+    holiday: n(l.holiday ?? l.holiday_days),
+    holiday_pay: n(l.holiday_pay),
+    holiday_days: n(l.holiday_days),
+    rest_day_amount: n(l.rest_day_amount),
+    night_diff_amount: n(l.night_diff_amount),
 
-    allowance: n(l?.allowance ?? l?.allowance_total ?? 0),
-    manual_additions: n(l?.manual_additions ?? l?.manual_adds ?? l?.manualAdds ?? 0),
+    allowance: n(l.allowance),
+    manual_additions: n(l.manual_additions),
 
-    late_deduction: n(l?.late_deduction ?? 0),
-    undertime_deduction: n(l?.undertime_deduction ?? 0),
-    shortage_deduction: n(l?.shortage_deduction ?? 0),
+    late_deduction: n(l.late_deduction),
+    undertime_deduction: n(l.undertime_deduction),
+    shortage_deduction: n(l.shortage_deduction),
 
-    benefit_pagibig: n(l?.benefit_pagibig ?? l?.pagibig_employee ?? l?.pagibig ?? 0),
-    benefit_philhealth: n(l?.benefit_philhealth ?? l?.philhealth_employee ?? l?.philhealth ?? 0),
-    benefit_sss: n(l?.benefit_sss ?? l?.sss_employee ?? l?.sss ?? 0),
+    benefit_pagibig: n(l.benefit_pagibig),
+    benefit_philhealth: n(l.benefit_philhealth),
+    benefit_sss: n(l.benefit_sss),
 
-    loan_vale: n(l?.loan_vale ?? 0),
-    loan_car: n(l?.loan_car ?? 0),
-    loan_coop: n(l?.loan_coop ?? 0),
-    loan_total: n(l?.loan_total ?? l?.loans_total ?? 0),
+    loan_vale: n(l.loan_vale),
+    loan_car: n(l.loan_car),
+    loan_coop: n(l.loan_coop),
+    loan_total: n(l.loan_total),
 
     benefit_loan_sss: sssLoan,
     benefit_loan_pagibig: pagibigLoan,
-    benefit_loan_total: n(l?.benefit_loan_total ?? l?.benefit_loans_total ?? 0),
+    benefit_loan_total: n(l.benefit_loan_total ?? 0),
 
-    coop_savings: n(l?.coop_savings ?? 0),
-    coop_loan: n(l?.coop_loan ?? 0),
+    coop_savings: n(l.coop_savings ?? 0),
+    coop_loan: n(l.coop_loan ?? 0),
 
-    dr_deduction: n(l?.dr_deduction ?? 0),
-    other_deductions: n(l?.other_deductions ?? 0),
-    manual_deductions: n(l?.manual_deductions ?? 0),
+    dr_deduction: n(l.dr_deduction),
+    other_deductions: n(l.other_deductions),
+    manual_deductions: n(l.manual_deductions),
 
     total_additions: round2(totalAdditions),
     total_deductions: round2(totalDeductions),
     gross_pay: round2(grossPay),
     net_pay: round2(netPay),
 
-    is_prorated: bitToNum(l?.is_prorated ?? l?.isProrated ?? 0),
+    is_prorated: bitToNum(l.is_prorated ?? 0),
     proration_json: prorationJson,
     breakdown_json: breakdownJson,
 
     previous_net_pay: round2(previousNet),
-    variance_amount_ui: round2(n(l?.variance_amount_ui ?? varianceAmount)),
+    variance_amount_ui: round2(n(l.variance_amount_ui ?? varianceAmount)),
     variance_amount: round2(varianceAmount),
-    variance_pct: n(l?.variance_pct ?? 0),
-    variance_flag: bitToNum(l?.variance_flag ?? 0),
+    variance_pct: n(l.variance_pct ?? 0),
+    variance_flag: bitToNum(l.variance_flag),
 
     on_hold: onHold,
-    is_card: bitToNum(l?.is_card ?? 0),
+    is_card: bitToNum(l.is_card ?? 0),
   };
 }
 
@@ -1754,9 +1764,9 @@ function buildItemPayloadsFromBreakdown(args: {
   payrollRunId: number;
   userId: number;
   cutoff: CutoffSetting;
-  breakdown: any | null;
+  breakdown: unknown | null;
 }): PayrollRunEmployeeItemPayload[] {
-  const b = args.breakdown ?? null;
+  const b = (args.breakdown ?? null) as PayrollBreakdownJson | null;
   if (!b || typeof b !== "object") return [];
 
   const out: PayrollRunEmployeeItemPayload[] = [];
@@ -2237,9 +2247,11 @@ async function updateEmployeeLoanAccumulations(args: { payrollRunId: number; pay
   const updates: Array<{ loan_id: number; amount: number }> = [];
 
   for (const emp of employees) {
-    const breakdown = normalizeJsonOrNull(emp.breakdown_json);
-    const deductions = breakdown?.deductions ?? {};
-    const loanItems = arr(deductions?.employee_loan_items ?? []);
+    const breakdown = normalizeJsonOrNull(emp.breakdown_json) as PayrollBreakdownJson | null;
+    const deductions = (breakdown?.deductions as Record<string, unknown>) ?? {};
+    const loanItems = arr<{ source_table?: string; source_id?: number | string; amount: number }>(
+      deductions?.employee_loan_items,
+    );
 
     for (const item of loanItems) {
       if (item.source_table === "employee_loan" && item.source_id) {
@@ -2293,7 +2305,7 @@ async function updateEmployeeLoanAccumulations(args: { payrollRunId: number; pay
         status: newStatus,
         last_paid_cutoff_id: payrollRefNo,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(`[updateEmployeeLoanAccumulations] Failed to update loan ${loanId}:`, e);
       throw e;
     }
@@ -2396,7 +2408,7 @@ async function updateBenefitLoanAccumulations(args: { payrollRunId: number; payr
         status: newStatus,
         last_paid_cutoff_id: payrollRefNo,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(
         `[updateBenefitLoanAccumulations] Failed to update ${u.benefit_code} loan for user ${u.user_id}:`,
         e,
@@ -2429,9 +2441,11 @@ async function updateCoopSavingsAccumulations(args: { payrollRunId: number; payr
   const updates: Array<{ membership_id: string; amount: number }> = [];
 
   for (const emp of employees) {
-    const breakdown = normalizeJsonOrNull(emp.breakdown_json);
-    const deductions = breakdown?.deductions ?? {};
-    const coopItems = arr(deductions?.coop_savings_items ?? []);
+    const breakdown = normalizeJsonOrNull(emp.breakdown_json) as PayrollBreakdownJson | null;
+    const deductions = (breakdown?.deductions as Record<string, unknown>) ?? {};
+    const coopItems = arr<{ source_table?: string; membership_id?: string; amount: number }>(
+      deductions?.coop_savings_items,
+    );
 
     for (const item of coopItems) {
       if (item.source_table === "coop_savings_membership" && item.membership_id) {
@@ -2486,7 +2500,7 @@ async function updateCoopSavingsAccumulations(args: { payrollRunId: number; payr
         total_months: newMonths,
         last_paid_cutoff_id: payrollRefNo,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(
         `[updateCoopSavingsAccumulations] Failed to update membership ${membershipId}:`,
         e,
@@ -2647,7 +2661,7 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
         } else {
           await api.createItem(RES.benefitLogs, payload);
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!isRecordNotUnique(e)) {
           console.warn(`[createBenefitLogs] Failed to upsert contribution for user=${payload.user_id} code=${payload.benefit_code}:`, e);
         }
@@ -2683,20 +2697,21 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
   }
 
   // B2. Build and upsert LOAN rows
-  const loanLogs: any[] = [];
+  const loanLogs: unknown[] = [];
   for (const emp of employees) {
     const userId = n(emp.user_id);
     if (!userId) continue;
 
-    const breakdown = normalizeJsonOrNull(emp.breakdown_json);
-    const deductions = breakdown?.deductions ?? {};
-    const bLoansRaw = deductions?.benefit_loans;
-    const benefitLoanItems = Array.isArray(bLoansRaw) ? bLoansRaw : arr<any>(bLoansRaw?.items);
-
-    for (const item of benefitLoanItems) {
-      const loanId = n(item.loan_id ?? item.id);
-      const amt = n(item.amount_this_cutoff ?? item.amount);
-      const code = String(item.benefit_code || "").toUpperCase();
+    const breakdown = normalizeJsonOrNull(emp.breakdown_json) as PayrollBreakdownJson | null;
+    const deductions = (breakdown?.deductions as Record<string, unknown>) ?? {};
+     const bLoansRaw = deductions?.benefit_loans;
+     const benefitLoanItems = Array.isArray(bLoansRaw) ? bLoansRaw : arr<unknown>( (bLoansRaw as Record<string, unknown> | null)?.items );
+ 
+     for (const r of benefitLoanItems) {
+       const item = (r ?? {}) as Record<string, unknown>;
+       const loanId = n(item.loan_id ?? item.id);
+       const amt = n(item.amount_this_cutoff ?? item.amount);
+       const code = String(item.benefit_code || "").toUpperCase();
 
       if (loanId > 0 && amt > 0 && (code === "SSS" || code === "PAGIBIG")) {
         loanLogs.push({
@@ -2718,7 +2733,8 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
   }
 
   if (loanLogs.length > 0) {
-    const loanTasks = loanLogs.map(payload => async () => {
+    const loanTasks = loanLogs.map(p => async () => {
+      const payload = p as Record<string, unknown>;
       const key = `${payload.user_id}|${String(payload.benefit_code).toUpperCase()}|${n(payload.loan_id)}|${payrollRunId}`;
       const existingId = existingLoanMap.get(key);
       try {
@@ -2735,7 +2751,7 @@ async function createBenefitLogs(args: { payrollRunId: number; payrollRefNo: str
         } else {
           await api.createItem(RES.benefitLogs, payload);
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!isRecordNotUnique(e)) {
           console.warn(`[createBenefitLogs] Failed to upsert loan for user=${payload.user_id} code=${payload.benefit_code} loan_id=${payload.loan_id}:`, e);
         }
@@ -2762,7 +2778,7 @@ export async function updateRunTotals(args: {
   activeHeadcount?: number;
   varianceAlerts?: number;
 }): Promise<void> {
-  const s0: any = args.summary ?? {};
+  const s0 = (args.summary ?? {}) as Record<string, unknown>;
 
   const headcount = n(args.headcount ?? s0.headcount ?? args.activeHeadcount ?? s0.activeHeadcount);
   const total_gross = n(args.total_gross ?? s0.total_gross ?? s0.totalGross ?? s0.gross);

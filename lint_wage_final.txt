@@ -1,0 +1,62 @@
+
+C:\Users\mark_\payroll_system\modules\wage\WageModule.tsx
+  83:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mark_\payroll_system\modules\wage\WageModule.tsx:83:5
+  81 |
+  82 |   useEffect(() => {
+> 83 |     setLoading(true);
+     |     ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  84 |     wageApi
+  85 |       .fetchEmployeesPaged({
+  86 |         page: currentPage,  react-hooks/set-state-in-effect
+
+C:\Users\mark_\payroll_system\modules\wage\components\EmployeeTable.tsx
+  58:3  warning  'setRowsPerPage' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\mark_\payroll_system\modules\wage\components\PasswordDialog.tsx
+  30:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\mark_\payroll_system\modules\wage\components\PasswordDialog.tsx:30:7
+  28 |   useEffect(() => {
+  29 |     if (open) {
+> 30 |       setPassword("");
+     |       ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  31 |     }
+  32 |   }, [open]);
+  33 |  react-hooks/set-state-in-effect
+
+C:\Users\mark_\payroll_system\modules\wage\components\SalaryGradeManagement.tsx
+   21:3   warning  'AlertDialog' is defined but never used                          @typescript-eslint/no-unused-vars
+   22:3   warning  'AlertDialogAction' is defined but never used                    @typescript-eslint/no-unused-vars
+   23:3   warning  'AlertDialogCancel' is defined but never used                    @typescript-eslint/no-unused-vars
+   24:3   warning  'AlertDialogContent' is defined but never used                   @typescript-eslint/no-unused-vars
+   25:3   warning  'AlertDialogDescription' is defined but never used               @typescript-eslint/no-unused-vars
+   26:3   warning  'AlertDialogFooter' is defined but never used                    @typescript-eslint/no-unused-vars
+   27:3   warning  'AlertDialogHeader' is defined but never used                    @typescript-eslint/no-unused-vars
+   28:3   warning  'AlertDialogTitle' is defined but never used                     @typescript-eslint/no-unused-vars
+   46:3   warning  'Trash2' is defined but never used                               @typescript-eslint/no-unused-vars
+   57:3   warning  'Clock' is defined but never used                                @typescript-eslint/no-unused-vars
+  677:22  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+C:\Users\mark_\payroll_system\modules\wage\components\WageModal.tsx
+  106:7  warning  'TAB_KEYS' is assigned a value but only used as a type                                                                                           @typescript-eslint/no-unused-vars
+  166:5  warning  React Hook React.useMemo has missing dependencies: 'PAYROLL_ICON_BTN' and 'PAYROLL_OUTLINE'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\mark_\payroll_system\modules\wage\components\tabs\BenefitsTab.tsx
+  817:6  warning  React Hook React.useCallback has an unnecessary dependency: 'cutoffs.length'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 17 problems (3 errors, 14 warnings)
+
