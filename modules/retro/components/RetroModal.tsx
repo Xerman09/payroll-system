@@ -50,16 +50,18 @@ export default function RetroModal({
   // Reset or populate form when dialog opens/closes
   useEffect(() => {
     if (open && initialData) {
-      setForm(initialData);
+      setTimeout(() => setForm(initialData), 0);
     } else if (!open) {
-      setForm({
-        user_id: "",
-        amount: "",
-        description: "",
-        cutoff_start: "",
-        cutoff_end: "",
-      });
-      setEmployeeSearchTerm("");
+      setTimeout(() => {
+        setForm({
+          user_id: "",
+          amount: "",
+          description: "",
+          cutoff_start: "",
+          cutoff_end: "",
+        });
+        setEmployeeSearchTerm("");
+      }, 0);
     }
   }, [open, initialData]);
 

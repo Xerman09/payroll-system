@@ -10,7 +10,7 @@ export function HeroSection() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    setTimeout(() => setMounted(true), 0);
   }, []);
 
   const opacity = useTransform(scrollY, [0, 400], [1, 0]);

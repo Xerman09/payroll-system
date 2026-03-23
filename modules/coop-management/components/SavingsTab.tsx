@@ -21,7 +21,7 @@ import { AddEmployeeModal } from "./modals/AddEmployeeModal";
 import { EditEmployeeModal } from "./modals/EditEmployeeModal";
 import { CoopTableSkeleton } from "./CoopTableSkeleton";
 
-const SavingsTab = forwardRef<{ getData: () => any[] }, TabContentProps>(
+const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
   function SavingsTab(
     {
       searchTerm,
@@ -131,13 +131,14 @@ const SavingsTab = forwardRef<{ getData: () => any[] }, TabContentProps>(
         : `User #${m.user_id}`;
 
       // ✅ Use stored DB values only. Payroll Run updates these.
-      const monthly = Number((m as any)?.monthly_amount ?? 0);
-      const totalMonths = Number((m as any)?.total_months ?? 0);
-      const totalCollection = Number((m as any)?.total_collection ?? 0);
+      const mRecord = m as unknown as Record<string, unknown>;
+      const monthly = Number(mRecord?.monthly_amount ?? 0);
+      const totalMonths = Number(mRecord?.total_months ?? 0);
+      const totalCollection = Number(mRecord?.total_collection ?? 0);
 
       const start = m.start_date || null;
       const end = m.end_date || null;
-      const membershipId = (m as any)?.membership_id ?? "-";
+      const membershipId = String(mRecord?.membership_id ?? "-");
 
       return {
         id: m.id,
@@ -172,8 +173,8 @@ const SavingsTab = forwardRef<{ getData: () => any[] }, TabContentProps>(
     if (sortConfig) {
       data.sort((a, b) => {
         const key = sortConfig.key as keyof typeof a;
-        const aVal = (a[key] ?? "") as any;
-        const bVal = (b[key] ?? "") as any;
+        const aVal = (a[key] ?? "") as string | number;
+        const bVal = (b[key] ?? "") as string | number;
         if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
         if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
         return 0;

@@ -14,7 +14,7 @@ export function generateNextBinaryId(existingIds: number[]): number {
   const indices = existingIds.map(id => {
     try {
       return parseInt(id.toString(), 2);
-    } catch (e) {
+    } catch {
       return 0;
     }
   }).filter(idx => !isNaN(idx) && isFinite(idx));

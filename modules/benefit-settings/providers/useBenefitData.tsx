@@ -4,7 +4,6 @@ import { useCallback, useState, useEffect } from "react";
 import { BenefitCode, BenefitSetting, UserData } from "../types";
 import * as benefitApi from "./benefitApi";
 
-const BENEFITS: BenefitCode[] = ["SSS", "PAGIBIG", "PHILHEALTH"];
 
 export function useBenefitData() {
   const [settings, setSettings] = useState<
@@ -48,8 +47,10 @@ export function useBenefitData() {
   }, []);
 
   useEffect(() => {
-    loadSettings();
-    loadUsers();
+    setTimeout(() => {
+      loadSettings();
+      loadUsers();
+    }, 0);
   }, [loadSettings, loadUsers]);
 
   function getUserName(id: number | null) {

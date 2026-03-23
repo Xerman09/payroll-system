@@ -52,7 +52,7 @@ async function directusFetch(method: HttpMethod, path: string, body?: unknown) {
 
   const text = await res.text();
   let json = null;
-  try { json = text ? JSON.parse(text) : null; } catch (e) { }
+  try { json = text ? JSON.parse(text) : null; } catch { }
 
   if (!res.ok) {
     return {

@@ -70,7 +70,7 @@ function pickAuth(req: NextRequest) {
   return staticToken ? `Bearer ${staticToken}` : null;
 }
 
-function jsonError(status: number, error: string, details?: any) {
+function jsonError(status: number, error: string, details?: unknown) {
   return NextResponse.json({ error, details }, { status });
 }
 
@@ -111,7 +111,7 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
 
   const auth = pickAuth(req);
 
-  let body: any = undefined;
+  let body: unknown = undefined;
   if (req.method !== "GET" && req.method !== "HEAD") {
     const raw = await req.json().catch(() => null);
     body = raw?.payload ?? raw ?? null;
@@ -133,7 +133,7 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
   }
 
   const text = await res.text();
-  let data: any = null;
+  let data: unknown = null;
   try {
     data = text ? JSON.parse(text) : null;
   } catch {
@@ -145,11 +145,12 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
 
   // If data is an object, inject companyName into metadata
   if (data && typeof data === "object" && !Array.isArray(data)) {
+    const obj = data as Record<string, unknown>;
     return NextResponse.json(
       {
-        ...data,
+        ...obj,
         meta: {
-          ...(data.meta || {}),
+          ...((obj.meta as Record<string, unknown>) || {}),
           companyName,
         },
       },

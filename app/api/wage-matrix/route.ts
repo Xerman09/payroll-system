@@ -52,7 +52,7 @@ async function directusFetch(method: HttpMethod, path: string, body?: unknown) {
 
   const text = await res.text();
   let json = null;
-  try { json = text ? JSON.parse(text) : null; } catch (e) { }
+  try { json = text ? JSON.parse(text) : null; } catch { }
 
   if (!res.ok) {
     return {
@@ -123,7 +123,7 @@ export async function DELETE(req: NextRequest) {
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
-  const result = await directusFetch("DELETE" as any, `/items/payroll_logistics_salary_matrix/${id}`);
+  const result = await directusFetch("DELETE", `/items/payroll_logistics_salary_matrix/${id}`);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json({ message: "Deleted" }, { headers: corsHeaders() });
 }

@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+
 
 import type { CutoffHistoryRow, Department, Employee } from "./types";
 import {
@@ -157,7 +157,7 @@ export default function PayrollRecordsModule() {
         <CardContent className="p-6 space-y-6">
           <Tabs
             value={activeTab}
-            onValueChange={(v: any) => setActiveTab(v)}
+            onValueChange={(v: string) => setActiveTab(v as "employees" | "top-sheet")}
             className="w-full"
           >
             <TabsList className="grid grid-cols-2 w-full mb-4">

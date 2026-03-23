@@ -18,8 +18,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
-  ChevronLeft,
-  ChevronRight,
   ArrowUpDown,
   Pencil,
   Trash2,
@@ -52,7 +50,6 @@ interface RetroTableProps {
 export default function RetroTable({
   data,
   loading,
-  refreshing,
   employees,
   pagination,
   sorting,
@@ -98,7 +95,7 @@ export default function RetroTable({
         });
   };
 
-  const { sortConfig, onSort } = sorting;
+  const { onSort } = sorting;
 
   const confirmDelete = (retro: RetroPayFromApi) => {
     setDeleteId(retro.retro_id);

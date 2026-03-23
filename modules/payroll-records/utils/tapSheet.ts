@@ -7,7 +7,7 @@ function isTruthyFlag(v: unknown): boolean {
   if (v === null || v === undefined) return false;
 
   if (typeof v === "object") {
-    const anyV = v as any;
+    const anyV = v as { data?: (number | boolean | string | null)[] };
     const d0 = anyV?.data?.[0];
     if (d0 === 1 || d0 === "1" || d0 === true) return true;
     if (d0 === 0 || d0 === "0" || d0 === false || d0 == null) return false;
@@ -21,7 +21,7 @@ function isTruthyFlag(v: unknown): boolean {
 }
 
 function isOnHoldRow(r: PayrollRunEmployeeRow): boolean {
-  return isTruthyFlag((r as any)?.on_hold);
+  return isTruthyFlag(r.on_hold);
 }
 
 export function formatEmployeeNameLFM(emp: EmployeeMaster): string {
@@ -55,7 +55,8 @@ export function dedupeByUserKeepLatestRun(rows: PayrollRunEmployeeRow[]): Payrol
       rId = rVal;
     } else if (rVal && typeof rVal === "object") {
       // Directus sometimes nests the ID as 'id' or 'payroll_run_id' depending on the query
-      rId = (rVal as any).id || (rVal as any).payroll_run_id || 0;
+      const rObj = rVal as Record<string, unknown>;
+      rId = Number(rObj.id || rObj.payroll_run_id) || 0;
     }
 
     const prevVal = prev?.payroll_run_id;
@@ -63,7 +64,8 @@ export function dedupeByUserKeepLatestRun(rows: PayrollRunEmployeeRow[]): Payrol
     if (typeof prevVal === "number") {
       prevId = prevVal;
     } else if (prevVal && typeof prevVal === "object") {
-      prevId = (prevVal as any).id || (prevVal as any).payroll_run_id || 0;
+      const pObj = prevVal as Record<string, unknown>;
+      prevId = Number(pObj.id || pObj.payroll_run_id) || 0;
     }
 
     if (!prev || rId >= prevId) {
@@ -99,12 +101,11 @@ export function buildTapSheetRows(
     let posted = pr.posted_at;
 
     if (pr.payroll_run_id && typeof pr.payroll_run_id === "object") {
-      const runObj = pr.payroll_run_id as any;
-      if (!ref) ref = runObj.payroll_ref_no;
-      if (!posted) posted = runObj.posted_at;
+      const runObj = pr.payroll_run_id as Record<string, unknown>;
+      if (!ref) ref = String(runObj.payroll_ref_no || "");
+      if (!posted) posted = String(runObj.posted_at || "");
     }
 
-    const grossOrig = toNumberSafe(pr.gross_pay);
     const addsOrig = toNumberSafe(pr.total_additions);
 
     const basic = toNumberSafe(pr.basic_pay);

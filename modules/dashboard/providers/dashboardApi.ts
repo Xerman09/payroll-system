@@ -52,30 +52,30 @@ async function fetchAllInBatches<T>(endpoint: string, baseParams: Record<string,
   return allItems;
 }
 
-export async function fetchUsers(params: Record<string, string> = {}): Promise<any[]> {
+export async function fetchUsers(params: Record<string, string> = {}): Promise<Record<string, unknown>[]> {
   // Always fetch in batches to ensure we get everything regardless of system limits
-  return fetchAllInBatches<any>("/items/user", params);
+  return fetchAllInBatches<Record<string, unknown>>("/items/user", params);
 }
 
-export async function fetchDepartments(): Promise<any[]> {
-  return fetchAllInBatches<any>("/items/department");
+export async function fetchDepartments(): Promise<Record<string, unknown>[]> {
+  return fetchAllInBatches<Record<string, unknown>>("/items/department");
 }
 
-export async function fetchPostedPayrollRuns(): Promise<any[]> {
+export async function fetchPostedPayrollRuns(): Promise<Record<string, unknown>[]> {
   const params = {
     "filter[status][_eq]": "POSTED",
     sort: "cutoff_end",
     fields: "cutoff_end,total_net"
   };
 
-  return fetchAllInBatches<any>("/items/payroll_run", params);
+  return fetchAllInBatches<Record<string, unknown>>("/items/payroll_run", params);
 }
 
-export async function fetchPendingApprovals(): Promise<any[]> {
+export async function fetchPendingApprovals(): Promise<Record<string, unknown>[]> {
   const params = {
     "filter[status][_eq]": "pending",
     fields: "approval_id"
   };
 
-  return fetchAllInBatches<any>("/items/attendance_approval", params);
+  return fetchAllInBatches<Record<string, unknown>>("/items/attendance_approval", params);
 }

@@ -15,12 +15,10 @@ import {
   fetchBenefitLogs,
   fetchCutoffSettings,
   fetchCompanyConfig,
-  cutoffLabel,
   formatMoney,
 } from "../providers/benefitApi";
-import {
-  exportBenefitLogsPdf,
-  type BenefitLogsPaperSize,
+import type {
+  BenefitLogsPaperSize,
 } from "../utils/benefitLogsPdf";
 import { BenefitTableSkeleton } from "./BenefitSettingsSkeleton";
 import BenefitExportPreviewDialog from "./BenefitExportPreviewDialog";
@@ -61,10 +59,11 @@ function userName(users: UserData[], userId: number) {
 export default function BenefitLogsTab({ users }: { users: UserData[] }) {
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
-  const [exporting, setExporting] = React.useState(false);
+
   const [companyName, setCompanyName] = React.useState("MEN2 MARKETING CORPORATION");
 
   const [cutoffs, setCutoffs] = React.useState<CutoffSetting[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const cutoffMap = React.useMemo(
     () => new Map(cutoffs.map((c) => [c.id, c] as const)),
     [cutoffs]
@@ -355,7 +354,6 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
               </TableRow>
             ) : (
               filtered.map((r) => {
-                const c = cutoffMap.get(r.cutoff_id);
                 const postedDate = r.posted_at
                   ? new Date(r.posted_at).toLocaleDateString(undefined, {
                       year: "numeric",

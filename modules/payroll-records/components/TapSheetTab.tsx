@@ -26,9 +26,7 @@ import {
 import { toNumberSafe } from "../utils/money";
 import { buildTapSheetPdf } from "../utils/tapSheetPdf";
 import { buildPayslipsPdf } from "../../payroll-run/utils/payslipPdf";
-import { buildPayrollSummaryPdf } from "../utils/payrollSummaryPdf";
-
-import { CardHeader, CardTitle } from "@/components/ui/card";
+import { CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -61,6 +59,7 @@ function isTruthyFlag(v: unknown): boolean {
   if (v === null || v === undefined) return false;
 
   if (typeof v === "object") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const anyV = v as any;
     const d0 = anyV?.data?.[0];
     if (d0 === 1 || d0 === "1" || d0 === true) return true;
@@ -76,8 +75,8 @@ function isTruthyFlag(v: unknown): boolean {
 }
 
 /** Format number ONLY (no currency symbol) */
-function formatAmountOnly(v: any) {
-  const n = Math.abs(toNumberSafe(v));
+function formatAmountOnly(v: unknown) {
+  const n = Math.abs(toNumberSafe(v as number | string));
   try {
     return n.toLocaleString("en-PH", {
       minimumFractionDigits: 2,
@@ -95,8 +94,8 @@ function formatAmountOnly(v: any) {
  * Show whole numbers without decimals (12), 
  * but fractionals with up to 2 (12.5) 
  */
-function formatSmartDecimal(v: any) {
-  const n = Math.abs(toNumberSafe(v));
+function formatSmartDecimal(v: unknown) {
+  const n = Math.abs(toNumberSafe(v as number | string));
   if (Number.isInteger(n)) return n.toString();
   try {
     return n.toLocaleString("en-PH", {
@@ -112,7 +111,7 @@ function formatSmartDecimal(v: any) {
 }
 
 /** UI Peso format: single symbol, ABS */
-function peso(v: any) {
+function peso(v: unknown) {
   return `₱ ${formatAmountOnly(v)}`;
 }
 
@@ -145,7 +144,7 @@ export default function TapSheetTab({
 
   const [loading, setLoading] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
-  const [rowsRaw, setRowsRaw] = React.useState<any[]>([]);
+  const [rowsRaw, setRowsRaw] = React.useState<Record<string, unknown>[]>([]);
   const [companyName, setCompanyName] = React.useState<string>(passedCompanyName || "");
 
   React.useEffect(() => {
@@ -163,7 +162,7 @@ export default function TapSheetTab({
         `${uniqueCutoffs[0].start_date}|${uniqueCutoffs[0].end_date}`,
       );
     }
-  }, [selectedCutoff, uniqueCutoffs]);
+  }, [selectedCutoff, uniqueCutoffs, setSelectedCutoff]);
 
   const departmentName = React.useMemo(() => {
     if (!deptId || deptId === -1) return "";
@@ -192,7 +191,7 @@ export default function TapSheetTab({
 
         // ✅ safety-net filter (backend should already filter, but keep this)
         const filtered = res.data.filter(
-          (r: any) => !isTruthyFlag(r?.on_hold),
+          (r: Record<string, unknown>) => !isTruthyFlag(r?.on_hold),
         );
         setRowsRaw(filtered);
         if (res.meta?.companyName) {
@@ -202,22 +201,21 @@ export default function TapSheetTab({
         console.error(e);
         toast.error("Failed to load Top Sheet data.");
         setRowsRaw([]);
-      } finally {
-        setLoading(false);
       }
     };
     run();
-  }, [cutoff?.start, cutoff?.end, departmentName]);
+  }, [cutoff?.start, cutoff?.end, departmentName, deptId]);
 
   const tapRows: TapSheetRow[] = React.useMemo(() => {
     if (!cutoff?.start || !cutoff?.end) return [];
     if (deptId !== -1 && !departmentName) return [];
 
     // ✅ safety-net again
-    const safeRaw = (rowsRaw as any[]).filter(
-      (r) => !isTruthyFlag((r as any)?.on_hold),
+    const safeRaw = (rowsRaw as Record<string, unknown>[]).filter(
+      (r) => !isTruthyFlag(r?.on_hold),
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const deduped = dedupeByUserKeepLatestRun(safeRaw as any);
 
     const masters = employees.map((e) => ({
@@ -227,6 +225,7 @@ export default function TapSheetTab({
       user_lname: e.user_lname,
     }));
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const built = buildTapSheetRows(deduped as any, masters);
 
     const q = search.trim().toLowerCase();
@@ -266,6 +265,7 @@ export default function TapSheetTab({
     search,
     sortKey,
     sortDir,
+    deptId,
   ]);
 
   const totals = React.useMemo(() => {
@@ -346,6 +346,7 @@ export default function TapSheetTab({
       
       const doc = await buildPayslipsPdf({
         rows: tapRows,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         payrollPeriodLabel: buildCutoffLabel(cutoff as any),
         pageSize: "LEGAL",
         companyName: (companyName || "").toUpperCase(),
@@ -353,7 +354,7 @@ export default function TapSheetTab({
       
       doc.save(buildSafeFilename("all_payslips"));
       toast.success("Bulk payslips generated.");
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
       toast.error("Failed to generate bulk payslips.");
     } finally {
@@ -646,7 +647,7 @@ export default function TapSheetTab({
                  
                  <div className="flex items-center gap-2">
                    <Label className="text-sm font-medium">Payment Type:</Label>
-                   <Select value={pdfFilter} onValueChange={(v: any) => setPdfFilter(v)}>
+                   <Select value={pdfFilter} onValueChange={(v: "ALL" | "BANK" | "CASH") => setPdfFilter(v)}>
                      <SelectTrigger className="h-8 w-[140px]">
                         <SelectValue />
                      </SelectTrigger>

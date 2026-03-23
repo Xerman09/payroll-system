@@ -10,7 +10,6 @@ import {
 import { 
   LogisticsArea, 
   LogisticsStaff, 
-  LogisticsVehicleType, 
   SalaryMatrix, 
   WageMatrixData 
 } from './types';
@@ -24,7 +23,6 @@ import {
   ShieldCheck, 
   AlertCircle,
   Clock,
-  ChevronDown,
   LayoutGrid
 } from 'lucide-react';
 
@@ -43,10 +41,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+  CardContent 
 } from "@/components/ui/card";
 
 // Mapping Configuration

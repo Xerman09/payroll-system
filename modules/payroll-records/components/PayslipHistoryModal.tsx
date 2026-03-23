@@ -7,7 +7,6 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle,
-  DialogFooter
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { 
@@ -26,8 +25,6 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   ArrowUpDown
 } from "lucide-react";
 import { formatPHP } from "../../payroll-run/utils/compute";
@@ -65,7 +62,7 @@ export default function PayslipHistoryModal({
   companyName: passedCompanyName,
 }: PayslipHistoryModalProps) {
   const [loading, setLoading] = React.useState(false);
-  const [records, setRecords] = React.useState<any[]>([]);
+  const [records, setRecords] = React.useState<Record<string, unknown>[]>([]);
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const [isGenerating, setIsGenerating] = React.useState(false);
@@ -78,46 +75,40 @@ export default function PayslipHistoryModal({
   }, [passedCompanyName]);
 
   React.useEffect(() => {
+    const fetchHistory = async () => {
+      if (!employee?.user_id) return;
+      setLoading(true);
+      try {
+        const sp = new URLSearchParams();
+        sp.set("resource", "payroll_run_employee");
+        sp.set("fields", "*,payroll_run_id.payroll_ref_no,payroll_run_id.posted_at");
+        sp.set("filter[user_id][_eq]", String(employee.user_id));
+        sp.set("sort", "-cutoff_end");
+        sp.set("limit", "1000");
+        
+        const res = await fetch(`/api/payroll-run?${sp.toString()}`);
+        const json = await res.json();
+        
+        if (!res.ok) throw new Error(json?.error || "Failed to fetch history");
+        
+        setRecords(Array.isArray(json?.data) ? json.data : []);
+        if (json.meta?.companyName) {
+          setCompanyName(json.meta.companyName);
+        }
+      } catch (e: unknown) {
+        toast.error(e instanceof Error ? e.message : "Failed to load history");
+      } finally {
+        setLoading(false);
+      }
+    };
+
     if (isOpen && employee?.user_id) {
       setSearchTerm("");
       fetchHistory();
     } else {
       setRecords([]);
     }
-  }, [isOpen, employee, passedCompanyName]);
-
-  React.useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
-
-  const fetchHistory = async () => {
-    if (!employee?.user_id) return;
-    setLoading(true);
-    try {
-      const sp = new URLSearchParams();
-      sp.set("resource", "payroll_run_employee");
-      sp.set("fields", "*,payroll_run_id.payroll_ref_no,payroll_run_id.posted_at");
-      sp.set("filter[user_id][_eq]", String(employee.user_id));
-      sp.set("sort", "-cutoff_end");
-      sp.set("limit", "1000");
-      
-      const res = await fetch(`/api/payroll-run?${sp.toString()}`);
-      const json = await res.json();
-      
-      if (!res.ok) throw new Error(json?.error || "Failed to fetch history");
-      
-      setRecords(Array.isArray(json?.data) ? json.data : []);
-      if (json.meta?.companyName) {
-        setCompanyName(json.meta.companyName);
-      }
-    } catch (e: any) {
-      toast.error(e.message || "Failed to load history");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [isOpen, employee]);
 
   const filteredData = React.useMemo(() => {
     if (!searchTerm.trim()) return records;
@@ -126,17 +117,21 @@ export default function PayslipHistoryModal({
       const label = String(r.cutoff_label || "").toLowerCase();
       const start = String(r.cutoff_start || "").toLowerCase();
       const end = String(r.cutoff_end || "").toLowerCase();
-      const ref = String(r.payroll_run_id?.payroll_ref_no || r.payroll_ref_no || "").toLowerCase();
+      const pRun = r.payroll_run_id as Record<string, unknown>;
+      const ref = String(pRun?.payroll_ref_no || r.payroll_ref_no || "").toLowerCase();
       return label.includes(s) || start.includes(s) || end.includes(s) || ref.includes(s);
     });
   }, [records, searchTerm]);
 
-  const handlePreview = async (record: any) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handlePreview = React.useCallback(async (record: Record<string, any>) => {
     setIsGenerating(true);
     try {
-      const payrollRefNo = record.payroll_run_id?.payroll_ref_no || record.payroll_ref_no;
-      const postedAt = record.payroll_run_id?.posted_at || record.posted_at;
-      const payrollPeriodLabel = record.cutoff_label || `${record.cutoff_start} to ${record.cutoff_end}`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pRun = record.payroll_run_id as any;
+      const payrollRefNo = (pRun?.payroll_ref_no as string | undefined) || (record.payroll_ref_no as string | undefined);
+      const postedAt = (pRun?.posted_at as string | undefined) || (record.posted_at as string | undefined);
+      const payrollPeriodLabel = record.cutoff_label ? String(record.cutoff_label) : `${String(record.cutoff_start || "")} to ${String(record.cutoff_end || "")}`;
       
       const doc = await buildPayslipsPdf({
         rows: [record],
@@ -148,18 +143,28 @@ export default function PayslipHistoryModal({
       });
 
       const blob = doc.output("blob");
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      const url = URL.createObjectURL(blob);
-      setPreviewUrl(url);
+      setPreviewUrl((prev) => {
+        if (prev) window.URL.revokeObjectURL(prev);
+        return window.URL.createObjectURL(blob);
+      });
       setPreviewOpen(true);
-    } catch (e: any) {
-      toast.error(e.message || "Failed to generate preview");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to generate preview");
     } finally {
       setIsGenerating(false);
     }
-  };
+  }, [companyName]);
 
-  const columns = React.useMemo<ColumnDef<any>[]>(() => [
+  React.useEffect(() => {
+    return () => {
+      setPreviewUrl((prev) => {
+        if (prev) window.URL.revokeObjectURL(prev);
+        return null;
+      });
+    };
+  }, []);
+
+  const columns = React.useMemo<ColumnDef<Record<string, unknown>>[]>(() => [
     {
       accessorKey: "cutoff_period",
       header: ({ column }) => (
@@ -172,9 +177,9 @@ export default function PayslipHistoryModal({
         const r = row.original;
         return (
           <div className="font-medium text-base text-foreground">
-            {r.cutoff_label || (
+            {r.cutoff_label ? String(r.cutoff_label) : (
               <span className="text-sm text-muted-foreground">
-                {r.cutoff_start} to {r.cutoff_end}
+                {String(r.cutoff_start || "")} to {String(r.cutoff_end || "")}
               </span>
             )}
           </div>
@@ -234,7 +239,7 @@ export default function PayslipHistoryModal({
         </div>
       ),
     },
-  ], [isGenerating, companyName, previewUrl]);
+  ], [isGenerating, handlePreview]);
 
   const table = useReactTable({
     data: filteredData,

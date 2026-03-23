@@ -143,13 +143,7 @@ export default function BenefitSettingsModule() {
     [cutoffs]
   );
 
-  // No-op for manual date change since inputs satisfy read-only requirement
-  const onDateChange = React.useCallback(
-    () => {
-      // Intentionally empty or strictly controlled
-    },
-    []
-  );
+
 
   const onSaveAll = React.useCallback(async () => {
     setSaving(true);

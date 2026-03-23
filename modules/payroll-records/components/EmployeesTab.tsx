@@ -3,7 +3,7 @@
 import * as React from "react";
 import type { Department, Employee } from "../types";
 
-import { toast } from "sonner";
+
 import { CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -80,7 +80,7 @@ export default function EmployeesTab({
         return matchesDept && matchesSearch;
       })
       .sort((a, b) => {
-        let aVal: any, bVal: any;
+        let aVal: string | number = 0, bVal: string | number = 0;
         switch (sortConfig.key) {
           case "id":
             aVal = a.user_id;
@@ -104,10 +104,12 @@ export default function EmployeesTab({
             break;
         }
         if (typeof aVal === "string") {
-          const cmp = aVal.localeCompare(bVal);
+          const cmp = aVal.localeCompare(String(bVal));
           return sortConfig.direction === "asc" ? cmp : -cmp;
         }
-        return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
+        const aNum = Number(aVal);
+        const bNum = Number(bVal);
+        return sortConfig.direction === "asc" ? aNum - bNum : bNum - aNum;
       });
   }, [employees, departments, filterDept, searchTerm, sortConfig]);
 
@@ -181,7 +183,7 @@ export default function EmployeesTab({
           <Label className="text-sm font-medium">Sort by</Label>
           <Select
             value={sortConfig.key}
-            onValueChange={(value: any) =>
+            onValueChange={(value: "id" | "fname" | "lname" | "department") =>
               setSortConfig({ key: value, direction: "asc" })
             }
           >
@@ -207,21 +209,21 @@ export default function EmployeesTab({
                 label="Employee ID"
                 sortKey="id"
                 currentSort={sortConfig}
-                onSort={handleSort as any}
+                onSort={(key: string) => handleSort(key as "id" | "fname" | "lname" | "department")}
                 className="w-1/4"
               />
               <SortableTableHead
                 label="Name"
                 sortKey="fname"
                 currentSort={sortConfig}
-                onSort={handleSort as any}
+                onSort={(key: string) => handleSort(key as "id" | "fname" | "lname" | "department")}
                 className="w-1/4"
               />
               <SortableTableHead
                 label="Department"
                 sortKey="department"
                 currentSort={sortConfig}
-                onSort={handleSort as any}
+                onSort={(key: string) => handleSort(key as "id" | "fname" | "lname" | "department")}
                 className="w-1/4"
               />
               <TableHead className="w-1/4">Action</TableHead>

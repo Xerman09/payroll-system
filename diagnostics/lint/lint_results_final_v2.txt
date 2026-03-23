@@ -1,0 +1,11 @@
+
+> payroll@1.0.0 lint
+> eslint
+
+
+C:\Users\mark_\payroll_system\modules\calendar-management\CalendarManagementModule.tsx
+   18:10  warning  'useCallback' is defined but never used                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  260:8   warning  React Hook useMemo has an unnecessary dependency: 'currentMonth'. Either exclude it or remove the dependency array. Outer scope values like 'currentMonth' aren't valid dependencies because mutating them doesn't re-render the component  react-hooks/exhaustive-deps
+
+✖ 2 problems (0 errors, 2 warnings)
+

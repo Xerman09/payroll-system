@@ -1,0 +1,73 @@
+
+> payroll@1.0.0 lint
+> eslint
+
+
+C:\Users\mark_\payroll_system\app\dashboard\components\DashboardCharts.tsx
+  5:3  warning  'LineChart' is defined but never used  @typescript-eslint/no-unused-vars
+  6:3  warning  'Line' is defined but never used       @typescript-eslint/no-unused-vars
+
+C:\Users\mark_\payroll_system\components\landing\CTAAndFooter.tsx
+  4:10  warning  'ArrowRight' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\mark_\payroll_system\components\landing\RecordsReporting.tsx
+  4:39  warning  'ArrowRight' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\mark_\payroll_system\modules\allowance\providers\allowanceApi.ts
+  7:3  warning  'PayCycle' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\mark_\payroll_system\modules\auth\login\LoginModule.tsx
+  16:9   warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  79:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\mark_\payroll_system\modules\auth\login\components\LoginForm.tsx
+  19:10  warning  'focusedField' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\mark_\payroll_system\modules\benefit-settings\components\BenefitLogsTab.tsx
+  66:9  warning  'cutoffMap' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\mark_\payroll_system\modules\calendar-management\CalendarManagementModule.tsx
+  260:9  warning  React Hook useMemo has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
+
+C:\Users\mark_\payroll_system\modules\coop-management\components\modals\AddEmployeeModal.tsx
+  181:10  warning  'cutoffs' is assigned a value but never used                                                                               @typescript-eslint/no-unused-vars
+  312:6   warning  React Hook useEffect has a missing dependency: 'generateAndCheckUnique'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\mark_\payroll_system\modules\cutoff-settings\providers\cutoffSettingsApi.ts
+  157:33  warning  '_ids' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\mark_\payroll_system\modules\payroll-records\components\PayslipHistoryModal.tsx
+   28:3   warning  'ChevronsLeft' is defined but never used   @typescript-eslint/no-unused-vars
+   29:3   warning  'ChevronsRight' is defined but never used  @typescript-eslint/no-unused-vars
+  129:73  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+
+C:\Users\mark_\payroll_system\modules\payroll-records\components\TapSheetTab.tsx
+  79:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  98:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\mark_\payroll_system\modules\payroll-records\providers\payrollRecordsApi.ts
+  18:5   warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+  20:16  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+  21:16  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+
+C:\Users\mark_\payroll_system\modules\payroll-records\utils\payrollSummaryPdf.ts
+   18:75   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   18:104  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  113:26   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  228:80   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  229:80   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  247:63   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  248:63   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  251:42   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  264:42   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  279:43   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  280:43   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  290:55   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  291:55   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  293:38   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  300:38   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  557:34   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 37 problems (21 errors, 16 warnings)
+  0 errors and 1 warning potentially fixable with the `--fix` option.
+

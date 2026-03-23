@@ -50,7 +50,7 @@ function generateMembershipId() {
 }
 
 function isForbiddenFieldError(err: unknown, field: string) {
-  const e = err as any;
+  const e = err as Record<string, unknown>;
   const status = e?.status;
   const msg = String(e?.message ?? "");
   return (
@@ -162,7 +162,7 @@ export function EditEmployeeModal({
   const [endDate, setEndDate] = useState("");
   const [isActive, setIsActive] = useState(1);
 
-  const [cutoffs, setCutoffs] = useState<CutoffSetting[]>([]);
+
   const [loadingCutoffs, setLoadingCutoffs] = useState(false);
   const [presentCutoff, setPresentCutoff] = useState<CutoffSetting | null>(
     null
@@ -186,7 +186,6 @@ export function EditEmployeeModal({
         limit: "-1",
       });
       const list = res.data ?? [];
-      setCutoffs(list);
 
       const { present, next } = pickPresentAndNext(list);
       setPresentCutoff(present);
@@ -203,8 +202,9 @@ export function EditEmployeeModal({
       warnedPermissionRef.current = false;
 
       setUserId(String(membership.user_id));
-      setMembershipId(String((membership as any)?.membership_id ?? ""));
-      setMonthlyAmount(String((membership as any)?.monthly_amount ?? ""));
+      const mRecord = membership as unknown as Record<string, unknown>;
+      setMembershipId(String(mRecord?.membership_id ?? ""));
+      setMonthlyAmount(String(mRecord?.monthly_amount ?? ""));
 
       setStartDate(membership.start_date || "");
       setEndDate(membership.end_date || "");
@@ -356,9 +356,9 @@ export function EditEmployeeModal({
       );
       onEdited(updated);
       toast.success("Updated successfully.");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      const msg = String(err?.message ?? "");
+      const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("membership_id")) {
         toast.error(
           'Update failed: ensure Directus role has Update access to "membership_id".'

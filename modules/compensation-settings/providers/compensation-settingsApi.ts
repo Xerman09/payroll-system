@@ -10,7 +10,7 @@ async function apiFetch(resource: string, options: RequestInit = {}) {
   return data;
 }
 
-async function apiMutate(method: "POST" | "PATCH" | "DELETE", resource: string, body?: any) {
+async function apiMutate(method: "POST" | "PATCH" | "DELETE", resource: string, body?: { id?: number; [key: string]: unknown }) {
   const url = `${BASE_API}?resource=${resource}${method === "DELETE" && body?.id ? `&id=${body.id}` : ""}`;
   const res = await fetch(url, {
     method,

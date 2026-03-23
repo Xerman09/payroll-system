@@ -6,7 +6,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +18,6 @@ import {
 import { FileDown, Eye, Loader2 } from "lucide-react";
 import { exportCoopPdf, CoopPaperSize } from "../../utils/coopExportPdf";
 import { listItems } from "../../providers/coopApi";
-import { Label } from "@/components/ui/label";
 import { CutoffSetting } from "@/modules/benefit-settings/types";
 import { fetchCompanyConfig } from "@/modules/benefit-settings/providers/benefitApi";
 
@@ -27,7 +25,7 @@ interface PrintPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   type: "savings" | "loans";
-  data: any[];
+  data: Record<string, unknown>[];
   searchTerm: string;
   statusFilter: string;
 }
@@ -70,42 +68,46 @@ export function PrintPreviewModal({
     }
   }, [isOpen]);
 
-  const generatePreview = async () => {
-    setIsGenerating(true);
-    try {
-      const doc = await exportCoopPdf({
-        paper: paperSize,
-        type,
-        data,
-        searchTerm,
-        statusFilter,
-        cutoffId: selectedCutoff === "all" ? undefined : Number(selectedCutoff),
-        cutoffs,
-        companyName,
-      });
-
-      const blob = doc.output("blob");
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      const url = URL.createObjectURL(blob);
-      setPreviewUrl(url);
-    } catch (error) {
-      console.error("Failed to generate PDF preview:", error);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   useEffect(() => {
     if (isOpen && data.length > 0) {
+      const generatePreview = async () => {
+        setIsGenerating(true);
+        try {
+          const doc = await exportCoopPdf({
+            paper: paperSize,
+            type,
+            data,
+            searchTerm,
+            statusFilter,
+            cutoffId: selectedCutoff === "all" ? undefined : Number(selectedCutoff),
+            cutoffs,
+            companyName,
+          });
+
+          const blob = doc.output("blob");
+          setPreviewUrl((prevUrl) => {
+            if (prevUrl) URL.revokeObjectURL(prevUrl);
+            return URL.createObjectURL(blob);
+          });
+        } catch (error) {
+          console.error("Failed to generate PDF preview:", error);
+        } finally {
+          setIsGenerating(false);
+        }
+      };
       generatePreview();
     }
+  }, [isOpen, paperSize, type, data, selectedCutoff, cutoffs, companyName, searchTerm, statusFilter]);
+
+  useEffect(() => {
+    // only cleanup on unmount
     return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-        setPreviewUrl(null);
-      }
+      setPreviewUrl((prevUrl) => {
+        if (prevUrl) URL.revokeObjectURL(prevUrl);
+        return null;
+      });
     };
-  }, [isOpen, paperSize, type, data, selectedCutoff]);
+  }, []);
 
   const handleDownload = () => {
     if (previewUrl) {

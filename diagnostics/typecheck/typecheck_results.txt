@@ -1,0 +1,9 @@
+
+> payroll@1.0.0 typecheck
+> tsc --noEmit
+
+modules/payroll-run/components/PayrollAdjustStep.tsx(376,13): error TS2322: Type '{ id: number; type: "DEDUCTION"; amount: number; desc: string; category: string; other_deduction_type: string; dr_payment_id: number; delivery_receipt_number: string; employee_id: number; cutoff_from: string; ... 9 more ...; __source: "DR"; }[]' is not assignable to type 'ManualEntryExt[]'.
+  Type '{ id: number; type: "DEDUCTION"; amount: number; desc: string; category: string; other_deduction_type: string; dr_payment_id: number; delivery_receipt_number: string; employee_id: number; cutoff_from: string; ... 9 more ...; __source: "DR"; }' is not assignable to type 'ManualEntryExt'.
+    Types of property 'amount_paid' are incompatible.
+      Type 'string | number' is not assignable to type 'number | undefined'.
+        Type 'string' is not assignable to type 'number'.

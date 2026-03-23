@@ -7,7 +7,7 @@ async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { cache: "no-store" });
 
   const text = await res.text();
-  let json: any = null;
+  let json: Record<string, unknown> | null = null;
   try {
     json = text ? JSON.parse(text) : null;
   } catch {
@@ -17,7 +17,7 @@ async function getJson<T>(url: string): Promise<T> {
   if (!res.ok) {
     const detail =
       json?.error ||
-      json?.body?.error ||
+      (json?.body as Record<string, unknown>)?.error ||
       (typeof text === "string" ? text.slice(0, 300) : "No body");
     throw new Error(`PayrollRecords API ${res.status} ${res.statusText}: ${detail}`);
   }

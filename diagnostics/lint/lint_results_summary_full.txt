@@ -1,0 +1,25 @@
+
+> payroll@1.0.0 lint
+> eslint
+
+
+C:\Users\mark_\payroll_system\modules\payroll-records\utils\payrollSummaryPdf.ts
+   17:75   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   17:104  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  112:26   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  227:80   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  228:80   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  246:63   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  247:63   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  250:42   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  263:42   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  278:43   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  279:43   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  289:55   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  290:55   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  292:38   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  299:38   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  556:34   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 16 problems (16 errors, 0 warnings)
+

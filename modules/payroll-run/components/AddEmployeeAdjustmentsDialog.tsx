@@ -45,14 +45,17 @@ type AdditionTab = "MANUAL_ADDITION" | "RETRO_PAY";
 // Extended entry with metadata for identifying source and ID during edit
 export type ManualEntryExt = {
   id?: number | string;
-  __source?: "ADD" | "DED" | "DR" | "RETRO";
-  amount?: number;
-  description?: string;
-  delivery_receipt_number?: string;
-  payment_date?: string;
-  amount_paid?: number;
-  remarks?: string;
-  type?: PayrollOtherDeductionType;
+  __source?: "ADD" | "DED" | "DR" | "RETRO" | "COOP";
+  amount: number;
+  desc: string;
+  type: "EARNING" | "DEDUCTION";
+  category?: string;
+  other_deduction_type?: string; // added this
+  description?: string | null;
+  delivery_receipt_number?: string | null;
+  payment_date?: string | null;
+  amount_paid?: number | null;
+  remarks?: string | null;
   [k: string]: unknown;
 };
 
@@ -121,12 +124,12 @@ export function AddEmployeeAdjustmentsDialog({
         setKind("ADDITION");
         setAddTab("RETRO_PAY");
         setAmount(String(editingEntry.amount || ""));
-        setDescription(editingEntry.description || "");
+        setDescription(editingEntry.desc || "");
       } else if (src === "ADD") {
         setKind("ADDITION");
         setAddTab("MANUAL_ADDITION");
         setAmount(String(editingEntry.amount || ""));
-        setDescription(editingEntry.description || "");
+        setDescription(editingEntry.desc || "");
       } else if (src === "DR") {
         setKind("DEDUCTION");
         setDedTab("DR_PAYMENT");
@@ -136,9 +139,9 @@ export function AddEmployeeAdjustmentsDialog({
         setDrRemarks(editingEntry.remarks || "");
       } else if (src === "DED") {
         setKind("DEDUCTION");
-        setDedTab((editingEntry.type as DeductionTab) || "MANUAL");
+        setDedTab((editingEntry.other_deduction_type as DeductionTab) || "MANUAL");
         setAmount(String(editingEntry.amount || ""));
-        setDescription(editingEntry.description || "");
+        setDescription(editingEntry.desc || "");
       } else {
         setSaving(false);
         setKind("DEDUCTION");

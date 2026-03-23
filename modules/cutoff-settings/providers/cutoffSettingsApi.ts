@@ -65,7 +65,7 @@ export function computeDefaultCutoffsForPeriod(
    Session helpers (sessionStorage-based)
 ========================================================= */
 
-export type SessionUser = Record<string, any>;
+export type SessionUser = Record<string, unknown>;
 
 /** Reads the current user object from sessionStorage ("user"). */
 export function getSessionUser(): SessionUser | null {
@@ -115,22 +115,7 @@ export type UserRow = {
   user_email?: string;
 };
 
-function getPublicApiBase(): string {
-  // Your project already uses NEXT_PUBLIC_API_BASE / API_BASE pattern.
-  const base =
-    process.env.NEXT_PUBLIC_API_BASE ||
-    process.env.API_BASE ||
-    "";
-  return String(base).replace(/\/+$/, "");
-}
 
-function buildUsersUrl(): string {
-  const qs = new URLSearchParams();
-  qs.set("fields", "id,user_id,user_fname,user_mname,user_lname,user_email");
-  qs.set("limit", "500");
-  qs.set("sort", "user_lname");
-  return `${getPublicApiBase()}/items/user?${qs.toString()}`;
-}
 
 export function formatUserFullName(u: UserRow): string {
   const parts = [
@@ -169,7 +154,8 @@ export function makeUserNameMap(users: UserRow[]): Map<string, string> {
 
   return map;
 }
-export async function listUsers(ids?: Array<string | number>): Promise<UserRow[]> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function listUsers(_ids?: Array<string | number>): Promise<UserRow[]> {
   const qs = new URLSearchParams();
   qs.set("resource", "users");
 
@@ -324,7 +310,7 @@ async function bestEffortArchiveExtras(keepIds: Set<number>) {
       .map((r) => ({ id: r.id, status: "archived" }));
 
     if (!extras.length) return;
-    await upsertCutoffSettings(extras as any);
+    await upsertCutoffSettings(extras as CutoffSettingRow[]);
   } catch {
     // ignore
   }

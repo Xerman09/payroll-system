@@ -161,7 +161,7 @@ function buildCutoffSettingsQuery(month?: string | null, year?: string | null) {
  */
 async function logHistory(
   eventType: "INSERT" | "UPDATE" | "DELETE",
-  data: any,
+  data: Record<string, unknown>,
   changedBy: string | null
 ) {
   try {
@@ -212,7 +212,7 @@ async function syncBenefitCutoffs(
       return;
     }
 
-    const items = (getRes.data as any)?.data || [];
+    const items = (getRes.data as { data?: { id: string }[] })?.data || [];
     if (!items.length) return;
 
     // 2. Update each matching row
@@ -241,7 +241,7 @@ async function syncBenefitCutoffs(
 /**
  * Checks if relevant fields have changed between old and new data
  */
-function hasChanged(oldData: any, newData: any) {
+function hasChanged(oldData: Record<string, unknown>, newData: Record<string, unknown>) {
   const fieldsToCompare = [
     "status",
     "month",
@@ -363,14 +363,14 @@ export async function POST(req: NextRequest) {
   }
 
   // Log History for INSERT
-  const newData = (result.data as any)?.data || result.data;
+  const newData = (result.data as { data?: Record<string, unknown> })?.data || result.data as Record<string, unknown>;
   if (newData) {
-    await logHistory("INSERT", newData, newData.created_by);
+    await logHistory("INSERT", newData, newData.created_by as string | null);
     await syncBenefitCutoffs(
-      newData.cutoff_type,
-      newData.start_date,
-      newData.end_date,
-      newData.created_by
+      newData.cutoff_type as string,
+      newData.start_date as string,
+      newData.end_date as string,
+      newData.created_by as string | null
     );
   }
 
@@ -402,9 +402,10 @@ export async function PATCH(req: NextRequest) {
     if (id) {
       // Fetch OLD data for comparison if needed
       const oldRes = await directusFetchAuth("GET", `/items/cutoff_settings/${id}`);
-      const oldData = oldRes.ok ? (oldRes.data as any)?.data || oldRes.data : null;
+      const oldData = oldRes.ok ? (oldRes.data as { data?: Record<string, unknown> })?.data || oldRes.data as Record<string, unknown> : null;
 
-      const { id: _id, ...patchBody } = item;
+      const patchBody = { ...item };
+      delete patchBody.id;
       const r = await directusFetchAuth(
         "PATCH",
         `/items/cutoff_settings/${id}`,
@@ -418,9 +419,9 @@ export async function PATCH(req: NextRequest) {
         );
       }
 
-      const newData = (r.data as any)?.data || r.data;
+      const newData = (r.data as { data?: Record<string, unknown> })?.data || r.data as Record<string, unknown>;
       if (newData && oldData && hasChanged(oldData, newData)) {
-        await logHistory("UPDATE", newData, newData.updated_by);
+        await logHistory("UPDATE", newData, newData.updated_by as string | null);
 
         // Sync if relevant fields changed
         if (
@@ -429,10 +430,10 @@ export async function PATCH(req: NextRequest) {
           oldData.cutoff_type !== newData.cutoff_type
         ) {
           await syncBenefitCutoffs(
-            newData.cutoff_type,
-            newData.start_date,
-            newData.end_date,
-            newData.updated_by
+            newData.cutoff_type as string,
+            newData.start_date as string,
+            newData.end_date as string,
+            newData.updated_by as string | null
           );
         }
       }
@@ -448,14 +449,14 @@ export async function PATCH(req: NextRequest) {
         );
       }
 
-      const newData = (r.data as any)?.data || r.data;
+      const newData = (r.data as { data?: Record<string, unknown> })?.data || r.data as Record<string, unknown>;
       if (newData) {
-        await logHistory("INSERT", newData, newData.created_by);
+        await logHistory("INSERT", newData, newData.created_by as string | null);
         await syncBenefitCutoffs(
-          newData.cutoff_type,
-          newData.start_date,
-          newData.end_date,
-          newData.created_by
+          newData.cutoff_type as string,
+          newData.start_date as string,
+          newData.end_date as string,
+          newData.created_by as string | null
         );
       }
 
@@ -489,9 +490,9 @@ export async function DELETE(req: NextRequest) {
 
   // Fetch data BEFORE deletion for history
   const getOld = await directusFetchAuth("GET", `/items/cutoff_settings/${id}`);
-  const oldData = getOld.ok ? (getOld.data as any)?.data || getOld.data : null;
+  const oldData = getOld.ok ? (getOld.data as { data?: Record<string, unknown> })?.data || getOld.data as Record<string, unknown> : null;
 
-  const result = await directusFetchAuth("DELETE" as any, `/items/cutoff_settings/${id}`);
+  const result = await directusFetchAuth("DELETE", `/items/cutoff_settings/${id}`);
 
   if (!result.ok) {
     return NextResponse.json(
@@ -501,7 +502,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   if (oldData) {
-    await logHistory("DELETE", oldData, oldData.updated_by);
+    await logHistory("DELETE", oldData, oldData.updated_by as string | null);
   }
 
   return NextResponse.json(

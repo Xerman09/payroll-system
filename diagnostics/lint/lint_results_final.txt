@@ -1,0 +1,13 @@
+
+> payroll@1.0.0 lint
+> eslint
+
+
+C:\Users\mark_\payroll_system\modules\calendar-management\CalendarManagementModule.tsx
+  261:8  warning  React Hook useMemo has an unnecessary dependency: 'memoMonthTime'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\mark_\payroll_system\modules\coop-management\components\modals\AddEmployeeModal.tsx
+  209:9  warning  The 'generateAndCheckUnique' function makes the dependencies of useEffect Hook (at line 313) change on every render. To fix this, wrap the definition of 'generateAndCheckUnique' in its own useCallback() Hook  react-hooks/exhaustive-deps
+
+✖ 2 problems (0 errors, 2 warnings)
+

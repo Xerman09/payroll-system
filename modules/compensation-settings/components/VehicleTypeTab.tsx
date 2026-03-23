@@ -131,9 +131,9 @@ export default function VehicleTypeTab() {
       await deleteVehicleType(id);
       toast.success("Vehicle type deleted successfully.");
       loadVehicleTypes();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      const message = error.message || "";
+      const message = error instanceof Error ? error.message : String(error);
       if (message.includes("foreign key") || message.includes("restricted") || message.includes("REFERENCE")) {
         toast.error("Cannot delete check classification because it is currently used in the Rate & Payout Matrix.");
       } else {
@@ -279,7 +279,7 @@ export default function VehicleTypeTab() {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="vtType" className="text-right">Classification *</Label>
               <div className="col-span-3">
-                <Select value={vehicleType} onValueChange={(val: any) => setVehicleType(val)} required>
+                <Select value={vehicleType} onValueChange={(val: 'BELOW 10 WHEELER' | '10 WHEELER' | 'TRAILER' | 'N/A') => setVehicleType(val)} required>
                   <SelectTrigger>
                     <SelectValue placeholder="Select classification" />
                   </SelectTrigger>
