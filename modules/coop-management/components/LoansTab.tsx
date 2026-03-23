@@ -28,7 +28,7 @@ import { AddLoanModal } from "./modals/AddLoanModal";
 import { EditLoanModal } from "./modals/EditLoanModal";
 import { CoopTableSkeleton } from "./CoopTableSkeleton";
 
-const LoansTab = forwardRef<{ getData: () => any[] }, TabContentProps>(
+const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
   function LoansTab(
     {
       searchTerm,
@@ -395,7 +395,7 @@ const LoansTab = forwardRef<{ getData: () => any[] }, TabContentProps>(
         onClose={onCloseAddModal}
         onCreate={(loan) => {
           // Optional guard: only show COOP loans in this tab
-          if ((loan as any)?.loan_type && (loan as any).loan_type !== "COOP") {
+          if ((loan as EmployeeLoan)?.loan_type && (loan as EmployeeLoan).loan_type !== "COOP") {
             toast.message("Loan created, but not shown here (not COOP).");
             onCloseAddModal();
             return;
@@ -414,8 +414,8 @@ const LoansTab = forwardRef<{ getData: () => any[] }, TabContentProps>(
         onUpdated={(updated) => {
           // Optional guard: if edited away from COOP, remove from list
           if (
-            (updated as any)?.loan_type &&
-            (updated as any).loan_type !== "COOP"
+            (updated as EmployeeLoan)?.loan_type &&
+            (updated as EmployeeLoan).loan_type !== "COOP"
           ) {
             setLoans((prev) =>
               prev.filter((l) => l.loan_id !== updated.loan_id)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Check, ChevronsUpDown, RefreshCcw } from "lucide-react";
 
@@ -66,7 +66,7 @@ function generateMembershipId() {
 }
 
 function isForbiddenFieldError(err: unknown, field: string) {
-  const e = err as any;
+  const e = err as Record<string, unknown>;
   const status = e?.status;
   const msg = String(e?.message ?? "");
   return (
@@ -178,6 +178,7 @@ export function AddEmployeeModal({
   ); // actual value used in payload
   const [endDate, setEndDate] = useState("");
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [cutoffs, setCutoffs] = useState<CutoffSetting[]>([]);
   const [loadingCutoffs, setLoadingCutoffs] = useState(false);
   const [presentCutoff, setPresentCutoff] = useState<CutoffSetting | null>(
@@ -197,15 +198,15 @@ export function AddEmployeeModal({
     return u ? `${u.user_fname} ${u.user_lname}` : "";
   }, [userId, availableUsers]);
 
-  const warnPermissionOnce = (field: string) => {
+  const warnPermissionOnce = useCallback((field: string) => {
     if (warnedPermissionRef.current) return;
     warnedPermissionRef.current = true;
     toast.error(
       `Directus forbids reading/filtering "${field}". Ask admin to allow the field/collection permissions.`
     );
-  };
+  }, []);
 
-  const generateAndCheckUnique = async () => {
+  const generateAndCheckUnique = useCallback(async () => {
     setCheckingMembershipId(true);
     setMembershipIdOk(null);
 
@@ -247,7 +248,7 @@ export function AddEmployeeModal({
     } finally {
       setCheckingMembershipId(false);
     }
-  };
+  }, [membershipIdCheckSupported, warnPermissionOnce]);
 
   const loadCutoffSettings = async () => {
     setLoadingCutoffs(true);
@@ -309,7 +310,7 @@ export function AddEmployeeModal({
     void runUsers();
     void generateAndCheckUnique();
     void loadCutoffSettings();
-  }, [isOpen]);
+  }, [isOpen, generateAndCheckUnique]);
 
   useEffect(() => {
     // When start mode changes, update startDate accordingly
@@ -382,8 +383,7 @@ export function AddEmployeeModal({
     if (!ok) return;
 
     // We want totals to be 0 on creation (payroll run updates them later).
-    // DB defaults are 0 anyway; we include them but fallback if forbidden.
-    const basePayload: any = {
+    const basePayload: Record<string, unknown> = {
       user_id: Number(userId),
       membership_id: membershipId.trim(),
       monthly_amount: Number(monthlyAmount),
@@ -393,7 +393,7 @@ export function AddEmployeeModal({
       created_by: Number(getLoggedUserIdFallback1()),
     };
 
-    const payloadWithTotals: any = {
+    const payloadWithTotals: Record<string, unknown> = {
       ...basePayload,
       total_months: 0,
       total_collection: 0,
@@ -425,9 +425,9 @@ export function AddEmployeeModal({
 
       onAdded(created);
       toast.success("Member added successfully.");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      const msg = String(err?.message ?? "");
+      const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("membership_id")) {
         toast.error(
           'Create failed: ensure Directus role has Create access to "membership_id".'

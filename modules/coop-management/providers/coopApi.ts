@@ -52,7 +52,7 @@ export async function listItems<T>(
   signal?: AbortSignal
 ): Promise<{ data: T[]; meta?: any }> {
   const url = buildUrl(collection, params);
-  const json = await fetchJson<any>(url, undefined, signal);
+  const json = await fetchJson<Record<string, unknown>>(url, undefined, signal);
   return {
     data: Array.isArray(json?.data) ? (json.data as T[]) : [],
     meta: json?.meta,
@@ -64,7 +64,7 @@ export async function createItem<T>(
   body: unknown
 ): Promise<T> {
   const url = buildUrl(collection);
-  const json = await fetchJson<any>(
+  const json = await fetchJson<Record<string, unknown>>(
     url,
     {
       method: "POST",
@@ -82,7 +82,7 @@ export async function updateItem<T>(
   body: unknown
 ): Promise<T> {
   const url = buildUrl(collection, { id: String(id) });
-  const json = await fetchJson<any>(
+  const json = await fetchJson<Record<string, unknown>>(
     url,
     {
       method: "PATCH",
@@ -99,7 +99,7 @@ export async function deleteItem(
   id: number
 ): Promise<void> {
   const url = buildUrl(collection, { id: String(id) });
-  await fetchJson<any>(
+  await fetchJson<Record<string, unknown>>(
     url,
     {
       method: "DELETE",

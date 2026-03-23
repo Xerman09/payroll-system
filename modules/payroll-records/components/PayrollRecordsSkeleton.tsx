@@ -11,7 +11,7 @@ interface Props {
 
 export function PayrollRecordsSkeleton({ type }: Props) {
   const rows = Array.from({ length: 5 });
-  const columns = type === "employees" ? 4 : 6;
+
 
   return (
     <>

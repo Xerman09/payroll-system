@@ -1,10 +1,7 @@
 // @modules/dashboard/providers/dashboardService.ts
 import * as api from "./dashboardApi";
 import type {
-  DashboardData,
-  DashboardStats,
-  ChartData,
-  DistributionData
+  DashboardData
 } from "../types";
 
 export const fetchDashboardData = async (): Promise<DashboardData> => {
@@ -20,9 +17,10 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
   ]);
 
   // Total employees count: Filter results to ensure accuracy (matching wage module logic)
-  const activeUsers = allUsersRaw.filter((u: any) => {
+  const activeUsers = allUsersRaw.filter((u: Record<string, unknown>) => {
     // Check if is_deleted is null, 0, or missing (per Directus bit/boolean patterns)
-    const delVal = u.is_deleted?.data?.[0] ?? u.is_deleted;
+    const udel = u.is_deleted as { data?: number[] } | number | null | undefined;
+    const delVal = (typeof udel === "object" && udel !== null && "data" in udel) ? udel.data?.[0] : udel;
     return delVal === 0 || delVal === null || delVal === undefined;
   });
 
@@ -33,7 +31,7 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
   departmentsRaw.forEach(d => deptMap.set(Number(d.department_id || d.id), String(d.department_name || d.name)));
 
   const deptCount: Record<string, number> = {};
-  activeUsers.forEach((u: any) => {
+  activeUsers.forEach((u: Record<string, unknown>) => {
     const deptId = u.user_department != null ? Number(u.user_department) : null;
     const deptName = deptId != null ? deptMap.get(deptId) || "Other" : "Unassigned";
     deptCount[deptName] = (deptCount[deptName] || 0) + 1;
@@ -53,8 +51,8 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
 
   // C. Aggregate Payroll Runs (Summed by Cutoff)
   const runsByCutoff: Record<string, number> = {};
-  postedRunsRaw.forEach((run: any) => {
-    const date = run.cutoff_end;
+  postedRunsRaw.forEach((run: Record<string, unknown>) => {
+    const date = String(run.cutoff_end || "");
     const net = Number(run.total_net) || 0;
     runsByCutoff[date] = (runsByCutoff[date] || 0) + net;
   });

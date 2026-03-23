@@ -1,3 +1,5 @@
+
+
 // modules/benefit-settings/providers/benefitApi.ts
 import type {
   BenefitSetting,
@@ -120,7 +122,7 @@ export function isLoanDueOnCutoff(args: {
   cutoffs: CutoffSetting[];
 }) {
   if (args.loan.status !== "ACTIVE") return false;
-  const sched = computeLoanCutoffSchedule({ loan: args.loan as any, cutoffs: args.cutoffs });
+  const sched = computeLoanCutoffSchedule({ loan: args.loan, cutoffs: args.cutoffs });
   return sched.upcoming.some((c) => c.id === args.cutoffId);
 }
 
@@ -175,6 +177,7 @@ export async function fetchCutoffSettings(): Promise<CutoffSetting[]> {
 // --------------------
 export async function fetchBenefitLoans(): Promise<BenefitLoan[]> {
   const json = await apiFetch("/items/benefit_loans?limit=2000&sort=-created_date");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = (json.data || []) as any[];
   return rows.map((r) => ({
     ...r,
@@ -299,7 +302,9 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
     apiFetch(pathManual),
   ]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rowsSystem = (jsonSystem?.data || []) as any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rowsManual = (jsonManual?.data || []) as any[];
 
   // 3. Merging Logic using Map
@@ -496,7 +501,8 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
 
   // Final pass to set correct account_no based on benefit_code
   // We need to look up ANY row from system or manual that has the user details
-  const userMap = new Map<number, any>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userMap = new Map<number | string, any>();
 
   // Populate user map from both sources
   rowsSystem.forEach(r => {

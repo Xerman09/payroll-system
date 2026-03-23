@@ -2,11 +2,11 @@
 "use client";
 
 import * as React from "react";
-import { FileDown, Search, Filter } from "lucide-react";
+import { FileDown } from "lucide-react";
 import { formatMoney } from "../providers/benefitApi";
-import type { BenefitLogRow, BenefitCode, UserData, CutoffSetting } from "../types";
+import type { BenefitLogRow, BenefitCode, UserData } from "../types";
 import { exportBenefitLogsPdf, type BenefitLogsPaperSize } from "../utils/benefitLogsPdf";
-import { cutoffLabel, fullnameFromUser } from "../providers/benefitApi";
+import { fullnameFromUser } from "../providers/benefitApi";
 import { PdfPreviewModal } from "@/components/PdfPreviewModal";
 
 import {
@@ -168,7 +168,7 @@ export default function BenefitExportPreviewDialog({
               <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
                 Benefit
               </label>
-              <Select value={benefit} onValueChange={(v) => setBenefit(v as any)}>
+              <Select value={benefit} onValueChange={(v) => setBenefit(v as BenefitCode | "ALL")}>
                 <SelectTrigger className="bg-slate-50 dark:bg-gray-800 h-auto min-h-[36px] dark:border-gray-700 dark:text-gray-100">
                   <SelectValue placeholder="All Benefits" />
                 </SelectTrigger>
@@ -185,7 +185,7 @@ export default function BenefitExportPreviewDialog({
               <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
                 Type
               </label>
-              <Select value={type} onValueChange={(v) => setType(v as any)}>
+              <Select value={type} onValueChange={(v) => setType(v as "ALL" | "CONTRIBUTION" | "LOAN")}>
                 <SelectTrigger className="bg-slate-50 dark:bg-gray-800 h-auto min-h-[36px] dark:border-gray-700 dark:text-gray-100">
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
@@ -247,7 +247,7 @@ export default function BenefitExportPreviewDialog({
                     </TableRow>
                   ) : (
                     filtered.map((r) => {
-                      const uId = typeof r.user_id === "object" ? (r.user_id as any)?.user_id : r.user_id;
+                      const uId = typeof r.user_id === "object" ? (r.user_id as { user_id: number })?.user_id : r.user_id;
                       const u = users.find((x) => x.user_id === uId);
                       const name = r.employee_name || (u ? fullnameFromUser(u) : `User #${uId}`);
                       return (

@@ -16,7 +16,6 @@ export default function LoginForm({
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   return (
     <form
@@ -40,8 +39,6 @@ export default function LoginForm({
             placeholder="admin@vtc-systems.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            onFocus={() => setFocusedField("email")}
-            onBlur={() => setFocusedField(null)}
             className="relative bg-slate-900/50 border-white/10 rounded-2xl py-6 px-5 text-white placeholder:text-slate-600 focus:border-cyan-500/50 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 text-sm"
           />
         </div>
@@ -61,8 +58,6 @@ export default function LoginForm({
             placeholder="••••••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            onFocus={() => setFocusedField("password")}
-            onBlur={() => setFocusedField(null)}
             className="relative bg-slate-900/50 border-white/10 rounded-2xl py-6 px-5 text-white placeholder:text-slate-600 focus:border-white/20 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 text-sm"
           />
         </div>

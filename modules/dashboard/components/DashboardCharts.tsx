@@ -25,14 +25,20 @@ interface DashboardChartsProps {
 
 const COLORS = ["#6366f1", "#8b5cf6", "#ec4899", "#f43f5e", "#10b981"];
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+type TooltipPayloadItem = {
+  color?: string;
+  name?: string;
+  value?: number | string;
+};
+
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: TooltipPayloadItem[]; label?: string }) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-background/95 backdrop-blur-sm border border-border p-3 rounded-xl shadow-lg">
         <p className="font-semibold mb-1">{label}</p>
-        {payload.map((entry: any, index: number) => (
+        {payload.map((entry, index: number) => (
           <p key={index} className="text-sm" style={{ color: entry.color }}>
-            {entry.name}: {entry.value.toLocaleString()}
+            {entry.name}: {entry.value?.toLocaleString()}
           </p>
         ))}
       </div>
@@ -94,7 +100,7 @@ export function DashboardCharts({
                   fontSize={12}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(value) => `₱${value / 1000}k`}
+                  tickFormatter={(value: number) => `₱${value / 1000}k`}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Area

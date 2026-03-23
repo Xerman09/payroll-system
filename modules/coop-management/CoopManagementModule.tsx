@@ -31,10 +31,10 @@ export function CoopManagementModule() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [printData, setPrintData] = useState<any[]>([]);
+  const [printData, setPrintData] = useState<Record<string, unknown>[]>([]);
 
-  const savingsRef = useRef<{ getData: () => any[] }>(null);
-  const loansRef = useRef<{ getData: () => any[] }>(null);
+  const savingsRef = useRef<{ getData: () => Record<string, unknown>[] }>(null);
+  const loansRef = useRef<{ getData: () => Record<string, unknown>[] }>(null);
 
   const handleRefresh = () => setRefreshTrigger((prev) => prev + 1);
 
@@ -54,7 +54,7 @@ export function CoopManagementModule() {
       return;
     }
     
-    setPrintData(data);
+    setPrintData(data as Record<string, unknown>[]);
     setIsPreviewOpen(true);
   };
 

@@ -6,7 +6,7 @@ type Totals = { gross: number; adds: number; deds: number; net: number };
 
 let fontInitPromise: Promise<boolean> | null = null;
 
-function toNum(v: any): number {
+function toNum(v: unknown): number {
   const x = typeof v === "number" ? v : Number(String(v ?? "").replace(/,/g, ""));
   return Number.isFinite(x) ? x : 0;
 }
@@ -49,8 +49,7 @@ function arrayBufferToBase64(buf: ArrayBuffer) {
     }
     return btoa(binary);
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const B: any = (globalThis as any).Buffer;
+  const B = (globalThis as unknown as { Buffer: { from: (b: Uint8Array) => { toString: (e: string) => string } } }).Buffer;
   if (B) return B.from(bytes).toString("base64");
   throw new Error("Base64 encoder not available.");
 }
@@ -66,7 +65,10 @@ async function ensurePesoFont(doc: jsPDF): Promise<boolean> {
 
   fontInitPromise = (async () => {
     try {
-      const anyDoc = doc as any;
+      const anyDoc = doc as unknown as {
+        addFileToVFS: (f: string, c: string) => void;
+        addFont: (f: string, n: string, s: string) => void;
+      };
       if (!anyDoc.addFileToVFS || !anyDoc.addFont) return false;
 
       const [regRes, boldRes] = await Promise.all([
@@ -169,7 +171,7 @@ export async function buildTapSheetPdf(args: {
   const currencyPrefix = fontOk ? "₱" : "PHP";
 
   // ABS, no +/- sign
-  const peso = (v: any) => `${currencyPrefix} ${formatAmountOnly(Math.abs(toNum(v)))}`;
+  const peso = (v: unknown) => `${currencyPrefix} ${formatAmountOnly(Math.abs(toNum(v)))}`;
 
   // Conditional Column Logic
   const showTypeCol = args.filterType === "ALL";

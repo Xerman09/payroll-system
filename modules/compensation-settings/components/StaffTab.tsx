@@ -113,7 +113,7 @@ export default function StaffTab() {
       const payload = {
         staff_id: Number(staffId),
         role: role,
-        employment_type: employmentType as any || null,
+        employment_type: (employmentType as LogisticsStaff["employment_type"]) || null,
         vehicle_type_id: vehicleTypeId ? Number(vehicleTypeId) : null,
       };
 
@@ -306,7 +306,7 @@ export default function StaffTab() {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="role" className="text-right">Role *</Label>
               <div className="col-span-3">
-                <Select value={role} onValueChange={(val: any) => setRole(val)} required>
+                <Select value={role} onValueChange={(val: "Driver" | "Helper") => setRole(val)} required>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>

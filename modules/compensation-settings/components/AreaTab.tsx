@@ -292,7 +292,7 @@ export default function AreaTab() {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="modeType" className="text-right">Mode</Label>
               <div className="col-span-3">
-                <Select value={modeType || "none"} onValueChange={(val) => setModeType(val === "none" ? null : val as any)}>
+                <Select value={modeType || "none"} onValueChange={(val) => setModeType(val === "none" ? null : val as LogisticsArea['mode_type'])}>
                   <SelectTrigger id="modeType">
                     <SelectValue placeholder="Select mode type" />
                   </SelectTrigger>

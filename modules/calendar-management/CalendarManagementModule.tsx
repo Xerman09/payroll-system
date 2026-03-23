@@ -65,9 +65,10 @@ export function CalendarManagementModule() {
       ]);
       setHolidays(hData);
       setUsers(uData);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to load calendar data:", err);
-      toast.error(err.message || "Failed to load data");
+      const msg = err instanceof Error ? err.message : "Failed to load data";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -141,7 +142,7 @@ export function CalendarManagementModule() {
       if (!res.ok) return null;
 
       const json = await res.json();
-      const settings: any[] = json?.data ?? [];
+      const settings: { id: number; start_date: string; end_date: string }[] = json?.data ?? [];
       if (!settings.length) return null;
 
       // Prefer the cutoff period whose date range contains the holiday date.
@@ -191,9 +192,10 @@ export function CalendarManagementModule() {
       resetForm();
       await loadData(); // Reload from DB
       toast.success(editingHolidayId ? "Holiday updated" : "Holiday created");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save holiday:", err);
-      toast.error(err.message || "Failed to save holiday");
+      const msg = err instanceof Error ? err.message : "Failed to save holiday";
+      toast.error(msg);
     }
   };
 
@@ -204,9 +206,10 @@ export function CalendarManagementModule() {
       await calendarApi.deleteHoliday(id);
       await loadData();
       toast.success("Holiday deleted");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to delete holiday:", err);
-      toast.error(err.message || "Failed to delete");
+      const msg = err instanceof Error ? err.message : "Failed to delete";
+      toast.error(msg);
     }
   };
 
@@ -243,18 +246,12 @@ export function CalendarManagementModule() {
 
   // ---------------------- Calendar Component ----------------------
   const SimpleCalendar = () => {
-    const { daysInMonth, startingDayOfWeek, year, month } = useMemo(() => {
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth();
-      const firstDay = new Date(year, month, 1);
-      const lastDay = new Date(year, month + 1, 0);
-      return {
-        daysInMonth: lastDay.getDate(),
-        startingDayOfWeek: firstDay.getDay(),
-        year,
-        month,
-      };
-    }, [currentMonth]);
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
 
     const days = [];
     for (let i = 0; i < startingDayOfWeek; i++) {

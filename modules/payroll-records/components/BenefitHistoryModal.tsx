@@ -5,9 +5,7 @@ import { toast } from "sonner";
 import { 
   Dialog, 
   DialogContent, 
-  DialogHeader, 
   DialogTitle,
-  DialogFooter
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { 
@@ -27,9 +25,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ArrowUpDown,
-  FileDown,
   Eye,
-  Printer
 } from "lucide-react";
 import { formatPHP } from "../../payroll-run/utils/compute";
 import { Input } from "@/components/ui/input";
@@ -104,6 +100,7 @@ export default function BenefitHistoryModal({
       const rawData = Array.isArray(json?.data) ? json.data : [];
       
       const unpivoted: BenefitRecord[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       rawData.forEach((row: any) => {
         const monthYear = new Date(row.cutoff_end).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
         const payrollId = row.payroll_run_id?.payroll_ref_no || "N/A";
@@ -136,8 +133,8 @@ export default function BenefitHistoryModal({
         setCompanyName(json.meta.companyName);
       }
       setRecords(unpivoted);
-    } catch (e: any) {
-      toast.error(e.message || "Failed to load history");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to load history");
     } finally {
       setLoading(false);
     }
@@ -283,8 +280,8 @@ export default function BenefitHistoryModal({
         setPdfBlob(blob);
         setPreviewOpen(true);
       }
-    } catch (e: any) {
-      toast.error(e.message || "Failed to generate PDF");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to generate PDF");
     } finally {
       setIsGenerating(false);
     }

@@ -1,4 +1,3 @@
-// modules/payroll-records/utils/payrollSummaryPdf.ts
 import jsPDF from "jspdf";
 
 type CompanySummary = {
@@ -15,7 +14,33 @@ type DeptSummary = {
 
 type RGB = { r: number; g: number; b: number };
 
-export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
+type ReportEmployee = {
+  user_id: number;
+  net_pay: number;
+  is_card: number | boolean;
+  department_name?: string;
+  department_name_snapshot?: string;
+  [key: string]: unknown;
+};
+
+type ReportCompany = {
+  companyName: string;
+  isMain?: boolean;
+  currEmps: ReportEmployee[];
+  prevEmps: ReportEmployee[];
+  [key: string]: unknown;
+};
+
+type ReportMeta = {
+  companyName: string;
+  start?: string;
+  end?: string;
+  currentCutoff?: { start: string; end: string };
+  createdAt?: string;
+  [key: string]: unknown;
+};
+
+export async function buildPayrollSummaryPdf(args: { data: ReportCompany[]; meta: ReportMeta }) {
   // ✅ Landscape + Legal (one page only)
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "legal" });
   const pageW = doc.internal.pageSize.getWidth();  // ~1008
@@ -41,7 +66,7 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
   const setDraw = (c: RGB) => doc.setDrawColor(c.r, c.g, c.b);
   const setText = (c: RGB) => doc.setTextColor(c.r, c.g, c.b);
 
-  const safeStr = (v: any, fb = "") => {
+  const safeStr = (v: unknown, fb = "") => {
     const s = String(v ?? "").trim();
     return s ? s : fb;
   };
@@ -82,7 +107,6 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
     doc.setFontSize(8);
 
     const padX = 8;
-    const padY = 4;
     const tw = doc.getTextWidth(text);
     const w = tw + padX * 2;
     const h = 16;
@@ -111,7 +135,7 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
     y: number;
     w: number;
     cols: Col[];
-    rows: any[];
+    rows: Record<string, string | number | boolean | null | undefined>[];
     maxRows: number;
     headerH?: number;
     rowH?: number;
@@ -190,7 +214,8 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
 
       cx = x;
       for (const c of opts.cols) {
-        const raw = rows[i]?.[c.key] ?? "—";
+        const rawValue = rows[i]?.[c.key];
+        const raw = rawValue != null ? String(rawValue) : "—";
 
         const tx =
           c.align === "right" ? cx + c.w - 4 : c.align === "center" ? cx + c.w / 2 : cx + 4;
@@ -218,7 +243,6 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
   // 1) PROCESS DATA (Aggregate across ALL companies)
   // ─────────────────────────────────────────────
   const companySums: CompanySummary[] = [];
-  const deptMap = new Map<string, DeptSummary>();
 
   let bankAdd = 0, bankRemove = 0, bankPrevNet = 0, bankCurrNet = 0, bankCurrEmp = 0, bankPrevEmp = 0;
   let cashAdd = 0, cashRemove = 0, cashPrevNet = 0, cashCurrNet = 0, cashCurrEmp = 0, cashPrevEmp = 0;
@@ -227,8 +251,8 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
     const cCurrEmps = c?.currEmps || [];
     const cPrevEmps = c?.prevEmps || [];
 
-    const calculatedCurrNet = cCurrEmps.reduce((sum: number, e: any) => sum + Number(e.net_pay || 0), 0);
-    const calculatedPrevNet = cPrevEmps.reduce((sum: number, e: any) => sum + Number(e.net_pay || 0), 0);
+    const calculatedCurrNet = cCurrEmps.reduce((sum: number, e: ReportEmployee) => sum + Number(e.net_pay || 0), 0);
+    const calculatedPrevNet = cPrevEmps.reduce((sum: number, e: ReportEmployee) => sum + Number(e.net_pay || 0), 0);
 
     companySums.push({
       name: safeStr(c?.companyName, "—"),
@@ -246,11 +270,11 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
   if (mainCompany) {
     const mCurrEmps = mainCompany.currEmps || [];
     const mPrevEmps = mainCompany.prevEmps || [];
-    const mCurrIds = new Set(mCurrEmps.map((e: any) => e.user_id));
-    const mPrevIds = new Set(mPrevEmps.map((e: any) => e.user_id));
+    const mCurrIds = new Set(mCurrEmps.map((e: ReportEmployee) => e.user_id));
+    const mPrevIds = new Set(mPrevEmps.map((e: ReportEmployee) => e.user_id));
 
     // Aggregate BANK/CASH totals from Main Company
-    mCurrEmps.forEach((e: any) => {
+    mCurrEmps.forEach((e: ReportEmployee) => {
       const isCard = Number(e.is_card) === 1;
       if (isCard) {
         bankCurrNet += Number(e.net_pay);
@@ -263,7 +287,7 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
       }
     });
 
-    mPrevEmps.forEach((e: any) => {
+    mPrevEmps.forEach((e: ReportEmployee) => {
       const isCard = Number(e.is_card) === 1;
       if (isCard) {
         bankPrevNet += Number(e.net_pay);
@@ -278,8 +302,8 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
 
     // Populate Department Map
     const depts = Array.from(new Set([
-      ...mCurrEmps.map((e: any) => e.department_name_snapshot || e.department_name || "Unknown"),
-      ...mPrevEmps.map((e: any) => e.department_name_snapshot || e.department_name || "Unknown"),
+      ...mCurrEmps.map((e: ReportEmployee) => e.department_name_snapshot || e.department_name || "Unknown"),
+      ...mPrevEmps.map((e: ReportEmployee) => e.department_name_snapshot || e.department_name || "Unknown"),
     ]));
 
     depts.forEach(dName => {
@@ -289,17 +313,17 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
         cash: { prevEmp: 0, currEmp: 0, prevNet: 0, currNet: 0, add: 0, rem: 0 },
       };
 
-      const cIn = mCurrEmps.filter((e: any) => (e.department_name_snapshot || e.department_name || "Unknown") === dName);
-      const pIn = mPrevEmps.filter((e: any) => (e.department_name_snapshot || e.department_name || "Unknown") === dName);
+      const cIn = mCurrEmps.filter((e: ReportEmployee) => (e.department_name_snapshot || e.department_name || "Unknown") === dName);
+      const pIn = mPrevEmps.filter((e: ReportEmployee) => (e.department_name_snapshot || e.department_name || "Unknown") === dName);
 
-      cIn.forEach((e: any) => {
+      cIn.forEach((e: ReportEmployee) => {
         const isCard = Number(e.is_card) === 1;
         const target = isCard ? d.bank : d.cash;
         target.currEmp++;
         target.currNet += Number(e.net_pay);
         if (!mPrevIds.has(e.user_id)) target.add++;
       });
-      pIn.forEach((e: any) => {
+      pIn.forEach((e: ReportEmployee) => {
         const isCard = Number(e.is_card) === 1;
         const target = isCard ? d.bank : d.cash;
         target.prevEmp++;
@@ -310,30 +334,6 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
     });
   }
 
-  const grandPrevNet = companySums.reduce((a, c) => a + c.prevNet, 0);
-  const grandCurrNet = companySums.reduce((a, c) => a + c.currNet, 0);
-  const grandCurrEmp = (args.data || []).reduce((a, c) => a + (c.currEmps?.length || 0), 0);
-  const grandPrevEmp = (args.data || []).reduce((a, c) => a + (c.prevEmps?.length || 0), 0);
-
-  // Re-calculate these from ALL employees if we want global counts
-  let globalBankAdd = 0, globalBankRemove = 0, globalCashAdd = 0, globalCashRemove = 0;
-  for (const c of args.data || []) {
-    const mCurrEmps = c.currEmps || [];
-    const mPrevEmps = c.prevEmps || [];
-    const mCurrIds = new Set(mCurrEmps.map((e: any) => e.user_id));
-    const mPrevIds = new Set(mPrevEmps.map((e: any) => e.user_id));
-
-    mCurrEmps.forEach((e: any) => {
-      if (!mPrevIds.has(e.user_id)) {
-        if (Number(e.is_card) === 1) globalBankAdd++; else globalCashAdd++;
-      }
-    });
-    mPrevEmps.forEach((e: any) => {
-      if (!mCurrIds.has(e.user_id)) {
-        if (Number(e.is_card) === 1) globalBankRemove++; else globalCashRemove++;
-      }
-    });
-  }
 
   const reportCompany =
     safeStr(args?.meta?.companyName) ||
@@ -580,7 +580,7 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
       setText(BLUE_900);
       doc.text(label, x, commonY - 5);
 
-      const rows: any[] = allDepts.map(d => {
+      const rows: Record<string, string | number>[] = allDepts.map(d => {
         let data;
         if (dataKey === "total") {
           data = {
@@ -591,8 +591,10 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
             add: d.bank.add + d.cash.add,
             rem: d.bank.rem + d.cash.rem,
           };
+        } else if (dataKey === "bank") {
+          data = d.bank;
         } else {
-          data = d[dataKey];
+          data = d.cash;
         }
 
         return {
@@ -618,8 +620,11 @@ export async function buildPayrollSummaryPdf(args: { data: any[]; meta: any }) {
             a: d.bank.add + d.cash.add,
             r: d.bank.rem + d.cash.rem
           };
+        } else if (dataKey === "bank") {
+          const v = d.bank;
+          val = { pEmp: v.prevEmp, cEmp: v.currEmp, pNet: v.prevNet, cNet: v.currNet, a: v.add, r: v.rem };
         } else {
-          const v = d[dataKey];
+          const v = d.cash;
           val = { pEmp: v.prevEmp, cEmp: v.currEmp, pNet: v.prevNet, cNet: v.currNet, a: v.add, r: v.rem };
         }
         acc.pEmp += val.pEmp; acc.cEmp += val.cEmp; acc.pNet += val.pNet; acc.cNet += val.cNet; acc.a += val.a; acc.r += val.r;

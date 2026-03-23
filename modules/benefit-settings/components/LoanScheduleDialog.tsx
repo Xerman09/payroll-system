@@ -30,12 +30,12 @@ export default function LoanScheduleDialog(props: {
   const sched = React.useMemo(() => {
     if (!loan) {
       return {
-        all: [],
-        paid: [],
-        upcoming: [],
+        all: [] as CutoffSetting[],
+        paid: [] as CutoffSetting[],
+        upcoming: [] as CutoffSetting[],
         nextDue: null,
         endDue: null,
-      } as any;
+      };
     }
     return computeLoanCutoffSchedule({ loan, cutoffs });
   }, [loan, cutoffs]);

@@ -5,14 +5,14 @@ import PDFDocument from "pdfkit";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type AnyRow = Record<string, any>;
+type AnyRow = Record<string, unknown>;
 
-function n(v: any): number {
+function n(v: unknown): number {
   const x = Number(v ?? 0);
   return Number.isFinite(x) ? x : 0;
 }
 
-function money(v: any): string {
+function money(v: unknown): string {
   const x = n(v);
   return `₱${x.toLocaleString("en-PH", {
     minimumFractionDigits: 2,
@@ -20,16 +20,26 @@ function money(v: any): string {
   })}`;
 }
 
-function s(v: any): string {
+function s(v: unknown): string {
   return String(v ?? "");
 }
 
-function parseJsonMaybe(v: any): any | null {
+type BreakdownData = Record<string, unknown> & {
+  earnings?: {
+    allowance_items?: unknown[];
+    allowanceItems?: unknown[];
+    manual_additions_items?: unknown[];
+    manualAdditionsItems?: unknown[];
+    manual_items?: unknown[];
+  };
+};
+
+function parseJsonMaybe(v: unknown): BreakdownData | null {
   if (!v) return null;
-  if (typeof v === "object") return v;
+  if (typeof v === "object") return v as BreakdownData;
   if (typeof v === "string") {
     try {
-      return JSON.parse(v);
+      return JSON.parse(v) as BreakdownData;
     } catch {
       return null;
     }
@@ -84,7 +94,7 @@ async function fetchPayrollRunEmployees(req: NextRequest, payrollRunId: number) 
   });
 
   const text = await res.text();
-  let json: any = null;
+  let json: { data?: AnyRow[]; error?: unknown; errors?: unknown; message?: unknown; [key: string]: unknown } | null = null;
   try {
     json = text ? JSON.parse(text) : null;
   } catch {
@@ -158,7 +168,8 @@ function buildEarningsLines(row: AnyRow) {
 
   const allowanceLines: string[] = Array.isArray(allowanceItems)
     ? allowanceItems
-      .map((x: any) => {
+      .map((xVal: unknown) => {
+        const x = xVal as Record<string, unknown>;
         const desc = s(x?.description ?? x?.name ?? "Allowance").trim();
         const amt = n(
           x?.amount_this_cutoff ?? x?.amount ?? x?.amountThisCutoff
@@ -177,7 +188,8 @@ function buildEarningsLines(row: AnyRow) {
 
   const manualLines: string[] = Array.isArray(manualItems)
     ? manualItems
-      .map((x: any) => {
+      .map((xVal: unknown) => {
+        const x = xVal as Record<string, unknown>;
         const desc = s(x?.description ?? x?.name ?? "Addition").trim();
         const amt = n(x?.amount ?? x?.value ?? 0);
         if (!desc || amt === 0) return "";
@@ -541,9 +553,10 @@ export async function POST(req: NextRequest) {
         "Cache-Control": "no-store",
       },
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const details = e instanceof Error ? e.message : String(e);
     return NextResponse.json(
-      { error: "Failed to generate payslip PDF", details: e?.message ?? String(e) },
+      { error: "Failed to generate payslip PDF", details },
       { status: 500 }
     );
   }

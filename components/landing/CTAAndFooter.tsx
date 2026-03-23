@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import Link from "next/link";
 
 export function CTAAndFooter() {

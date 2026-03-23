@@ -13,6 +13,7 @@ export default function LoginModule() {
     <div className="relative min-h-screen flex items-center justify-center px-4 overflow-hidden bg-slate-950">
       {/* Premium Background */}
       <div className="absolute inset-0 z-0">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/images/bg/login-bg.png"
           alt="Login Background"
@@ -76,6 +77,7 @@ export default function LoginModule() {
                 <div className="relative">
                   <div className="absolute -inset-1 rounded-xl bg-gradient-to-br from-cyan-500/40 to-purple-500/30 blur-sm" />
                   <div className="relative w-12 h-12 rounded-xl bg-slate-900 border border-white/15 flex items-center justify-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="/images/vtc-logo.jpg" alt="VTC Logo" className="w-8 h-8 object-cover rounded-lg" />
                   </div>
                 </div>

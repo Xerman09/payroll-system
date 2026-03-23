@@ -66,10 +66,11 @@ export async function GET(req: NextRequest) {
     const data = await parseJsonSafe(res);
     console.log(`[dashboardProxy] Downstream response: ${res.status}, items: ${data?.data?.length ?? 0}`);
     return NextResponse.json(data, { status: res.status });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error("API dashboard GET error:", e);
+    const msg = e instanceof Error ? e.message : "GET failed";
     return NextResponse.json(
-      { error: e?.message || "GET failed" },
+      { error: msg },
       { status: 500 }
     );
   }

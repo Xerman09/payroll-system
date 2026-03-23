@@ -386,7 +386,7 @@ export function PayrollAdjustStep({
         cutoff_from: r.cutoff_from,
         cutoff_to: r.cutoff_to,
         payment_date: r.payment_date,
-        amount_paid: r.amount_paid,
+        amount_paid: toNumber(r.amount_paid),
         payment_method: r.payment_method,
         is_posted_to_payroll: r.is_posted_to_payroll,
         payroll_ref_no: r.payroll_ref_no,

@@ -1,7 +1,7 @@
 "use client";
 
 import { formatPeso } from "../helpers";
-import type { Membership, EmployeeLoan, LoanRowData, User } from "../types";
+
 import { CutoffSetting } from "@/modules/benefit-settings/types";
 
 export type CoopPaperSize = "LETTER" | "A4" | "LEGAL";
@@ -15,6 +15,7 @@ function paperToJsPdfFormat(paper: CoopPaperSize): "letter" | "a4" | "legal" {
 export async function exportCoopPdf(args: {
   paper: CoopPaperSize;
   type: "savings" | "loans";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any[];
   searchTerm?: string;
   statusFilter?: string;
@@ -28,6 +29,7 @@ export async function exportCoopPdf(args: {
     import("jspdf"),
     import("jspdf-autotable"),
   ]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const autoTable = (autoTableMod as any).default ?? (autoTableMod as any);
 
   const format = paperToJsPdfFormat(paper);

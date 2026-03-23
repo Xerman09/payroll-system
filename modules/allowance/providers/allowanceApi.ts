@@ -4,7 +4,6 @@ import useSWR from "swr";
 import type {
   Allowance,
   AllowanceListParams,
-  PayCycle,
   User,
 } from "../types";
 

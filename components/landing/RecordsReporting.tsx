@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { FileText, History, PieChart, ArrowRight, FileCheck, ChevronRight } from "lucide-react";
+import { FileText, History, PieChart, FileCheck, ChevronRight } from "lucide-react";
 
 const reports = [
   {

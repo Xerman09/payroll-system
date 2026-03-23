@@ -1,0 +1,56 @@
+
+> payroll@1.0.0 build
+> next build
+
+▲ Next.js 16.2.0 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 8.3s
+  Running TypeScript ...
+  Finished TypeScript in 11.8s ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/29) ...
+  Generating static pages using 11 workers (7/29) 
+  Generating static pages using 11 workers (14/29) 
+  Generating static pages using 11 workers (21/29) 
+✓ Generating static pages using 11 workers (29/29) in 774ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/additions-deductions
+├ ƒ /api/allowance
+├ ƒ /api/auth/login
+├ ƒ /api/benefit
+├ ƒ /api/calendar-management
+├ ƒ /api/compensation-settings
+├ ƒ /api/coop
+├ ƒ /api/cutoff-settings
+├ ƒ /api/dashboard
+├ ƒ /api/payroll-records
+├ ƒ /api/payroll-run
+├ ƒ /api/payroll-run/payslips-pdf
+├ ƒ /api/retro
+├ ƒ /api/wage
+├ ƒ /api/wage-matrix
+├ ○ /auth/login
+├ ○ /dashboard
+├ ○ /dashboard/additions-deductions
+├ ○ /dashboard/allowance-management
+├ ○ /dashboard/benefit-settings
+├ ○ /dashboard/calendar-management
+├ ○ /dashboard/coop
+├ ○ /dashboard/cutoff-settings
+├ ○ /dashboard/logistics-compensation/settings
+├ ○ /dashboard/logistics-compensation/wage-matrix
+├ ○ /dashboard/payroll-records
+├ ○ /dashboard/payroll-run
+├ ○ /dashboard/retro
+└ ○ /dashboard/wage
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

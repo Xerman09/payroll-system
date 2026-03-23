@@ -19,7 +19,6 @@ import {
   getUserDisplayName,
 } from "./providers/cutoffSettingsApi";
 
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
 import CutoffSettingsTable from "./components/CutoffSettingsTable";
@@ -100,8 +99,8 @@ export default function CutoffSettingsModule() {
 
       // Load users for these ids
       await loadUsers(ids);
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to load cutoff settings.");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to load cutoff settings.");
     } finally {
       setLoading(false);
     }
@@ -152,8 +151,8 @@ export default function CutoffSettingsModule() {
 
       // Reload to get fresh data
       await loadCutoffs();
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to update cutoff settings.");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to update cutoff settings.");
     } finally {
       setSaving(false);
     }

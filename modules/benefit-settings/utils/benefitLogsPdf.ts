@@ -1,8 +1,8 @@
 // modules/benefit-settings/components/benefitLogsPdf.ts
 "use client";
 
-import type { BenefitLogRow, CutoffSetting, UserData, BenefitCode } from "../types";
-import { cutoffLabel, formatMoney } from "../providers/benefitApi";
+import type { BenefitLogRow, UserData, BenefitCode } from "../types";
+import { formatMoney } from "../providers/benefitApi";
 
 export type BenefitLogsPaperSize = "LETTER" | "A4" | "LEGAL";
 
@@ -11,16 +11,7 @@ function userName(users: UserData[], userId: number) {
   return u ? `${u.user_fname} ${u.user_lname}`.trim() : `User #${userId}`;
 }
 
-function formatPosted(r: BenefitLogRow) {
-  // Prefer payroll run reference if available; otherwise fallback to created_date-ish fields if present.
-  const anyR = r as any;
-  if (r.payroll_run_id) return `PR#${r.payroll_run_id}`;
-  const raw = anyR.posted_at ?? anyR.created_date ?? anyR.updated_date ?? null;
-  if (!raw) return "—";
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return String(raw);
-  return d.toLocaleString();
-}
+
 
 function paperToJsPdfFormat(paper: BenefitLogsPaperSize): "letter" | "a4" | "legal" {
   if (paper === "A4") return "a4";
@@ -44,18 +35,17 @@ export async function exportBenefitLogsPdf(args: {
   const {
     paper,
     companyName = "",
-    title = "Benefit Logs (Deduction Report)",
     users,
     cutoffRange,
     benefit,
     type,
-    search,
     rows,
   } = args;
 
   // NOTE: requires deps in your app:
   // npm i jspdf jspdf-autotable
   const [{ jsPDF }, autoTableMod] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const autoTable = (autoTableMod as any).default ?? (autoTableMod as any);
 
   const format = paperToJsPdfFormat(paper);
@@ -71,7 +61,6 @@ export async function exportBenefitLogsPdf(args: {
   const pageH = doc.internal.pageSize.getHeight();
 
   const marginX = 40;
-  const headerH = 72;
 
   // --- Branding Colors (Premium System) ---
   const DARK_BLUE = [11, 19, 43] as [number, number, number];
@@ -264,7 +253,7 @@ export async function exportBenefitLogsPdf(args: {
           })
           : "—";
 
-        const uId = typeof r.user_id === "object" ? (r.user_id as any)?.user_id : r.user_id;
+        const uId = typeof r.user_id === "object" ? (r.user_id as Record<string, unknown>)?.user_id as number : r.user_id as number;
 
         return [
           r.employee_name || userName(users, uId),
@@ -304,6 +293,7 @@ export async function exportBenefitLogsPdf(args: {
         },
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       lastY = (doc as any).lastAutoTable.finalY + 30;
 
       // Avoid orphaned headers at bottom of page

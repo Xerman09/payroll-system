@@ -59,8 +59,8 @@ export type PayrollRunEmployeeRow = {
   total_work_minutes?: string | number;
 
   // ✅ REQUIRED for filtering
-  on_hold?: number | boolean | string | { data?: any[] };
-  is_card?: number | boolean | string | { data?: any[] };
+  on_hold?: number | boolean | string | null | { data?: number[] };
+  is_card?: number | boolean | string | null | { data?: number[] };
 };
 
 export type EmployeeMaster = {
