@@ -103,7 +103,9 @@ export default function WageMatrixModule() {
       
       // Construct payload from draft
       Object.entries(draft).forEach(([key, value]) => {
-        const [areaIdStr, colKey] = key.split('_');
+        const index = key.indexOf('_');
+        const areaIdStr = key.substring(0, index);
+        const colKey = key.substring(index + 1);
         const areaId = Number(areaIdStr);
         const amount = parseFloat(value);
         if (isNaN(amount)) return;
