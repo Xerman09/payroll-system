@@ -201,6 +201,8 @@ export default function TapSheetTab({
         console.error(e);
         toast.error("Failed to load Top Sheet data.");
         setRowsRaw([]);
+      } finally {
+        setLoading(false);
       }
     };
     run();
@@ -555,7 +557,7 @@ export default function TapSheetTab({
             {!cutoff || (deptId !== -1 && !departmentName) ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={9}
                   className="py-10 text-center text-muted-foreground"
                 >
                   Select a cutoff date and department to generate the Top Sheet.
@@ -566,7 +568,7 @@ export default function TapSheetTab({
             ) : tapRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={9}
                   className="py-10 text-center text-muted-foreground"
                 >
                   No records found for the selected cutoff and department.

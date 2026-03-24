@@ -1413,35 +1413,40 @@ export function EmployeeDetailsSheet({
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          {allowanceItems.map((aIn: unknown) => {
+                          {allowanceItems.map((aIn: unknown, idx: number) => {
                             const a = aIn as Record<string, unknown>;
+                            const aid = a.allowance_id ?? a.source_id;
+                            const keyStr = aid ? String(aid) : `allowance-idx-${idx}`;
+                            const meta = (a.meta as Record<string, unknown>) ?? {};
+                            const payCycle = a.pay_cycle ?? meta.pay_cycle;
+                            
                             return (
                             <div
-                              key={String(a.allowance_id)}
+                              key={keyStr}
                               className="flex items-center justify-between gap-3 rounded-2xl border bg-muted/10 p-3"
                             >
                               <div className="min-w-0">
                                 <div className="truncate text-sm font-semibold">
                                   {(a.description as string) ||
-                                    `Allowance #${a.allowance_id}`}
+                                    `Allowance #${aid}`}
                                 </div>
                                 <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
                                   <Badge
                                     variant="secondary"
                                     className="text-[10px]"
                                   >
-                                    {prettyPayCycle(a.pay_cycle)}
+                                    {prettyPayCycle(payCycle)}
                                   </Badge>
-                                  {a.allowance_id != null ? (
+                                  {aid != null ? (
                                     <span className="font-mono">
-                                      ID: {String(a.allowance_id)}
+                                      ID: {String(aid)}
                                     </span>
                                   ) : null}
                                 </div>
                               </div>
                               <MoneyPill
                                 amount={formatPHP(
-                                  Number(a.amount_this_cutoff ?? 0),
+                                  Number(a.amount ?? a.amount_this_cutoff ?? 0),
                                 )}
                                 kind="EARNING"
                               />
