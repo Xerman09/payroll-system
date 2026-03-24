@@ -114,7 +114,7 @@ export default function StaffTab() {
         staff_id: Number(staffId),
         role: role,
         employment_type: (employmentType as LogisticsStaff["employment_type"]) || null,
-        vehicle_type_id: vehicleTypeId ? Number(vehicleTypeId) : null,
+        vehicle_type_id: (vehicleTypeId && vehicleTypeId !== "none") ? Number(vehicleTypeId) : null,
       };
 
       if (editingStaff) {
@@ -153,7 +153,7 @@ export default function StaffTab() {
   );
 
   const getVehicleTypeName = (id: number) => {
-    return vehicleTypes.find(vt => vt.vehicle_type_id === id)?.vehicle_type || `VT ${id}`;
+    return vehicleTypes.find(vt => vt.id === id)?.type_name || `VT ${id}`;
   };
 
   return (
@@ -343,8 +343,8 @@ export default function StaffTab() {
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
                     {vehicleTypes.map(vt => (
-                      <SelectItem key={vt.vehicle_type_id} value={vt.vehicle_type_id.toString()}>
-                        {vt.vehicle_type}
+                      <SelectItem key={vt.id} value={vt.id.toString()}>
+                        {vt.type_name}
                       </SelectItem>
                     ))}
                   </SelectContent>

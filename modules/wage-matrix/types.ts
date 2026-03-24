@@ -16,15 +16,14 @@ export interface LogisticsStaff {
 
 export interface LogisticsVehicleType {
   id: number;
-  vehicle_type_id: number;
-  vehicle_type: 'BELOW 10 WHEELER' | '10 WHEELER' | 'TRAILER' | 'N/A';
+  type_name: string;
 }
 
 export interface SalaryMatrix {
   id?: number;
   area_id: number;
   staff_id: number;
-  vehicle_type_id: number;
+  vehicle_type_id: number | null;
   wage_amount: number;
 }
 
