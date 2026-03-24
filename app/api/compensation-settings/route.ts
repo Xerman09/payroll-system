@@ -71,7 +71,7 @@ function getTableName(resource: string | null) {
     case "area": return "payroll_logistics_area";
     case "location": return "payroll_logistics_location";
     case "staff": return "payroll_logistics_staff";
-    case "vehicle_type": return "payroll_logistics_vehicle_type";
+    case "vehicle_type": return "vehicle_type";
     default: return null;
   }
 }

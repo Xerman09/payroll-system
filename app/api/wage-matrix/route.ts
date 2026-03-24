@@ -69,7 +69,7 @@ export async function GET() {
   const [areas, staff, vehicleTypes, matrix] = await Promise.all([
     directusFetch("GET", "/items/payroll_logistics_area"),
     directusFetch("GET", "/items/payroll_logistics_staff"),
-    directusFetch("GET", "/items/payroll_logistics_vehicle_type"),
+    directusFetch("GET", "/items/vehicle_type"),
     directusFetch("GET", "/items/payroll_logistics_salary_matrix")
   ]);
 

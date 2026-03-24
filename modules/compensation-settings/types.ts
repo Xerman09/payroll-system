@@ -33,8 +33,5 @@ export interface LogisticsStaff {
 
 export interface LogisticsVehicleType {
   id: number;
-  vehicle_type_id: number;
-  vehicle_type: 'BELOW 10 WHEELER' | '10 WHEELER' | 'TRAILER' | 'N/A';
-  created_by?: number | null;
-  created_at: string;
+  type_name: string;
 }
