@@ -61,8 +61,10 @@ export default function WageMatrixModule() {
       if (savedDraft) {
         try {
           const parsed = JSON.parse(savedDraft);
-          Object.assign(initialDraft, parsed);
-          toast.info("Unsaved changes restored from cache.");
+          if (Object.keys(parsed).length > 0) {
+            Object.assign(initialDraft, parsed);
+            toast.info("Unsaved changes restored from cache.", { id: 'draft-restore' });
+          }
         } catch (e) {
           console.error("Failed to parse local storage", e);
         }
@@ -101,6 +103,12 @@ export default function WageMatrixModule() {
       const updates: SalaryMatrix[] = [];
       const creates: SalaryMatrix[] = [];
       
+      // Pre-compute O(1) lookup map for existing matrix items
+      const matrixLookup: Record<string, SalaryMatrix> = {};
+      data.matrix.forEach(m => {
+        matrixLookup[`${m.area_id}_${m.staff_id}_${m.vehicle_type_id}`] = m;
+      });
+      
       // Construct payload from draft
       Object.entries(draft).forEach(([key, value]) => {
         const index = key.indexOf('_');
@@ -116,11 +124,7 @@ export default function WageMatrixModule() {
 
         const vtId = getVehicleTypeId(colConfig.vehicleType);
 
-        const existing = data.matrix.find(m => 
-          m.area_id === areaId && 
-          m.staff_id === staff.staff_id && 
-          m.vehicle_type_id === vtId
-        );
+        const existing = matrixLookup[`${areaId}_${staff.staff_id}_${vtId}`];
 
         const record = {
           area_id: areaId,
@@ -144,18 +148,23 @@ export default function WageMatrixModule() {
       if (creates.length > 0) promises.push(upsertWageMatrix(creates));
       
       if (promises.length > 0) {
-        await Promise.all(promises);
-        toast.success(`Matrix saved: ${updates.length} updated, ${creates.length} created.`);
+        const savePromise = Promise.all(promises);
+        toast.promise(savePromise, {
+          loading: 'Saving wage matrix...',
+          success: () => {
+            localStorage.removeItem(LOCAL_STORAGE_KEY);
+            setLastUpdated(new Date().toLocaleTimeString());
+            loadData();
+            return `Matrix saved: ${updates.length} updated, ${creates.length} created.`;
+          },
+          error: 'Failed to save matrix.'
+        });
+        await savePromise;
       } else {
-        toast.info("No changes to save.");
+        toast.info("No changes to save.", { id: 'no-changes' });
       }
-      
-      localStorage.removeItem(LOCAL_STORAGE_KEY);
-      setLastUpdated(new Date().toLocaleTimeString());
-      loadData();
     } catch (error) {
       console.error(error);
-      toast.error("Failed to save wage matrix.");
     } finally {
       setSaving(false);
     }
@@ -197,15 +206,19 @@ export default function WageMatrixModule() {
     return mapping;
   }, [data]);
 
-  const getVehicleTypeId = (vtName: string | undefined): number | null => {
-    if (!data) return null;
-    if (vtName) {
-      const found = data.vehicleTypes.find(vt => vt.type_name === vtName);
-      if (found) return found.id;
-    }
-    
-    return null;
-  };
+  const vehicleTypeMap = useMemo(() => {
+    if (!data) return {};
+    const map: Record<string, number> = {};
+    data.vehicleTypes.forEach(vt => {
+      map[vt.type_name] = vt.id;
+    });
+    return map;
+  }, [data]);
+
+  const getVehicleTypeId = useCallback((vtName: string | undefined): number | null => {
+    if (!vtName) return null;
+    return vehicleTypeMap[vtName] || null;
+  }, [vehicleTypeMap]);
 
   const getCellValue = (areaId: number, colKey: string): string => {
     const key = `${areaId}_${colKey}`;

@@ -25,6 +25,16 @@ export function WageMatrixTable({
   getCellValue,
   handleInputChange
 }: WageMatrixTableProps) {
+  
+  const matrixMap = React.useMemo(() => {
+    if (!data) return {};
+    const map: Record<string, string> = {};
+    data.matrix.forEach((m) => {
+      map[`${m.area_id}_${m.staff_id}_${m.vehicle_type_id}`] = m.wage_amount.toString();
+    });
+    return map;
+  }, [data]);
+
   return (
     <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
        <div className="flex items-center gap-3 px-2">
@@ -106,11 +116,9 @@ export function WageMatrixTable({
                         const staff = staffByColumn[col.key];
                         const vtId = getVehicleTypeId(col.vehicleType);
                         const cellValue = getCellValue(area.area_id, col.key);
-                        const isDirty = data?.matrix.find(m => 
-                          m.area_id === area.area_id && 
-                          m.staff_id === (staff?.staff_id || -1) && 
-                          m.vehicle_type_id === vtId
-                        )?.wage_amount.toString() !== cellValue && cellValue !== "";
+                        const mapKey = `${area.area_id}_${staff?.staff_id || -1}_${vtId}`;
+                        const dbValue = matrixMap[mapKey];
+                        const isDirty = dbValue !== undefined && dbValue !== cellValue && cellValue !== "";
 
                         return (
                           <TableCell key={col.key} className="p-1 px-2 border-r last:border-r-0 border-slate-200/40 dark:border-slate-800/30">
