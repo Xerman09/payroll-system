@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { Plus, RefreshCcw, Pencil, Trash2, Search, X } from "lucide-react";
+import { Plus, RefreshCcw, Pencil, Trash2, Search, X, MoreVertical } from "lucide-react";
 
 import type {
   Employee,
@@ -75,6 +75,13 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type Props = {
   open: boolean;
@@ -258,11 +265,6 @@ export function BenefitsTab({
     "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 " +
     "dark:bg-transparent dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-900/40";
 
-  const PAYROLL_ICON_BTN =
-    "h-9 w-9 p-0 border border-slate-200 bg-white hover:bg-slate-50 " +
-    "dark:bg-transparent dark:border-slate-700 dark:hover:bg-slate-900/40";
-  const PAYROLL_ICON_EDIT = "text-persian-blue-800 hover:text-persian-blue-700";
-  const PAYROLL_ICON_DELETE = "text-red-600 hover:text-red-700";
 
   // =========================
   // Section 1: Contributions
@@ -1547,42 +1549,41 @@ export function BenefitsTab({
                     </TableCell>
 
                     <TableCell className="whitespace-nowrap px-4 py-3 text-right">
-                      <div className="inline-flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className={`${PAYROLL_ICON_BTN} ${PAYROLL_ICON_EDIT}`}
-                          onClick={() => startEdit(r)}
-                          disabled={saving}
-                          title="Edit"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className={`${PAYROLL_ICON_BTN} ${PAYROLL_ICON_DELETE}`}
-                          onClick={() => {
-                            if (r.paid_installments > 0) {
-                              toast.error(
-                                "Cannot delete a loan that already has payments."
-                              );
-                              return;
-                            }
-                            setConfirmDeleteRow(r);
-                            setConfirmDeleteOpen(true);
-                          }}
-                          disabled={saving}
-                          title={
-                            r.paid_installments > 0
-                              ? "Cannot delete after payments"
-                              : "Delete"
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            disabled={saving}
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                            <span className="sr-only">Open menu</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => startEdit(r)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-red-600 focus:text-red-600"
+                            onClick={() => {
+                              if (r.paid_installments > 0) {
+                                toast.error(
+                                  "Cannot delete a loan that already has payments."
+                                );
+                                return;
+                              }
+                              setConfirmDeleteRow(r);
+                              setConfirmDeleteOpen(true);
+                            }}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))
@@ -1734,24 +1735,30 @@ export function BenefitsTab({
                         {r.note || "—"}
                       </TableCell>
                       <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
                             <Button
                               variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              onClick={() => startEditLog(r)}
+                              className="h-8 w-8 p-0"
                             >
-                              <Pencil className="w-3 h-3" />
+                              <MoreVertical className="h-4 w-4" />
+                              <span className="sr-only">Open menu</span>
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => startEditLog(r)}>
+                              <Pencil className="mr-2 h-4 w-4 text-blue-600" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-600"
                               onClick={() => deleteBenefitLog(r.benefit_log_id)}
                             >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                        </div>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   );

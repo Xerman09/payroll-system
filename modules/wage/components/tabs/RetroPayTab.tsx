@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Pencil, Trash2, Plus, Search, X } from "lucide-react";
+import { Pencil, Trash2, Plus, Search, X, MoreVertical } from "lucide-react";
 
 import type {
   Employee,
@@ -44,6 +44,13 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type PayrollUiTokens = {
   primary: string;
@@ -548,33 +555,46 @@ export function RetroPayTab({
                   <TableCell>{retroProcessedBadge(r.is_processed)}</TableCell>
 
                   <TableCell className="text-right">
-                    <div className="inline-flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className={`${ui.iconBtn} ${ui.iconEdit}`}
-                        onClick={() => startEditRetro(r)}
-                        disabled={retroSaving}
-                        title="Edit"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className={`${ui.iconBtn} ${ui.iconDelete}`}
-                        onClick={() => deleteRetro(r.retro_id)}
-                        disabled={retroSaving || flagToBool(r.is_processed)}
-                        title={
-                          flagToBool(r.is_processed)
-                            ? "Processed entries cannot be deleted"
-                            : "Delete"
-                        }
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          disabled={retroSaving}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                          <span className="sr-only">Open menu</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => startEditRetro(r)}
+                          disabled={flagToBool(r.is_processed)}
+                          title={
+                            flagToBool(r.is_processed)
+                              ? "Processed entries cannot be edited"
+                              : "Edit"
+                          }
+                        >
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-red-600 focus:text-red-600"
+                          onClick={() => deleteRetro(r.retro_id)}
+                          disabled={flagToBool(r.is_processed)}
+                          title={
+                            flagToBool(r.is_processed)
+                              ? "Processed entries cannot be deleted"
+                              : "Delete"
+                          }
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))
