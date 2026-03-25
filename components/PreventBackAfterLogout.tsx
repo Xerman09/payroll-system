@@ -8,7 +8,7 @@ export default function PreventBackAfterLogout() {
 
   useEffect(() => {
     const handlePopState = () => {
-      const session = localStorage.getItem("user");
+      const session = sessionStorage.getItem("user_token");
       if (!session) router.replace("/auth/login");
     };
 

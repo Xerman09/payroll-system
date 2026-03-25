@@ -34,7 +34,9 @@ export function useLogin() {
         return;
       }
 
-      sessionStorage.setItem("user", JSON.stringify(json.user));
+      if (json.user_token) {
+        sessionStorage.setItem("user_token", json.user_token);
+      }
       toast.success("Login successful!");
 
       setTimeout(() => {

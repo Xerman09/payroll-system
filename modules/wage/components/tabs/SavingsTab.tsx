@@ -10,6 +10,7 @@ import * as wageApi from "../../providers/wageApi";
 import ConfirmDialog from "../ConfirmDialog";
 
 import { toLocalYmd, round2, money } from "../../utils/loanMath";
+import { getLoggedUser } from "@/lib/auth";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,15 +71,10 @@ function flagToBool(v: unknown): boolean {
 }
 
 function getLoggedUserId(): number | null {
-  const session = sessionStorage.getItem("user");
-  if (!session) return null;
-  try {
-    const logged = JSON.parse(session);
-    const n = Number(logged?.user_id);
-    return Number.isFinite(n) ? n : null;
-  } catch {
-    return null;
-  }
+  const logged = getLoggedUser();
+  if (!logged) return null;
+  const n = Number(logged?.user_id);
+  return Number.isFinite(n) ? n : null;
 }
 
 // Matches sample: COOP-20260116-67223
@@ -608,18 +604,8 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
                 <Input
                   type="text"
                   value={draft.total_collection || ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (!/^\d*\.?\d*$/.test(v)) return;
-                    setDraft((p) => ({ ...p, total_collection: v }));
-                  }}
-                  onBlur={() =>
-                    setDraft((p) => ({
-                      ...p,
-                      total_collection: money(p.total_collection || "0"),
-                    }))
-                  }
-                  className="h-10 pl-6"
+                  disabled
+                  className="h-10 pl-6 bg-gray-100 dark:bg-gray-800/60"
                   placeholder="0.00"
                 />
               </div>

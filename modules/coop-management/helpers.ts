@@ -19,11 +19,10 @@ export function monthsBetweenInclusive(
   return totalMonths + 1; // inclusive
 }
 
+import { getLoggedUser } from "@/lib/auth";
+
 export function getLoggedUserIdFallback1(): number {
-  try {
-    const s = sessionStorage.getItem("user");
-    return s ? Number(JSON.parse(s)?.user_id) || 1 : 1;
-  } catch {
-    return 1;
-  }
+  const user = getLoggedUser();
+  if (!user || !user.user_id) return 1;
+  return Number(user.user_id);
 }

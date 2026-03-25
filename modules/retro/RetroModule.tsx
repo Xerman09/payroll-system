@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { getLoggedUser } from "@/lib/auth";
 import { Plus, RefreshCw, RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -136,12 +137,11 @@ export default function RetroModule() {
   };
 
   const handleCreate = async (data: RetroFormState) => {
-    const session = sessionStorage.getItem("user");
-    if (!session) {
+    const loggedUser = getLoggedUser();
+    if (!loggedUser) {
       toast.error("User not logged in");
       return;
     }
-    const loggedUser = JSON.parse(session);
 
     if (
       !data.user_id ||
@@ -166,9 +166,8 @@ export default function RetroModule() {
 
   const handleUpdate = async (data: RetroFormState) => {
     if (!editingId) return;
-    const session = sessionStorage.getItem("user");
-    if (!session) return;
-    const loggedUser = JSON.parse(session);
+    const loggedUser = getLoggedUser();
+    if (!loggedUser) return;
 
     try {
       await retroApi.update(editingId, data, loggedUser.user_id);

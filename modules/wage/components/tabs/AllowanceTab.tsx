@@ -11,6 +11,7 @@ import type {
   EmployeeAllowanceRecord,
   AllowancePayCycle,
 } from "../../types";
+import { getLoggedUser } from "@/lib/auth";
 import * as wageApi from "../../providers/wageApi";
 import ConfirmDialog from "../ConfirmDialog";
 
@@ -91,15 +92,12 @@ function flagToBool(v: unknown): boolean {
 }
 
 function getLoggedUserId(): number | null {
-  const session = sessionStorage.getItem("user");
-  if (!session) return null;
-  try {
-    const logged = JSON.parse(session);
-    const n = Number(logged?.user_id);
-    return Number.isFinite(n) ? n : null;
-  } catch {
+  const logged = getLoggedUser();
+  if (!logged) {
     return null;
   }
+  const n = Number(logged?.user_id);
+  return Number.isFinite(n) ? n : null;
 }
 
 function cutoffLabel(c: CutoffSetting) {

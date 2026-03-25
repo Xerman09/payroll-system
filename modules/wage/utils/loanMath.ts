@@ -1,4 +1,6 @@
 // @modules/wage/utils/loanMath.ts
+import { COOP_INTEREST_RATE } from "./payrollConstants";
+
 export function toLocalYmd(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -16,31 +18,29 @@ export function money(n: string | number | null | undefined) {
   return v.toFixed(2);
 }
 
-export function computeMonthlyPayment(loanAmountStr: string, monthsStr: string) {
-  const amt = Number(loanAmountStr);
-  const months = Number(monthsStr);
-
-  if (!Number.isFinite(amt) || amt <= 0) return "0.00";
-  if (!Number.isInteger(months) || months <= 0) return "0.00";
-
-  return money(round2(amt / months));
+export function computeMonthlyPayment(principal: number, terms: number): number {
+  if (terms <= 0) return principal;
+  const interest = principal * COOP_INTEREST_RATE;
+  const total = principal + interest;
+  return round2(total / terms);
 }
 
 export function computeCoopInterest(loanAmountNum: number) {
   const amt = Number(loanAmountNum);
   if (!Number.isFinite(amt) || amt <= 0) {
     return {
-      interestRate: "3.00",
+      interestRate: (COOP_INTEREST_RATE * 100).toFixed(2),
       interestAmount: "0.00",
       netAmountReleased: "0.00",
     };
   }
 
-  const interestAmountNum = round2(amt * 0.03);
+  const interestAmountNum = round2(amt * COOP_INTEREST_RATE);
   const netNum = round2(amt - interestAmountNum);
+  const rateLabel = (COOP_INTEREST_RATE * 100).toFixed(2);
 
   return {
-    interestRate: "3.00",
+    interestRate: rateLabel,
     interestAmount: money(interestAmountNum),
     netAmountReleased: money(netNum),
   };

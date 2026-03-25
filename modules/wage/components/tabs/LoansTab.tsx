@@ -485,18 +485,8 @@ export function LoansTab({
                     <Input
                       type="text"
                       value={loanDraft.accumulated_amount || ""}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (!/^\d*\.?\d*$/.test(v)) return;
-                        setLoanDraft((p) => ({ ...p, accumulated_amount: v }));
-                      }}
-                      onBlur={() =>
-                        setLoanDraft((p) => ({
-                          ...p,
-                          accumulated_amount: money(p.accumulated_amount),
-                        }))
-                      }
-                      className="h-10 pl-6"
+                      disabled
+                      className="h-10 pl-6 bg-gray-100 dark:bg-gray-800/60"
                       placeholder="0.00"
                     />
                   </div>
@@ -516,23 +506,13 @@ export function LoansTab({
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">
                     ₱
                   </span>
-                  <Input
-                    type="text"
-                    value={loanDraft.accumulated_amount || ""}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (!/^\d*\.?\d*$/.test(v)) return;
-                      setLoanDraft((p) => ({ ...p, accumulated_amount: v }));
-                    }}
-                    onBlur={() =>
-                      setLoanDraft((p) => ({
-                        ...p,
-                        accumulated_amount: money(p.accumulated_amount),
-                      }))
-                    }
-                    className="h-10 pl-6"
-                    placeholder="0.00"
-                  />
+                <Input
+                  type="text"
+                  value={loanDraft.accumulated_amount || ""}
+                  disabled
+                  className="h-10 pl-6 bg-gray-100 dark:bg-gray-800/60"
+                  placeholder="0.00"
+                />
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
                   Total amount deducted from payroll so far

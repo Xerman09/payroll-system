@@ -8,7 +8,7 @@ export function useAuthGuard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = sessionStorage.getItem("user"); // <-- sessionStorage now
+    const token = sessionStorage.getItem("user_token"); // <-- using the new JWT token key
     if (!token) {
       router.replace("/auth/login"); // redirect if no session
     } else {
@@ -17,7 +17,7 @@ export function useAuthGuard() {
     }
 
     const handlePopState = () => {
-      const t = sessionStorage.getItem("user");
+      const t = sessionStorage.getItem("user_token");
       if (!t) router.replace("/auth/login");
     };
     window.addEventListener("popstate", handlePopState);

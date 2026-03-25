@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { signJWT } from "@/lib/auth";
 
 const API_BASE =
   process.env.API_BASE ||
@@ -13,9 +14,8 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
-
-    const body = await req.json();
-    const { email, password } = body;
+    // ... REST OF THE BODY ...
+    const { email, password } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json(
@@ -64,11 +64,26 @@ export async function POST(req: Request) {
       );
     }
 
-    const { ...safeUser } = user;
+    // Harden session by picking only safe fields
+    const safeUser = {
+      user_id: user.user_id,
+      user_fname: user.user_fname,
+      user_lname: user.user_lname,
+      user_mname: user.user_mname,
+      user_email: user.user_email,
+      role: user.role,
+      user_department: user.user_department,
+      user_position: user.user_position,
+      user_image: user.user_image,
+    };
+
+    // Sign into a JWT for tamper-proof transport
+    const token = await signJWT(safeUser);
 
     return NextResponse.json({
       status: "success",
       user: safeUser,
+      user_token: token,
     });
   } catch {
     return NextResponse.json(
