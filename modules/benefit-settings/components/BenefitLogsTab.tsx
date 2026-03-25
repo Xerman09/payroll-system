@@ -10,6 +10,7 @@ import type {
   BenefitLogRow,
   CutoffSetting,
   UserData,
+  Department,
 } from "../types";
 import {
   fetchBenefitLogs,
@@ -56,7 +57,13 @@ function userName(users: UserData[], userId: number) {
   return u ? `${u.user_fname} ${u.user_lname}`.trim() : `User #${userId}`;
 }
 
-export default function BenefitLogsTab({ users }: { users: UserData[] }) {
+export default function BenefitLogsTab({
+  users,
+  departments,
+}: {
+  users: UserData[];
+  departments: Department[];
+}) {
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
 
@@ -78,6 +85,14 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
   const [type, setType] = React.useState<"ALL" | "CONTRIBUTION" | "LOAN">(
     "ALL"
   );
+  const [department, setDepartment] = React.useState<"ALL" | number>("ALL");
+
+  // Build a userId → department_id lookup from the users list
+  const userDeptMap = React.useMemo(() => {
+    const m = new Map<number, number | null>();
+    for (const u of users) m.set(u.user_id, u.user_department ?? null);
+    return m;
+  }, [users]);
 
   // Export
   const [paper, setPaper] = React.useState<BenefitLogsPaperSize>("LETTER");
@@ -141,6 +156,10 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
       }
       if (benefit !== "ALL" && r.benefit_code !== benefit) return false;
       if (type !== "ALL" && r.log_type !== type) return false;
+      if (department !== "ALL") {
+        const userDept = userDeptMap.get(r.user_id);
+        if (userDept !== department) return false;
+      }
 
       if (!needle) return true;
       const name = (r.employee_name || userName(users, r.user_id)).toLowerCase();
@@ -156,7 +175,7 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
         String(r.user_id).includes(needle)
       );
     });
-  }, [rows, q, cutoffRange, benefit, type, users]);
+  }, [rows, q, cutoffRange, benefit, type, department, userDeptMap, users]);
 
   const totals = React.useMemo(() => {
     const sumBy: Record<string, number> = {
@@ -187,7 +206,7 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
       <div className="rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           {/* Left: Filters */}
-          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div className="space-y-1">
               <div className="text-xs font-medium text-slate-600 dark:text-gray-400">Search</div>
               <Input
@@ -196,6 +215,26 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
                 placeholder="Employee or note…"
                 className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 placeholder:text-gray-500"
               />
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-xs font-medium text-slate-600 dark:text-gray-400">Department</div>
+              <Select
+                value={String(department)}
+                onValueChange={(v) => setDepartment(v === "ALL" ? "ALL" : Number(v))}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All</SelectItem>
+                  {departments.map((d) => (
+                    <SelectItem key={d.department_id} value={String(d.department_id)}>
+                      {d.department_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1">
@@ -493,9 +532,11 @@ export default function BenefitLogsTab({ users }: { users: UserData[] }) {
         onOpenChange={setPreviewOpen}
         allRows={rows}
         users={users}
+        departments={departments}
         initialCutoffRange={cutoffRange}
         initialBenefit={benefit}
         initialType={type}
+        initialDepartment={department}
         initialPaper={paper}
         companyName={companyName}
       />

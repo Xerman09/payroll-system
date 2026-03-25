@@ -4,6 +4,7 @@
 import type {
   BenefitSetting,
   UserData,
+  Department,
   BenefitLoan,
   BenefitLogRow,
   CutoffSetting,
@@ -135,7 +136,12 @@ export async function fetchBenefitSettings(): Promise<BenefitSetting[]> {
 }
 
 export async function fetchUsers(): Promise<UserData[]> {
-  const json = await apiFetch("/items/user?limit=2000&fields=user_id,user_fname,user_lname");
+  const json = await apiFetch("/items/user?limit=2000&fields=user_id,user_fname,user_lname,user_department");
+  return json.data || [];
+}
+
+export async function fetchDepartments(): Promise<Department[]> {
+  const json = await apiFetch("/items/department?limit=200&fields=department_id,department_name&sort=department_name");
   return json.data || [];
 }
 

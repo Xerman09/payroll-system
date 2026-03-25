@@ -28,6 +28,7 @@ export async function exportBenefitLogsPdf(args: {
   cutoffRange: string; // "ALL" or start_end
   benefit: BenefitCode | "ALL";
   type: "ALL" | "CONTRIBUTION" | "LOAN";
+  department?: string; // optional department label (undefined = All)
   search: string;
 
   rows: BenefitLogRow[]; // already filtered rows
@@ -39,6 +40,7 @@ export async function exportBenefitLogsPdf(args: {
     cutoffRange,
     benefit,
     type,
+    department,
     rows,
   } = args;
 
@@ -162,13 +164,14 @@ export async function exportBenefitLogsPdf(args: {
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
 
-      const headerStats = [
+      const statsParts = [
+        department ? `DEPARTMENT: ${department.toUpperCase()}` : null,
         `PERIOD: ${periodLabelText.toUpperCase()}`,
         `TOTAL EMPLOYEES: ${uniqueEmployees}`,
-        `GRAND TOTAL: PHP ${formatMoney(grandTotal)}`
-      ].join("   |   ");
+        `GRAND TOTAL: PHP ${formatMoney(grandTotal)}`,
+      ].filter(Boolean);
 
-      doc.text(headerStats, pageW / 2, statsY, { align: "center" });
+      doc.text(statsParts.join("   |   "), pageW / 2, statsY, { align: "center" });
 
       // Divider line
       doc.setDrawColor(226, 232, 240); // Border color
