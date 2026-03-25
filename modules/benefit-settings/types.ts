@@ -19,6 +19,12 @@ export interface UserData {
   user_id: number;
   user_fname: string;
   user_lname: string;
+  user_department?: number | null;
+}
+
+export interface Department {
+  department_id: number;
+  department_name: string;
 }
 
 

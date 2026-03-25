@@ -4,7 +4,7 @@
 import * as React from "react";
 import { FileDown } from "lucide-react";
 import { formatMoney } from "../providers/benefitApi";
-import type { BenefitLogRow, BenefitCode, UserData } from "../types";
+import type { BenefitLogRow, BenefitCode, UserData, Department } from "../types";
 import { exportBenefitLogsPdf, type BenefitLogsPaperSize } from "../utils/benefitLogsPdf";
 import { fullnameFromUser } from "../providers/benefitApi";
 import { PdfPreviewModal } from "@/components/PdfPreviewModal";
@@ -41,9 +41,11 @@ interface BenefitExportPreviewDialogProps {
   onOpenChange: (open: boolean) => void;
   allRows: BenefitLogRow[];
   users: UserData[];
+  departments: Department[];
   initialCutoffRange: string;
   initialBenefit: BenefitCode | "ALL";
   initialType: "ALL" | "CONTRIBUTION" | "LOAN";
+  initialDepartment: "ALL" | number;
   initialPaper: BenefitLogsPaperSize;
   companyName: string;
 }
@@ -53,19 +55,29 @@ export default function BenefitExportPreviewDialog({
   onOpenChange,
   allRows,
   users,
+  departments,
   initialCutoffRange,
   initialBenefit,
   initialType,
+  initialDepartment,
   initialPaper,
   companyName,
 }: BenefitExportPreviewDialogProps) {
   const [cutoffRange, setCutoffRange] = React.useState<string>(initialCutoffRange);
   const [benefit, setBenefit] = React.useState<BenefitCode | "ALL">(initialBenefit);
   const [type, setType] = React.useState<"ALL" | "CONTRIBUTION" | "LOAN">(initialType);
+  const [department, setDepartment] = React.useState<"ALL" | number>(initialDepartment);
   const [paper, setPaper] = React.useState<BenefitLogsPaperSize>(initialPaper);
   const [exporting, setExporting] = React.useState(false);
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [pdfBlob, setPdfBlob] = React.useState<Blob | null>(null);
+
+  // userId → department_id lookup
+  const userDeptMap = React.useMemo(() => {
+    const m = new Map<number, number | null>();
+    for (const u of users) m.set(u.user_id, u.user_department ?? null);
+    return m;
+  }, [users]);
 
   const filtered = React.useMemo(() => {
     return allRows.filter((r) => {
@@ -79,9 +91,13 @@ export default function BenefitExportPreviewDialog({
       }
       if (benefit !== "ALL" && r.benefit_code !== benefit) return false;
       if (type !== "ALL" && r.log_type !== type) return false;
+      if (department !== "ALL") {
+        const userDept = userDeptMap.get(r.user_id);
+        if (userDept !== department) return false;
+      }
       return true;
     });
-  }, [allRows, cutoffRange, benefit, type]);
+  }, [allRows, cutoffRange, benefit, type, department, userDeptMap]);
 
   const totals = React.useMemo(() => {
     return filtered.reduce((acc, r) => acc + (r.deducted_amount || 0), 0);
@@ -90,6 +106,11 @@ export default function BenefitExportPreviewDialog({
   const onPreview = async () => {
     setExporting(true);
     try {
+      const deptLabel =
+        department === "ALL"
+          ? "All Departments"
+          : (departments.find((d) => d.department_id === department)?.department_name ?? String(department));
+
       const doc = await exportBenefitLogsPdf({
         paper,
         companyName,
@@ -98,7 +119,8 @@ export default function BenefitExportPreviewDialog({
         cutoffRange,
         benefit,
         type,
-        search: "", 
+        department: department === "ALL" ? undefined : deptLabel,
+        search: "",
         rows: filtered,
       });
       const blob = doc.output("blob");
@@ -121,7 +143,29 @@ export default function BenefitExportPreviewDialog({
 
         <div className="flex flex-col flex-1 overflow-hidden p-6 gap-6 dark:bg-gray-950/20">
           {/* Selections / Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
+                Department
+              </label>
+              <Select
+                value={String(department)}
+                onValueChange={(v) => setDepartment(v === "ALL" ? "ALL" : Number(v))}
+              >
+                <SelectTrigger className="bg-slate-50 dark:bg-gray-800 h-auto min-h-[36px] dark:border-gray-700 dark:text-gray-100">
+                  <SelectValue placeholder="All Departments" />
+                </SelectTrigger>
+                <SelectContent className="dark:bg-gray-900 dark:border-gray-800">
+                  <SelectItem value="ALL" className="dark:text-gray-200 dark:focus:bg-gray-800">All Departments</SelectItem>
+                  {departments.map((d) => (
+                    <SelectItem key={d.department_id} value={String(d.department_id)} className="dark:text-gray-200 dark:focus:bg-gray-800">
+                      {d.department_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider">
                 Cutoff

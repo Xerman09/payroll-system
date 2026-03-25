@@ -5,7 +5,7 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { BENEFITS } from "./index";
-import type { BenefitCode, BenefitSetting, UserData, CutoffSetting } from "./types";
+import type { BenefitCode, BenefitSetting, UserData, CutoffSetting, Department } from "./types";
 
 import BenefitCard from "./components/BenefitCard";
 import SaveButton from "./components/SaveButton";
@@ -17,6 +17,7 @@ import {
   fetchUsers,
   saveBenefitSetting,
   fetchCutoffSettings,
+  fetchDepartments,
 } from "./providers/benefitApi";
 
 import BenefitLoansTab from "./components/BenefitLoansTab";
@@ -41,6 +42,7 @@ export default function BenefitSettingsModule() {
   const [loading, setLoading] = React.useState(true);
 
   const [users, setUsers] = React.useState<UserData[]>([]);
+  const [departments, setDepartments] = React.useState<Department[]>([]);
   const userMap = React.useMemo(() => {
     const m = new Map<number, string>();
     for (const u of users)
@@ -66,13 +68,15 @@ export default function BenefitSettingsModule() {
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
-      const [u, s, c] = await Promise.all([
+      const [u, s, c, d] = await Promise.all([
         fetchUsers(),
         fetchBenefitSettings(),
-        fetchCutoffSettings(), // Re-using existing export from benefitApi
+        fetchCutoffSettings(),
+        fetchDepartments(),
       ]);
       setUsers(u);
       setCutoffs(c);
+      setDepartments(d);
 
       const byCode: Record<BenefitCode, BenefitSetting> = {
         SSS: makeDefaultSetting("SSS", "SSS"),
@@ -248,7 +252,7 @@ export default function BenefitSettingsModule() {
               </TabsContent>
 
               <TabsContent value="logs" className="m-0">
-                <BenefitLogsTab users={users} />
+                <BenefitLogsTab users={users} departments={departments} />
               </TabsContent>
             </div>
           </Tabs>
