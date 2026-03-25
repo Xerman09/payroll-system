@@ -301,23 +301,23 @@ export function OtherADTab({
     openForm(next);
   };
 
-  const startEditUnified = (u: UnifiedRow) => {
-    if (u.kind === "add") {
-      setFormKind("add");
-      setDedFormOpen(false);
-      resetDedDraft();
-      setAddFormOpen(true);
-      startEditOtherAddition(u.row);
-    } else {
-      setFormKind("ded");
-      setAddFormOpen(false);
-      resetAddDraft();
-      setDedFormOpen(true);
-      startEditOtherDeduction(u.row);
-    }
+  // const startEditUnified = (u: UnifiedRow) => {
+  //   if (u.kind === "add") {
+  //     setFormKind("add");
+  //     setDedFormOpen(false);
+  //     resetDedDraft();
+  //     setAddFormOpen(true);
+  //     startEditOtherAddition(u.row);
+  //   } else {
+  //     setFormKind("ded");
+  //     setAddFormOpen(false);
+  //     resetAddDraft();
+  //     setDedFormOpen(true);
+  //     startEditOtherDeduction(u.row);
+  //   }
 
-    if (cutoffs.length === 0 && !cutoffsLoading) ensureCutoffs();
-  };
+  //   if (cutoffs.length === 0 && !cutoffsLoading) ensureCutoffs();
+  // };
 
   const deleteUnified = (u: UnifiedRow) => {
     if (u.kind === "add") return deleteOtherAddition(u.row.id);
@@ -690,6 +690,7 @@ export function OtherADTab({
 
                       <TableCell className="pr-4">
                         <div className="flex items-center justify-end gap-2">
+                          {/* 
                           <Button
                             type="button"
                             variant="ghost"
@@ -700,6 +701,7 @@ export function OtherADTab({
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
+                          */}
 
                           <Button
                             type="button"

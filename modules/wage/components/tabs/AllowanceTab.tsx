@@ -12,6 +12,7 @@ import type {
   AllowancePayCycle,
 } from "../../types";
 import * as wageApi from "../../providers/wageApi";
+import ConfirmDialog from "../ConfirmDialog";
 
 import { toLocalYmd, round2, money } from "../../utils/loanMath";
 
@@ -234,10 +235,17 @@ export function AllowanceTab({
 
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<number | null>(null);
+
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [confirmConfig, setConfirmConfig] = React.useState<{
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  } | null>(null);
   const [rows, setRows] = React.useState<EmployeeAllowanceRecord[]>([]);
 
   const [formOpen, setFormOpen] = React.useState(false);
-  const [editingId, setEditingId] = React.useState<number | null>(null);
 
   // ---------- Search + Pagination state ----------
   const [q, setQ] = React.useState<string>("");
@@ -431,6 +439,12 @@ export function AllowanceTab({
     setSaving(true);
     try {
       if (editingId) {
+        const row = rows.find((x) => x.allowance_id === editingId);
+        if (row && flagToBool(row.is_processed)) {
+          toast.error("Processed allowances cannot be updated.");
+          return;
+        }
+
         await wageApi.patchEmployeeAllowance(editingId, {
           amount: v.amount,
           description: v.description,
@@ -498,6 +512,11 @@ export function AllowanceTab({
 
   const startEdit = React.useCallback(
     (r: EmployeeAllowanceRecord) => {
+      if (flagToBool(r.is_processed)) {
+        toast.error("Processed allowances cannot be edited.");
+        return;
+      }
+
       setEditingId(r.allowance_id);
       setFormOpen(true);
 
@@ -539,19 +558,8 @@ export function AllowanceTab({
     [cutoffs, cutoffsLoading, ensureCutoffs]
   );
 
-  const deleteAllowance = React.useCallback(
+  const executeDeleteAllowance = React.useCallback(
     async (r: EmployeeAllowanceRecord) => {
-      if (flagToBool(r.is_processed)) {
-        toast.error("Processed allowances cannot be deleted.");
-        return;
-      }
-
-      if (
-        !window.confirm("Delete this allowance? This action cannot be undone.")
-      ) {
-        return;
-      }
-
       setSaving(true);
       try {
         await wageApi.deleteEmployeeAllowance(r.allowance_id);
@@ -565,13 +573,31 @@ export function AllowanceTab({
         await loadAllowances();
       } catch (e: unknown) {
         console.error("[AllowanceTab] delete failed", e);
-        const msg = e instanceof Error ? e.message : "Failed to delete allowance.";
+        const msg =
+          e instanceof Error ? e.message : "Failed to delete allowance.";
         toast.error(msg);
       } finally {
         setSaving(false);
       }
     },
-    [editingId, loadAllowances, resetDraft]
+    [editingId, loadAllowances, resetDraft],
+  );
+
+  const deleteAllowance = React.useCallback(
+    async (r: EmployeeAllowanceRecord) => {
+      if (flagToBool(r.is_processed)) {
+        toast.error("Processed allowances cannot be deleted.");
+        return;
+      }
+
+      setConfirmConfig({
+        title: "Delete this allowance?",
+        description: "This action cannot be undone.",
+        onConfirm: () => executeDeleteAllowance(r),
+      });
+      setConfirmOpen(true);
+    },
+    [executeDeleteAllowance],
   );
 
   const totals = React.useMemo(() => {
@@ -1128,8 +1154,12 @@ export function AllowanceTab({
                           variant="ghost"
                           className={`${PAYROLL_ICON_BTN} ${PAYROLL_ICON_EDIT}`}
                           onClick={() => startEdit(r)}
-                          disabled={saving}
-                          title="Edit"
+                          disabled={saving || flagToBool(r.is_processed)}
+                          title={
+                            flagToBool(r.is_processed)
+                              ? "Processed entries cannot be edited"
+                              : "Edit"
+                          }
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -1224,6 +1254,17 @@ export function AllowanceTab({
           Back to Top
         </Button>
       </div>
+
+      {confirmConfig && (
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title={confirmConfig.title}
+          description={confirmConfig.description}
+          onConfirm={confirmConfig.onConfirm}
+          variant="destructive"
+        />
+      )}
     </div>
   );
 }

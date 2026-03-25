@@ -7,6 +7,7 @@ import { Pencil, Trash2, Plus, RefreshCcw, Search, X } from "lucide-react";
 
 import type { Employee, CoopSavingsMembershipRecord } from "../../types";
 import * as wageApi from "../../providers/wageApi";
+import ConfirmDialog from "../ConfirmDialog";
 
 import { toLocalYmd, round2, money } from "../../utils/loanMath";
 
@@ -169,6 +170,13 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
 
   const [formOpen, setFormOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<number | null>(null);
+
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [confirmConfig, setConfirmConfig] = React.useState<{
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const [q, setQ] = React.useState<string>("");
   const [pageSize, setPageSize] = React.useState<number>(10);
@@ -342,27 +350,8 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
     });
   }, []);
 
-  const deleteMembership = React.useCallback(
+  const executeDeleteMembership = React.useCallback(
     async (r: CoopSavingsMembershipRecord) => {
-      const tc = Number(r.total_collection || 0);
-      const tm = Number(r.total_months || 0);
-
-      // Safety rule: don’t delete if it already has collections
-      if (tc > 0 || tm > 0) {
-        toast.error(
-          "This membership already has collections. Set it to Inactive instead of deleting.",
-        );
-        return;
-      }
-
-      if (
-        !window.confirm(
-          "Delete this savings membership? This action cannot be undone.",
-        )
-      ) {
-        return;
-      }
-
       setSaving(true);
       try {
         await wageApi.deleteCoopSavingsMembership(r.id);
@@ -376,13 +365,36 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
         await loadSavings();
       } catch (e: unknown) {
         console.error("[SavingsTab] delete failed", e);
-        const msg = e instanceof Error ? e.message : "Failed to delete savings membership.";
+        const msg =
+          e instanceof Error ? e.message : "Failed to delete savings membership.";
         toast.error(msg);
       } finally {
         setSaving(false);
       }
     },
     [editingId, loadSavings, resetDraft],
+  );
+
+  const deleteMembership = React.useCallback(
+    async (r: CoopSavingsMembershipRecord) => {
+      const tc = Number(r.total_collection || 0);
+      const tm = Number(r.total_months || 0);
+
+      if (tc > 0 || tm > 0) {
+        toast.error(
+          "This membership already has collections. Set it to Inactive instead of deleting.",
+        );
+        return;
+      }
+
+      setConfirmConfig({
+        title: "Delete this savings membership?",
+        description: "This action cannot be undone.",
+        onConfirm: () => executeDeleteMembership(r),
+      });
+      setConfirmOpen(true);
+    },
+    [executeDeleteMembership],
   );
 
   const totals = React.useMemo(() => {
@@ -911,6 +923,17 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
           Back to Top
         </Button>
       </div>
+
+      {confirmConfig && (
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title={confirmConfig.title}
+          description={confirmConfig.description}
+          onConfirm={confirmConfig.onConfirm}
+          variant="destructive"
+        />
+      )}
     </div>
   );
 }

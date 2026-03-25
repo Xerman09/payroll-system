@@ -13,6 +13,7 @@ import * as wageApi from "./providers/wageApi"; // ✅ correct path
 
 import EmployeeTable from "./components/EmployeeTable";
 import PasswordDialog from "./components/PasswordDialog";
+import ConfirmDialog from "./components/ConfirmDialog";
 import WageModal from "./components/WageModal";
 import { SalaryGradeManagement } from "./components/SalaryGradeManagement";
 
@@ -30,6 +31,12 @@ export function WageModule() {
     null
   );
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState<{
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -139,14 +146,25 @@ export function WageModule() {
   const handlePasswordSubmit = async (passwordInput: string) => {
     try {
       const session = sessionStorage.getItem("user");
-      if (!session) return alert("User not logged in.");
+      if (!session) {
+        toast.error("User not logged in.");
+        return;
+      }
       const logged = JSON.parse(session);
-
+ 
       const apiUser = await wageApi.fetchUserById(logged.user_id);
-      if (!apiUser) return alert("User record not found.");
-      if (passwordInput !== apiUser.user_password)
-        return alert("Incorrect password.");
-      if (!selectedEmployee) return alert("No employee selected.");
+      if (!apiUser) {
+        toast.error("User record not found.");
+        return;
+      }
+      if (passwordInput !== apiUser.user_password) {
+        toast.error("Incorrect password.");
+        return;
+      }
+      if (!selectedEmployee) {
+        toast.error("No employee selected.");
+        return;
+      }
 
       const ts = new Date().toISOString();
       const remarks = `Opened wage modal for ${selectedEmployee.user_fname} ${selectedEmployee.user_lname} at ${ts}`;
@@ -165,7 +183,7 @@ export function WageModule() {
       setModalOpen(true);
     } catch (e) {
       console.error(e);
-      alert("Error verifying password. Try again.");
+      toast.error("Error verifying password. Try again.");
     }
   };
 
@@ -240,12 +258,27 @@ export function WageModule() {
 
   const saveWageData = async () => {
     const session = sessionStorage.getItem("user");
-    if (!session) return alert("User session missing.");
+    if (!session) {
+      toast.error("User session missing.");
+      return;
+    }
     const logged = JSON.parse(session);
 
-    if (!selectedEmployee) return alert("No employee selected.");
-    if (!window.confirm(`Save settings for ${selectedEmployee.user_fname}?`))
+    if (!selectedEmployee) {
+      toast.error("No employee selected.");
       return;
+    }
+
+    setConfirmConfig({
+      title: "Save compensation settings?",
+      description: `You are about to save changes for ${selectedEmployee.user_fname}.`,
+      onConfirm: () => executeSaveWageData(logged.user_id),
+    });
+    setConfirmOpen(true);
+  };
+
+  const executeSaveWageData = async (loggedUserId: number) => {
+    if (!selectedEmployee) return;
 
     const now = new Date();
     const todayYmd = `${now.getFullYear()}-${String(
@@ -288,7 +321,7 @@ export function WageModule() {
       sick_leave_per_year: Number(wageData.sickLeave) || 0,
       paid_holiday: wageData.isPaidHoliday ? 1 : 0,
       isCard: wageData.isCard ? 1 : 0,
-      updated_by: logged.user_id,
+      updated_by: loggedUserId,
       sss_contribution_monthly: wageData.sss,
       pagibig_contribution_monthly: wageData.pagibig,
       philhealth_contribution_monthly: wageData.philhealth,
@@ -337,7 +370,7 @@ export function WageModule() {
             new_daily_wage: Number(nextWageFixed),
             effective_date: todayYmd,
             cutoff_id: fallbackCutoffId,
-            updated_by: logged.user_id,
+            updated_by: loggedUserId,
           });
 
           await wageApi.createWageProrationLog({
@@ -346,7 +379,7 @@ export function WageModule() {
             new_daily_wage: Number(nextWageFixed),
             effective_date: todayYmd,
             cutoff_id: fallbackCutoffId,
-            updated_by: logged.user_id,
+            updated_by: loggedUserId,
           });
           console.log("[Wage] Proration log created successfully!");
         } catch (e: unknown) {
@@ -473,6 +506,16 @@ export function WageModule() {
         onOpenChange={setPasswordDialogOpen}
         onSubmit={handlePasswordSubmit}
       />
+
+      {confirmConfig && (
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title={confirmConfig.title}
+          description={confirmConfig.description}
+          onConfirm={confirmConfig.onConfirm}
+        />
+      )}
 
       <WageModal
         open={modalOpen}
