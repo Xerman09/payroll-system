@@ -191,8 +191,9 @@ export async function GET(req: NextRequest) {
           "total_days_worked",
           "total_work_minutes",
           "created_at",
-          "on_hold", // ✅ MUST BE INCLUDED
-          "is_card", // ✅ MUST BE INCLUDED for Payment Type
+          "on_hold",          // ✅ Required for on-hold filtering
+          "is_card",          // ✅ Required for Payment Type
+          "breakdown_json",   // ✅ Required for all payslip itemizations
         ].join(","),
       );
 

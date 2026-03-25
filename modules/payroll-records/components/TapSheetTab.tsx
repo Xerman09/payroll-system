@@ -338,16 +338,32 @@ export default function TapSheetTab({
     
     setExporting(true);
     try {
-      // ✅ We use all tapRows (they are already sorted by name_sort_key in useMemo)
-      // Map TapSheetRows back to the shape expected by buildPayslipsPdf if needed,
-      // but buildPayslipsPdf just needs 'rows' which are objects.
-      // However, tapRows are already computed. If buildPayslipsPdf needs raw rows,
-      // we might need to pass the raw objects.
-      // Looking at payslipPdf.ts, it uses 'any[]' and deep-dives into properties.
-      // tapRows has properties like net_pay, gross_pay, etc.
-      
+      // ✅ Map tapRows back to their raw counterparts because buildPayslipsPdf
+      // requires breakdown_json, basic_pay, employee_name, etc. (tapRows strips them)
+      const safeRaw = (rowsRaw as Record<string, unknown>[]).filter(
+        (r) => !isTruthyFlag(r?.on_hold),
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dedupedRaw = dedupeByUserKeepLatestRun(safeRaw as any);
+
+      const payslipRowsToPrint = tapRows.map((tr) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const raw = dedupedRaw.find((r: any) => r.user_id === tr.user_id);
+        const emp = employees.find((e) => e.user_id === tr.user_id);
+
+        if (raw) {
+          return {
+            ...raw,
+            employee_name: tr.name_display, // inject compiled name back
+            department_name_snapshot: departmentName || "", // Ensure department is passed
+            position_name: emp?.user_position || "", // Ensure job title is passed
+          };
+        }
+        return tr;
+      });
+
       const doc = await buildPayslipsPdf({
-        rows: tapRows,
+        rows: payslipRowsToPrint,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         payrollPeriodLabel: buildCutoffLabel(cutoff as any),
         pageSize: "LEGAL",
