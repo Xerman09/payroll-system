@@ -30,6 +30,7 @@ import { PayrollProcessStep } from "./components/PayrollProcessStep";
 import { PayrollReviewStep } from "./components/PayrollReviewStep";
 import PasswordDialog from "./components/PasswordDialog";
 
+import { getLoggedUser } from "@/lib/auth";
 import * as svc from "./providers/payrollRunService";
 import * as api from "./providers/payrollApi";
 import { formatCutoffLabel } from "./utils/payroll";
@@ -144,9 +145,11 @@ export default function PayrollRunModule() {
 
   const handlePasswordSubmit = async (passwordInput: string) => {
     try {
-      const session = sessionStorage.getItem("user");
-      if (!session) return alert("User not logged in.");
-      const logged = JSON.parse(session) as Record<string, unknown>;
+      const logged = getLoggedUser();
+      if (!logged) {
+        toast.error("User not logged in.");
+        return;
+      }
 
       const apiUser = (await api.fetchUserById(logged.user_id as number)) as unknown as Record<string, unknown>;
       if (!apiUser) return alert("User record not found.");

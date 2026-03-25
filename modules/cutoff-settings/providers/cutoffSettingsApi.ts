@@ -1,4 +1,5 @@
 // modules/cutoff-settings/providers/cutoffSettingsApi.ts
+import { getLoggedUser } from "@/lib/auth";
 import type {
   CutoffSettingRow,
   CutoffType,
@@ -67,18 +68,9 @@ export function computeDefaultCutoffsForPeriod(
 
 export type SessionUser = Record<string, unknown>;
 
-/** Reads the current user object from sessionStorage ("user"). */
+/** Reads the current user object from the signed JWT. */
 export function getSessionUser(): SessionUser | null {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const raw = window.sessionStorage.getItem("user");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
+  return getLoggedUser() as SessionUser | null;
 }
 
 /**

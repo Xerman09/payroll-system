@@ -8,6 +8,7 @@ import { DashboardCharts } from "./components/DashboardCharts";
 import { fetchDashboardData } from "./providers/dashboardService";
 import type { DashboardStats, ChartData, DistributionData } from "./types";
 import { motion } from "framer-motion";
+import { getLoggedUser } from "@/lib/auth";
 
 export default function DashboardModule() {
   const [userName, setUserName] = useState("User");
@@ -26,16 +27,9 @@ export default function DashboardModule() {
   useEffect(() => {
     // 1. User Session
     const timer = setTimeout(() => {
-      try {
-        const session = sessionStorage.getItem("user");
-        if (session) {
-          const user = JSON.parse(session);
-          if (user && user.user_fname) {
-            setUserName(user.user_fname);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to parse user session:", error);
+      const user = getLoggedUser();
+      if (user && user.user_fname) {
+        setUserName(user.user_fname);
       }
     }, 0);
 

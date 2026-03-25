@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { getLoggedUser } from "@/lib/auth";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -112,22 +113,9 @@ function truthyFlag(v: unknown): boolean {
 }
 
 function getCurrentUserId(): number | null {
-  try {
-    const raw = sessionStorage.getItem("user");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as unknown;
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "user_id" in (parsed as Record<string, unknown>)
-    ) {
-      const id = (parsed as Record<string, unknown>).user_id;
-      return typeof id === "number" ? id : Number(id);
-    }
-    return null;
-  } catch {
-    return null;
-  }
+  const user = getLoggedUser();
+  if (!user || !user.user_id) return null;
+  return Number(user.user_id);
 }
 
 function fullname(u?: User | null) {

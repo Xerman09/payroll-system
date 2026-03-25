@@ -16,6 +16,7 @@ import PasswordDialog from "./components/PasswordDialog";
 import ConfirmDialog from "./components/ConfirmDialog";
 import WageModal from "./components/WageModal";
 import { SalaryGradeManagement } from "./components/SalaryGradeManagement";
+import { getLoggedUser } from "@/lib/auth";
 
 export function WageModule() {
   const [activeTab, setActiveTab] = useState("wage");
@@ -145,12 +146,11 @@ export function WageModule() {
 
   const handlePasswordSubmit = async (passwordInput: string) => {
     try {
-      const session = sessionStorage.getItem("user");
-      if (!session) {
+      const logged = getLoggedUser();
+      if (!logged) {
         toast.error("User not logged in.");
         return;
       }
-      const logged = JSON.parse(session);
  
       const apiUser = await wageApi.fetchUserById(logged.user_id);
       if (!apiUser) {
@@ -257,12 +257,11 @@ export function WageModule() {
   };
 
   const saveWageData = async () => {
-    const session = sessionStorage.getItem("user");
-    if (!session) {
-      toast.error("User session missing.");
-      return;
-    }
-    const logged = JSON.parse(session);
+      const loggedUser = getLoggedUser();
+      if (!loggedUser) {
+        toast.error("Session missing.");
+        return;
+      }
 
     if (!selectedEmployee) {
       toast.error("No employee selected.");
@@ -272,7 +271,7 @@ export function WageModule() {
     setConfirmConfig({
       title: "Save compensation settings?",
       description: `You are about to save changes for ${selectedEmployee.user_fname}.`,
-      onConfirm: () => executeSaveWageData(logged.user_id),
+      onConfirm: () => executeSaveWageData(loggedUser.user_id),
     });
     setConfirmOpen(true);
   };

@@ -11,6 +11,7 @@ import {
   Search,
   X,
 } from "lucide-react";
+import { getLoggedUser } from "@/lib/auth";
 
 import type {
   Employee,
@@ -100,15 +101,10 @@ function isYmd(s: string) {
 }
 
 function getLoggedUserId(): number | null {
-  const session = sessionStorage.getItem("user");
-  if (!session) return null;
-  try {
-    const logged = JSON.parse(session);
-    const n = Number(logged?.user_id);
-    return Number.isFinite(n) ? n : null;
-  } catch {
-    return null;
-  }
+  const logged = getLoggedUser();
+  if (!logged) return null;
+  const n = Number(logged?.user_id);
+  return Number.isFinite(n) ? n : null;
 }
 
 function normalize(v: unknown) {

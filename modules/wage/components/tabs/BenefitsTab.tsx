@@ -23,6 +23,7 @@ import type {
 } from "../../types";
 import * as wageApi from "../../providers/wageApi";
 import ConfirmDialog from "../ConfirmDialog";
+import { getLoggedUser } from "@/lib/auth";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -148,15 +149,10 @@ function toIntSafe(v: string) {
 }
 
 function getLoggedUserId(): number | null {
-  const session = sessionStorage.getItem("user");
-  if (!session) return null;
-  try {
-    const logged = JSON.parse(session);
-    const n = Number(logged?.user_id);
-    return Number.isFinite(n) ? n : null;
-  } catch {
-    return null;
-  }
+  const logged = getLoggedUser();
+  if (!logged) return null;
+  const n = Number(logged?.user_id);
+  return Number.isFinite(n) ? n : null;
 }
 
 function cutoffLabel(c: CutoffSetting) {
@@ -1274,20 +1270,9 @@ export function BenefitsTab({
                   <div className="space-y-2">
                     <Label className="text-xs">Accumulated Amount</Label>
                     <Input
-                      className="h-9"
-                      inputMode="decimal"
+                      className="h-9 bg-gray-100 dark:bg-gray-800/60"
+                      disabled
                       value={draft.accumulated_amount || ""}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (!/^\d*\.?\d*$/.test(v)) return;
-                        setDraft((p) => ({ ...p, accumulated_amount: v }));
-                      }}
-                      onBlur={() =>
-                        setDraft((p) => ({
-                          ...p,
-                          accumulated_amount: fmtMoneyPlain(p.accumulated_amount || 0),
-                        }))
-                      }
                       placeholder="0.00"
                     />
                     <div className="text-xs text-gray-500">

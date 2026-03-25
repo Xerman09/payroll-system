@@ -92,16 +92,12 @@ function isYmd(s: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
 
+import { getLoggedUser } from "@/lib/auth";
+
 function getLoggedUserId(): number | null {
-  const session = sessionStorage.getItem("user");
-  if (!session) return null;
-  try {
-    const logged = JSON.parse(session);
-    const n = Number(logged?.user_id);
-    return Number.isFinite(n) ? n : null;
-  } catch {
-    return null;
-  }
+  const user = getLoggedUser();
+  const n = Number(user?.user_id);
+  return Number.isFinite(n) ? n : null;
 }
 
 type TabKey = "wage" | "savings" | "loans" | "retro" | "allowance" | "benefits" | "stock" | "other";
@@ -231,10 +227,10 @@ export default function WageModal({
   const recomputeLoanDraft = React.useCallback(
     (draft: LoanDraft): LoanDraft => {
       const amt = Number(draft.loan_amount);
-      const monthly_payment = computeMonthlyPayment(
-        draft.loan_amount,
-        draft.months_to_pay,
-      );
+      const monthly_payment = String(computeMonthlyPayment(
+        Number(draft.loan_amount),
+        Number(draft.months_to_pay),
+      ));
 
       if (draft.loan_type === "COOP") {
         const coop = computeCoopInterest(amt);
@@ -410,7 +406,7 @@ export default function WageModal({
         months_to_pay,
         start_date,
         end_date: (l.end_date || "").substring(0, 10),
-        monthly_payment: computeMonthlyPayment(loan_amount, months_to_pay),
+        monthly_payment: String(computeMonthlyPayment(Number(loan_amount), Number(months_to_pay))),
         interest_rate: money(l.interest_rate ?? 0),
         interest_amount: money(l.interest_amount ?? 0),
         net_amount_released: money(l.net_amount_released ?? 0),

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import type { Employee, WageDataState, SalarySchedule } from "../../types";
+import { WORKING_DAYS_PER_MONTH } from "../../utils/payrollConstants";
 
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -51,8 +52,8 @@ export function WageTab({
   ).toFixed(2);
 
   const estMonthly = React.useMemo(() => {
-    // simple, friendly estimate (26 working days)
-    const base = (Number(wageData.dailyWage) || 0) * 26;
+    // simple, friendly estimate
+    const base = (Number(wageData.dailyWage) || 0) * WORKING_DAYS_PER_MONTH;
     return base.toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
@@ -123,7 +124,7 @@ export function WageTab({
       }
 
       const monthlyRate = Number(schedule.monthly_rate) || 0;
-      const computedDaily = round2(monthlyRate / 26);
+      const computedDaily = round2(monthlyRate / WORKING_DAYS_PER_MONTH);
 
       setWageData({
         schedule_id: scheduleId,
@@ -183,7 +184,7 @@ export function WageTab({
                 </div>
                 <div className="text-xs text-slate-500">
                   {applyGrade
-                    ? "Selecting a grade auto-fills the daily wage (monthly ÷ 26)."
+                    ? `Selecting a grade auto-fills the daily wage (monthly ÷ ${WORKING_DAYS_PER_MONTH}).`
                     : "Enable to link a salary grade to this employee."}
                 </div>
               </div>
@@ -279,9 +280,9 @@ export function WageTab({
                 Grade {linkedSchedule.salary_grade} · Step {linkedSchedule.step}
               </span>
               <span>
-                Monthly ₱{fmtMoney(linkedSchedule.monthly_rate)} ÷ 26 ={" "}
+                Monthly ₱{fmtMoney(linkedSchedule.monthly_rate)} ÷ {WORKING_DAYS_PER_MONTH} ={" "}
                 <span className="font-semibold text-persian-blue-900 dark:text-persian-blue-100">
-                  ₱{round2(Number(linkedSchedule.monthly_rate) / 26).toFixed(2)}
+                  ₱{round2(Number(linkedSchedule.monthly_rate) / WORKING_DAYS_PER_MONTH).toFixed(2)}
                   /day
                 </span>
               </span>
@@ -382,7 +383,7 @@ export function WageTab({
                     </span>
                   </span>
                   <span className="hidden sm:inline">
-                    Est. monthly (26d):{" "}
+                    Est. monthly ({WORKING_DAYS_PER_MONTH}d):{" "}
                     <span className="font-medium text-slate-700 dark:text-slate-200">
                       ₱ {estMonthly}
                     </span>
