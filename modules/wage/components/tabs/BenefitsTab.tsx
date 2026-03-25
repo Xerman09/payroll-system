@@ -22,6 +22,7 @@ import type {
   BenefitLogPatchPayload,
 } from "../../types";
 import * as wageApi from "../../providers/wageApi";
+import ConfirmDialog from "../ConfirmDialog";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -300,10 +301,14 @@ export function BenefitsTab({
   const [formOpen, setFormOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<number | null>(null);
   const [editingRow, setEditingRow] = React.useState<BenefitLoanRecord | null>(
-    null
+    null,
   );
-
-  // Confirm delete dialog
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [confirmConfig, setConfirmConfig] = React.useState<{
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  } | null>(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = React.useState(false);
   const [confirmDeleteRow, setConfirmDeleteRow] =
     React.useState<BenefitLoanRecord | null>(null);
@@ -786,21 +791,36 @@ export function BenefitsTab({
     cutoffs
   ]);
 
-  const deleteBenefitLog = React.useCallback(async (id: number) => {
-    if (!window.confirm("Delete this benefit log?")) return;
-    setSaving(true);
-    try {
-      await wageApi.deleteBenefitLog(id);
-      toast.success("Benefit log deleted.");
-      await loadBenefitLogs();
-    } catch (e: unknown) {
+  const executeDeleteBenefitLog = React.useCallback(
+    async (id: number) => {
+      setSaving(true);
+      try {
+        await wageApi.deleteBenefitLog(id);
+        toast.success("Benefit log deleted.");
+        await loadBenefitLogs();
+      } catch (e: unknown) {
         console.error("[BenefitsTab] delete log failed", e);
-        const msg = e instanceof Error ? e.message : "Failed to delete benefit log.";
+        const msg =
+          e instanceof Error ? e.message : "Failed to delete benefit log.";
         toast.error(msg);
-    } finally {
-      setSaving(false);
-    }
-  }, [loadBenefitLogs]);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [loadBenefitLogs],
+  );
+
+  const deleteBenefitLog = React.useCallback(
+    async (id: number) => {
+      setConfirmConfig({
+        title: "Delete this benefit log?",
+        description: "This action cannot be undone.",
+        onConfirm: () => executeDeleteBenefitLog(id),
+      });
+      setConfirmOpen(true);
+    },
+    [executeDeleteBenefitLog],
+  );
 
   const startEditLog = React.useCallback((r: BenefitLogRecord) => {
     setEditingLogId(r.benefit_log_id);
@@ -1942,6 +1962,17 @@ export function BenefitsTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* ConfirmDialog */}
+      {confirmConfig && (
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title={confirmConfig.title}
+          description={confirmConfig.description}
+          onConfirm={confirmConfig.onConfirm}
+          variant="destructive"
+        />
+      )}
     </div>
   );
 }

@@ -20,6 +20,7 @@ import type {
   DRPaymentMethod,
 } from "../../types";
 import * as wageApi from "../../providers/wageApi";
+import ConfirmDialog from "../ConfirmDialog";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -169,6 +170,13 @@ export function StockPurchaseTab({
 
   const [formOpen, setFormOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<number | null>(null);
+
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [confirmConfig, setConfirmConfig] = React.useState<{
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Search + Pagination (RetroPay style)
   const [q, setQ] = React.useState<string>("");
@@ -407,6 +415,25 @@ export function StockPurchaseTab({
     }
   }, [draft, editingId, load, resetDraft, selectedEmployee, validate]);
 
+  const executeRemove = React.useCallback(
+    async (r: DRPaymentRecord) => {
+      setSaving(true);
+      try {
+        await wageApi.deleteDRPayment(r.dr_payment_id);
+        toast.success("DR payment deleted.");
+        await load();
+      } catch (e: unknown) {
+        console.error("[StockPurchaseTab] delete failed", e);
+        const delMsg =
+          e instanceof Error ? e.message : "Failed to delete DR payment.";
+        toast.error(delMsg);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [load],
+  );
+
   const remove = React.useCallback(
     async (r: DRPaymentRecord) => {
       const isPosted = Number(r.is_posted_to_payroll) === 1;
@@ -415,25 +442,14 @@ export function StockPurchaseTab({
         return;
       }
 
-      if (
-        !window.confirm("Delete this DR payment entry? This cannot be undone.")
-      )
-        return;
-
-      setSaving(true);
-      try {
-        await wageApi.deleteDRPayment(r.dr_payment_id);
-        toast.success("DR payment deleted.");
-        await load();
-      } catch (e: unknown) {
-        console.error("[StockPurchaseTab] delete failed", e);
-        const delMsg = e instanceof Error ? e.message : "Failed to delete DR payment.";
-        toast.error(delMsg);
-      } finally {
-        setSaving(false);
-      }
+      setConfirmConfig({
+        title: "Delete this DR payment entry?",
+        description: "This cannot be undone.",
+        onConfirm: () => executeRemove(r),
+      });
+      setConfirmOpen(true);
     },
-    [load]
+    [executeRemove],
   );
 
   return (
@@ -955,6 +971,17 @@ export function StockPurchaseTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* ConfirmDialog */}
+      {confirmConfig && (
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title={confirmConfig.title}
+          description={confirmConfig.description}
+          onConfirm={confirmConfig.onConfirm}
+          variant="destructive"
+        />
+      )}
     </div>
   );
 }

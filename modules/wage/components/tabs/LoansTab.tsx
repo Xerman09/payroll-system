@@ -686,65 +686,78 @@ export function LoansTab({
                 </TableCell>
               </TableRow>
             ) : (
-              pagedLoans.map((l) => (
-                <TableRow
-                  key={l.loan_id}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                >
-                  <TableCell className="font-medium text-sm">{l.loan_type}</TableCell>
-                  <TableCell className="text-sm">₱ {money(l.loan_amount)}</TableCell>
-                  <TableCell className="text-sm">{l.months_to_pay}</TableCell>
-                  <TableCell className="text-sm">
-                    {Number(l.net_amount_released || 0) > 0
-                      ? `₱ ${money(l.net_amount_released)}`
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-                    ₱ {money(l.accumulated_amount || 0)}
-                  </TableCell>
-                  <TableCell className="text-sm">{(l.start_date || "").substring(0, 10)}</TableCell>
+              pagedLoans.map((l) => {
+                const s = String(l.status ?? "").toUpperCase();
+                const isPaid = s === "PAID" || s === "COMPLETED" || s === "DONE";
 
-                  <TableCell>
-                    {(() => {
-                      const p = statusPill(l.status);
-                      return (
-                        <span className={p.className}>
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full ${p.dot}`}
-                          />
-                          {p.label}
-                        </span>
-                      );
-                    })()}
-                  </TableCell>
+                return (
+                  <TableRow
+                    key={l.loan_id}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                  >
+                    <TableCell className="font-medium text-sm">{l.loan_type}</TableCell>
+                    <TableCell className="text-sm">₱ {money(l.loan_amount)}</TableCell>
+                    <TableCell className="text-sm">{l.months_to_pay}</TableCell>
+                    <TableCell className="text-sm">
+                      {Number(l.net_amount_released || 0) > 0
+                        ? `₱ ${money(l.net_amount_released)}`
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                      ₱ {money(l.accumulated_amount || 0)}
+                    </TableCell>
+                    <TableCell className="text-sm">{(l.start_date || "").substring(0, 10)}</TableCell>
 
-                  <TableCell className="text-right">
-                    <div className="inline-flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className={`${ui.iconBtn} ${ui.iconEdit}`}
-                        onClick={() => startEditLoan(l)}
-                        disabled={loanSaving}
-                        title="Edit"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                    <TableCell>
+                      {(() => {
+                        const p = statusPill(l.status);
+                        return (
+                          <span className={p.className}>
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${p.dot}`}
+                            />
+                            {p.label}
+                          </span>
+                        );
+                      })()}
+                    </TableCell>
 
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className={`${ui.iconBtn} ${ui.iconDelete}`}
-                        onClick={() => deleteLoan(l.loan_id)}
-                        disabled={loanSaving}
-                        title="Delete"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+                    <TableCell className="text-right">
+                      <div className="inline-flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className={`${ui.iconBtn} ${ui.iconEdit}`}
+                          onClick={() => startEditLoan(l)}
+                          disabled={loanSaving || isPaid}
+                          title={
+                            isPaid
+                              ? "This loan is already paid and cannot be edited."
+                              : "Edit"
+                          }
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className={`${ui.iconBtn} ${ui.iconDelete}`}
+                          onClick={() => deleteLoan(l.loan_id)}
+                          disabled={loanSaving || isPaid}
+                          title={
+                            isPaid
+                              ? "This loan is already paid and cannot be deleted."
+                              : "Delete"
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

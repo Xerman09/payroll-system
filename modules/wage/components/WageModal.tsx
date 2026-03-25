@@ -12,6 +12,7 @@ import { BenefitsTab } from "./tabs/BenefitsTab";
 import { OtherADTab } from "./tabs/OtherADTab";
 import { StockPurchaseTab } from "./tabs/StockPurchaseTab";
 import { SavingsTab } from "./tabs/SavingsTab";
+import ConfirmDialog from "./ConfirmDialog";
 
 import {
   Dialog,
@@ -161,6 +162,13 @@ export default function WageModal({
   React.useEffect(() => {
     if (open) setTab("wage");
   }, [open]);
+
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [confirmConfig, setConfirmConfig] = React.useState<{
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // ===================================================
   // SHARED SAVE (footer)
@@ -382,6 +390,12 @@ export default function WageModal({
 
   const startEditLoan = React.useCallback(
     (l: EmployeeLoanRecord) => {
+      const s = String(l.status ?? "").toUpperCase();
+      if (s === "PAID" || s === "COMPLETED" || s === "DONE") {
+        toast.error("This loan is already paid and cannot be edited.");
+        return;
+      }
+
       setEditingLoanId(l.loan_id);
       setLoanPanelOpen(true);
 
@@ -409,16 +423,13 @@ export default function WageModal({
     [recomputeLoanDraft],
   );
 
-  const deleteLoan = React.useCallback(
+  const executeDeleteLoan = React.useCallback(
     async (loanId: number) => {
       const loggedUserId = getLoggedUserId();
       if (!loggedUserId) {
         toast.error("User session missing.");
         return;
       }
-
-      if (!window.confirm("Delete this loan? This action cannot be undone."))
-        return;
 
       setLoanSaving(true);
       try {
@@ -431,8 +442,8 @@ export default function WageModal({
         }
 
         await loadLoans();
-    } catch (e: unknown) {
-      console.error("[WageModal] Delete failed; trying cancel fallback", e);
+      } catch (e: unknown) {
+        console.error("[WageModal] Delete failed; trying cancel fallback", e);
 
         try {
           await wageApi.patchEmployeeLoan(loanId, {
@@ -449,7 +460,8 @@ export default function WageModal({
           await loadLoans();
         } catch (e2: unknown) {
           console.error("[WageModal] Cancel fallback failed", e2);
-          const msg1 = e instanceof Error ? e.message : "Failed to delete/cancel loan.";
+          const msg1 =
+            e instanceof Error ? e.message : "Failed to delete/cancel loan.";
           const msg2 = e2 instanceof Error ? e2.message : msg1;
           toast.error(msg2);
         }
@@ -458,6 +470,26 @@ export default function WageModal({
       }
     },
     [editingLoanId, loadLoans, resetLoanDraft],
+  );
+
+  const deleteLoan = React.useCallback(
+    async (loanId: number) => {
+      const row = loans.find((x) => x.loan_id === loanId);
+      const s = String(row?.status || "").toUpperCase();
+      if (s === "PAID" || s === "COMPLETED" || s === "DONE") {
+        toast.error("This loan is already paid and cannot be deleted.");
+        return;
+      }
+
+      setConfirmConfig({
+        title: "Delete this loan?",
+        description:
+          "This action cannot be undone and will permanently remove this loan record.",
+        onConfirm: () => executeDeleteLoan(loanId),
+      });
+      setConfirmOpen(true);
+    },
+    [loans, executeDeleteLoan, setConfirmConfig, setConfirmOpen],
   );
 
   // ===================================================
@@ -662,6 +694,31 @@ export default function WageModal({
     [cutoffs],
   );
 
+  const executeDeleteRetro = React.useCallback(
+    async (retroId: number) => {
+      setRetroSaving(true);
+      try {
+        await wageApi.deleteRetroPay(retroId);
+        toast.success("Retro pay deleted.");
+
+        if (editingRetroId === retroId) {
+          resetRetroDraft();
+          setRetroFormOpen(false);
+        }
+
+        await loadRetroPay();
+      } catch (e: unknown) {
+        const msg =
+          e instanceof Error ? e.message : "Failed to delete retro pay.";
+        console.error("[WageModal] Retro pay delete failed", e);
+        toast.error(msg);
+      } finally {
+        setRetroSaving(false);
+      }
+    },
+    [editingRetroId, loadRetroPay, resetRetroDraft],
+  );
+
   const deleteRetro = React.useCallback(
     async (retroId: number) => {
       const loggedUserId = getLoggedUserId();
@@ -676,33 +733,15 @@ export default function WageModal({
         return;
       }
 
-      if (
-        !window.confirm(
-          "Delete this retro pay entry? This action cannot be undone.",
-        )
-      )
-        return;
-
-      setRetroSaving(true);
-      try {
-        await wageApi.deleteRetroPay(retroId);
-        toast.success("Retro pay deleted.");
-
-        if (editingRetroId === retroId) {
-          resetRetroDraft();
-          setRetroFormOpen(false);
-        }
-
-        await loadRetroPay();
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : "Failed to delete retro pay.";
-        console.error("[WageModal] Retro pay delete failed", e);
-        toast.error(msg);
-      } finally {
-        setRetroSaving(false);
-      }
+      setConfirmConfig({
+        title: "Delete this retro pay entry?",
+        description:
+          "This action cannot be undone and will remove this retro pay record from the employee's history.",
+        onConfirm: () => executeDeleteRetro(retroId),
+      });
+      setConfirmOpen(true);
     },
-    [editingRetroId, loadRetroPay, resetRetroDraft, retroRows],
+    [retroRows, executeDeleteRetro, setConfirmConfig, setConfirmOpen],
   );
 
   // ===================================================
@@ -971,6 +1010,43 @@ export default function WageModal({
     [cutoffs],
   );
 
+  const executeDeleteOtherAddition = React.useCallback(
+    async (id: number) => {
+      setAddSaving(true);
+      try {
+        await wageApi.deletePayrollOtherAddition(id);
+        toast.success("Other addition deleted.");
+
+        if (editingAddId === id) {
+          resetAddDraft();
+          setAddFormOpen(false);
+        }
+
+        await loadOtherAdditions();
+      } catch (e: unknown) {
+        console.error("[WageModal] Delete other addition failed", e);
+        const msg =
+          e instanceof Error ? e.message : "Failed to delete other addition.";
+        toast.error(msg);
+      } finally {
+        setAddSaving(false);
+      }
+    },
+    [editingAddId, loadOtherAdditions, resetAddDraft],
+  );
+
+  const deleteOtherAddition = React.useCallback(
+    async (id: number) => {
+      setConfirmConfig({
+        title: "Delete this addition?",
+        description: "This action cannot be undone.",
+        onConfirm: () => executeDeleteOtherAddition(id),
+      });
+      setConfirmOpen(true);
+    },
+    [executeDeleteOtherAddition, setConfirmConfig, setConfirmOpen],
+  );
+
   const startEditOtherDeduction = React.useCallback(
     (r: PayrollOtherDeductionRecord) => {
       setEditingDedId(r.id);
@@ -993,42 +1069,8 @@ export default function WageModal({
     [cutoffs],
   );
 
-  const deleteOtherAddition = React.useCallback(
+  const executeDeleteOtherDeduction = React.useCallback(
     async (id: number) => {
-      if (
-        !window.confirm("Delete this addition? This action cannot be undone.")
-      )
-        return;
-
-      setAddSaving(true);
-      try {
-        await wageApi.deletePayrollOtherAddition(id);
-        toast.success("Other addition deleted.");
-
-        if (editingAddId === id) {
-          resetAddDraft();
-          setAddFormOpen(false);
-        }
-
-        await loadOtherAdditions();
-      } catch (e: unknown) {
-        console.error("[WageModal] Delete other addition failed", e);
-        const msg = e instanceof Error ? e.message : "Failed to delete other addition.";
-        toast.error(msg);
-      } finally {
-        setAddSaving(false);
-      }
-    },
-    [editingAddId, loadOtherAdditions, resetAddDraft],
-  );
-
-  const deleteOtherDeduction = React.useCallback(
-    async (id: number) => {
-      if (
-        !window.confirm("Delete this deduction? This action cannot be undone.")
-      )
-        return;
-
       setDedSaving(true);
       try {
         await wageApi.deletePayrollOtherDeduction(id);
@@ -1042,13 +1084,26 @@ export default function WageModal({
         await loadOtherDeductions();
       } catch (e: unknown) {
         console.error("[WageModal] Delete other deduction failed", e);
-        const msg = e instanceof Error ? e.message : "Failed to delete other deduction.";
+        const msg =
+          e instanceof Error ? e.message : "Failed to delete other deduction.";
         toast.error(msg);
       } finally {
         setDedSaving(false);
       }
     },
     [editingDedId, loadOtherDeductions, resetDedDraft],
+  );
+
+  const deleteOtherDeduction = React.useCallback(
+    async (id: number) => {
+      setConfirmConfig({
+        title: "Delete this deduction?",
+        description: "This action cannot be undone.",
+        onConfirm: () => executeDeleteOtherDeduction(id),
+      });
+      setConfirmOpen(true);
+    },
+    [executeDeleteOtherDeduction, setConfirmConfig, setConfirmOpen],
   );
 
   // ===================================================
@@ -1639,6 +1694,17 @@ export default function WageModal({
           </div>
         </div>
       </DialogContent>
+
+      {confirmConfig && (
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title={confirmConfig.title}
+          description={confirmConfig.description}
+          onConfirm={confirmConfig.onConfirm}
+          variant="destructive"
+        />
+      )}
     </Dialog>
   );
 }

@@ -181,15 +181,6 @@ export function RetroPayTab({
   startEditRetro: (r: RetroPayRecord) => void;
   deleteRetro: (retroId: number) => Promise<void> | void;
 }) {
-  const validateRetroDraft = React.useCallback(() => {
-    const amt = Number(retroDraft.amount);
-    if (!Number.isFinite(amt) || amt <= 0) return null;
-    if (!retroDraft.cutoff_setting_id) return null;
-    if (!isYmd(retroDraft.cutoff_start) || !isYmd(retroDraft.cutoff_end))
-      return null;
-    if (retroDraft.cutoff_start > retroDraft.cutoff_end) return null;
-    return { amt: round2(amt) };
-  }, [retroDraft]);
 
   // ---------- Search + Pagination (client-side) ----------
   const [q, setQ] = React.useState<string>("");
@@ -415,10 +406,7 @@ export function RetroPayTab({
             <Button
               type="button"
               className={`h-9 ${ui.primary}`}
-              onClick={() => {
-                if (!validateRetroDraft()) return;
-                saveRetro();
-              }}
+              onClick={saveRetro}
               disabled={retroSaving}
             >
               {retroSaving
