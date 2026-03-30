@@ -279,6 +279,8 @@ function normalizeWage(row: unknown): WageProfile {
     hourly_wage: hourly,
     monthly_wage: monthly,
     is_deleted: bitToNum(r.is_deleted ?? r.isDeleted),
+    is_card: bitToNum(r.is_card ?? r.isCard),
+    isCard: bitToNum(r.isCard ?? r.is_card),
 
     sss_employee: n(r.sss_employee ?? r.sss_contribution_monthly),
     philhealth_employee: n(r.philhealth_employee ?? r.philhealth_contribution_monthly),
