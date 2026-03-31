@@ -282,6 +282,9 @@ function normalizeWage(row: unknown): WageProfile {
     is_card: bitToNum(r.is_card ?? r.isCard),
     isCard: bitToNum(r.isCard ?? r.is_card),
 
+    // ✅ paid_holiday: 1 = entitled to holiday pay; 0 = excluded
+    paid_holiday: bitToNum(r.paid_holiday ?? r.paidHoliday),
+
     sss_employee: n(r.sss_employee ?? r.sss_contribution_monthly),
     philhealth_employee: n(r.philhealth_employee ?? r.philhealth_contribution_monthly),
     pagibig_employee: n(r.pagibig_employee ?? r.pagibig_contribution_monthly),

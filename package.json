@@ -2,10 +2,10 @@
   "name": "payroll",
   "version": "1.0.0",
   "private": true,
-  "scripts": {
-    "dev": "dotenv -e .env.local -- cross-env PORT=$PORT_DEV next dev",
+"scripts": {
+    "dev": "next dev --port 9002",
     "build": "next build",
-    "start": "dotenv -e .env.local -- cross-env PORT=$PORT_START next start",
+    "start": "dotenv -e .env.local -- next start",
     "lint": "eslint",
     "lint:fix": "eslint --fix .",
     "typecheck": "tsc --noEmit"

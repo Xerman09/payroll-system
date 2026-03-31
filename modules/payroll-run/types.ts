@@ -124,6 +124,9 @@ export interface WageProfile {
   isCard?: number; // 0/1
   is_card?: number; // alias for isCard
 
+  // ✅ paid_holiday: 1 = entitled to all holiday pay; 0 = excluded from all holiday pay
+  paid_holiday?: number; // 0/1
+
   // optional stored monthly contributions (employee share)
   sss_employee?: number;
   philhealth_employee?: number;
