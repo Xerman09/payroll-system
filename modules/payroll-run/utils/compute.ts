@@ -918,6 +918,13 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     wageProrationLogs: args.wageProrationLogs ?? [],
   });
 
+  // ✅ paid_holiday gate: if the wage profile explicitly sets paid_holiday=0,
+  // the employee is excluded from ALL holiday pay (worked premiums + unworked pay).
+  // Default to 1 (eligible) when wage is null/missing to avoid accidental exclusion.
+  const paidHoliday = args.wage == null
+    ? true
+    : n(args.wage.paid_holiday ?? 1) !== 0;
+
   // ✅ attendance is cutoff-scoped and approved
   const att = (args.attendance ?? [])
     .map(normAttendance)
@@ -976,8 +983,10 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     const h = holidayMap.get(date) ?? null;
     // ✅ Special holiday with is_paid=0 → treat as normal day (no premium multiplier)
     const rawHolidayFlag = toHolidayFlag(h);
-    const holidayFlag: HolidayFlag =
+    // ✅ Special holiday with is_paid=0 → no premium; paid_holiday=0 → no premium either
+    const holidayFlagBeforePaid: HolidayFlag =
       rawHolidayFlag === "SPECIAL" && h && !h.is_paid ? "NONE" : rawHolidayFlag;
+    const holidayFlag: HolidayFlag = paidHoliday ? holidayFlagBeforePaid : "NONE";
     const rd = isSunday(date);
 
     const wmRaw = n(r.work_minutes);
@@ -1066,7 +1075,9 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
   // unworked holidays
   // ✅ Special holidays = no work no pay (only regular holidays get unworked pay)
+  // ✅ paid_holiday=0 → employee is never eligible for unworked holiday pay
   holidayMap.forEach((h, date) => {
+    if (!paidHoliday) return;
     if (h.type === "special" || h.type === "company") return;
     if (!h.is_paid) return;
     if (!inRange(date, args.cutoffStart, args.cutoffEnd)) return;
@@ -1517,7 +1528,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
     breakdown_json: {
       is_card: n(args.wage?.isCard ?? args.wage?.is_card),
-      flags: { on_hold: Boolean(args.onHold), variance_flag: Boolean(varianceFlag) },
+      flags: { on_hold: Boolean(args.onHold), variance_flag: Boolean(varianceFlag), paid_holiday: paidHoliday },
       rates: {
         base_daily: round2(rate.baseDaily),
         base_hourly: round2(rate.baseDaily > 0 ? rate.baseDaily / 8 : 0),
