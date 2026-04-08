@@ -456,18 +456,60 @@ export type BreakdownItem = {
 export type PayrollBreakdownJson = {
   is_card?: number;
   flags?: Record<string, unknown>;
-  rates?: Record<string, unknown>;
-
-  earnings?: Record<string, unknown> & {
-    retro_pay?: number;
-    retro_items?: BreakdownItem[];
+  rates?: {
+    wage_profile?: {
+      daily?: number;
+      hourly?: number;
+      monthly?: number;
+    };
+    base_daily?: number;
+    base_hourly?: number;
+    [key: string]: unknown;
   };
 
-  deductions?: Record<string, unknown> & {
+  earnings?: {
+    basic_pay?: number;
+    ot_amount?: number;
+    holiday_pay?: number;
+    rest_day_amount?: number;
+    night_diff_amount?: number;
+    allowance_total?: number;
+    manual_additions?: number;
+    retro_pay?: number;
+    retro_items?: BreakdownItem[];
+
+    holiday_items?: unknown[];
+    allowance_items?: unknown[];
+    manual_addition_items?: unknown[];
+    [key: string]: unknown;
+  };
+
+  deductions?: {
+    late_deduction?: number;
+    undertime_deduction?: number;
+    shortage_deduction?: number;
+    dr_deduction?: number;
+
     coop_savings?: number;
     coop_savings_items?: BreakdownItem[];
     coop_loan?: number;
     coop_loan_items?: BreakdownItem[];
+
+    benefits?: {
+      sss?: number;
+      philhealth?: number;
+      pagibig?: number;
+    };
+    benefit_loans?: {
+      total?: number;
+      items?: unknown[];
+    };
+    employee_loan_items?: unknown[];
+    manual_deduction_items?: unknown[];
+
+    other_deductions?: number;
+    manual_deductions?: number;
+    [key: string]: unknown;
   };
 
   totals?: {

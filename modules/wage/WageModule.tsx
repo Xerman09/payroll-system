@@ -152,7 +152,7 @@ export function WageModule() {
         return;
       }
  
-      const apiUser = await wageApi.fetchUserById(logged.user_id);
+      const apiUser = await wageApi.fetchUserById(Number(logged.user_id));
       if (!apiUser) {
         toast.error("User record not found.");
         return;
@@ -169,7 +169,7 @@ export function WageModule() {
       const ts = new Date().toISOString();
       const remarks = `Opened wage modal for ${selectedEmployee.user_fname} ${selectedEmployee.user_lname} at ${ts}`;
       await wageApi.logWageAccess(
-        logged.user_id,
+        Number(logged.user_id),
         selectedEmployee.user_id,
         remarks
       );
@@ -271,7 +271,7 @@ export function WageModule() {
     setConfirmConfig({
       title: "Save compensation settings?",
       description: `You are about to save changes for ${selectedEmployee.user_fname}.`,
-      onConfirm: () => executeSaveWageData(loggedUser.user_id),
+      onConfirm: () => executeSaveWageData(Number(loggedUser.user_id)),
     });
     setConfirmOpen(true);
   };

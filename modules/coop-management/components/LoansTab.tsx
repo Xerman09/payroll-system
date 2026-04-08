@@ -78,7 +78,7 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
         if (signal?.aborted) return;
 
         const total: number =
-          meta?.filter_count ?? meta?.total ?? loanList.length;
+          (meta?.filter_count as number) ?? (meta?.total as number) ?? loanList.length;
 
         setLoans(loanList);
         setTotalLoans(total);

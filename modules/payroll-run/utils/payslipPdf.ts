@@ -1,6 +1,7 @@
 // modules/payroll-run/utils/payslipPdf.ts
 import jsPDF from "jspdf";
 import { formatPHP } from "./compute";
+import { PayrollBreakdownJson } from "../types";
 
 type PageSize = "LEGAL" | "LONG";
 
@@ -848,9 +849,9 @@ export async function buildPayslipsPdf(args: {
     const innerW = slipW - pad * 2;
     const bottomY = y + slipH - pad;
 
-    const b = (parseJsonMaybe(row?.breakdown_json ?? row?.breakdownJson) ?? {}) as Record<string, unknown>;
-    const be = (b?.earnings ?? {}) as Record<string, unknown>;
-    const bd = (b?.deductions ?? {}) as Record<string, unknown>;
+    const b = (parseJsonMaybe(row?.breakdown_json ?? row?.breakdownJson) ?? {}) as PayrollBreakdownJson;
+    const be = (b?.earnings ?? {}) as NonNullable<PayrollBreakdownJson["earnings"]>;
+    const bd = (b?.deductions ?? {}) as NonNullable<PayrollBreakdownJson["deductions"]>;
 
     const payrollId = safeStr(
       args.payrollRefNo ??
@@ -895,9 +896,9 @@ export async function buildPayslipsPdf(args: {
 
     const periodText = pickPeriodText(row, args.payrollPeriodLabel);
 
-    const dailyRate = n(row?.daily_rate ?? row?.basic_daily_rate ?? 0);
-    const hourlyRate = n(row?.hourly_rate ?? 0);
-    const monthlyRate = n(row?.monthly_rate ?? 0);
+    const dailyRate = n(row?.daily_rate ?? row?.basic_daily_rate ?? b?.rates?.wage_profile?.daily ?? b?.rates?.base_daily ?? 0);
+    const hourlyRate = n(row?.hourly_rate ?? b?.rates?.wage_profile?.hourly ?? b?.rates?.base_hourly ?? 0);
+    const monthlyRate = n(row?.monthly_rate ?? b?.rates?.wage_profile?.monthly ?? 0);
 
     const daysWorked = Math.round(
       n(row?.total_days_worked ?? row?.days_worked ?? 0),
@@ -910,23 +911,23 @@ export async function buildPayslipsPdf(args: {
     const otMin = Math.floor(Math.max(0, n(row?.overtime_minutes ?? 0)));
     const ndMin = Math.floor(Math.max(0, n(row?.night_diff_minutes ?? 0)));
 
-    const basicPay = n(row?.basic_pay ?? 0);
-    const otAmount = n(row?.ot_amount ?? 0);
-    const holidayPay = n(row?.holiday_pay ?? row?.holiday ?? 0);
-    const restDayAmount = n(row?.rest_day_amount ?? 0);
-    const nightDiffAmount = n(row?.night_diff_amount ?? 0);
+    const basicPay = n(row?.basic_pay ?? be?.basic_pay ?? 0);
+    const otAmount = n(row?.ot_amount ?? be?.ot_amount ?? 0);
+    const holidayPay = n(row?.holiday_pay ?? row?.holiday ?? be?.holiday_pay ?? 0);
+    const restDayAmount = n(row?.rest_day_amount ?? be?.rest_day_amount ?? 0);
+    const nightDiffAmount = n(row?.night_diff_amount ?? be?.night_diff_amount ?? 0);
 
-    const allowanceTotal = n(row?.allowance ?? 0);
-    const manualAdditions = n(row?.manual_additions ?? 0);
+    const allowanceTotal = n(row?.allowance ?? be?.allowance_total ?? 0);
+    const manualAdditions = n(row?.manual_additions ?? be?.manual_additions ?? 0);
 
     const retroPayTotal = n(
       row?.retro_pay ?? row?.retroPay ?? be?.retro_pay ?? 0,
     );
 
-    const lateDed = n(row?.late_deduction ?? 0);
-    const undertimeDed = n(row?.undertime_deduction ?? 0);
-    const shortageDed = n(row?.shortage_deduction ?? 0);
-    const drDed = n(row?.dr_deduction ?? 0);
+    const lateDed = n(row?.late_deduction ?? bd?.late_deduction ?? 0);
+    const undertimeDed = n(row?.undertime_deduction ?? bd?.undertime_deduction ?? 0);
+    const shortageDed = n(row?.shortage_deduction ?? bd?.shortage_deduction ?? 0);
+    const drDed = n(row?.dr_deduction ?? bd?.dr_deduction ?? 0);
 
     // employee loan totals (raw)
     const loanVale = n(row?.loan_vale ?? 0);
@@ -969,14 +970,14 @@ export async function buildPayslipsPdf(args: {
       0,
     );
 
-    const benSSS = n(row?.benefit_sss ?? 0);
-    const benPhil = n(row?.benefit_philhealth ?? 0);
-    const benPag = n(row?.benefit_pagibig ?? 0);
+    const benSSS = n(row?.benefit_sss ?? bd?.benefits?.sss ?? 0);
+    const benPhil = n(row?.benefit_philhealth ?? bd?.benefits?.philhealth ?? 0);
+    const benPag = n(row?.benefit_pagibig ?? bd?.benefits?.pagibig ?? 0);
 
     const benefitLoansTotal = n(
       (bd?.benefit_loans as Record<string, unknown>)?.total ?? row?.benefit_loan_total ?? 0,
     );
-    const manualDedTotal = n(row?.other_deductions ?? 0);
+    const manualDedTotal = n(row?.other_deductions ?? bd?.other_deductions ?? bd?.manual_deductions ?? 0);
 
     const grossPay = n(row?.gross_pay ?? 0);
     const totalDeductions = n(row?.total_deductions ?? 0);

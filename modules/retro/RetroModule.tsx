@@ -154,7 +154,7 @@ export default function RetroModule() {
     }
 
     try {
-      await retroApi.create(data, loggedUser.user_id);
+      await retroApi.create(data, Number(loggedUser.user_id));
       toast.success("Retro pay added successfully");
       setDialogOpen(false);
       loadData();
@@ -170,7 +170,7 @@ export default function RetroModule() {
     if (!loggedUser) return;
 
     try {
-      await retroApi.update(editingId, data, loggedUser.user_id);
+      await retroApi.update(editingId, data, Number(loggedUser.user_id));
       toast.success("Retro pay updated successfully");
       setDialogOpen(false);
       loadData();

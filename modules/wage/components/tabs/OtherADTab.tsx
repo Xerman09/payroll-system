@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { Pencil, Trash2, Plus, Search, X } from "lucide-react";
+import { Trash2, Plus, Search, X } from "lucide-react";
 
 import type {
   Employee,
@@ -160,7 +160,6 @@ export function OtherADTab({
   setAddDraft,
   resetAddDraft,
   saveOtherAddition,
-  startEditOtherAddition,
   deleteOtherAddition,
 
   // deductions
@@ -174,7 +173,6 @@ export function OtherADTab({
   setDedDraft,
   resetDedDraft,
   saveOtherDeduction,
-  startEditOtherDeduction,
   deleteOtherDeduction,
 
   // cutoff mapper
@@ -197,7 +195,7 @@ export function OtherADTab({
   setAddDraft: React.Dispatch<React.SetStateAction<PayrollOtherADDraft>>;
   resetAddDraft: () => void;
   saveOtherAddition: () => Promise<void> | void;
-  startEditOtherAddition: (r: PayrollOtherAdditionRecord) => void;
+  startEditOtherAddition?: (r: PayrollOtherAdditionRecord) => void;
   deleteOtherAddition: (id: number) => Promise<void> | void;
 
   dedLoading: boolean;
@@ -210,7 +208,7 @@ export function OtherADTab({
   setDedDraft: React.Dispatch<React.SetStateAction<PayrollOtherADDraft>>;
   resetDedDraft: () => void;
   saveOtherDeduction: () => Promise<void> | void;
-  startEditOtherDeduction: (r: PayrollOtherDeductionRecord) => void;
+  startEditOtherDeduction?: (r: PayrollOtherDeductionRecord) => void;
   deleteOtherDeduction: (id: number) => Promise<void> | void;
 
   applyCutoffToOtherDraft: (
