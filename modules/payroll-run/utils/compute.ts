@@ -951,7 +951,9 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   }
 
   const approvedAttendanceDates = new Set(att.map((r) => r.date_schedule));
-  const attendedHolidayDates = new Set(att.map((r) => r.date_schedule));
+  // ✅ FIX: Only consider holiday/rest dates as "attended" if they have work minutes.
+  // This allows the unworked holiday logic to pay the employee if they were absent but had an approved record on their last working day.
+  const attendedHolidayDates = new Set(att.filter(r => n(r.work_minutes) > 0).map((r) => r.date_schedule));
 
   let totalWorkMinutes = 0;
   let lateMinutes = 0;
@@ -1030,6 +1032,9 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
       basicPay += basePay;
       otAmount += otPay;
     } else if (bucket === "REST") {
+      // ✅ Skip REST processing if no work minutes (prevents 0.00 entries in breakdown)
+      if (baseMin <= 0 && otMin <= 0) continue;
+
       restDayAmount += dayTotal;
       restDayItems.push({
         date,
@@ -1044,6 +1049,9 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
         minute_rate_used: dayMR,
       });
     } else {
+      // ✅ Skip Holiday processing if no work minutes (allows Unworked Holiday Pay logic to take over)
+      if (baseMin <= 0 && otMin <= 0) continue;
+
       holidayPay += dayTotal;
       holidayItems.push({
         date,
