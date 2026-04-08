@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { signJWT } from "@/lib/auth";
+import { compare } from "bcryptjs";
 
 const API_BASE =
   process.env.API_BASE ||
@@ -30,6 +31,7 @@ export async function POST(req: Request) {
     qs.append("limit", "1");
     qs.append("filter[user_email][_eq]", email.trim());
     qs.append("filter[user_department][_eq]", String(deptId));
+    qs.append("fields", "*");
 
     const url = `${API_BASE}/items/user?${qs.toString()}`;
 
@@ -57,7 +59,15 @@ export async function POST(req: Request) {
       );
     }
 
-    if (String(user.user_password) !== String(password)) {
+    let isMatch = false;
+    if (user.hash_password) {
+      isMatch = await compare(password, user.hash_password);
+    } else {
+      // Fallback for legacy users whose password is not yet hashed
+      isMatch = String(user.user_password) === String(password);
+    }
+
+    if (!isMatch) {
       return NextResponse.json(
         { status: "password", reason: "PASSWORD_MISMATCH" },
         { status: 401 }
