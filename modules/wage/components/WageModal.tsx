@@ -60,6 +60,7 @@ import {
   computeMonthlyPayment,
   computeCoopInterest,
 } from "../utils/loanMath";
+import { COOP_INTEREST_RATE } from "../utils/payrollConstants";
 
 type Props = {
   open: boolean;
@@ -227,9 +228,11 @@ export default function WageModal({
   const recomputeLoanDraft = React.useCallback(
     (draft: LoanDraft): LoanDraft => {
       const amt = Number(draft.loan_amount);
+      const rate = draft.loan_type === "COOP" ? COOP_INTEREST_RATE : 0;
       const monthly_payment = String(computeMonthlyPayment(
         Number(draft.loan_amount),
         Number(draft.months_to_pay),
+        rate
       ));
 
       if (draft.loan_type === "COOP") {
@@ -291,7 +294,8 @@ export default function WageModal({
       }
     }
 
-    const monthlyPayment = round2(loanAmount / monthsToPay);
+    const rate = loanDraft.loan_type === "COOP" ? COOP_INTEREST_RATE : 0;
+    const monthlyPayment = computeMonthlyPayment(loanAmount, monthsToPay, rate);
     if (!Number.isFinite(monthlyPayment) || monthlyPayment <= 0) {
       toast.error("Monthly payment must be greater than 0.");
       return null;
@@ -323,8 +327,8 @@ export default function WageModal({
     const months_to_pay = v.monthsToPay;
     const monthly_payment = round2(v.monthlyPayment);
 
-    const interest_rate = coop ? 3 : 0;
-    const interest_amount = coop ? round2(v.loanAmount * 0.03) : 0;
+    const interest_rate = coop ? COOP_INTEREST_RATE * 100 : 0;
+    const interest_amount = coop ? round2(v.loanAmount * COOP_INTEREST_RATE) : 0;
     const net_amount_released = coop
       ? round2(v.loanAmount - interest_amount)
       : 0;
@@ -400,13 +404,14 @@ export default function WageModal({
       const start_date =
         (l.start_date || "").substring(0, 10) || toLocalYmd(new Date());
 
+      const rate = l.loan_type === "COOP" ? COOP_INTEREST_RATE : 0;
       const base: LoanDraft = {
         loan_type: l.loan_type,
         loan_amount,
         months_to_pay,
         start_date,
         end_date: (l.end_date || "").substring(0, 10),
-        monthly_payment: String(computeMonthlyPayment(Number(loan_amount), Number(months_to_pay))),
+        monthly_payment: String(computeMonthlyPayment(Number(loan_amount), Number(months_to_pay), rate)),
         interest_rate: money(l.interest_rate ?? 0),
         interest_amount: money(l.interest_amount ?? 0),
         net_amount_released: money(l.net_amount_released ?? 0),

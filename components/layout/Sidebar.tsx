@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
+import { getLoggedUser } from "@/lib/auth";
 
 import {
   TooltipProvider,
@@ -35,12 +36,21 @@ function Sidebar() {
   const pathname = usePathname();
   const [openDropdowns, setOpenDropdowns] = React.useState<string[]>([]);
 
+  const [userId, setUserId] = React.useState<string | number>("me");
+
+  React.useEffect(() => {
+    const user = getLoggedUser();
+    if (user?.user_id) {
+      setUserId(user.user_id);
+    }
+  }, []);
+
   const menuItems = useMemo(
     () => [
       {
         panel: "Dashboard",
         items: [
-          { title: "Dashboard", href: "/dashboard", icon: <Home size={20} /> },
+          { title: "Dashboard", href: `/dashboard/${userId}`, icon: <Home size={20} /> },
         ],
       },
       {
@@ -48,42 +58,27 @@ function Sidebar() {
         items: [
           {
             title: "Compensation Management",
-            href: "/dashboard/wage",
+            href: `/wage/${userId}`,
             icon: <PhilippinePeso size={20} />,
           },
           {
             title: "COOP",
-            href: "/dashboard/coop",
+            href: `/coop/${userId}`,
             icon: <PiggyBank size={20} />,
-          },  /*
-          {
-            title: "Retro Pay",
-            href: "/dashboard/retro",
-            icon: <BanknoteArrowDown size={20} />,
           },
-          {
-            title: "Additions & Deductions",
-            href: "/dashboard/additions-deductions",
-            icon: <Diff size={20} />,
-          },
-          {
-            title: "Allowance Management",
-            href: "/dashboard/allowance-management",
-            icon: <Wallet size={20} />,
-          }, */
           {
             title: "Holiday Calendar",
-            href: "/dashboard/calendar-management",
+            href: `/calendar-management/${userId}`,
             icon: <Calendar size={20} />,
           },
           {
             title: "Benefits Management",
-            href: "/dashboard/benefit-settings",
+            href: `/benefit-settings/${userId}`,
             icon: <HandCoins size={20} />,
           },
           {
             title: "Cutoff Settings",
-            href: "/dashboard/cutoff-settings",
+            href: `/cutoff-settings/${userId}`,
             icon: <Calendars size={20} />,
           },
           {
@@ -93,11 +88,11 @@ function Sidebar() {
             subItems: [
               {
                 title: "Compensation Settings",
-                href: "/dashboard/logistics-compensation/settings",
+                href: `/logistics-compensation/settings/${userId}`,
               },
               {
                 title: "Wage Matrix",
-                href: "/dashboard/logistics-compensation/wage-matrix",
+                href: `/logistics-compensation/wage-matrix/${userId}`,
               },
             ],
           },
@@ -108,7 +103,7 @@ function Sidebar() {
         items: [
           {
             title: "Payroll Run",
-            href: "/dashboard/payroll-run",
+            href: `/payroll-run/${userId}`,
             icon: <Calculator size={20} />,
           },
         ],
@@ -118,13 +113,13 @@ function Sidebar() {
         items: [
           {
             title: "Payroll Records",
-            href: "/dashboard/payroll-records",
+            href: `/payroll-records/${userId}`,
             icon: <Folders size={20} />,
           },
         ],
       },
     ],
-    []
+    [userId]
   );
 
   const toggleDropdown = (title: string) => {
