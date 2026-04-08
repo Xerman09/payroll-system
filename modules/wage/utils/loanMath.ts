@@ -18,9 +18,9 @@ export function money(n: string | number | null | undefined) {
   return v.toFixed(2);
 }
 
-export function computeMonthlyPayment(principal: number, terms: number): number {
+export function computeMonthlyPayment(principal: number, terms: number, interestRate: number = 0): number {
   if (terms <= 0) return principal;
-  const interest = principal * COOP_INTEREST_RATE;
+  const interest = principal * interestRate;
   const total = principal + interest;
   return round2(total / terms);
 }
