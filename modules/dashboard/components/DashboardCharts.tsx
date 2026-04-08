@@ -17,9 +17,21 @@ import {
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
+interface PayrollTrendItem {
+  month: string;
+  amount: number;
+  [key: string]: string | number;
+}
+
+interface DepartmentDistributionItem {
+  name: string;
+  value: number;
+  [key: string]: string | number;
+}
+
 interface DashboardChartsProps {
-  payrollTrend: any[];
-  employeeDistribution: any[];
+  payrollTrend: PayrollTrendItem[];
+  employeeDistribution: DepartmentDistributionItem[];
   loading?: boolean;
 }
 

@@ -194,6 +194,32 @@ export async function GET(req: NextRequest) {
           "on_hold",          // ✅ Required for on-hold filtering
           "is_card",          // ✅ Required for Payment Type
           "breakdown_json",   // ✅ Required for all payslip itemizations
+
+          // ✅ Detailed breakdown fields (Required for buildPayslipsPdf fallback)
+          "monthly_rate",
+          "daily_rate",
+          "hourly_rate",
+          "late_minutes",
+          "undertime_minutes",
+          "overtime_minutes",
+          "night_diff_minutes",
+          "late_deduction",
+          "undertime_deduction",
+          "shortage_deduction",
+          "dr_deduction",
+          "other_deductions",
+          "loan_vale",
+          "loan_car",
+          "loan_coop",
+          "coop_loan",
+          "coop_savings",
+          "benefit_sss",
+          "benefit_philhealth",
+          "benefit_pagibig",
+          "benefit_loan_total",
+          "allowance",
+          "manual_additions",
+          "retro_pay",
         ].join(","),
       );
 

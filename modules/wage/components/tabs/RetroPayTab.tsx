@@ -11,7 +11,7 @@ import type {
   CutoffSetting,
 } from "../../types";
 
-import { round2, money } from "../../utils/loanMath";
+import { money } from "../../utils/loanMath";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,9 +60,6 @@ type PayrollUiTokens = {
   iconDelete: string;
 };
 
-function isYmd(s: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(s);
-}
 function boolToFlag(v: boolean): 0 | 1 {
   return v ? 1 : 0;
 }

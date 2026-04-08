@@ -70,7 +70,7 @@ const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
         if (signal?.aborted) return;
 
         const total: number =
-          meta?.filter_count ?? meta?.total ?? membershipList.length;
+          (meta?.filter_count as number) ?? (meta?.total as number) ?? membershipList.length;
         setMemberships(membershipList);
         setTotalMemberships(total);
 

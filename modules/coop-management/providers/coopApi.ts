@@ -50,12 +50,12 @@ export async function listItems<T>(
   collection: CoopCollection,
   params?: Record<string, string>,
   signal?: AbortSignal
-): Promise<{ data: T[]; meta?: any }> {
+): Promise<{ data: T[]; meta?: Record<string, unknown> }> {
   const url = buildUrl(collection, params);
   const json = await fetchJson<Record<string, unknown>>(url, undefined, signal);
   return {
     data: Array.isArray(json?.data) ? (json.data as T[]) : [],
-    meta: json?.meta,
+    meta: json?.meta as Record<string, unknown>,
   };
 }
 

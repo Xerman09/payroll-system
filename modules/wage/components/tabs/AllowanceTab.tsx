@@ -504,6 +504,7 @@ export function AllowanceTab({
     editingId,
     loadAllowances,
     resetDraft,
+    rows,
     selectedEmployee,
     validateDraft,
   ]);
