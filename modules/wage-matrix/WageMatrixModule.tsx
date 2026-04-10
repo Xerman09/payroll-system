@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getLoggedUser } from '@/lib/auth';
 
 import { getDraft, saveDraft, clearDraft } from '@/lib/wageMatrixCache';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -151,6 +152,11 @@ export default function WageMatrixModule() {
   const handleSave = async () => {
     if (!data) return;
     setSaving(true);
+    
+    // Get current user ID for audit trails
+    const user = getLoggedUser();
+    const userId = user?.user_id ?? null;
+
     try {
       const updates: SalaryMatrix[] = [];
       const creates: SalaryMatrix[] = [];
@@ -187,10 +193,18 @@ export default function WageMatrixModule() {
 
         if (existing?.id) {
           if (existing.wage_amount !== amount) {
-            updates.push({ ...record, id: existing.id });
+            updates.push({ 
+              ...record, 
+              id: existing.id,
+              updated_by: userId
+            });
           }
         } else {
-          creates.push(record);
+          creates.push({
+            ...record,
+            created_by: userId,
+            updated_by: userId
+          });
         }
       });
 
@@ -283,24 +297,36 @@ export default function WageMatrixModule() {
   // Global count of cells that differ from (or don't exist in) the saved matrix
   const unsavedCount = useMemo(() => {
     if (!data) return 0;
-    const matrixLookup: Record<string, string> = {};
+    
+    // Pre-calculate column lookup for O(1) access
+    const columnLookup: Record<string, MatrixColumn> = {};
+    columns.forEach(c => { columnLookup[c.key] = c; });
+
+    // Pre-calculate numeric matrix lookup for O(1) access
+    const matrixLookup: Record<string, number> = {};
     data.matrix.forEach(m => {
-      matrixLookup[`${m.area_id}_${m.staff_id}_${m.vehicle_type_id}`] = m.wage_amount.toString();
+      matrixLookup[`${m.area_id}_${m.staff_id}_${m.vehicle_type_id}`] = Number(m.wage_amount);
     });
 
     let count = 0;
     Object.entries(draft).forEach(([key, value]) => {
-      if (!value) return;
+      const amount = parseFloat(value);
+      if (isNaN(amount)) return;
+
       const underscoreIdx = key.indexOf('_');
       const areaId = Number(key.substring(0, underscoreIdx));
-      const colKey  = key.substring(underscoreIdx + 1);
-      const colConfig = columns.find(c => c.key === colKey);
+      const colKey = key.substring(underscoreIdx + 1);
+      
+      const colConfig = columnLookup[colKey];
       const staff    = staffByColumn[colKey];
       if (!colConfig || !staff) return;
+
       const vtId = colConfig.vehicleTypeId ?? getVehicleTypeId(colConfig.vehicleType);
       const dbKey = `${areaId}_${staff.staff_id}_${vtId}`;
       const dbValue = matrixLookup[dbKey];
-      if (dbValue === undefined || dbValue !== value) count++;
+
+      // Comparison using numeric values to avoid false dirty states on string formatting
+      if (dbValue === undefined || dbValue !== amount) count++;
     });
     return count;
   }, [data, draft, columns, staffByColumn, getVehicleTypeId]);
@@ -333,7 +359,7 @@ export default function WageMatrixModule() {
   return (
     <DashboardLayout>
       <TooltipProvider delayDuration={300}>
-      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-8 bg-slate-50/30 dark:bg-slate-950/30 min-h-screen">
+      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-8 bg-slate-50/30 dark:bg-slate-950/30 min-h-screen wage-matrix">
         <WageMatrixHeader 
           lastUpdated={lastUpdated}
           searchTerm={searchTerm}

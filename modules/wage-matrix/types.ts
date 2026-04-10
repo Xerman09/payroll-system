@@ -26,6 +26,8 @@ export interface SalaryMatrix {
   staff_id: number;
   vehicle_type_id: number | null;
   wage_amount: number;
+  created_by?: number | string | null;
+  updated_by?: number | string | null;
 }
 
 export interface WageMatrixData {
