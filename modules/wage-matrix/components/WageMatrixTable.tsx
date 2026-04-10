@@ -1,8 +1,9 @@
 import React from 'react';
-import { Truck, UserCircle, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Truck, UserCircle, ShieldCheck, AlertCircle, PlusCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { LogisticsArea, WageMatrixData, LogisticsStaff, MatrixColumn } from '../types';
 
 interface WageMatrixTableProps {
@@ -48,6 +49,31 @@ export function WageMatrixTable({
     return counts;
   }, [columns]);
 
+  // Count unsaved cells per column for the header badge
+  const unsavedCountByCol = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    columns.forEach(col => {
+      const staff = staffByColumn[col.key];
+      if (!staff) { counts[col.key] = 0; return; }
+      const vtId = col.vehicleTypeId ?? getVehicleTypeId(col.vehicleType);
+      let count = 0;
+      areas.forEach(area => {
+        const cellValue = getCellValue(area.area_id, col.key);
+        if (!cellValue) return;
+        const mapKey = `${area.area_id}_${staff.staff_id}_${vtId}`;
+        const dbValue = matrixMap[mapKey];
+        const isNew     = dbValue === undefined;
+        const isChanged = dbValue !== undefined && dbValue !== cellValue;
+        if (isNew || isChanged) count++;
+      });
+      counts[col.key] = count;
+    });
+    return counts;
+  }, [areas, columns, staffByColumn, getVehicleTypeId, getCellValue, matrixMap]);
+
+  // Total unsaved in this section
+  const sectionUnsaved = Object.values(unsavedCountByCol).reduce((a, b) => a + b, 0);
+
   return (
     <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-500">
        <div className="flex items-center gap-2.5 px-1">
@@ -61,6 +87,11 @@ export function WageMatrixTable({
          <Badge variant="secondary" className="rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold border-none text-[10px] px-2 py-0 h-5">
            {areas.length} Areas
          </Badge>
+         {sectionUnsaved > 0 && (
+           <Badge className="rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-300 dark:border-amber-700/50 text-[10px] font-bold px-2 py-0 h-5 animate-in fade-in duration-300">
+             {sectionUnsaved} unsaved
+           </Badge>
+         )}
        </div>
 
        <div className="rounded-xl border border-slate-300 dark:border-slate-800/60 shadow-lg overflow-hidden bg-white/60 dark:bg-slate-950/40 backdrop-blur-md">
@@ -101,15 +132,31 @@ export function WageMatrixTable({
                  <TableHead className="w-[160px] px-3 font-semibold text-[11px] text-slate-800 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-950/95 z-10 border-r border-slate-200/50">Areas</TableHead>
                  <TableHead className="w-[70px] text-center font-semibold text-[9px] text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800 leading-tight">Max # Days</TableHead>
                  
-                 {columns.map((col) => (
-                   <TableHead key={col.key} className="text-center min-w-[90px] px-2 py-2.5 border-r last:border-r-0 border-slate-200/50 dark:border-slate-800/50">
-                     <div className="flex flex-col items-center gap-0.5">
-                       <span className="text-[10px] font-bold text-slate-700 dark:text-slate-400 uppercase tracking-tighter leading-none">
-                         {col.label}
-                       </span>
-                     </div>
-                   </TableHead>
-                 ))}
+                 {columns.map((col) => {
+                   const colUnsaved = unsavedCountByCol[col.key] ?? 0;
+                   return (
+                     <TableHead key={col.key} className="text-center min-w-[90px] px-2 py-2 border-r last:border-r-0 border-slate-200/50 dark:border-slate-800/50">
+                       <div className="flex flex-col items-center gap-1">
+                         <span className="text-[10px] font-bold text-slate-700 dark:text-slate-400 uppercase tracking-tighter leading-none">
+                           {col.label}
+                         </span>
+                         {colUnsaved > 0 && (
+                           <Tooltip>
+                             <TooltipTrigger asChild>
+                               <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[9px] font-bold px-1.5 py-0 border border-amber-300/60 dark:border-amber-700/40 cursor-default">
+                                 <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse inline-block" />
+                                 {colUnsaved}
+                               </span>
+                             </TooltipTrigger>
+                             <TooltipContent side="top" className="text-[11px]">
+                               {colUnsaved} unsaved {colUnsaved === 1 ? 'entry' : 'entries'} in this column
+                             </TooltipContent>
+                           </Tooltip>
+                         )}
+                       </div>
+                     </TableHead>
+                   );
+                 })}
                </TableRow>
              </TableHeader>
 
@@ -121,51 +168,106 @@ export function WageMatrixTable({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  areas.map((area) => (
-                    <TableRow key={area.id} className="group hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-colors border-b border-slate-200/60 dark:border-slate-800/50">
-                      <TableCell className="px-3 py-1.5 font-medium text-[11px] text-slate-950 dark:text-slate-100 sticky left-0 bg-white/95 dark:bg-slate-950/95 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 z-10 border-r border-slate-200/30">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate max-w-[140px]">{area.area_name}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center font-mono text-[10px] text-slate-600 border-r border-slate-200 dark:border-slate-800">
-                        {area.max_days || "—"}
-                      </TableCell>
-                      {columns.map((col) => {
-                        const staff = staffByColumn[col.key];
-                        const vtId = col.vehicleTypeId ?? getVehicleTypeId(col.vehicleType);
-                        const cellValue = getCellValue(area.area_id, col.key);
-                        const mapKey = `${area.area_id}_${staff?.staff_id ?? -1}_${vtId}`;
-                        const dbValue = matrixMap[mapKey];
-                        const isDirty = dbValue !== undefined && dbValue !== cellValue && cellValue !== "";
+                  areas.map((area) => {
+                    // Compute row-level unsaved status for row highlight
+                    const rowUnsavedCount = columns.reduce((acc, col) => {
+                      const staff = staffByColumn[col.key];
+                      if (!staff) return acc;
+                      const vtId = col.vehicleTypeId ?? getVehicleTypeId(col.vehicleType);
+                      const cellValue = getCellValue(area.area_id, col.key);
+                      if (!cellValue) return acc;
+                      const mapKey = `${area.area_id}_${staff.staff_id}_${vtId}`;
+                      const dbValue = matrixMap[mapKey];
+                      return (dbValue === undefined || dbValue !== cellValue) ? acc + 1 : acc;
+                    }, 0);
 
-                        return (
-                          <TableCell key={col.key} className="p-0.5 px-1 border-r last:border-r-0 border-slate-200/40 dark:border-slate-800/30">
-                             {!staff ? (
-                               <div className="h-full w-full bg-slate-200/50 dark:bg-slate-800/50 rounded flex items-center justify-center py-2">
-                                  <AlertCircle className="h-2.5 w-2.5 text-slate-400" />
-                               </div>
-                             ) : (
-                               <div className="relative">
-                                 <Input 
-                                   type="number"
-                                   value={cellValue}
-                                   onChange={(e) => handleInputChange(area.area_id, col.key, e.target.value)}
-                                   className={`h-7 text-center font-mono text-[10px] bg-transparent border-none focus:ring-1 focus:ring-blue-500/50 rounded-md transition-all text-slate-900 dark:text-slate-100 px-1 ${
-                                     isDirty ? "bg-amber-100/50 dark:bg-amber-900/10 text-amber-700" : ""
-                                   }`}
-                                   placeholder="0.00"
-                                 />
-                                 {isDirty && (
-                                   <div className="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-amber-400 animate-pulse" />
-                                 )}
-                               </div>
-                             )}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  ))
+                    return (
+                      <TableRow key={area.id} className={`group transition-colors border-b border-slate-200/60 dark:border-slate-800/50 ${
+                        rowUnsavedCount > 0 ? 'hover:bg-amber-50/30 dark:hover:bg-amber-900/5' : 'hover:bg-blue-50/50 dark:hover:bg-blue-900/10'
+                      }`}>
+                        <TableCell className={`px-3 py-1.5 font-medium text-[11px] text-slate-950 dark:text-slate-100 sticky left-0 z-10 border-r border-slate-200/30 transition-colors ${
+                          rowUnsavedCount > 0
+                            ? 'bg-amber-50/80 dark:bg-amber-900/10 group-hover:bg-amber-50 dark:group-hover:bg-amber-900/20'
+                            : 'bg-white/95 dark:bg-slate-950/95 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <span className="truncate max-w-[120px]">{area.area_name}</span>
+                            {rowUnsavedCount > 0 && (
+                              <span className="flex-shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-400 dark:bg-amber-500 text-white text-[8px] font-black leading-none">
+                                {rowUnsavedCount}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center font-mono text-[10px] text-slate-600 border-r border-slate-200 dark:border-slate-800">
+                          {area.max_days || "—"}
+                        </TableCell>
+                        {columns.map((col) => {
+                          const staff = staffByColumn[col.key];
+                          const vtId = col.vehicleTypeId ?? getVehicleTypeId(col.vehicleType);
+                          const cellValue = getCellValue(area.area_id, col.key);
+                          const mapKey = `${area.area_id}_${staff?.staff_id ?? -1}_${vtId}`;
+                          const dbValue = matrixMap[mapKey];
+
+                          // Three states: clean, changed (modified existing), new (no DB record yet)
+                          const isNew     = !!staff && dbValue === undefined && cellValue !== "";
+                          const isChanged = !!staff && dbValue !== undefined && dbValue !== cellValue && cellValue !== "";
+
+                          return (
+                            <TableCell key={col.key} className="p-0.5 px-1 border-r last:border-r-0 border-slate-200/40 dark:border-slate-800/30">
+                               {!staff ? (
+                                 <div className="h-full w-full bg-slate-200/50 dark:bg-slate-800/50 rounded flex items-center justify-center py-2">
+                                    <AlertCircle className="h-2.5 w-2.5 text-slate-400" />
+                                 </div>
+                               ) : (
+                                 <Tooltip>
+                                   <TooltipTrigger asChild>
+                                     <div className="relative">
+                                       <Input 
+                                         type="number"
+                                         value={cellValue}
+                                         onChange={(e) => handleInputChange(area.area_id, col.key, e.target.value)}
+                                         className={`h-7 text-center font-mono text-[10px] border-none focus:ring-1 rounded-md transition-all px-1 ${
+                                           isNew
+                                             ? 'bg-emerald-50/70 dark:bg-emerald-900/10 text-emerald-700 dark:text-emerald-400 focus:ring-emerald-500/50'
+                                             : isChanged
+                                             ? 'bg-amber-50/70 dark:bg-amber-900/10 text-amber-700 dark:text-amber-400 focus:ring-amber-500/50'
+                                             : 'bg-transparent text-slate-900 dark:text-slate-100 focus:ring-blue-500/50'
+                                         }`}
+                                         placeholder="0.00"
+                                       />
+                                       {/* Status dot */}
+                                       {isNew && (
+                                         <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="New — not yet saved" />
+                                       )}
+                                       {isChanged && (
+                                         <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" title="Modified — not yet saved" />
+                                       )}
+                                     </div>
+                                   </TooltipTrigger>
+                                   {(isNew || isChanged) && (
+                                     <TooltipContent side="top" className="text-[11px] space-y-0.5">
+                                       {isNew ? (
+                                         <p className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
+                                           <PlusCircle className="h-3 w-3" /> New entry — not saved
+                                         </p>
+                                       ) : (
+                                         <>
+                                           <p className="font-semibold text-amber-600 dark:text-amber-400">Modified — not saved</p>
+                                           <p className="text-slate-500">Was: <span className="font-mono">{Number(dbValue).toFixed(2)}</span></p>
+                                           <p className="text-slate-500">Now: <span className="font-mono">{Number(cellValue).toFixed(2)}</span></p>
+                                         </>
+                                       )}
+                                     </TooltipContent>
+                                   )}
+                                 </Tooltip>
+                               )}
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    );
+                  })
                 )}
              </TableBody>
            </Table>
