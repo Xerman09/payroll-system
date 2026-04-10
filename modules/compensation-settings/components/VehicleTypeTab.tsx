@@ -4,8 +4,9 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Search, RefreshCcw, Truck } from 'lucide-react';
 import { toast } from "sonner";
 
-import { fetchVehicleTypes } from "../providers/compensation-settingsApi";
+import { fetchVehicleTypes, patchVehicleType } from "../providers/compensation-settingsApi";
 import { LogisticsVehicleType } from "../types";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import { 
   Table, 
@@ -23,6 +24,7 @@ export default function VehicleTypeTab() {
   const [vehicleTypes, setVehicleTypes] = useState<LogisticsVehicleType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   const loadVehicleTypes = useCallback(async () => {
     setLoading(true);
@@ -40,6 +42,22 @@ export default function VehicleTypeTab() {
   useEffect(() => {
     loadVehicleTypes();
   }, [loadVehicleTypes]);
+
+  const handleTogglePayroll = async (id: number, currentStatus: boolean | number) => {
+    setUpdatingId(id);
+    const newStatus = !currentStatus;
+    try {
+      await patchVehicleType(id, { is_payroll: newStatus });
+      toast.success(`Vehicle type payroll status updated.`);
+      // Optimistic update
+      setVehicleTypes(prev => prev.map(vt => vt.id === id ? { ...vt, is_payroll: newStatus } : vt));
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to update payroll status.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const filteredVTs = vehicleTypes.filter(vt => 
     (vt.type_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -95,6 +113,7 @@ export default function VehicleTypeTab() {
             <TableRow>
               <TableHead className="font-semibold text-gray-600 px-6 py-4">Vehicle Type ID</TableHead>
               <TableHead className="font-semibold text-gray-600 px-6 py-4">Classification</TableHead>
+              <TableHead className="font-semibold text-gray-600 px-6 py-4 text-center">Is Payroll</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -118,6 +137,16 @@ export default function VehicleTypeTab() {
                     <div className="flex items-center gap-2">
                       <Truck className="h-4 w-4 text-slate-400" />
                       <span className="font-semibold text-xs tracking-tight">{vt.type_name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="px-6 text-center">
+                    <div className="flex justify-center">
+                      <Checkbox 
+                        checked={!!vt.is_payroll} 
+                        onCheckedChange={() => handleTogglePayroll(vt.id, !!vt.is_payroll)}
+                        disabled={updatingId === vt.id}
+                        className="h-5 w-5"
+                      />
                     </div>
                   </TableCell>
                 </TableRow>
