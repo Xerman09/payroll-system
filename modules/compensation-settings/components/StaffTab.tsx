@@ -113,8 +113,8 @@ export default function StaffTab() {
       const payload = {
         staff_id: Number(staffId),
         role: role,
-        employment_type: (employmentType as LogisticsStaff["employment_type"]) || null,
-        vehicle_type_id: (vehicleTypeId && vehicleTypeId !== "none") ? Number(vehicleTypeId) : null,
+        employment_type: role === 'Helper' ? (employmentType as LogisticsStaff["employment_type"] || null) : null,
+        vehicle_type_id: (role === 'Driver' && vehicleTypeId && vehicleTypeId !== "none") ? Number(vehicleTypeId) : null,
       };
 
       if (editingStaff) {
@@ -317,40 +317,46 @@ export default function StaffTab() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="employmentType" className="text-right whitespace-nowrap">Employment *</Label>
-              <div className="col-span-3">
-                <Select value={employmentType} onValueChange={setEmploymentType} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select an employment type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="EXTRA">EXTRA</SelectItem>
-                    <SelectItem value="PROBATIONARY">PROBATIONARY</SelectItem>
-                    <SelectItem value="REGULAR(<10W)">REGULAR(&lt;10W)</SelectItem>
-                    <SelectItem value="REGULAR(10W/T)">REGULAR(10W/T)</SelectItem>
-                  </SelectContent>
-                </Select>
+            {role === 'Helper' && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="employmentType" className="text-right whitespace-nowrap">Employment *</Label>
+                <div className="col-span-3">
+                  <Select value={employmentType} onValueChange={setEmploymentType} required={role === 'Helper'}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select an employment type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EXTRA">EXTRA</SelectItem>
+                      <SelectItem value="PROBATIONARY">PROBATIONARY</SelectItem>
+                      <SelectItem value="REGULAR(<10W)">REGULAR(&lt;10W)</SelectItem>
+                      <SelectItem value="REGULAR(10W/T)">REGULAR(10W/T)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="vehicleTypeId" className="text-right">Vehicle Type</Label>
-              <div className="col-span-3">
-                <Select value={vehicleTypeId} onValueChange={setVehicleTypeId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Assign a vehicle type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {vehicleTypes.map(vt => (
-                      <SelectItem key={vt.id} value={vt.id.toString()}>
-                        {vt.type_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            )}
+            {role === 'Driver' && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="vehicleTypeId" className="text-right">Vehicle Type</Label>
+                <div className="col-span-3">
+                  <Select value={vehicleTypeId} onValueChange={setVehicleTypeId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Assign a vehicle type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vehicleTypes
+                        .filter(vt => !!vt.is_payroll)
+                        .map(vt => (
+                          <SelectItem key={vt.id} value={vt.id.toString()}>
+                            {vt.type_name}
+                          </SelectItem>
+                        ))
+                      }
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
+            )}
           </form>
           <DialogFooter>
             <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>

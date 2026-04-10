@@ -4,20 +4,21 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { 
   fetchWageMatrixData, 
-  upsertWageMatrix,
+  upsertWageMatrix, 
   patchWageMatrixBulk 
-} from './providers/wage-matrixApi';
+} from "./providers/wage-matrixApi";
 import { 
-  LogisticsArea, 
-  LogisticsStaff, 
+  WageMatrixData, 
   SalaryMatrix, 
-  WageMatrixData 
-} from './types';
+  LogisticsStaff,
+  MatrixColumn,
+  LogisticsArea
+} from "./types";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { COLUMN_MAP, LOCAL_STORAGE_KEY } from './constants';
+import { LOCAL_STORAGE_KEY } from './constants';
 import { WageMatrixHeader } from './components/WageMatrixHeader';
 import { WageMatrixTable } from './components/WageMatrixTable';
 import { WageMatrixEmptyState } from './components/WageMatrixEmptyState';
@@ -30,24 +31,81 @@ export default function WageMatrixModule() {
   const [draft, setDraft] = useState<Record<string, string>>({}); // Key: areaId_colKey
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
+  const columns: MatrixColumn[] = useMemo(() => {
+    if (!data) return [];
+    
+    const driverCols = data.vehicleTypes
+      .filter(vt => !!vt.is_payroll)
+      .map(vt => ({
+        key: `driver_${vt.id}`,
+        label: vt.type_name,
+        group: 'Fleet Operator',
+        role: 'Driver' as const,
+        vehicleType: vt.type_name,
+        vehicleTypeId: vt.id
+      }));
+
+    const helperCols = [
+      { key: 'helper_extra', label: 'Extra', group: 'Helper', role: 'Helper' as const, employmentType: 'EXTRA' },
+      { key: 'helper_probationary', label: 'Probationary', group: 'Helper', role: 'Helper' as const, employmentType: 'PROBATIONARY' },
+    ];
+
+    const crewCols = [
+      { key: 'logistics_regular_lt_10w', label: 'Regular (<10W)', group: 'Logistics Crew', role: 'Helper' as const, employmentType: 'REGULAR(<10W)' },
+      { key: 'logistics_regular_10w_t', label: 'Regular (10W/T)', group: 'Logistics Crew', role: 'Helper' as const, employmentType: 'REGULAR(10W/T)' },
+    ];
+
+    return [...driverCols, ...helperCols, ...crewCols];
+  }, [data]);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetchWageMatrixData();
       setData(res);
-      
-      // Initialize draft from matrix data
+
+      // Build columns locally from res to avoid the stale closure problem
+      // (the `columns` useMemo won't have updated yet when this runs)
+      const localDriverCols = res.vehicleTypes
+        .filter(vt => !!vt.is_payroll)
+        .map(vt => ({
+          key: `driver_${vt.id}`,
+          role: 'Driver' as const,
+          vehicleTypeId: vt.id,
+          employmentType: undefined as string | undefined,
+        }));
+
+      const localHelperCols = [
+        { key: 'helper_extra',        role: 'Helper' as const, vehicleTypeId: undefined as number | undefined, employmentType: 'EXTRA'              },
+        { key: 'helper_probationary', role: 'Helper' as const, vehicleTypeId: undefined as number | undefined, employmentType: 'PROBATIONARY'       },
+      ];
+
+      const localCrewCols = [
+        { key: 'logistics_regular_lt_10w', role: 'Helper' as const, vehicleTypeId: undefined as number | undefined, employmentType: 'REGULAR(<10W)'  },
+        { key: 'logistics_regular_10w_t',  role: 'Helper' as const, vehicleTypeId: undefined as number | undefined, employmentType: 'REGULAR(10W/T)' },
+      ];
+
+      const localCols = [...localDriverCols, ...localHelperCols, ...localCrewCols];
+
+      // Initialize draft from matrix data using the local columns
       const initialDraft: Record<string, string> = {};
       res.matrix.forEach(item => {
-        // Find which column this item belongs to
         const staff = res.staff.find(s => s.staff_id === item.staff_id);
-        const vt = res.vehicleTypes.find(v => v.id === item.vehicle_type_id);
-        
-        const col = COLUMN_MAP.find(c => {
-          const matchesStaff = staff?.role === c.role && (c.employmentType ? staff?.employment_type === c.employmentType : true);
-          // For drivers, we match vehicle type. For others, we expect no vehicle type (null)
-          const matchesVT = c.vehicleType ? vt?.type_name === c.vehicleType : !vt;
-          return matchesStaff && matchesVT;
+        if (!staff) return;
+
+        const col = localCols.find(c => {
+          if (staff.role !== c.role) return false;
+
+          if (c.role === 'Driver') {
+            // Driver columns are keyed by vehicle_type_id in the matrix row
+            return c.vehicleTypeId === item.vehicle_type_id;
+          }
+
+          // Helper / Logistics Crew: match employment_type + null vehicle
+          return (
+            c.employmentType === staff.employment_type &&
+            item.vehicle_type_id === null
+          );
         });
 
         if (col) {
@@ -118,13 +176,11 @@ export default function WageMatrixModule() {
         const amount = parseFloat(value);
         if (isNaN(amount)) return;
 
-        const colConfig = COLUMN_MAP.find(c => c.key === colKey);
+        const colConfig = columns.find(c => c.key === colKey);
         const staff = staffByColumn[colKey];
         if (!staff || !colConfig) return;
 
         const vtId = getVehicleTypeId(colConfig.vehicleType);
-
-        const existing = matrixLookup[`${areaId}_${staff.staff_id}_${vtId}`];
 
         const record = {
           area_id: areaId,
@@ -132,6 +188,8 @@ export default function WageMatrixModule() {
           vehicle_type_id: vtId,
           wage_amount: amount
         };
+
+        const existing = matrixLookup[`${areaId}_${staff.staff_id}_${vtId}`];
 
         if (existing?.id) {
           if (existing.wage_amount !== amount) {
@@ -188,23 +246,26 @@ export default function WageMatrixModule() {
   const staffByColumn = useMemo(() => {
     if (!data) return {};
     const mapping: Record<string, LogisticsStaff | undefined> = {};
-    
-    COLUMN_MAP.forEach(col => {
+
+    columns.forEach(col => {
       const found = data.staff.find(s => {
         const matchesRole = s.role === col.role;
-        const matchesType = col.employmentType ? s.employment_type === col.employmentType : true;
-        
+
         if (col.role === 'Driver') {
-           return matchesRole && matchesType;
+          // All driver wage buckets share the same staff record in this schema.
+          // We only need a Driver staff to exist — the vehicle_type_id that
+          // identifies the bucket comes from the MatrixColumn, not the staff row.
+          return matchesRole;
         }
-        
-        return matchesRole && matchesType;
+
+        // Helper / Logistics Crew: additionally match employment_type
+        return matchesRole && s.employment_type === (col.employmentType ?? null);
       });
       mapping[col.key] = found;
     });
 
     return mapping;
-  }, [data]);
+  }, [data, columns]);
 
   const vehicleTypeMap = useMemo(() => {
     if (!data) return {};
@@ -274,6 +335,7 @@ export default function WageMatrixModule() {
               mode={mode}
               areas={areas}
               data={data}
+              columns={columns}
               staffByColumn={staffByColumn}
               getVehicleTypeId={getVehicleTypeId}
               getCellValue={getCellValue}

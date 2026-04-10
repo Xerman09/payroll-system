@@ -17,6 +17,7 @@ export interface LogisticsStaff {
 export interface LogisticsVehicleType {
   id: number;
   type_name: string;
+  is_payroll?: boolean | number;
 }
 
 export interface SalaryMatrix {
@@ -32,4 +33,14 @@ export interface WageMatrixData {
   staff: LogisticsStaff[];
   vehicleTypes: LogisticsVehicleType[];
   matrix: SalaryMatrix[];
+}
+
+export interface MatrixColumn {
+  key: string;
+  label: string;
+  group: string;
+  role: 'Driver' | 'Helper';
+  vehicleType?: string;
+  vehicleTypeId?: number;
+  employmentType?: string;
 }

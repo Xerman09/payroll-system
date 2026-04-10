@@ -34,4 +34,5 @@ export interface LogisticsStaff {
 export interface LogisticsVehicleType {
   id: number;
   type_name: string;
+  is_payroll?: boolean | number;
 }
