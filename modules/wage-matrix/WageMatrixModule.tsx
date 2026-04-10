@@ -19,6 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { getDraft, saveDraft, clearDraft } from '@/lib/wageMatrixCache';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { WageMatrixHeader } from './components/WageMatrixHeader';
 import { WageMatrixTable } from './components/WageMatrixTable';
 import { WageMatrixEmptyState } from './components/WageMatrixEmptyState';
@@ -279,6 +280,31 @@ export default function WageMatrixModule() {
     return draft[key] || "";
   };
 
+  // Global count of cells that differ from (or don't exist in) the saved matrix
+  const unsavedCount = useMemo(() => {
+    if (!data) return 0;
+    const matrixLookup: Record<string, string> = {};
+    data.matrix.forEach(m => {
+      matrixLookup[`${m.area_id}_${m.staff_id}_${m.vehicle_type_id}`] = m.wage_amount.toString();
+    });
+
+    let count = 0;
+    Object.entries(draft).forEach(([key, value]) => {
+      if (!value) return;
+      const underscoreIdx = key.indexOf('_');
+      const areaId = Number(key.substring(0, underscoreIdx));
+      const colKey  = key.substring(underscoreIdx + 1);
+      const colConfig = columns.find(c => c.key === colKey);
+      const staff    = staffByColumn[colKey];
+      if (!colConfig || !staff) return;
+      const vtId = colConfig.vehicleTypeId ?? getVehicleTypeId(colConfig.vehicleType);
+      const dbKey = `${areaId}_${staff.staff_id}_${vtId}`;
+      const dbValue = matrixLookup[dbKey];
+      if (dbValue === undefined || dbValue !== value) count++;
+    });
+    return count;
+  }, [data, draft, columns, staffByColumn, getVehicleTypeId]);
+
   const filteredAreas = (modeType: string) => {
     const areas = areasByMode[modeType] || [];
     if (!searchTerm) return areas;
@@ -306,10 +332,12 @@ export default function WageMatrixModule() {
 
   return (
     <DashboardLayout>
+      <TooltipProvider delayDuration={300}>
       <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-8 bg-slate-50/30 dark:bg-slate-950/30 min-h-screen">
         <WageMatrixHeader 
           lastUpdated={lastUpdated}
           searchTerm={searchTerm}
+          unsavedCount={unsavedCount}
           onSearchChange={setSearchTerm}
           onRefresh={loadData}
           onSave={handleSave}
@@ -341,14 +369,8 @@ export default function WageMatrixModule() {
           <WageMatrixEmptyState onClearSearch={() => setSearchTerm("")} />
         )}
       </div>
+      </TooltipProvider>
 
-      <style jsx global>{`
-        input[type=number]::-webkit-inner-spin-button, 
-        input[type=number]::-webkit-outer-spin-button { 
-          -webkit-appearance: none; 
-          margin: 0; 
-        }
-      `}</style>
     </DashboardLayout>
   );
 }
