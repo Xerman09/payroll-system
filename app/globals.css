@@ -260,13 +260,13 @@ body {
     transition: background-color 5000s ease-in-out 0s;
   }
 
-  /* Hide number input spinners globally (wage-matrix table, etc.) */
-  input[type=number]::-webkit-inner-spin-button,
-  input[type=number]::-webkit-outer-spin-button {
+  /* Hide number input spinners locally to wage-matrix table */
+  .wage-matrix input[type=number]::-webkit-inner-spin-button,
+  .wage-matrix input[type=number]::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
   }
-  input[type=number] {
+  .wage-matrix input[type=number] {
     -moz-appearance: textfield;
   }
 }
