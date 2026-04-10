@@ -7,5 +7,3 @@ export const COLUMN_MAP = [
   { key: 'logistics_regular_lt_10w', label: 'Regular (<10W)', group: 'Logistics Crew', role: 'Helper', employmentType: 'REGULAR(<10W)' },
   { key: 'logistics_regular_10w_t', label: 'Regular (10W/T)', group: 'Logistics Crew', role: 'Helper', employmentType: 'REGULAR(10W/T)' },
 ];
-
-export const LOCAL_STORAGE_KEY = 'wage_matrix_draft_v2';

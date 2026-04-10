@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { LOCAL_STORAGE_KEY } from './constants';
+import { getDraft, saveDraft, clearDraft } from '@/lib/wageMatrixCache';
 import { WageMatrixHeader } from './components/WageMatrixHeader';
 import { WageMatrixTable } from './components/WageMatrixTable';
 import { WageMatrixEmptyState } from './components/WageMatrixEmptyState';
@@ -114,18 +114,11 @@ export default function WageMatrixModule() {
         }
       });
 
-      // Merge with localStorage if exists
-      const savedDraft = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (savedDraft) {
-        try {
-          const parsed = JSON.parse(savedDraft);
-          if (Object.keys(parsed).length > 0) {
-            Object.assign(initialDraft, parsed);
-            toast.info("Unsaved changes restored from cache.", { id: 'draft-restore' });
-          }
-        } catch (e) {
-          console.error("Failed to parse local storage", e);
-        }
+      // Restore any previously unsaved draft from IndexedDB cache
+      const savedDraft = await getDraft();
+      if (savedDraft && Object.keys(savedDraft).length > 0) {
+        Object.assign(initialDraft, savedDraft);
+        toast.info("Unsaved changes restored from cache.", { id: 'draft-restore' });
       }
 
       setDraft(initialDraft);
@@ -142,10 +135,10 @@ export default function WageMatrixModule() {
     loadData();
   }, [loadData]);
 
-  // Auto-save draft to localStorage
+  // Auto-persist draft to IndexedDB whenever it changes
   useEffect(() => {
     if (Object.keys(draft).length > 0) {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(draft));
+      saveDraft(draft);
     }
   }, [draft]);
 
@@ -210,7 +203,7 @@ export default function WageMatrixModule() {
         toast.promise(savePromise, {
           loading: 'Saving wage matrix...',
           success: () => {
-            localStorage.removeItem(LOCAL_STORAGE_KEY);
+            clearDraft();
             setLastUpdated(new Date().toLocaleTimeString());
             loadData();
             return `Matrix saved: ${updates.length} updated, ${creates.length} created.`;
