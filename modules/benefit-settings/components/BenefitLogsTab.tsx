@@ -415,7 +415,7 @@ export default function BenefitLogsTab({
                     <TableCell className="text-right tabular-nums font-semibold text-slate-900 dark:text-gray-100">
                       {formatMoney(r.deducted_amount)}
                     </TableCell>
-                    <TableCell className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                    <TableCell className="text-sm font-medium text-primary dark:text-primary/70">
                       {r.payroll_ref_no || "—"}
                     </TableCell>
                     <TableCell>
@@ -429,7 +429,7 @@ export default function BenefitLogsTab({
                       ) : (
                         <Badge
                           variant="outline"
-                          className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900/40"
+                          className="bg-primary/5 dark:bg-primary/10 text-primary dark:text-primary/70 border-primary/20 dark:border-blue-900/40"
                         >
                           Contribution
                         </Badge>

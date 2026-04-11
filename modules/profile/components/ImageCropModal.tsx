@@ -61,7 +61,7 @@ export function ImageCropModal({ image, isOpen, onClose, onCropComplete }: Image
       <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden bg-white dark:bg-gray-900 border-none shadow-2xl rounded-xl">
         <DialogHeader className="p-5 pb-0">
           <DialogTitle className="text-base font-bold text-gray-900 dark:text-gray-100 uppercase tracking-widest flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
+            <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
             Position and Size
           </DialogTitle>
         </DialogHeader>
@@ -97,7 +97,7 @@ export function ImageCropModal({ image, isOpen, onClose, onCropComplete }: Image
               step={0.1}
               aria-labelledby="Zoom"
               onChange={(e) => onZoomChange(Number(e.target.value))}
-              className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary"
             />
           </div>
 
@@ -121,7 +121,7 @@ export function ImageCropModal({ image, isOpen, onClose, onCropComplete }: Image
               </Button>
               <Button 
                 onClick={handleSave}
-                className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold uppercase tracking-widest text-[10px] h-10 shadow-lg shadow-blue-500/20"
+                className="flex-[2] bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-bold uppercase tracking-widest text-[10px] h-10 shadow-lg shadow-primary/20"
               >
                 Save Profile
               </Button>

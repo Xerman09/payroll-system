@@ -71,7 +71,7 @@ export function PersonalInfoForm({ user, onRefresh }: PersonalInfoFormProps) {
     <form onSubmit={handleSubmit} className="space-y-8">
       {/* Basic Information */}
       <section className="space-y-4">
-        <div className="flex items-center gap-2 text-blue-600">
+        <div className="flex items-center gap-2 text-primary">
           <User size={18} />
           <h3 className="font-bold uppercase tracking-wider text-sm">Basic Information</h3>
         </div>
@@ -148,7 +148,7 @@ export function PersonalInfoForm({ user, onRefresh }: PersonalInfoFormProps) {
 
       {/* Address Information */}
       <section className="space-y-4">
-        <div className="flex items-center gap-2 text-blue-600">
+        <div className="flex items-center gap-2 text-primary">
           <MapPin size={18} />
           <h3 className="font-bold uppercase tracking-wider text-sm">Address Information</h3>
         </div>
@@ -172,7 +172,7 @@ export function PersonalInfoForm({ user, onRefresh }: PersonalInfoFormProps) {
 
       {/* Government IDs */}
       <section className="space-y-4">
-        <div className="flex items-center gap-2 text-blue-600">
+        <div className="flex items-center gap-2 text-primary">
           <IdCard size={18} />
           <h3 className="font-bold uppercase tracking-wider text-sm">Government Identifiers</h3>
         </div>
@@ -200,7 +200,7 @@ export function PersonalInfoForm({ user, onRefresh }: PersonalInfoFormProps) {
 
       {/* Emergency Contact */}
       <section className="space-y-4">
-        <div className="flex items-center gap-2 text-blue-600">
+        <div className="flex items-center gap-2 text-primary">
           <Heart size={18} />
           <h3 className="font-bold uppercase tracking-wider text-sm">Emergency Contact</h3>
         </div>
@@ -220,7 +220,7 @@ export function PersonalInfoForm({ user, onRefresh }: PersonalInfoFormProps) {
         <Button 
           type="submit" 
           disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-6 rounded-lg shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-sm font-bold uppercase tracking-widest gap-2"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-6 rounded-lg shadow-lg shadow-primary/20 active:scale-95 transition-all text-sm font-bold uppercase tracking-widest gap-2"
         >
           {loading ? "Saving Changes..." : <><Save size={18} /> Save Information</>}
         </Button>

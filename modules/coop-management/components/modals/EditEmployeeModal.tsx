@@ -529,7 +529,7 @@ export function EditEmployeeModal({
           </Button>
           <Button
             onClick={handleSubmit}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
             disabled={submitting}
           >
             {submitting ? "Updating..." : "Update Employee"}

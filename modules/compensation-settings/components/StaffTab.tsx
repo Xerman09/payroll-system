@@ -192,7 +192,7 @@ export default function StaffTab() {
                 <span className="hidden lg:inline">Refresh</span>
               </Button>
               <Button 
-                className="h-10 px-4 gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                className="h-10 px-4 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
                 onClick={() => handleOpenModal()}
               >
                 <Plus className="h-4 w-4" />
@@ -360,7 +360,7 @@ export default function StaffTab() {
           </form>
           <DialogFooter>
             <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={submitting} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={handleSave} disabled={submitting} className="bg-primary hover:bg-primary/90">
               {submitting ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>

@@ -243,7 +243,7 @@ function Sidebar() {
                               "w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ease-out",
                               "text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 hover:shadow-lg",
                               collapsed ? "justify-center" : "justify-start",
-                              isActive && "bg-blue-500/10 text-blue-600 dark:bg-blue-600/10 dark:text-blue-400"
+                              isActive && "bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary"
                             )}
                           >
                             {item.icon}
@@ -262,7 +262,7 @@ function Sidebar() {
                               "text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 hover:shadow-lg",
                               collapsed ? "justify-center" : "justify-start",
                               pathname === item.href &&
-                                "bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
+                                "bg-primary text-primary-foreground hover:bg-primary/90"
                             )}
                           >
                             {item.icon}
@@ -297,7 +297,7 @@ function Sidebar() {
                                 className={cn(
                                   "p-2 text-sm rounded-lg transition-colors",
                                   "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-800",
-                                  pathname === sub.href && "text-blue-600 dark:text-blue-400 font-medium"
+                                  pathname === sub.href && "text-primary font-medium"
                                 )}
                               >
                                 {sub.title}

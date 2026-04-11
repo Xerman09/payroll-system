@@ -1,6 +1,7 @@
 // @modules/wage/WageModule.tsx
 "use client";
 import React, { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -20,6 +21,7 @@ import { getLoggedUser } from "@/lib/auth";
 
 export function WageModule() {
   const [activeTab, setActiveTab] = useState("wage");
+  const searchParams = useSearchParams();
   const [isTabLoading, setIsTabLoading] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedDept, setSelectedDept] = useState<number | null>(null);
@@ -82,6 +84,14 @@ export function WageModule() {
     setIsTabLoading(true);
     setTimeout(() => setIsTabLoading(false), 300);
   };
+
+  // Synchronize activeTab with URL 'tab' parameter
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && (tabParam === "wage" || tabParam === "salary-grade")) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     wageApi.fetchDepartments().then(setDepartments).catch(console.error);

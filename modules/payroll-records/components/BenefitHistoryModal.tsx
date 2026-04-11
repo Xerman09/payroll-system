@@ -191,7 +191,7 @@ export default function BenefitHistoryModal({
       cell: ({ row }) => {
         const amount = parseFloat(row.getValue("amount"));
         return (
-          <div className="text-right font-mono text-lg text-blue-500 dark:text-blue-400 font-bold">
+          <div className="text-right font-mono text-lg text-primary dark:text-primary/70 font-bold">
             {formatPHP(amount)}
           </div>
         );
@@ -208,7 +208,7 @@ export default function BenefitHistoryModal({
             "px-2.5 py-1 rounded-full text-xs font-semibold border transition-all",
             isLoan 
               ? "bg-amber-100/50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800" 
-              : "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800"
+              : "bg-primary/5 text-primary border-primary/10 dark:bg-primary/15 dark:text-primary/70 dark:border-primary/30"
           )}>
             {type}
           </span>
@@ -296,7 +296,7 @@ export default function BenefitHistoryModal({
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <DialogTitle className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-                  <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                  <div className="p-2 rounded-lg bg-primary/10 text-primary">
                     <History className="h-6 w-6" />
                   </div>
                   Benefit History
@@ -338,7 +338,7 @@ export default function BenefitHistoryModal({
                   />
                 </div>
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="h-10 w-48 bg-background/50 border-muted-foreground/10 focus:ring-blue-500 rounded-lg">
+                  <SelectTrigger className="h-10 w-48 bg-background/50 border-muted-foreground/10 focus:ring-primary rounded-lg">
                     <SelectValue placeholder="All Months" />
                   </SelectTrigger>
                   <SelectContent className="rounded-lg">
@@ -354,7 +354,7 @@ export default function BenefitHistoryModal({
                 <div className="flex items-center gap-2">
                   <Button 
                     variant="outline" 
-                    className="h-10 px-4 rounded-lg shadow-sm border-muted-foreground/10 hover:bg-blue-50 hover:text-blue-600 transition-all gap-2 font-semibold"
+                    className="h-10 px-4 rounded-lg shadow-sm border-muted-foreground/10 hover:bg-primary/5 hover:text-primary transition-all gap-2 font-semibold"
                     onClick={() => handlePDFAction(false)}
                     disabled={isGenerating || selectedMonth === "all"}
                   >
@@ -371,8 +371,8 @@ export default function BenefitHistoryModal({
             {loading ? (
               <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
                 <div className="relative">
-                  <div className="absolute inset-0 rounded-full blur-xl bg-blue-500/20 animate-pulse" />
-                  <Loader2 className="h-10 w-10 animate-spin text-blue-500 relative" />
+                  <div className="absolute inset-0 rounded-full blur-xl bg-primary/20 animate-pulse" />
+                  <Loader2 className="h-10 w-10 animate-spin text-primary relative" />
                 </div>
                 <p className="font-medium animate-pulse">Retriving financial records...</p>
               </div>
@@ -385,7 +385,7 @@ export default function BenefitHistoryModal({
                 <Button 
                   variant="link" 
                   size="sm" 
-                  className="mt-2 text-blue-500"
+                  className="mt-2 text-primary"
                   onClick={() => { setSearchTerm(""); setSelectedMonth("all"); }}
                 >
                   Clear all filters

@@ -421,7 +421,7 @@ export default function AdditionsDeductionsModule() {
             onClick={() =>
               openAdd(activeTab === "additions" ? "addition" : "deduction")
             }
-            className="bg-blue-700 hover:bg-blue-800 text-white"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             + Add {activeTab === "additions" ? "Addition" : "Deduction"}
           </Button>
@@ -484,7 +484,7 @@ export default function AdditionsDeductionsModule() {
                   </Button>
                   <Button
                     variant="default"
-                    className="bg-blue-700 hover:bg-blue-800"
+                    className="bg-primary hover:bg-primary/90"
                     onClick={handleRefresh}
                     title="Refresh Data"
                   >
@@ -622,7 +622,7 @@ export default function AdditionsDeductionsModule() {
                                       : "deduction"
                                   )
                                 }
-                                className="text-blue-600 hover:text-blue-800 transition-colors"
+                                className="text-primary hover:text-primary/80 transition-colors"
                                 title="Edit"
                               >
                                 <Edit size={16} />
@@ -725,7 +725,7 @@ export default function AdditionsDeductionsModule() {
                           setForm((s) => ({ ...s, showDropdown: true }))
                         }
                         placeholder="Search by name or ID..."
-                        className="w-full bg-blue-50/30 border-blue-200 focus-visible:ring-blue-500"
+                        className="w-full bg-primary/5/30 border-primary/20 focus-visible:ring-blue-500"
                       />
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
                         <UserIcon size={14} />
@@ -737,7 +737,7 @@ export default function AdditionsDeductionsModule() {
                             {filterUsers(form.searchText, users).map((u) => (
                               <div
                                 key={u.user_id}
-                                className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm"
+                                className="px-3 py-2 hover:bg-primary/5 cursor-pointer text-sm"
                                 onClick={() =>
                                   setForm((s) => ({
                                     ...s,
@@ -819,7 +819,7 @@ export default function AdditionsDeductionsModule() {
                   <Button
                     onClick={handleCreate}
                     disabled={saving}
-                    className="bg-blue-700 hover:bg-blue-800 text-white px-6"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground px-6"
                   >
                     {saving ? "Saving..." : "Save"}
                   </Button>

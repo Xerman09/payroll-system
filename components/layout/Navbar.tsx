@@ -1,11 +1,10 @@
-//@/components/layout/Navbar.tsx
-"use client";
-
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { useTheme } from "next-themes";
 import { Menu, Search, Bell, User, Settings, LogOut } from "lucide-react";
 import ThemeToggle from "@/components/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { CommandPalette } from "./CommandPalette";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,16 +14,16 @@ import {
 import { useSidebar } from "@/providers/SidebarProvider";
 import { getLoggedUser } from "@/lib/auth";
 
-// Define props interface
-interface NavbarProps {
-  toggleTheme: () => void;
-  currentTheme: "light" | "dark";
-}
-
-export default function Navbar({ toggleTheme, currentTheme }: NavbarProps) {
+export default function Navbar() {
+  const { theme, setTheme } = useTheme();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const { setMobileOpen, toggle, collapsed } = useSidebar();
+
+  const toggleTheme = () => {
+    setTheme(theme === "dark" ? "light" : "dark");
+  };
 
   const handleMobileMenuOpen = () => {
     if (collapsed) toggle(); // Resets to expanded
@@ -79,13 +78,17 @@ export default function Navbar({ toggleTheme, currentTheme }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-2 sm:gap-4">
-        <div className="hidden md:flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700">
-          <Search size={16} className="text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search records..."
-            className="bg-transparent border-none outline-none text-sm w-32 focus:w-48 transition-all"
-          />
+        <div 
+          onClick={() => setCommandOpen(true)}
+          className="hidden md:flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors group"
+        >
+          <Search size={16} className="text-gray-400 group-hover:text-primary transition-colors" />
+          <div className="text-gray-500 text-sm w-32 focus:w-48 transition-all flex items-center justify-between">
+            <span>Search records...</span>
+          </div>
+          <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100 sm:flex ml-2">
+            <span className="text-xs">⌘</span>K
+          </kbd>
         </div>
 
         <button className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 relative">
@@ -93,13 +96,13 @@ export default function Navbar({ toggleTheme, currentTheme }: NavbarProps) {
           <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-gray-900"></span>
         </button>
 
-        <ThemeToggle toggleTheme={toggleTheme} currentTheme={currentTheme} />
+        <ThemeToggle toggleTheme={toggleTheme} currentTheme={theme as "light" | "dark"} />
 
         <div className="hidden sm:flex flex-col items-end mr-1">
           <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-tight">
             {userName}
           </span>
-          <span className="text-[10px] uppercase font-bold text-blue-600 tracking-wider">
+          <span className="text-[10px] uppercase font-bold text-primary tracking-wider">
             {user?.role || "USER"}
           </span>
         </div>
@@ -129,7 +132,10 @@ export default function Navbar({ toggleTheme, currentTheme }: NavbarProps) {
               <span>My Profile</span>
             </DropdownMenuItem>
 
-            <DropdownMenuItem className="rounded-lg cursor-pointer py-2.5 mb-1">
+            <DropdownMenuItem 
+              className="rounded-lg cursor-pointer py-2.5 mb-1"
+              onClick={() => router.push(`/settings/${user?.user_id || "me"}`)}
+            >
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
             </DropdownMenuItem>
@@ -144,6 +150,8 @@ export default function Navbar({ toggleTheme, currentTheme }: NavbarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <CommandPalette open={commandOpen} setOpen={setCommandOpen} />
     </header>
   );
 }

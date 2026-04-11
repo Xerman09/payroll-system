@@ -1,67 +1,51 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
+import { Moon, Sun, Monitor } from "lucide-react";
 
 type ThemeToggleProps = {
+  // Keeping props for backward compatibility if needed, 
+  // but we prioritize useTheme() internal hook
   toggleTheme?: () => void;
   currentTheme?: "light" | "dark";
 };
 
 export function ThemeToggle({ toggleTheme, currentTheme }: ThemeToggleProps) {
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    try {
-      const saved = currentTheme ?? localStorage.getItem("theme");
-      if (saved === "dark") return "dark";
-      else if (saved === "light") return "light";
-      else if (
-        window.matchMedia &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches
-      )
-        return "dark";
-      else return "dark";
-    } catch {
-      return "dark";
-    }
-  });
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
-  // Update DOM classList based on current theme
-  useEffect(() => {
-    const current = currentTheme ?? theme;
-    if (current === "dark") document.documentElement.classList.add("dark");
-    else document.documentElement.classList.remove("dark");
-  }, [currentTheme, theme]);
+  // Avoid hydration mismatch by waiting for mount
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted) {
+    return (
+      <button className="p-2 rounded-md border bg-transparent flex items-center opacity-0">
+        <Sun className="h-5 w-5" />
+      </button>
+    );
+  }
 
   const handleClick = () => {
-    // If parent provided a toggle handler, call it so higher-level layout stays in sync
-    if (typeof toggleTheme === "function") toggleTheme();
-    else toggleThemeInternal();
+    if (typeof toggleTheme === "function") {
+      toggleTheme();
+    } else {
+      setTheme(theme === "dark" ? "light" : "dark");
+    }
   };
 
-  function toggleThemeInternal() {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    try {
-      localStorage.setItem("theme", newTheme);
-      try {
-        document.cookie = `theme=${newTheme}; path=/; max-age=${
-          60 * 60 * 24 * 365
-        }; samesite=lax`;
-      } catch {}
-    } catch {}
-    if (newTheme === "dark") document.documentElement.classList.add("dark");
-    else document.documentElement.classList.remove("dark");
-  }
+  const activeTheme = currentTheme ?? theme;
 
   return (
     <button
       onClick={handleClick}
-      className="p-2 rounded-md border hover:bg-accent transition flex items-center"
+      className="p-2 rounded-md border hover:bg-accent transition flex items-center bg-transparent dark:border-gray-700"
+      title={`Switch to ${activeTheme === "dark" ? "light" : "dark"} mode`}
     >
-      {(currentTheme ?? theme) === "light" ? (
-        <Sun className="h-5 w-5" />
+      {activeTheme === "light" ? (
+        <Sun className="h-5 w-5 text-orange-500" />
       ) : (
-        <Moon className="h-5 w-5" />
+        <Moon className="h-5 w-5 text-blue-400" />
       )}
     </button>
   );

@@ -262,7 +262,7 @@ export default function RetroModule() {
           </div>
           <Button
             onClick={openAddDialog}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Retro Pay
@@ -332,7 +332,7 @@ export default function RetroModule() {
                     variant="default"
                     onClick={() => loadData()}
                     disabled={isRefreshing}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
                   >
                     <RefreshCw
                       className={`h-3.5 w-3.5 mr-2 ${

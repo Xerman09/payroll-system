@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,6 +26,7 @@ import { PrintPreviewModal } from "./components/modals/PrintPreviewModal";
 
 export function CoopManagementModule() {
   const [activeTab, setActiveTab] = useState("savings");
+  const searchParams = useSearchParams();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -35,6 +37,14 @@ export function CoopManagementModule() {
 
   const savingsRef = useRef<{ getData: () => Record<string, unknown>[] }>(null);
   const loansRef = useRef<{ getData: () => Record<string, unknown>[] }>(null);
+
+  // Synchronize activeTab with URL 'tab' parameter
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && (tabParam === "savings" || tabParam === "loans")) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   const handleRefresh = () => setRefreshTrigger((prev) => prev + 1);
 
@@ -75,7 +85,7 @@ export function CoopManagementModule() {
 
           <Button
             onClick={() => setIsAddModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
           >
             <Plus className="h-4 w-4 mr-2" />
             {activeTab === "savings" ? "Add Employee" : "Add Loan"}
@@ -136,13 +146,13 @@ export function CoopManagementModule() {
                   </Button>
                   <Button
                     variant="outline"
-                    className="flex-1 border-blue-200 text-blue-700 hover:bg-blue-50"
+                    className="flex-1 border-primary/20 text-primary hover:bg-primary/5"
                     onClick={handlePrint}
                   >
                     <Printer className="h-3.5 w-3.5 mr-2" /> Print
                   </Button>
                   <Button
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
                     onClick={handleRefresh}
                   >
                     <RefreshCw className="h-3.5 w-3.5 mr-2" /> Refresh

@@ -98,7 +98,7 @@ export default function EditModal({ isOpen, onClose, record, onSave }: EditModal
                   cutoff_end: end,
                 });
               }}
-              className="bg-blue-700 hover:bg-blue-800"
+              className="bg-primary hover:bg-primary/90"
             >
               Save Changes
             </Button>

@@ -35,7 +35,7 @@ export function WageMatrixHeader({
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-blue-600 rounded-lg shadow-lg shadow-blue-500/20 flex-shrink-0">
+            <div className="p-2 bg-primary rounded-lg shadow-lg shadow-primary/20 flex-shrink-0">
               <LayoutGrid className="h-6 w-6 text-white" />
             </div>
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white truncate">
@@ -55,10 +55,10 @@ export function WageMatrixHeader({
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative group w-full sm:w-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
             <Input 
               placeholder="Search areas..." 
-              className="pl-10 w-full sm:w-64 bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-blue-500/20 transition-all rounded-xl"
+              className="pl-10 w-full sm:w-64 bg-white/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-primary/20 transition-all rounded-xl"
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
             />
@@ -71,7 +71,7 @@ export function WageMatrixHeader({
               <Button 
                 onClick={onSave} 
                 disabled={saving}
-                className={`w-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 rounded-xl px-6 gap-2 transition-all active:scale-95 ${
+                className={`w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 rounded-xl px-6 gap-2 transition-all active:scale-95 ${
                   unsavedCount > 0 && !saving ? 'ring-2 ring-amber-400 ring-offset-1' : ''
                 }`}
               >

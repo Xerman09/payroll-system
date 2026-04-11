@@ -353,7 +353,7 @@ function MoneyPill({
 
   if (accent === "savings") {
     return (
-      <div className="rounded-xl border border-blue-200/70 bg-blue-50/50 px-2.5 py-1 font-mono text-xs tabular-nums text-blue-800">
+      <div className="rounded-xl border border-primary/20 bg-primary/5 px-2.5 py-1 font-mono text-xs tabular-nums text-primary">
         {amount}
       </div>
     );

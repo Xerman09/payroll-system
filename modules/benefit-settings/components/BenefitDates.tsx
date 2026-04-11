@@ -13,7 +13,7 @@ export default function BenefitDates({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-sm font-medium text-foreground/80 dark:text-gray-300">
-        <Clock className="h-4 w-4 text-primary dark:text-blue-400" />
+        <Clock className="h-4 w-4 text-primary dark:text-primary/70" />
         <span>Effectivity Period</span>
       </div>
 

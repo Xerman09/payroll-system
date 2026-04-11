@@ -1,4 +1,7 @@
-import React from 'react';
+"use client";
+
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
@@ -10,6 +13,18 @@ import StaffTab from './components/StaffTab';
 import VehicleTypeTab from './components/VehicleTypeTab';
 
 export default function CompensationSettingsModule() {
+  const [activeTab, setActiveTab] = useState("area");
+  const searchParams = useSearchParams();
+
+  // Synchronize activeTab with URL 'tab' parameter
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    const validTabs = ["area", "location", "vehicle", "staff"];
+    if (tabParam && validTabs.includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
   return (
     <DashboardLayout>
       <div className="space-y-6 max-w-7xl mx-auto w-full px-4 sm:px-6">
@@ -23,7 +38,7 @@ export default function CompensationSettingsModule() {
           <Separator />
         </div>
 
-        <Tabs defaultValue="area" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="w-full justify-start rounded-xl bg-gray-100 dark:bg-gray-800 p-1 mb-6">
             <TabsTrigger value="area" className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700">
               Area

@@ -191,7 +191,7 @@ function ProrationDetails({ row }: { row: unknown }) {
   if (!isProrated || !d) return null;
 
   return (
-    <div className="mt-2 inline-block rounded-md border border-blue-200 bg-blue-50 p-2 text-[11px] leading-5 text-blue-900">
+    <div className="mt-2 inline-block rounded-md border border-primary/20 bg-primary/5 p-2 text-[11px] leading-5 text-blue-900">
       <div className="font-semibold">Wage Change Detected</div>
       <div>
         • {n(d.daysOnOldRate)} days @{" "}

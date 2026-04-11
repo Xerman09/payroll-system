@@ -22,7 +22,7 @@ export function EmploymentInfo({ user }: EmploymentInfoProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-indigo-600">
+      <div className="flex items-center gap-2 text-primary">
         <Briefcase size={18} />
         <h3 className="font-bold uppercase tracking-wider text-sm">Employment Details</h3>
       </div>
@@ -32,7 +32,7 @@ export function EmploymentInfo({ user }: EmploymentInfoProps) {
           icon={IdCard} 
           label="Employee ID" 
           value={user?.user_id?.toString()} 
-          colorClass="bg-blue-50 dark:bg-blue-900/20 text-blue-600" 
+          colorClass="bg-primary/10 dark:bg-primary/10 text-primary" 
         />
         <DataRow 
           icon={Briefcase} 
@@ -62,12 +62,12 @@ export function EmploymentInfo({ user }: EmploymentInfoProps) {
           icon={Briefcase} 
           label="Employment Tags" 
           value={user?.user_tags} 
-          colorClass="bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600" 
+          colorClass="bg-primary/10 dark:bg-primary/10 text-primary" 
         />
       </div>
 
-      <div className="p-4 bg-blue-50/20 dark:bg-blue-900/10 rounded-lg border border-blue-100/50 dark:border-blue-800/20">
-        <p className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 italic">
+      <div className="p-4 bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/10 dark:border-primary/20">
+        <p className="text-[10px] font-semibold text-primary/80 dark:text-primary italic">
           * Employment details are read-only. Please contact HR if any information is incorrect.
         </p>
       </div>
