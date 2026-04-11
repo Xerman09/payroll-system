@@ -433,7 +433,7 @@ export default function TapSheetTab({
               onClick={onDownloadAllPayslips}
               disabled={loading || exporting || tapRows.length === 0}
               variant="outline"
-              className="border-blue-600 text-blue-600 hover:bg-blue-50"
+              className="border-primary text-primary hover:bg-primary/5"
             >
                {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
                Download All Payslips
@@ -442,7 +442,7 @@ export default function TapSheetTab({
             <Button
               onClick={openPreview}
               disabled={loading || tapRows.length === 0}
-              className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-50"
             >
                <Eye className="mr-2 h-4 w-4" />
                Preview & Download PDF

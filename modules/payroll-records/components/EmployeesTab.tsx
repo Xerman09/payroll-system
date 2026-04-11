@@ -255,7 +255,7 @@ export default function EmployeesTab({
                     <TableCell className="flex gap-2 justify-end">
                       <Button
                         size="sm"
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground"
                         onClick={() => {
                           setSelectedEmployee(emp);
                           setHistoryModalOpen(true);
@@ -265,7 +265,7 @@ export default function EmployeesTab({
                       </Button>
                       <Button
                         size="sm"
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground"
                         onClick={() => handleViewBenefitsHistory(emp)}
                       >
                         View Benefits History
@@ -318,7 +318,7 @@ export default function EmployeesTab({
             size="sm"
             disabled={currentPage === 1}
             onClick={() => setCurrentPage((p) => p - 1)}
-            className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-50"
           >
             Prev
           </Button>
@@ -336,8 +336,8 @@ export default function EmployeesTab({
                 onClick={() => setCurrentPage(Number(page))}
                 className={
                   currentPage === page
-                    ? "bg-blue-600 hover:bg-blue-700 text-white"
-                    : "border-blue-600 text-blue-600 hover:bg-blue-50"
+                    ? "bg-primary hover:bg-primary/90 text-primary-foreground"
+                    : "border-primary text-primary hover:bg-primary/5"
                 }
               >
                 {page}
@@ -349,7 +349,7 @@ export default function EmployeesTab({
             size="sm"
             disabled={currentPage === totalPages || totalPages === 0}
             onClick={() => setCurrentPage((p) => p + 1)}
-            className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-50"
           >
             Next
           </Button>

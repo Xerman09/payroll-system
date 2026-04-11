@@ -57,7 +57,7 @@ export default function ConfirmDialog({
             className={`rounded-lg h-9 px-6 ${
               variant === "destructive"
                 ? "bg-rose-600 hover:bg-rose-700 text-white"
-                : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                : "bg-primary hover:bg-primary/90 text-primary-foreground"
             }`}
           >
             {confirmText}

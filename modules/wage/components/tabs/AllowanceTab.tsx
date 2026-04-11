@@ -109,7 +109,7 @@ function modeBadge(mode: AllowanceMode) {
   return mode === "RECURRING" ? (
     <Badge
       variant="secondary"
-      className="bg-indigo-600 text-white hover:bg-indigo-600"
+      className="bg-primary text-primary-foreground hover:bg-primary/90"
     >
       Recurring
     </Badge>

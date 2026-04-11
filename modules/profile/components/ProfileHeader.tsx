@@ -78,7 +78,7 @@ export function ProfileHeader({ user, onRefresh }: ProfileHeaderProps) {
         <div className="relative">
           <Avatar className="h-28 w-28 border-4 border-white dark:border-gray-800 shadow-xl ring-1 ring-gray-200 dark:ring-gray-700">
             <AvatarImage src={imageUrl} className="object-cover" />
-            <AvatarFallback className="text-3xl font-bold bg-blue-50 dark:bg-blue-900/20 text-blue-600">
+            <AvatarFallback className="text-3xl font-bold bg-primary/5 dark:bg-primary/10 text-primary">
               {user?.user_fname?.[0]}{user?.user_lname?.[0]}
             </AvatarFallback>
           </Avatar>
@@ -88,7 +88,7 @@ export function ProfileHeader({ user, onRefresh }: ProfileHeaderProps) {
           <button 
             onClick={handleImageClick}
             disabled={uploading}
-            className="absolute bottom-1 right-1 h-9 w-9 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110 active:scale-95 disabled:opacity-50"
+            className="absolute bottom-1 right-1 h-9 w-9 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110 active:scale-95 disabled:opacity-50"
           >
             {uploading ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
           </button>
@@ -107,7 +107,7 @@ export function ProfileHeader({ user, onRefresh }: ProfileHeaderProps) {
             {user?.user_fname} {user?.user_mname ? `${user.user_mname} ` : ""}{user?.user_lname} {user?.suffix_name || ""}
           </h2>
           <div className="flex flex-wrap justify-center md:justify-start items-center gap-2">
-            <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider rounded-full border border-blue-100 dark:border-blue-800/50">
+            <span className="px-3 py-1 bg-primary/5 dark:bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider rounded-full border border-primary/20 dark:border-primary/30">
               {user?.role || "USER"}
             </span>
             <span className="text-gray-400 dark:text-gray-500">•</span>

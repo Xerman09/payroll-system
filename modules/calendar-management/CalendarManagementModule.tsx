@@ -270,7 +270,7 @@ export function CalendarManagementModule() {
       const hasEvent = dayEvents.length > 0;
 
       const isSpecial = dayEvents.some((h) => h.holiday_type === "special");
-      const dotColor = isSpecial ? "bg-amber-500" : "bg-blue-500";
+      const dotColor = isSpecial ? "bg-amber-500" : "bg-primary";
 
       days.push(
         <button
@@ -280,10 +280,10 @@ export function CalendarManagementModule() {
             relative h-10 w-10 p-0 rounded-full flex items-center justify-center transition-all duration-300 text-sm group
             ${
               isSelected
-                ? "bg-blue-600 text-white shadow-md scale-105"
+                ? "bg-primary text-white shadow-md scale-105"
                 : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
             }
-            ${isToday && !isSelected ? "text-blue-600 font-bold border border-blue-200 dark:border-blue-800" : ""}
+            ${isToday && !isSelected ? "text-primary font-bold border border-primary/20 dark:border-primary/30" : ""}
             ${isFlashing ? "ring-4 ring-blue-300 dark:ring-blue-900 scale-125 z-10" : ""} 
           `}
         >
@@ -326,7 +326,7 @@ export function CalendarManagementModule() {
               onClick={() =>
                 setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))
               }
-              className="h-8 w-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-800 rounded-md flex items-center justify-center transition-all shadow-sm"
+              className="h-8 w-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary/70 hover:border-primary/20 dark:hover:border-blue-800 rounded-md flex items-center justify-center transition-all shadow-sm"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -334,7 +334,7 @@ export function CalendarManagementModule() {
               onClick={() =>
                 setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))
               }
-              className="h-8 w-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-800 rounded-md flex items-center justify-center transition-all shadow-sm"
+              className="h-8 w-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary/70 hover:border-primary/20 dark:hover:border-blue-800 rounded-md flex items-center justify-center transition-all shadow-sm"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -385,7 +385,7 @@ export function CalendarManagementModule() {
               resetForm();
               setModalOpen(true);
             }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2 shadow-sm transition-colors"
+            className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 flex items-center gap-2 shadow-sm transition-colors"
           >
             <Plus className="h-4 w-4" /> Add Event
           </button>
@@ -399,7 +399,7 @@ export function CalendarManagementModule() {
             <div className="h-full border dark:border-gray-700 rounded-lg shadow-sm flex flex-col overflow-hidden bg-white dark:bg-gray-900">
               <div className="py-3 px-5 border-b dark:border-gray-700 bg-white dark:bg-gray-900 flex items-center justify-between">
                 <h3 className="text-sm font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-200">
-                  <CalendarIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <CalendarIcon className="w-4 h-4 text-primary dark:text-primary/70" />
                   Pick a Date
                 </h3>
               </div>
@@ -411,7 +411,7 @@ export function CalendarManagementModule() {
                   <div className="mt-auto pt-6 animate-in fade-in slide-in-from-bottom-2">
                     <div className="w-full p-4 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm">
                       <div className="flex items-center gap-2 mb-3">
-                        <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                        <div className="h-2 w-2 rounded-full bg-primary"></div>
                         <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           Selected Date
                         </p>
@@ -449,7 +449,7 @@ export function CalendarManagementModule() {
                                         event.holiday_type === "special"
                                           ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400"
                                           : event.holiday_type === "company"
-                                          ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400"
+                                          ? "bg-primary/10 dark:bg-primary/15 text-primary dark:text-primary/70"
                                           : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
                                       }`}
                                     >
@@ -515,7 +515,7 @@ export function CalendarManagementModule() {
                     placeholder="Filter events..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8 h-8 w-full text-xs bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-200"
+                    className="pl-8 h-8 w-full text-xs bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:text-gray-200"
                   />
                 </div>
               </div>
@@ -530,7 +530,7 @@ export function CalendarManagementModule() {
                       <span className="text-xs text-gray-600 dark:text-gray-400">entries</span>
                     </div>
                   </div>
-                  <CalendarIcon className="w-8 h-8 p-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" />
+                  <CalendarIcon className="w-8 h-8 p-1.5 rounded-full bg-primary/5 dark:bg-primary/15 text-primary dark:text-primary/70" />
                 </div>
                 <div className="px-5 py-3 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                   <div>
@@ -581,9 +581,9 @@ export function CalendarManagementModule() {
                         <tr
                           key={item.id}
                           onClick={() => handleEventClick(item.holiday_date)}
-                          className="border-b dark:border-gray-800 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-colors cursor-pointer group"
+                          className="border-b dark:border-gray-800 hover:bg-primary/5/50 dark:hover:bg-primary/10 transition-colors cursor-pointer group"
                         >
-                          <td className="px-5 py-3 text-xs font-medium text-gray-700 dark:text-gray-300 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors">
+                          <td className="px-5 py-3 text-xs font-medium text-gray-700 dark:text-gray-300 group-hover:text-primary dark:group-hover:text-primary/70 transition-colors">
                             {new Date(item.holiday_date).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
@@ -594,7 +594,7 @@ export function CalendarManagementModule() {
                             <span
                               className={`px-2 py-1 text-[10px] rounded-full font-medium uppercase tracking-wide ${
                                 item.holiday_type === "company"
-                                  ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400"
+                                  ? "bg-primary/10 dark:bg-primary/15 text-primary dark:text-primary/70"
                                   : item.holiday_type === "special"
                                   ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400"
                                   : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
@@ -641,7 +641,7 @@ export function CalendarManagementModule() {
                             <div className="flex justify-end gap-1">
                               <button
                                 onClick={(e) => handleEdit(e, item)}
-                                className="p-1.5 hover:bg-blue-100 rounded text-blue-600 transition-colors"
+                                className="p-1.5 hover:bg-primary/10 rounded text-primary transition-colors"
                                 title="Edit"
                               >
                                 <Pencil className="h-3.5 w-3.5" />
@@ -738,7 +738,7 @@ export function CalendarManagementModule() {
                     type="date"
                     value={holidayDate}
                     onChange={(e) => setHolidayDate(e.target.value)}
-                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   />
                 </div>
                 <div>
@@ -747,7 +747,7 @@ export function CalendarManagementModule() {
                     type="date"
                     value={lastWorkingDay}
                     onChange={(e) => setLastWorkingDay(e.target.value)}
-                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   />
                 </div>
                 <div>
@@ -756,7 +756,7 @@ export function CalendarManagementModule() {
                     placeholder="e.g. Christmas Day"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   />
                 </div>
                 <div>
@@ -764,7 +764,7 @@ export function CalendarManagementModule() {
                   <select
                     value={holidayType}
                     onChange={(e) => setHolidayType(e.target.value)}
-                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   >
                     <option value="regular">Regular</option>
                     <option value="special">Special</option>
@@ -777,7 +777,7 @@ export function CalendarManagementModule() {
                       type="checkbox"
                       checked={isRecurring as boolean}
                       onChange={(e) => setIsRecurring(e.target.checked)}
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300 dark:border-gray-600 dark:bg-gray-700"
+                      className="w-4 h-4 text-primary rounded focus:ring-primary border-gray-300 dark:border-gray-600 dark:bg-gray-700"
                     />
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Recurring</span>
                   </label>
@@ -786,7 +786,7 @@ export function CalendarManagementModule() {
                       type="checkbox"
                       checked={isPaid as boolean}
                       onChange={(e) => setIsPaid(e.target.checked)}
-                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300 dark:border-gray-600 dark:bg-gray-700"
+                      className="w-4 h-4 text-primary rounded focus:ring-primary border-gray-300 dark:border-gray-600 dark:bg-gray-700"
                     />
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Paid Holiday</span>
                   </label>
@@ -800,7 +800,7 @@ export function CalendarManagementModule() {
                   </button>
                   <button
                     onClick={handleSaveHoliday}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium shadow-sm transition-colors"
+                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium shadow-sm transition-colors"
                   >
                     Save Event
                   </button>

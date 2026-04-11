@@ -196,7 +196,7 @@ export default function PayslipHistoryModal({
             "px-2.5 py-1 rounded-full text-xs font-semibold border",
             type === "FIRST" 
               ? "bg-slate-100/50 text-slate-700 border-slate-200 dark:bg-slate-900/30 dark:text-slate-400 dark:border-slate-800"
-              : "bg-indigo-50 text-indigo-700 border-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800"
+              : "bg-primary/5 text-primary border-primary/10 dark:bg-primary/10 dark:text-primary dark:border-primary/20"
           )}>
             {type === "FIRST" ? "First Period" : "Second Period"}
           </span>
@@ -216,7 +216,7 @@ export default function PayslipHistoryModal({
       cell: ({ row }) => {
         const amount = Number(row.getValue("net_pay") || 0);
         return (
-          <div className="text-right font-mono text-lg text-blue-600 dark:text-blue-400 font-bold">
+          <div className="text-right font-mono text-lg text-primary font-bold">
             {formatPHP(amount)}
           </div>
         );
@@ -229,7 +229,7 @@ export default function PayslipHistoryModal({
         <div className="text-center">
           <Button
             variant="outline"
-            className="gap-2 h-9 px-4 text-sm font-semibold shadow-sm rounded-lg hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all"
+            className="gap-2 h-9 px-4 text-sm font-semibold shadow-sm rounded-lg hover:bg-primary/5 hover:text-primary hover:border-primary/20 transition-all"
             onClick={() => handlePreview(row.original)}
             disabled={isGenerating}
           >
@@ -264,8 +264,8 @@ export default function PayslipHistoryModal({
           <div className="relative p-8 pb-6 bg-gradient-to-br from-indigo-50/50 via-background to-background dark:from-indigo-950/20 dark:via-background dark:to-background border-b shadow-sm">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
-                <DialogTitle className="flex items-center gap-2 text-2xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400">
-                  <div className="p-2 rounded-lg bg-indigo-500/10">
+                <DialogTitle className="flex items-center gap-2 text-2xl font-bold tracking-tight text-primary">
+                  <div className="p-2 rounded-lg bg-primary/10">
                     <History className="h-6 w-6" />
                   </div>
                   Payslip History
@@ -294,8 +294,8 @@ export default function PayslipHistoryModal({
             {loading ? (
               <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
                 <div className="relative">
-                  <div className="absolute inset-0 rounded-full blur-xl bg-indigo-500/20 animate-pulse" />
-                  <Loader2 className="h-10 w-10 animate-spin text-indigo-500 relative" />
+                  <div className="absolute inset-0 rounded-full blur-xl bg-primary/20 animate-pulse" />
+                  <Loader2 className="h-10 w-10 animate-spin text-primary relative" />
                 </div>
                 <p className="font-medium animate-pulse">Retriving payroll summary...</p>
               </div>
@@ -308,7 +308,7 @@ export default function PayslipHistoryModal({
                 {searchTerm && (
                   <Button 
                     variant="link" 
-                    className="mt-1 text-indigo-500"
+                    className="mt-1 text-primary"
                     onClick={() => setSearchTerm("")}
                   >
                     Clear search query
@@ -437,7 +437,7 @@ export default function PayslipHistoryModal({
               </div>
               <div className="flex items-center gap-3">
                 {previewUrl && (
-                  <Button variant="default" size="default" asChild className="rounded-lg shadow-lg bg-indigo-600 hover:bg-indigo-700">
+                  <Button variant="default" size="default" asChild className="rounded-lg shadow-lg bg-primary hover:bg-primary/90">
                     <a href={previewUrl} download={`Payslip-${employee?.user_fname}-${employee?.user_lname}.pdf`}>
                       <FileDown className="mr-2 h-4 w-4" />
                       Download PDF
@@ -460,7 +460,7 @@ export default function PayslipHistoryModal({
                 />
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-sm text-muted-foreground gap-3">
-                  <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
+                  <Loader2 className="h-6 w-6 animate-spin text-primary/70" />
                   Generating document preview...
                 </div>
               )}

@@ -229,8 +229,8 @@ export function SalaryGradeManagement() {
     <div className="space-y-6 font-sans">
       {/* Stats Summary Section */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
-        <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-4 rounded-xl shadow-sm flex items-center gap-4 transition-all hover:shadow-md hover:border-blue-100/50">
-          <div className="h-10 w-10 bg-blue-50 dark:bg-blue-900/10 text-blue-600 rounded-lg flex items-center justify-center">
+        <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-4 rounded-xl shadow-sm flex items-center gap-4 transition-all hover:shadow-md hover:border-primary/20">
+          <div className="h-10 w-10 bg-primary/5 dark:bg-primary/10 text-primary rounded-lg flex items-center justify-center">
             <Activity className="h-5 w-5" />
           </div>
           <div>
@@ -239,7 +239,7 @@ export function SalaryGradeManagement() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-4 rounded-xl shadow-sm flex items-center gap-4 transition-all hover:shadow-md hover:border-blue-100/50">
+        <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-4 rounded-xl shadow-sm flex items-center gap-4 transition-all hover:shadow-md hover:border-primary/20">
           <div className="h-10 w-10 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 rounded-lg flex items-center justify-center">
             <Award className="h-5 w-5" />
           </div>
@@ -249,7 +249,7 @@ export function SalaryGradeManagement() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-4 rounded-xl shadow-sm flex items-center gap-4 transition-all hover:shadow-md hover:border-blue-100/50">
+        <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-4 rounded-xl shadow-sm flex items-center gap-4 transition-all hover:shadow-md hover:border-primary/10/50">
           <div className="h-10 w-10 bg-amber-50 dark:bg-amber-900/10 text-amber-600 rounded-lg flex items-center justify-center">
             <Wallet className="h-5 w-5" />
           </div>
@@ -261,8 +261,8 @@ export function SalaryGradeManagement() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-4 rounded-xl shadow-sm flex items-center gap-4 transition-all hover:shadow-md hover:border-blue-100/50">
-          <div className="h-10 w-10 bg-indigo-50 dark:bg-indigo-900/10 text-indigo-600 rounded-lg flex items-center justify-center">
+        <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-4 rounded-xl shadow-sm flex items-center gap-4 transition-all hover:shadow-md hover:border-primary/10/50">
+          <div className="h-10 w-10 bg-primary/5 dark:bg-primary/10 text-primary rounded-lg flex items-center justify-center">
             <TrendingUp className="h-5 w-5" />
           </div>
           <div>
@@ -299,7 +299,7 @@ export function SalaryGradeManagement() {
             <div className="flex gap-2">
               <Button
                 variant="outline"
-                className="h-10 px-3 gap-2 text-gray-500 border-gray-200 hover:text-blue-600 shadow-none bg-transparent"
+                className="h-10 px-3 gap-2 text-gray-500 border-gray-200 hover:text-primary shadow-none bg-transparent"
                 onClick={handleResetWarnings}
                 title="Reset Notice Preferences"
               >
@@ -316,7 +316,7 @@ export function SalaryGradeManagement() {
               </Button>
               <Button 
                 onClick={handleOpenAdd} 
-                className="h-10 px-4 gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-sm font-medium"
+                className="h-10 px-4 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm font-medium"
               >
                 <Plus className="h-4 w-4" />
                 Add Schedule
@@ -347,7 +347,7 @@ export function SalaryGradeManagement() {
                 <TableRow>
                   <TableCell colSpan={5} className="h-40 text-center text-gray-400">
                     <div className="flex flex-col items-center gap-3">
-                      <div className="h-10 w-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                      <div className="h-10 w-10 border-4 border-primary/10 border-t-primary rounded-full animate-spin"></div>
                       <span className="text-sm font-semibold tracking-wide uppercase">Fetching Records</span>
                     </div>
                   </TableCell>
@@ -370,7 +370,7 @@ export function SalaryGradeManagement() {
                           Active
                         </span>
                       ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 rounded-full text-[10px] font-bold border border-blue-100 dark:border-blue-900/50">
+                        <span className="inline-flex items-center px-2 py-0.5 bg-primary/5 dark:bg-primary/10 text-primary rounded-full text-[10px] font-bold border border-primary/20 dark:border-primary/30">
                           Upcoming
                         </span>
                       )}
@@ -398,7 +398,7 @@ export function SalaryGradeManagement() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-8 w-8 p-0 text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700 rounded-md"
+                          className="h-8 w-8 p-0 text-primary border-primary/20 hover:bg-primary/5 hover:text-primary rounded-md"
                           onClick={() => handleOpenEdit(sch)}
                           title="Edit Schedule"
                         >
@@ -482,15 +482,15 @@ export function SalaryGradeManagement() {
             <div className="px-6 pt-6 pb-3 shrink-0 border-b border-gray-50 dark:border-gray-900">
               <DialogHeader className="space-y-3 text-left">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/10 ring-4 ring-blue-500/5">
+                  <div className="h-10 w-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/10 ring-4 ring-primary/5">
                     <ShieldCheck size={20} className="text-white fill-blue-400/20" />
                   </div>
                   <div className="space-y-0.5">
                     <DialogTitle className="text-xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">
                       {editingId ? "Update Schedule" : "Add New Schedule"}
                     </DialogTitle>
-                    <div className="text-[10px] font-bold text-blue-600 uppercase tracking-widest flex items-center gap-1.5 mt-0.5">
-                      <div className="h-1 w-1 bg-blue-600 rounded-full animate-pulse"></div>
+                    <div className="text-[10px] font-bold text-primary uppercase tracking-widest flex items-center gap-1.5 mt-0.5">
+                      <div className="h-1 w-1 bg-primary rounded-full animate-pulse"></div>
                       Compensation Management Unit
                     </div>
                   </div>
@@ -518,10 +518,10 @@ export function SalaryGradeManagement() {
                     onChange={(e) =>
                       setFormData({ ...formData, effectivity_date: e.target.value })
                     }
-                    className="h-10 bg-gray-50/50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800 rounded-xl focus:ring-[6px] focus:ring-blue-500/5 focus:border-blue-500/50 transition-all pl-10 font-semibold text-sm tracking-tight"
+                    className="h-10 bg-gray-50/50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800 rounded-xl focus:ring-[6px] focus:ring-primary/5 focus:border-primary/50 transition-all pl-10 font-semibold text-sm tracking-tight"
                     required
                   />
-                  <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                  <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 group-focus-within:text-primary transition-colors" />
                 </div>
               </div>
 
@@ -538,7 +538,7 @@ export function SalaryGradeManagement() {
                       setFormData({ ...formData, salary_grade: Number(v) })
                     }
                   >
-                    <SelectTrigger className="h-10 bg-gray-50/50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800 rounded-xl focus:ring-4 focus:ring-blue-500/5 font-semibold transition-all">
+                    <SelectTrigger className="h-10 bg-gray-50/50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800 rounded-xl focus:ring-4 focus:ring-primary/5 font-semibold transition-all">
                       <SelectValue placeholder="SG" />
                     </SelectTrigger>
                     <SelectContent className="rounded-2xl border-gray-100 dark:border-gray-800">
@@ -562,7 +562,7 @@ export function SalaryGradeManagement() {
                       setFormData({ ...formData, step: Number(v) })
                     }
                   >
-                    <SelectTrigger className="h-10 bg-gray-50/50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800 rounded-xl focus:ring-4 focus:ring-blue-500/5 font-semibold transition-all">
+                    <SelectTrigger className="h-10 bg-gray-50/50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800 rounded-xl focus:ring-4 focus:ring-primary/5 font-semibold transition-all">
                       <SelectValue placeholder="Step" />
                     </SelectTrigger>
                     <SelectContent className="rounded-2xl border-gray-100 dark:border-gray-800">
@@ -589,21 +589,21 @@ export function SalaryGradeManagement() {
                     placeholder="e.g. 21,500.00"
                     value={rateDisplay}
                     onChange={(e) => handleRateInput(e.target.value)}
-                    className="h-12 bg-gray-50/50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800 rounded-xl focus:ring-[6px] focus:ring-blue-500/5 focus:border-blue-500/50 transition-all pl-11 font-mono text-lg font-bold text-gray-900 dark:text-gray-100 placeholder:font-sans placeholder:text-xs placeholder:font-semibold placeholder:text-gray-400"
+                    className="h-12 bg-gray-50/50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800 rounded-xl focus:ring-[6px] focus:ring-primary/5 focus:border-primary/50 transition-all pl-11 font-mono text-lg font-bold text-gray-900 dark:text-gray-100 placeholder:font-sans placeholder:text-xs placeholder:font-semibold placeholder:text-gray-400"
                     required
                   />
-                  <PhilippinePeso className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-gray-400 group-focus-within:text-blue-600 transition-colors stroke-[2]" />
+                  <PhilippinePeso className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-gray-400 group-focus-within:text-primary transition-colors stroke-[2]" />
                 </div>
               </div>
 
               {/* COMPACT INFO BOX */}
-              <div className="bg-blue-50/30 dark:bg-blue-900/10 border border-blue-100/30 dark:border-blue-500/10 p-3.5 rounded-xl flex gap-3 relative overflow-hidden group/info">
-                <div className="shrink-0 h-8 w-8 bg-white dark:bg-gray-900 rounded-lg border border-blue-100/50 dark:border-blue-800/20 flex items-center justify-center shadow-sm">
-                  <Info size={14} className="text-blue-600" />
+              <div className="bg-primary/5 dark:bg-primary/10 border border-primary/10 dark:border-primary/10 p-3.5 rounded-xl flex gap-3 relative overflow-hidden group/info">
+                <div className="shrink-0 h-8 w-8 bg-white dark:bg-gray-900 rounded-lg border border-primary/10 dark:border-primary/20 flex items-center justify-center shadow-sm">
+                  <Info size={14} className="text-primary" />
                 </div>
                 <div className="space-y-1 relative z-10">
-                  <h5 className="text-[10px] font-bold uppercase text-blue-700 dark:text-blue-400 tracking-wide">Sync Assurance</h5>
-                  <p className="text-[10px] leading-relaxed text-gray-600 dark:text-gray-400 font-semibold italic opacity-80 decoration-blue-500/20 underline underline-offset-4 line-clamp-2">
+                  <h5 className="text-[10px] font-bold uppercase text-primary tracking-wide">Sync Assurance</h5>
+                  <p className="text-[10px] leading-relaxed text-gray-600 dark:text-gray-400 font-semibold italic opacity-80 decoration-primary/20 underline underline-offset-4 line-clamp-2">
                     Ensure rates comply with organizational standards before submission. System auto-verifies baseline logic.
                   </p>
                 </div>
@@ -622,7 +622,7 @@ export function SalaryGradeManagement() {
               </Button>
               <Button 
                 type="submit" 
-                className="w-full sm:flex-1 h-10 bg-gray-900 dark:bg-blue-600 hover:bg-black dark:hover:bg-blue-700 text-white font-bold text-[10px] uppercase tracking-[0.2em] rounded-xl shadow-xl shadow-blue-500/10 active:scale-[0.97] transition-all"
+                className="w-full sm:flex-1 h-10 bg-gray-900 dark:bg-primary hover:bg-black dark:hover:bg-primary/90 text-white font-bold text-[10px] uppercase tracking-[0.2em] rounded-xl shadow-xl shadow-primary/10 active:scale-[0.97] transition-all"
               >
                 {editingId ? "Finalize Update" : "Save Changes"}
               </Button>
@@ -650,7 +650,7 @@ export function SalaryGradeManagement() {
 
             <div className="bg-amber-50/50 dark:bg-amber-900/10 p-5 rounded-2xl border border-amber-100 dark:border-amber-500/10 space-y-4 shadow-sm">
               <p className="text-xs text-gray-700 dark:text-gray-300 font-semibold leading-relaxed text-center">
-                If this is a <span className="text-blue-600 dark:text-blue-400 font-extrabold underline decoration-blue-500/20 underline-offset-4">rate adjustment</span>, please create a new schedule to preserve history.
+                If this is a <span className="text-primary font-extrabold underline decoration-primary/20 underline-offset-4">rate adjustment</span>, please create a new schedule to preserve history.
               </p>
               
               <div className="flex items-center justify-center space-x-3 pt-3 border-t border-amber-100/50 dark:border-amber-500/10">

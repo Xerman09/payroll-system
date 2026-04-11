@@ -190,7 +190,7 @@ export default function LocationTab() {
                 <span className="hidden lg:inline">Refresh</span>
               </Button>
               <Button 
-                className="h-10 px-4 gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                className="h-10 px-4 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
                 onClick={() => handleOpenModal()}
               >
                 <Plus className="h-4 w-4" />
@@ -233,7 +233,7 @@ export default function LocationTab() {
                 <TableRow key={loc.id} className="hover:bg-slate-50 dark:hover:bg-gray-800/50 transition-colors">
                   <TableCell className="px-6 font-medium text-slate-900 dark:text-slate-100">{loc.location_id}</TableCell>
                   <TableCell className="px-6 text-slate-700 dark:text-slate-300">
-                    <span className="px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-semibold">
+                    <span className="px-2 py-1 rounded-md bg-primary/5 dark:bg-primary/15 text-primary dark:text-primary/80 text-xs font-semibold">
                       {getAreaName(loc.area_id)}
                     </span>
                   </TableCell>
@@ -328,7 +328,7 @@ export default function LocationTab() {
           </form>
           <DialogFooter>
             <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={submitting} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={handleSave} disabled={submitting} className="bg-primary hover:bg-primary/90">
               {submitting ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>

@@ -338,7 +338,7 @@ const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
                         variant="ghost"
                         size="icon"
                         onClick={() => setEditingMembership(r.raw)}
-                        className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/5"
                       >
                         <Edit size={14} />
                       </Button>

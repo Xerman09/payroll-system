@@ -78,7 +78,7 @@ export function WageMatrixTable({
     <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-500">
        <div className="flex items-center gap-2.5 px-1">
          <div className={`h-6 w-1 rounded-full ${
-           mode === 'DELIVERY' ? 'bg-blue-500' : 
+           mode === 'DELIVERY' ? 'bg-primary' : 
            mode === 'PICKUP ONLY' ? 'bg-emerald-500' : 'bg-purple-500'
          }`} />
          <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
@@ -102,7 +102,7 @@ export function WageMatrixTable({
                <TableRow className="bg-slate-100/80 dark:bg-slate-900/50 border-b-2 border-slate-200 dark:border-slate-800">
                  <TableHead colSpan={2} className="px-3 py-2"></TableHead>
                  {groupSpans['Fleet Operator'] > 0 && (
-                   <TableHead colSpan={groupSpans['Fleet Operator']} className="text-center font-bold text-[9px] uppercase tracking-[0.2em] text-blue-700 dark:text-blue-400 border-x border-slate-200/50 dark:border-slate-800/50 py-2">
+                   <TableHead colSpan={groupSpans['Fleet Operator']} className="text-center font-bold text-[9px] uppercase tracking-[0.2em] text-primary dark:text-primary border-x border-slate-200/50 dark:border-slate-800/50 py-2">
                       <div className="flex items-center justify-center gap-1">
                         <Truck className="h-2.5 w-2.5" />
                         Fleet Operator
@@ -183,12 +183,12 @@ export function WageMatrixTable({
 
                     return (
                       <TableRow key={area.id} className={`group transition-colors border-b border-slate-200/60 dark:border-slate-800/50 ${
-                        rowUnsavedCount > 0 ? 'hover:bg-amber-50/30 dark:hover:bg-amber-900/5' : 'hover:bg-blue-50/50 dark:hover:bg-blue-900/10'
+                        rowUnsavedCount > 0 ? 'hover:bg-amber-50/30 dark:hover:bg-amber-900/5' : 'hover:bg-primary/5 dark:hover:bg-primary/10'
                       }`}>
                         <TableCell className={`px-3 py-1.5 font-medium text-[11px] text-slate-950 dark:text-slate-100 sticky left-0 z-10 border-r border-slate-200/30 transition-colors ${
                           rowUnsavedCount > 0
                             ? 'bg-amber-50/80 dark:bg-amber-900/10 group-hover:bg-amber-50 dark:group-hover:bg-amber-900/20'
-                            : 'bg-white/95 dark:bg-slate-950/95 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20'
+                            : 'bg-white/95 dark:bg-slate-950/95 group-hover:bg-primary/5 dark:group-hover:bg-primary/10'
                         }`}>
                           <div className="flex items-center gap-2">
                             <span className="truncate max-w-[120px]">{area.area_name}</span>
@@ -232,7 +232,7 @@ export function WageMatrixTable({
                                              ? 'bg-emerald-50/70 dark:bg-emerald-900/10 text-emerald-700 dark:text-emerald-400 focus:ring-emerald-500/50'
                                              : isChanged
                                              ? 'bg-amber-50/70 dark:bg-amber-900/10 text-amber-700 dark:text-amber-400 focus:ring-amber-500/50'
-                                             : 'bg-transparent text-slate-900 dark:text-slate-100 focus:ring-blue-500/50'
+                                             : 'bg-transparent text-slate-900 dark:text-slate-100 focus:ring-primary/50'
                                          }`}
                                          placeholder="0.00"
                                        />

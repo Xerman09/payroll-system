@@ -172,7 +172,7 @@ export function PrintPreviewModal({
                 size="sm"
                 onClick={handleDownload}
                 disabled={!previewUrl || isGenerating}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 <FileDown className="mr-2 h-4 w-4" />
                 Download PDF
@@ -184,7 +184,7 @@ export function PrintPreviewModal({
         <div className="flex-1 bg-muted/20 relative w-full h-full">
           {isGenerating ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/50 backdrop-blur-sm z-10">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <p className="text-sm font-medium text-muted-foreground">Generating preview...</p>
             </div>
           ) : previewUrl ? (

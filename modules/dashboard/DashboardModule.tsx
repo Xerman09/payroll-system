@@ -58,9 +58,9 @@ export default function DashboardModule() {
     <DashboardLayout>
        {/* Background Gradient Mesh */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-600/20 blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-pulse" />
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-primary/20 blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-pulse" />
         <div className="absolute top-[10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-sky-500/20 blur-[100px] mix-blend-multiply dark:mix-blend-screen" />
-        <div className="absolute bottom-[-10%] left-[20%] w-[40%] h-[40%] rounded-full bg-blue-400/20 blur-[100px] mix-blend-multiply dark:mix-blend-screen" />
+        <div className="absolute bottom-[-10%] left-[20%] w-[40%] h-[40%] rounded-full bg-primary/15 blur-[100px] mix-blend-multiply dark:mix-blend-screen" />
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-7xl space-y-8 px-4 pb-10">
@@ -70,7 +70,7 @@ export default function DashboardModule() {
           transition={{ duration: 0.5 }}
           className="mb-8"
         >
-          <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-blue-700 to-blue-500 bg-clip-text text-transparent dark:from-blue-400 dark:to-blue-200">
+          <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
             Welcome back, {userName}
           </h1>
           <p className="text-muted-foreground mt-2 text-lg">

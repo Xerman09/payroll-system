@@ -1752,7 +1752,7 @@ export function BenefitsTab({
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => startEditLog(r)}>
-                              <Pencil className="mr-2 h-4 w-4 text-blue-600" />
+                              <Pencil className="mr-2 h-4 w-4 text-primary" />
                               Edit
                             </DropdownMenuItem>
                             <DropdownMenuItem

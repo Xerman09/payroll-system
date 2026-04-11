@@ -144,7 +144,7 @@ export default function EmployeeTable({
                 <span className="hidden lg:inline">Reset</span>
               </Button>
               <Button
-                className="h-10 px-4 gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                className="h-10 px-4 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
                 onClick={onRefresh}
               >
                 <RefreshCcw className="h-4 w-4" />
@@ -228,7 +228,7 @@ export default function EmployeeTable({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                        className="text-primary border-primary/30 hover:bg-primary/5 hover:text-primary"
                         onClick={() => onOpenPassword(emp)}
                       >
                         View Wage Info

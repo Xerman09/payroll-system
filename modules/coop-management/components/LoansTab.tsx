@@ -321,7 +321,7 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
                         row.loan.status === "ACTIVE"
                           ? "bg-green-100 text-green-800"
                           : row.loan.status === "PAID"
-                          ? "bg-blue-100 text-blue-800"
+                          ? "bg-primary/10 text-primary"
                           : "bg-gray-100 text-gray-800"
                       }`}
                     >
@@ -335,7 +335,7 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
                         variant="ghost"
                         size="icon"
                         onClick={() => setEditingLoan(row.loan)}
-                        className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/5"
                       >
                         <Edit size={14} />
                       </Button>

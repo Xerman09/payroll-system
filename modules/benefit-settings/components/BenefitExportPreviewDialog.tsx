@@ -136,7 +136,7 @@ export default function BenefitExportPreviewDialog({
       <DialogContent className="!w-[95vw] !max-w-7xl max-h-[95vh] flex flex-col p-0 overflow-hidden dark:bg-gray-900 dark:border-gray-800">
         <DialogHeader className="px-6 py-4 border-b dark:border-gray-800">
           <DialogTitle className="flex items-center gap-2">
-            <FileDown className="h-5 w-5 text-blue-600" />
+            <FileDown className="h-5 w-5 text-primary" />
             PDF Export Preview
           </DialogTitle>
         </DialogHeader>
@@ -320,7 +320,7 @@ export default function BenefitExportPreviewDialog({
             Cancel
           </Button>
           <Button 
-            className="bg-blue-600 hover:bg-blue-700 text-white min-w-[140px]" 
+            className="bg-primary hover:bg-primary/90 text-primary-foreground min-w-[140px]" 
             disabled={exporting || filtered.length === 0}
             onClick={onPreview}
           >

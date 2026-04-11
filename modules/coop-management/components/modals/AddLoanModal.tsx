@@ -231,7 +231,7 @@ export function AddLoanModal({
               <span className="font-semibold text-gray-900 dark:text-gray-100">
                 Monthly Amortization:
               </span>
-              <span className="text-lg font-bold text-blue-600">
+              <span className="text-lg font-bold text-primary">
                 {formatPeso(monthlyPayment)}
               </span>
             </div>
@@ -244,7 +244,7 @@ export function AddLoanModal({
           </Button>
           <Button
             onClick={handleSubmit}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
             disabled={submitting}
           >
             {submitting ? "Processing..." : "Confirm Loan"}
