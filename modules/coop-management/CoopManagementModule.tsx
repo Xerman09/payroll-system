@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,6 +26,7 @@ import { PrintPreviewModal } from "./components/modals/PrintPreviewModal";
 
 export function CoopManagementModule() {
   const [activeTab, setActiveTab] = useState("savings");
+  const searchParams = useSearchParams();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -35,6 +37,14 @@ export function CoopManagementModule() {
 
   const savingsRef = useRef<{ getData: () => Record<string, unknown>[] }>(null);
   const loansRef = useRef<{ getData: () => Record<string, unknown>[] }>(null);
+
+  // Synchronize activeTab with URL 'tab' parameter
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && (tabParam === "savings" || tabParam === "loans")) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   const handleRefresh = () => setRefreshTrigger((prev) => prev + 1);
 

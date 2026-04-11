@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -33,6 +34,7 @@ export default function PayrollRecordsModule() {
   const [activeTab, setActiveTab] = React.useState<"employees" | "top-sheet">(
     "employees",
   );
+  const searchParams = useSearchParams();
 
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   const [departments, setDepartments] = React.useState<Department[]>([]);
@@ -47,6 +49,14 @@ export default function PayrollRecordsModule() {
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const [previewFilename, setPreviewFilename] = React.useState("");
   const [companyName, setCompanyName] = React.useState("");
+
+  // Synchronize activeTab with URL 'tab' parameter
+  React.useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && (tabParam === "employees" || tabParam === "top-sheet")) {
+      setActiveTab(tabParam as "employees" | "top-sheet");
+    }
+  }, [searchParams]);
 
   React.useEffect(() => {
     const run = async () => {
