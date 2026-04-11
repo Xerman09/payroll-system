@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import { useColorTheme, ThemeColor } from "@/providers/ColorThemeProvider";
+import { useSidebar } from "@/providers/SidebarProvider";
 import { HueWheel } from "./components/HueWheel";
 import { 
   Keyboard, 
@@ -61,10 +62,11 @@ export function SettingsModule() {
     themes 
   } = useColorTheme();
   
+  const { autoCollapse, setAutoCollapse } = useSidebar();
+  
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState("general");
   const [compactMode, setCompactMode] = useState(false);
-  const [sidebarAutoCollapse, setSidebarAutoCollapse] = useState(false);
   const [newThemeName, setNewThemeName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
@@ -404,7 +406,7 @@ export function SettingsModule() {
                   <Label className="text-base font-semibold">Auto-collapse Sidebar</Label>
                   <p className="text-sm text-muted-foreground">Automatically collapse the sidebar on page change.</p>
                 </div>
-                <Switch checked={sidebarAutoCollapse} onCheckedChange={setSidebarAutoCollapse} />
+                <Switch checked={autoCollapse} onCheckedChange={setAutoCollapse} />
               </div>
 
               <Separator />

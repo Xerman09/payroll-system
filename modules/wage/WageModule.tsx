@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Wallet, TrendingUp } from "lucide-react";
 
 import type { Department, Employee, WagePayload, WageDataState, SalarySchedule } from "./types";
 import * as wageApi from "./providers/wageApi"; // ✅ correct path
@@ -426,25 +427,33 @@ export function WageModule() {
                   : "Manage standardized salary schedules and grade steps."}
               </p>
             </div>
-
-            <Tabs
-              value={activeTab}
-              onValueChange={handleTabChange}
-              className="w-full sm:w-auto mt-2 sm:mt-0"
-            >
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="wage">Wage Management</TabsTrigger>
-                <TabsTrigger value="salary-grade">Salary Grade</TabsTrigger>
-              </TabsList>
-            </Tabs>
           </div>
           <Separator className="mt-4" />
         </div>
 
-        <div className="max-w-7xl mx-auto w-full">
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsContent value="wage" className="mt-0 outline-none">
-              <Card className="border shadow-sm bg-white dark:bg-gray-900 py-0">
+        <div className="max-w-7xl mx-auto w-full mt-4">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full flex flex-col gap-0">
+            <div className="flex relative z-10 w-full mb-[-1px] pl-4">
+              <TabsList className="bg-transparent p-0 h-auto gap-1 border-b-0 w-fit flex justify-start items-end">
+                <TabsTrigger 
+                  value="wage" 
+                  className="relative flex-none w-auto flex-row items-center gap-2 rounded-t-lg rounded-b-none border border-border border-b-0 px-4 py-2 text-sm font-semibold transition-all data-[state=active]:bg-card data-[state=active]:text-primary data-[state=inactive]:bg-muted/50 data-[state=inactive]:border-transparent data-[state=inactive]:text-muted-foreground hover:data-[state=inactive]:bg-muted data-[state=active]:z-20 data-[state=active]:after:content-[''] data-[state=active]:after:absolute data-[state=active]:after:-bottom-[1px] data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:h-[2px] data-[state=active]:after:bg-card shadow-none data-[state=active]:shadow-none"
+                >
+                  <Wallet className="w-4 h-4 -ml-0.5" />
+                  Wage Management
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="salary-grade" 
+                  className="relative flex-none w-auto flex-row items-center gap-2 rounded-t-lg rounded-b-none border border-border border-b-0 px-4 py-2 text-sm font-semibold transition-all data-[state=active]:bg-card data-[state=active]:text-primary data-[state=inactive]:bg-muted/50 data-[state=inactive]:border-transparent data-[state=inactive]:text-muted-foreground hover:data-[state=inactive]:bg-muted data-[state=active]:z-20 data-[state=active]:after:content-[''] data-[state=active]:after:absolute data-[state=active]:after:-bottom-[1px] data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:h-[2px] data-[state=active]:after:bg-card shadow-none data-[state=active]:shadow-none"
+                >
+                  <TrendingUp className="w-4 h-4 -ml-0.5" />
+                  Salary Grade
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <TabsContent value="wage" className="mt-0 outline-none relative z-0">
+              <Card className="border shadow-sm bg-white dark:bg-gray-900 py-0 rounded-tl-none">
                 <CardContent className="p-6">
                   {isTabLoading ? (
                     <div className="space-y-4">
@@ -483,8 +492,8 @@ export function WageModule() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="salary-grade" className="mt-0 outline-none">
-              <Card className="border shadow-sm bg-white dark:bg-gray-900 py-0">
+            <TabsContent value="salary-grade" className="mt-0 outline-none relative z-0">
+              <Card className="border shadow-sm bg-white dark:bg-gray-900 py-0 rounded-tl-none">
                 <CardContent className="p-6">
                   {isTabLoading ? (
                     <div className="space-y-4">
