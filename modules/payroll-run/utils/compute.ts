@@ -1023,12 +1023,11 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
       nightDiffAmount += round2((ndm / 60) * dayHourly * 0.1);
     }
 
+    // ✅ FIX: Apply late/undertime deductions for ALL day types (normal, rest, holiday)
+    if (lm > 0 && dayHourly > 0) lateDeduction += round2((lm / 60) * dayHourly);
+    if (um > 0 && dayHourly > 0) undertimeDeduction += round2((um / 60) * dayHourly);
+
     if (bucket === "NORMAL") {
-
-
-      if (lm > 0 && dayHourly > 0) lateDeduction += round2((lm / 60) * dayHourly);
-      if (um > 0 && dayHourly > 0) undertimeDeduction += round2((um / 60) * dayHourly);
-
       basicPay += basePay;
       otAmount += otPay;
     } else if (bucket === "REST") {
