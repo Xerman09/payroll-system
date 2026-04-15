@@ -1,13 +1,16 @@
 // providers/SidebarProvider.tsx
 "use client";
 
-import { createContext, useContext, useState, useCallback, useMemo, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 
 interface SidebarContextProps {
   collapsed: boolean;
   toggle: () => void;
   mobileOpen: boolean;
   setMobileOpen: (open: boolean) => void;
+  autoCollapse: boolean;
+  setAutoCollapse: (a: boolean) => void;
+  setCollapsed: (c: boolean | ((prev: boolean) => boolean)) => void;
 }
 
 const SidebarContext = createContext<SidebarContextProps | undefined>(
@@ -18,11 +21,23 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   // set collapsed: true initially
   const [collapsed, setCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [autoCollapse, setAutoCollapseState] = useState(false);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const savedAuto = localStorage.getItem("setting_sidebar_autocollapse");
+    if (savedAuto) setAutoCollapseState(savedAuto === "true");
+  }, []);
+
+  const setAutoCollapse = useCallback((val: boolean) => {
+    setAutoCollapseState(val);
+    localStorage.setItem("setting_sidebar_autocollapse", String(val));
+  }, []);
 
   const toggle = useCallback(() => setCollapsed((c) => !c), []);
   const value = useMemo(
-    () => ({ collapsed, toggle, mobileOpen, setMobileOpen }),
-    [collapsed, toggle, mobileOpen]
+    () => ({ collapsed, toggle, mobileOpen, setMobileOpen, autoCollapse, setAutoCollapse, setCollapsed }),
+    [collapsed, toggle, mobileOpen, autoCollapse, setAutoCollapse, setCollapsed]
   );
 
   return (
