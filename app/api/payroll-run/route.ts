@@ -1,5 +1,6 @@
 // app/api/payroll-run/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { resolveApiConfig } from "@/lib/api-helper";
 
 type ResourceKey =
   | "payroll_run"
@@ -51,11 +52,6 @@ const ALLOWED: Record<ResourceKey, true> = {
   benefit_logs: true,
 };
 
-function baseUrl() {
-  const b = process.env.API_BASE ?? process.env.NEXT_PUBLIC_API_BASE;
-  if (!b) return "";
-  return String(b).replace(/\/+$/, "");
-}
 
 function pickAuth(req: NextRequest) {
   const incoming = req.headers.get("authorization");
@@ -83,7 +79,13 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
     return jsonError(400, "Invalid or missing resource", { resource });
   }
 
-  const directus = baseUrl();
+  const config = await resolveApiConfig();
+  if (!config) {
+    return jsonError(400, "No enterprise entity selected. Please visit the portal to choose one.");
+  }
+  const directus = (config.apiBase ?? "").replace(/\/+$/, "");
+  const companyName = config.name;
+
   if (!directus) {
     return jsonError(500, "Missing API_BASE / NEXT_PUBLIC_API_BASE env");
   }
@@ -141,7 +143,6 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
   }
 
   // If Directus returns empty body on other statuses, still respond safely
-  const companyName = process.env.API_BASE_NAME || "";
 
   // If data is an object, inject companyName into metadata
   if (data && typeof data === "object" && !Array.isArray(data)) {

@@ -21,8 +21,14 @@ import { SalaryGradeManagement } from "./components/SalaryGradeManagement";
 import { getLoggedUser } from "@/lib/auth";
 
 export function WageModule() {
-  const [activeTab, setActiveTab] = useState("wage");
   const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => {
+    const tabParam = searchParams?.get("tab");
+    if (tabParam && (tabParam === "wage" || tabParam === "salary-grade")) {
+      return tabParam;
+    }
+    return "wage";
+  });
   const [isTabLoading, setIsTabLoading] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedDept, setSelectedDept] = useState<number | null>(null);
@@ -88,11 +94,14 @@ export function WageModule() {
 
   // Synchronize activeTab with URL 'tab' parameter
   useEffect(() => {
-    const tabParam = searchParams.get("tab");
+    const tabParam = searchParams?.get("tab");
     if (tabParam && (tabParam === "wage" || tabParam === "salary-grade")) {
-      setActiveTab(tabParam);
+      if (tabParam !== activeTab) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setActiveTab(tabParam);
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, activeTab]);
 
   useEffect(() => {
     wageApi.fetchDepartments().then(setDepartments).catch(console.error);

@@ -2,10 +2,10 @@
 
 import React, { useState, useCallback } from "react";
 import Cropper from "react-easy-crop";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import getCroppedImg from "../utils/cropImageUtil";
-import { RotateCw, ZoomIn, X } from "lucide-react";
+import { RotateCw, ZoomIn } from "lucide-react";
 
 interface ImageCropModalProps {
   image: string | null;
@@ -18,6 +18,7 @@ export function ImageCropModal({ image, isOpen, onClose, onCropComplete }: Image
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
 
   const onCropChange = (crop: { x: number; y: number }) => {
@@ -32,6 +33,7 @@ export function ImageCropModal({ image, isOpen, onClose, onCropComplete }: Image
     setRotation(rotation);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const onCropCompleteInternal = useCallback((_croppedArea: any, croppedAreaPixels: any) => {
     setCroppedAreaPixels(croppedAreaPixels);
   }, []);

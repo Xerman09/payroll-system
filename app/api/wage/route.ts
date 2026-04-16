@@ -1,8 +1,8 @@
 // app/api/wage/route.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { resolveApiConfig } from "@/lib/api-helper";
 
-const BASE = process.env.API_BASE || process.env.NEXT_PUBLIC_API_BASE;
 
 // Optional service token (recommended for server-to-Directus calls)
 const SERVICE_TOKEN =
@@ -47,12 +47,14 @@ async function parseJsonSafe(res: Response) {
 
 export async function GET(req: NextRequest) {
   try {
-    if (!BASE) {
+    const config = await resolveApiConfig();
+    if (!config) {
       return NextResponse.json(
-        { error: "Missing API base URL (API_BASE / NEXT_PUBLIC_API_BASE)" },
-        { status: 500 }
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
       );
     }
+    const BASE = config.apiBase;
 
     const url = new URL(req.url);
     const path = url.searchParams.get("path") || "";
@@ -85,12 +87,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!BASE) {
+    const config = await resolveApiConfig();
+    if (!config) {
       return NextResponse.json(
-        { error: "Missing API base URL (API_BASE / NEXT_PUBLIC_API_BASE)" },
-        { status: 500 }
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
       );
     }
+    const BASE = config.apiBase;
 
     const body = await req.json();
     const path = body?.path;
@@ -120,12 +124,14 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    if (!BASE) {
+    const config = await resolveApiConfig();
+    if (!config) {
       return NextResponse.json(
-        { error: "Missing API base URL (API_BASE / NEXT_PUBLIC_API_BASE)" },
-        { status: 500 }
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
       );
     }
+    const BASE = config.apiBase;
 
     const body = await req.json();
     const path = body?.path;
@@ -155,6 +161,14 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const BASE = config.apiBase;
     if (!BASE) {
       return NextResponse.json(
         { error: "Missing API base URL (API_BASE / NEXT_PUBLIC_API_BASE)" },

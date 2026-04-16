@@ -1,5 +1,6 @@
 // app/api/cutoff-settings/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { resolveApiConfig } from "@/lib/api-helper";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
@@ -18,10 +19,6 @@ export async function OPTIONS() {
   });
 }
 
-const API_BASE =
-  process.env.API_BASE ||
-  process.env.NEXT_PUBLIC_API_BASE ||
-  "";
 
 const DIRECTUS_TOKEN =
   process.env.DIRECTUS_TOKEN ||
@@ -33,10 +30,10 @@ function normalizeBaseUrl(url: string) {
   return String(url || "").replace(/\/+$/, "");
 }
 
-function buildUrl(path: string) {
-  const base = normalizeBaseUrl(API_BASE);
+function buildUrl(base: string, path: string) {
+  const b = normalizeBaseUrl(base);
   const p = path.startsWith("/") ? path : `/${path}`;
-  return `${base}${p}`;
+  return `${b}${p}`;
 }
 
 function parseIdsParam(idsParam: string | null): string[] {
@@ -59,8 +56,8 @@ async function safeJsonParse(text: string) {
  * Authenticated fetch (uses DIRECTUS_TOKEN if available)
  * Good for collections that require token access.
  */
-async function directusFetchAuth(method: HttpMethod, path: string, body?: unknown) {
-  const url = buildUrl(path);
+async function directusFetchAuth(method: HttpMethod, path: string, base: string, body?: unknown) {
+  const url = buildUrl(base, path);
 
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -104,8 +101,8 @@ async function directusFetchAuth(method: HttpMethod, path: string, body?: unknow
  * No-auth fetch (NO Bearer token)
  * Matches your /api/auth/login behavior for /items/user
  */
-async function directusFetchNoAuth(method: HttpMethod, path: string, body?: unknown) {
-  const url = buildUrl(path);
+async function directusFetchNoAuth(method: HttpMethod, path: string, base: string, body?: unknown) {
+  const url = buildUrl(base, path);
 
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -185,7 +182,9 @@ async function logHistory(
       raw_payload: data,
     };
 
-    await directusFetchAuth("POST", "/items/cutoff_settings_history", historyData);
+    const config = await resolveApiConfig();
+    if (!config) return;
+    await directusFetchAuth("POST", "/items/cutoff_settings_history", config.apiBase, historyData);
   } catch (error) {
     console.error("Failed to log history:", error);
   }
@@ -206,7 +205,10 @@ async function syncBenefitCutoffs(
     qs.set("filter[cutoff][_eq]", cutoffType);
     qs.set("fields", "id");
 
-    const getRes = await directusFetchAuth("GET", `/items/benefit_cutoff_settings?${qs}`);
+    const config = await resolveApiConfig();
+    if (!config) return;
+    const base = config.apiBase;
+    const getRes = await directusFetchAuth("GET", `/items/benefit_cutoff_settings?${qs}`, base);
     if (!getRes.ok) {
       console.error("Failed to fetch benefit cutoffs for sync:", getRes.error);
       return;
@@ -226,6 +228,7 @@ async function syncBenefitCutoffs(
       const patchRes = await directusFetchAuth(
         "PATCH",
         `/items/benefit_cutoff_settings/${item.id}`,
+        base,
         patchBody
       );
 
@@ -289,12 +292,14 @@ function buildUsersQuery(ids: string[]) {
  * - if ?resource=users : returns user list (optionally filtered by ids)
  */
 export async function GET(req: NextRequest) {
-  if (!API_BASE) {
-    return NextResponse.json(
-      { error: "API base not configured" },
-      { status: 500 }
-    );
-  }
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const API_BASE = config.apiBase;
 
   const url = new URL(req.url);
   const resource = url.searchParams.get("resource");
@@ -305,7 +310,7 @@ export async function GET(req: NextRequest) {
     const qs = buildUsersQuery(ids);
 
     // Use no-auth for users, like login
-    const result = await directusFetchNoAuth("GET", `/items/user?${qs}`);
+    const result = await directusFetchNoAuth("GET", `/items/user?${qs}`, API_BASE);
 
     if (!result.ok) {
       return NextResponse.json(
@@ -325,7 +330,7 @@ export async function GET(req: NextRequest) {
   const year = url.searchParams.get("year");
   const qs = buildCutoffSettingsQuery(month, year);
 
-  const result = await directusFetchAuth("GET", `/items/cutoff_settings?${qs}`);
+  const result = await directusFetchAuth("GET", `/items/cutoff_settings?${qs}`, API_BASE);
 
   if (!result.ok) {
     return NextResponse.json(
@@ -341,19 +346,21 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!API_BASE) {
-    return NextResponse.json(
-      { error: "API base not configured" },
-      { status: 500 }
-    );
-  }
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const API_BASE = config.apiBase;
 
   const payload = await req.json().catch(() => null);
   if (!payload) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const result = await directusFetchAuth("POST", `/items/cutoff_settings`, payload);
+  const result = await directusFetchAuth("POST", `/items/cutoff_settings`, API_BASE, payload);
 
   if (!result.ok) {
     return NextResponse.json(
@@ -381,12 +388,14 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  if (!API_BASE) {
-    return NextResponse.json(
-      { error: "API base not configured" },
-      { status: 500 }
-    );
-  }
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const API_BASE = config.apiBase;
 
   const payload = await req.json().catch(() => null);
   if (!payload) {
@@ -401,7 +410,7 @@ export async function PATCH(req: NextRequest) {
 
     if (id) {
       // Fetch OLD data for comparison if needed
-      const oldRes = await directusFetchAuth("GET", `/items/cutoff_settings/${id}`);
+      const oldRes = await directusFetchAuth("GET", `/items/cutoff_settings/${id}`, API_BASE);
       const oldData = oldRes.ok ? (oldRes.data as { data?: Record<string, unknown> })?.data || oldRes.data as Record<string, unknown> : null;
 
       const patchBody = { ...item };
@@ -409,6 +418,7 @@ export async function PATCH(req: NextRequest) {
       const r = await directusFetchAuth(
         "PATCH",
         `/items/cutoff_settings/${id}`,
+        API_BASE,
         patchBody
       );
 
@@ -440,7 +450,7 @@ export async function PATCH(req: NextRequest) {
 
       results.push(newData);
     } else {
-      const r = await directusFetchAuth("POST", `/items/cutoff_settings`, item);
+      const r = await directusFetchAuth("POST", `/items/cutoff_settings`, API_BASE, item);
 
       if (!r.ok) {
         return NextResponse.json(
@@ -471,6 +481,15 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const config = await resolveApiConfig();
+  if (!config) {
+    return NextResponse.json(
+      { error: "No enterprise entity selected. Please visit the portal to choose one." },
+      { status: 400 }
+    );
+  }
+  const API_BASE = config.apiBase;
+
   if (!API_BASE) {
     return NextResponse.json(
       { error: "API base not configured" },
@@ -489,10 +508,10 @@ export async function DELETE(req: NextRequest) {
   }
 
   // Fetch data BEFORE deletion for history
-  const getOld = await directusFetchAuth("GET", `/items/cutoff_settings/${id}`);
+  const getOld = await directusFetchAuth("GET", `/items/cutoff_settings/${id}`, API_BASE);
   const oldData = getOld.ok ? (getOld.data as { data?: Record<string, unknown> })?.data || getOld.data as Record<string, unknown> : null;
 
-  const result = await directusFetchAuth("DELETE", `/items/cutoff_settings/${id}`);
+  const result = await directusFetchAuth("DELETE", `/items/cutoff_settings/${id}`, API_BASE);
 
   if (!result.ok) {
     return NextResponse.json(

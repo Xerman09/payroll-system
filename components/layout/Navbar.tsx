@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSidebar } from "@/providers/SidebarProvider";
-import { getLoggedUser } from "@/lib/auth";
+import { getLoggedUser, type JWTPayload } from "@/lib/auth";
 
 export default function Navbar() {
   const { theme, setTheme } = useTheme();
@@ -40,11 +40,9 @@ export default function Navbar() {
     }, 300);
   };
 
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<JWTPayload | null>(() => getLoggedUser());
 
   useEffect(() => {
-    setUser(getLoggedUser());
-
     // Listen for storage changes in other tabs
     const handleStorage = () => setUser(getLoggedUser());
     window.addEventListener("storage", handleStorage);
@@ -103,7 +101,7 @@ export default function Navbar() {
             {userName}
           </span>
           <span className="text-[10px] uppercase font-bold text-primary tracking-wider">
-            {user?.role || "USER"}
+            {userRole}
           </span>
         </div>
 

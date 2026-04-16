@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveApiConfig } from "@/lib/api-helper";
 
 // Access the environment variable securely
-const EXTERNAL_API_BASE = process.env.API_BASE;
 
 /**
  * GET: Fetch all employees and retro pays
  */
 export async function GET() {
   try {
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const EXTERNAL_API_BASE = config.apiBase;
     const [empRes, retroRes] = await Promise.all([
       fetch(
         `${EXTERNAL_API_BASE}/items/user?limit=-1&fields=user_id,user_fname,user_mname,user_lname,user_email,user_position`,
@@ -43,6 +51,14 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const EXTERNAL_API_BASE = config.apiBase;
     const body = await request.json();
 
     const res = await fetch(`${EXTERNAL_API_BASE}/items/retro_pay`, {
@@ -76,6 +92,14 @@ export async function POST(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const EXTERNAL_API_BASE = config.apiBase;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -119,6 +143,7 @@ export async function PATCH(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    const EXTERNAL_API_BASE = (await resolveApiConfig()).apiBase;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 

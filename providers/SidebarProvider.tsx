@@ -21,12 +21,16 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   // set collapsed: true initially
   const [collapsed, setCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [autoCollapse, setAutoCollapseState] = useState(false);
+  const [autoCollapse, setAutoCollapseState] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("setting_sidebar_autocollapse") === "true";
+    }
+    return false;
+  });
 
   // Load from localStorage on mount
   useEffect(() => {
-    const savedAuto = localStorage.getItem("setting_sidebar_autocollapse");
-    if (savedAuto) setAutoCollapseState(savedAuto === "true");
+    // No-op mount effect to ensure hydration consistency if needed
   }, []);
 
   const setAutoCollapse = useCallback((val: boolean) => {

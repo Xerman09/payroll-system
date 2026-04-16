@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { resolveApiConfig } from "@/lib/api-helper";
 
-const BASE = process.env.API_BASE || process.env.NEXT_PUBLIC_API_BASE;
 const SERVICE_TOKEN = process.env.DIRECTUS_TOKEN || process.env.DIRECTUS_SERVICE_TOKEN || "";
 
 function joinUrl(base: string, path: string) {
@@ -40,6 +40,15 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const path = url.searchParams.get("path") || "";
     url.searchParams.delete("path");
+    
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const BASE = config.apiBase;
     const extra = url.searchParams.toString();
     
     const fetchUrl = `${joinUrl(BASE || "", path)}${extra ? (path.includes("?") ? "&" : "?") + extra : ""}`;
@@ -52,8 +61,9 @@ export async function GET(req: NextRequest) {
 
     const data = await parseJsonSafe(res);
     return NextResponse.json(data, { status: res.status });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
@@ -62,6 +72,14 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const { path, payload } = body;
 
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const BASE = config.apiBase;
     const res = await fetch(joinUrl(BASE || "", path), {
       method: "PATCH",
       headers: buildForwardHeaders(req, "application/json"),
@@ -70,8 +88,9 @@ export async function PATCH(req: NextRequest) {
 
     const data = await parseJsonSafe(res);
     return NextResponse.json(data, { status: res.status });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
@@ -84,6 +103,14 @@ export async function POST(req: NextRequest) {
       const formData = await req.formData();
       const path = req.nextUrl.searchParams.get("path") || "/files";
       
+      const config = await resolveApiConfig();
+      if (!config) {
+        return NextResponse.json(
+          { error: "No enterprise entity selected. Please visit the portal to choose one." },
+          { status: 400 }
+        );
+      }
+      const BASE = config.apiBase;
       const res = await fetch(joinUrl(BASE || "", path), {
         method: "POST",
         headers: {
@@ -99,6 +126,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { path, payload } = body;
 
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const BASE = config.apiBase;
     const res = await fetch(joinUrl(BASE || "", path), {
       method: "POST",
       headers: buildForwardHeaders(req, "application/json"),
@@ -107,7 +142,8 @@ export async function POST(req: NextRequest) {
 
     const data = await parseJsonSafe(res);
     return NextResponse.json(data, { status: res.status });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

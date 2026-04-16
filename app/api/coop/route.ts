@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildExternalUrlFromUrl } from "./_routeHelpers";
+import { resolveApiConfig } from "@/lib/api-helper";
 
-const EXTERNAL_API_BASE = process.env.API_BASE;
 
 export async function GET(req: NextRequest) {
   try {
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const EXTERNAL_API_BASE = config.apiBase;
     const url = buildExternalUrlFromUrl(req.url, EXTERNAL_API_BASE);
     const res = await fetch(url, {
       headers: { "Content-Type": "application/json" },
@@ -25,6 +33,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const EXTERNAL_API_BASE = config.apiBase;
     const url = buildExternalUrlFromUrl(req.url, EXTERNAL_API_BASE);
     const body = await req.json();
 
@@ -49,6 +65,14 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const EXTERNAL_API_BASE = config.apiBase;
     const url = buildExternalUrlFromUrl(req.url, EXTERNAL_API_BASE);
     const body = await req.json();
 
@@ -73,6 +97,14 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const EXTERNAL_API_BASE = config.apiBase;
     const url = buildExternalUrlFromUrl(req.url, EXTERNAL_API_BASE);
 
     const res = await fetch(url, { method: "DELETE" });

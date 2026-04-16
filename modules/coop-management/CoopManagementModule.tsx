@@ -25,8 +25,14 @@ import { useRef } from "react";
 import { PrintPreviewModal } from "./components/modals/PrintPreviewModal";
 
 export function CoopManagementModule() {
-  const [activeTab, setActiveTab] = useState("savings");
   const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => {
+    const tabParam = searchParams?.get("tab");
+    if (tabParam && (tabParam === "savings" || tabParam === "loans")) {
+      return tabParam;
+    }
+    return "savings";
+  });
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -40,11 +46,14 @@ export function CoopManagementModule() {
 
   // Synchronize activeTab with URL 'tab' parameter
   useEffect(() => {
-    const tabParam = searchParams.get("tab");
+    const tabParam = searchParams?.get("tab");
     if (tabParam && (tabParam === "savings" || tabParam === "loans")) {
-      setActiveTab(tabParam);
+      if (tabParam !== activeTab) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setActiveTab(tabParam);
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, activeTab]);
 
   const handleRefresh = () => setRefreshTrigger((prev) => prev + 1);
 

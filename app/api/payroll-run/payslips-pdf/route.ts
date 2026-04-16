@@ -1,5 +1,6 @@
 // app/api/payroll-run/payslips-pdf/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { resolveApiConfig } from "@/lib/api-helper";
 import PDFDocument from "pdfkit";
 
 export const runtime = "nodejs";
@@ -55,8 +56,9 @@ async function readBody(req: NextRequest) {
   }
 }
 
-function baseUrl() {
-  const b = process.env.API_BASE ?? process.env.NEXT_PUBLIC_API_BASE;
+async function baseUrl() {
+  const config = await resolveApiConfig();
+  const b = config.apiBase;
   return b ? String(b).replace(/\/+$/, "") : "";
 }
 
@@ -74,7 +76,7 @@ function pickAuth(req: NextRequest) {
 }
 
 async function fetchPayrollRunEmployees(req: NextRequest, payrollRunId: number) {
-  const directus = baseUrl();
+  const directus = await baseUrl();
   if (!directus) throw new Error("Missing API_BASE / NEXT_PUBLIC_API_BASE env");
 
   const auth = pickAuth(req);
@@ -515,7 +517,6 @@ async function buildPdfBuffer(rows: AnyRow[]) {
 export async function POST(req: NextRequest) {
   try {
     const body = await readBody(req);
-
     const payrollRunIdRaw = body?.payrollRunId ?? body?.payroll_run_id ?? null;
     const payrollRunId = Number(payrollRunIdRaw);
 
@@ -526,6 +527,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
     let rows = await fetchPayrollRunEmployees(req, payrollRunId);
 
     if (!rows.length) {

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveApiConfig } from "@/lib/api-helper";
+import { COMPANIES } from "@/lib/companies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,8 +41,7 @@ function isTruthyFlag(v: unknown): boolean {
   return false;
 }
 
-function json(payload: unknown, init?: ResponseInit) {
-  const companyName = process.env.API_BASE_NAME || "COMPANY NAME";
+function json(payload: unknown, companyName: string, init?: ResponseInit) {
   
   // Create a structured response with data and meta
   const data = payload && typeof payload === "object" && "data" in payload ? (payload as Record<string, unknown>).data : payload;
@@ -63,14 +64,15 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type");
 
-  const API_BASE =
-    process.env.API_BASE ||
-    process.env.NEXT_PUBLIC_API_BASE ||
-    process.env.NEXT_PUBLIC_DIRECTUS_URL;
-
-  if (!API_BASE) {
-    return json({ error: "API_BASE is not defined" }, { status: 500 });
+  const config = await resolveApiConfig();
+  if (!config) {
+    return json(
+      { error: "No enterprise entity selected. Please visit the portal to choose one." },
+      "Selection Required",
+      { status: 400 }
+    );
   }
+  const API_BASE = config.apiBase;
 
   async function directusFetch(path: string) {
     const url = `${API_BASE}${path}`;
@@ -119,8 +121,8 @@ export async function GET(req: NextRequest) {
       );
 
       const r = await directusFetch(`/items/user?${qp.toString()}`);
-      if (!r.ok) return json({ error: "External API error", ...r }, { status: r.status });
-      return json(r.body);
+      if (!r.ok) return json({ error: "External API error", ...r }, config.name, { status: r.status });
+      return json(r.body, config.name);
     }
 
     if (type === "departments") {
@@ -130,8 +132,8 @@ export async function GET(req: NextRequest) {
       qp.set("fields", ["department_id", "department_name"].join(","));
 
       const r = await directusFetch(`/items/department?${qp.toString()}`);
-      if (!r.ok) return json({ error: "External API error", ...r }, { status: r.status });
-      return json(r.body);
+      if (!r.ok) return json({ error: "External API error", ...r }, config.name, { status: r.status });
+      return json(r.body, config.name);
     }
 
     if (type === "cutoffs") {
@@ -156,8 +158,8 @@ export async function GET(req: NextRequest) {
       );
 
       const r = await directusFetch(`/items/cutoff_settings_history?${qp.toString()}`);
-      if (!r.ok) return json({ error: "External API error", ...r }, { status: r.status });
-      return json(r.body);
+      if (!r.ok) return json({ error: "External API error", ...r }, config.name, { status: r.status });
+      return json(r.body, config.name);
     }
 
     // ✅ Top Sheet (exclude on_hold)
@@ -239,7 +241,7 @@ export async function GET(req: NextRequest) {
       qp.set("filter[on_hold][_neq]", "true");
 
       const r = await directusFetch(`/items/payroll_run_employee?${qp.toString()}`);
-      if (!r.ok) return json({ error: "External API error", ...r }, { status: r.status });
+      if (!r.ok) return json({ error: "External API error", ...r }, config.name, { status: r.status });
 
       // ✅ HARD FILTER (extra safety)
       const body = r.body ?? {};
@@ -247,9 +249,8 @@ export async function GET(req: NextRequest) {
         const rObj = row as Record<string, unknown>;
         return !isTruthyFlag(rObj?.on_hold);
       });
-      const companyName = process.env.API_BASE_NAME || "COMPANY NAME";
 
-      return json({ ...(body as object), data: rows, meta: { companyName } });
+      return json({ ...(body as object), data: rows, meta: { companyName: config.name } }, config.name);
     }
 
     // ✅ Company-wide Payroll Summary (Dynamic Multi-DB Aggregator)
@@ -258,48 +259,16 @@ export async function GET(req: NextRequest) {
       const cutoffEnd = searchParams.get("cutoff_end");
 
       if (!cutoffStart || !cutoffEnd) {
-        return json({ error: "cutoff_start and cutoff_end are required" }, { status: 400 });
+        return json({ error: "cutoff_start and cutoff_end are required" }, config.name, { status: 400 });
       }
 
-      // 1. Gather APIs from Environment Variables (Registry)
-      const APIS: { name: string; url?: string; isPrimary?: boolean; isMain?: boolean }[] = [];
-
-      // Map prefixes to their names
-      const prefixes = ["BASE", "I", "II", "III", "IV", "V", "VI", "VII"];
-      for (const p of prefixes) {
-        const urlKey = p === "BASE" ? "API_BASE" : `API_${p}`;
-        const nameKey = `${urlKey}_NAME`;
-
-        const url = process.env[urlKey];
-        const name = process.env[nameKey];
-
-        if (url) {
-          APIS.push({
-            name: name || (p === "BASE" ? "Primary Company" : `Company ${p}`),
-            url: url,
-            isPrimary: p === "BASE",
-            isMain: p === "BASE"
-          });
-        }
-      }
-
-      // Check for Database Registry as a secondary fallback if no Env found
-      if (APIS.length === 0) {
-        const registryPath = `/items/company_registry?filter[status][_eq]=published&limit=-1`;
-        const registryData = await directusFetch(registryPath);
-        if (registryData.ok) {
-          const dbRows = pickArray(registryData.body).map((item: unknown) => {
-            const i = item as Record<string, unknown>;
-            return {
-              name: String(i.name),
-              url: String(i.api_url),
-              isPrimary: isTruthyFlag(i.is_primary),
-              isMain: isTruthyFlag(i.is_main)
-            };
-          });
-          APIS.push(...dbRows);
-        }
-      }
+      // 1. Gather APIs from Centralized Registry (lib/companies.ts)
+      const APIS = COMPANIES.map(c => ({
+        name: c.name,
+        url: c.apiBase,
+        isPrimary: c.id === config.id, // Current selection is the baseline
+        isMain: c.id === config.id      // Current selection is the focus for PDF breakdown
+      })).filter(a => !!a.url);
 
       async function fetchFromApi(baseUrl: string, path: string) {
         const url = `${baseUrl}${path}`;
@@ -380,12 +349,12 @@ export async function GET(req: NextRequest) {
         meta: {
           currentCutoff: { start: cutoffStart, end: cutoffEnd },
           prevCutoff: prevCutoff ? { start: prevCutoff.start_date, end: prevCutoff.end_date } : null,
-          companyName: process.env.API_BASE_NAME || "",
+          companyName: config.name,
         },
-      });
+      }, config.name);
     }
 
-    return json({ error: "Invalid type parameter." }, { status: 400 });
+    return json({ error: "Invalid type parameter." }, config.name, { status: 400 });
   } catch (error) {
     console.error("Payroll Records proxy error:", error);
     return json(
@@ -393,6 +362,7 @@ export async function GET(req: NextRequest) {
         error: "Failed to fetch external data",
         details: error instanceof Error ? error.message : String(error)
       },
+      config.name || "Default Entity",
       { status: 500 }
     );
   }

@@ -1,5 +1,6 @@
 // app/api/wage-matrix/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { resolveApiConfig } from "@/lib/api-helper";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
@@ -18,10 +19,6 @@ export async function OPTIONS() {
   });
 }
 
-const API_BASE =
-  process.env.API_BASE ||
-  process.env.NEXT_PUBLIC_API_BASE ||
-  "";
 
 const DIRECTUS_TOKEN =
   process.env.DIRECTUS_TOKEN ||
@@ -29,14 +26,14 @@ const DIRECTUS_TOKEN =
   process.env.NEXT_PUBLIC_DIRECTUS_TOKEN ||
   "";
 
-function buildUrl(path: string) {
-  const base = String(API_BASE || "").replace(/\/+$/, "");
+function buildUrl(base: string, path: string) {
+  const b = String(base || "").replace(/\/+$/, "");
   const p = path.startsWith("/") ? path : `/${path}`;
-  return `${base}${p}`;
+  return `${b}${p}`;
 }
 
-async function directusFetch(method: HttpMethod, path: string, body?: unknown) {
-  const url = buildUrl(path);
+async function directusFetch(method: HttpMethod, path: string, base: string, body?: unknown) {
+  const url = buildUrl(base, path);
   const headers: Record<string, string> = {
     Accept: "application/json",
   };
@@ -66,11 +63,20 @@ async function directusFetch(method: HttpMethod, path: string, body?: unknown) {
 }
 
 export async function GET() {
+  const config = await resolveApiConfig();
+  if (!config) {
+    return NextResponse.json(
+      { error: "No enterprise entity selected. Please visit the portal to choose one." },
+      { status: 400 }
+    );
+  }
+  const base = config.apiBase;
+
   const [areas, staff, vehicleTypes, matrix] = await Promise.all([
-    directusFetch("GET", "/items/payroll_logistics_area"),
-    directusFetch("GET", "/items/payroll_logistics_staff"),
-    directusFetch("GET", "/items/vehicle_type"),
-    directusFetch("GET", "/items/payroll_logistics_salary_matrix")
+    directusFetch("GET", "/items/payroll_logistics_area", base),
+    directusFetch("GET", "/items/payroll_logistics_staff", base),
+    directusFetch("GET", "/items/vehicle_type", base),
+    directusFetch("GET", "/items/payroll_logistics_salary_matrix", base)
   ]);
 
   if (!areas.ok) return NextResponse.json({ error: areas.error }, { status: areas.status });
@@ -84,46 +90,64 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const config = await resolveApiConfig();
+  if (!config) {
+    return NextResponse.json(
+      { error: "No enterprise entity selected. Please visit the portal to choose one." },
+      { status: 400 }
+    );
+  }
+  const base = config.apiBase;
   const payload = await req.json().catch(() => null);
 
-  // payload should be an array of items for bulk upsert
+  // ... (lines 90-99 unchanged) ...
   if (!Array.isArray(payload)) {
     return NextResponse.json({ error: "Payload must be an array of records" }, { status: 400 });
   }
 
-  // Directus supports bulk create/update if we use the /items/collection endpoint with an array
-  // However, we need to handle upsert logic. 
-  // If the record has an ID, it's an update. If not, it's a create.
-  // For simplicity in this specific project context, we'll use the "create many" approach 
-  // or handle individual updates if needed.
-
-  const result = await directusFetch("POST", "/items/payroll_logistics_salary_matrix", payload);
+  const result = await directusFetch("POST", "/items/payroll_logistics_salary_matrix", base, payload);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json(result.data, { headers: corsHeaders() });
 }
 
 export async function PATCH(req: NextRequest) {
+  const config = await resolveApiConfig();
+  if (!config) {
+    return NextResponse.json(
+      { error: "No enterprise entity selected. Please visit the portal to choose one." },
+      { status: 400 }
+    );
+  }
+  const base = config.apiBase;
   const payload = await req.json().catch(() => null);
 
   if (Array.isArray(payload)) {
     // Bulk patch
-    const result = await directusFetch("PATCH", "/items/payroll_logistics_salary_matrix", payload);
+    const result = await directusFetch("PATCH", "/items/payroll_logistics_salary_matrix", base, payload);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
     return NextResponse.json(result.data, { headers: corsHeaders() });
   }
 
   const id = payload?.id;
   if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
-  const result = await directusFetch("PATCH", `/items/payroll_logistics_salary_matrix/${id}`, payload);
+  const result = await directusFetch("PATCH", `/items/payroll_logistics_salary_matrix/${id}`, base, payload);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json(result.data, { headers: corsHeaders() });
 }
 
 export async function DELETE(req: NextRequest) {
+  const config = await resolveApiConfig();
+  if (!config) {
+    return NextResponse.json(
+      { error: "No enterprise entity selected. Please visit the portal to choose one." },
+      { status: 400 }
+    );
+  }
+  const base = config.apiBase;
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
-  const result = await directusFetch("DELETE", `/items/payroll_logistics_salary_matrix/${id}`);
+  const result = await directusFetch("DELETE", `/items/payroll_logistics_salary_matrix/${id}`, base);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json({ message: "Deleted" }, { headers: corsHeaders() });
 }

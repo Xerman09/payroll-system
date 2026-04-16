@@ -2,13 +2,13 @@
 
 import React, { useRef, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { Camera, Loader2 } from "lucide-react";
 import { uploadProfileImage, updateUserProfile } from "../providers/profileApi";
 import { toast } from "sonner";
 import { ImageCropModal } from "./ImageCropModal";
 
 interface ProfileHeaderProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   user: any;
   onRefresh: () => void;
 }

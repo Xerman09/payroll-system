@@ -4,21 +4,30 @@ import React from "react";
 import { IdCard, Briefcase, Calendar, Fingerprint, Nfc } from "lucide-react";
 
 interface EmploymentInfoProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   user: any;
 }
 
-export function EmploymentInfo({ user }: EmploymentInfoProps) {
-  const DataRow = ({ icon: Icon, label, value, colorClass }: { icon: any; label: string; value: string; colorClass: string }) => (
-    <div className="flex items-start gap-4 p-4 bg-gray-50/50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-700/50">
-      <div className={`h-10 w-10 ${colorClass} rounded-lg flex items-center justify-center shrink-0 shadow-sm`}>
-        <Icon size={20} />
-      </div>
-      <div className="space-y-0.5">
-        <p className="text-[10px] font-bold uppercase text-gray-400 tracking-widest">{label}</p>
-        <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{value || "N/A"}</p>
-      </div>
+interface DataRowProps {
+  icon: React.ElementType;
+  label: string;
+  value?: string;
+  colorClass: string;
+}
+
+const DataRow = ({ icon: Icon, label, value, colorClass }: DataRowProps) => (
+  <div className="flex items-start gap-4 p-4 bg-gray-50/50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-700/50">
+    <div className={`h-10 w-10 ${colorClass} rounded-lg flex items-center justify-center shrink-0 shadow-sm`}>
+      <Icon size={20} />
     </div>
-  );
+    <div className="space-y-0.5">
+      <p className="text-[10px] font-bold uppercase text-gray-400 tracking-widest">{label}</p>
+      <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{value || "N/A"}</p>
+    </div>
+  </div>
+);
+
+export function EmploymentInfo({ user }: EmploymentInfoProps) {
 
   return (
     <div className="space-y-6">

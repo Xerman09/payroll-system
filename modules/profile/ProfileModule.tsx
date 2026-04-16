@@ -18,6 +18,7 @@ interface ProfileModuleProps {
 }
 
 export function ProfileModule({ userId }: ProfileModuleProps) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +45,7 @@ export function ProfileModule({ userId }: ProfileModuleProps) {
 
       // If user_department is a number, resolve it to the full object
       if (data && typeof data.user_department === "number" && departments.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const dept = departments.find((d: any) => d.department_id === data.user_department);
         if (dept) {
           data.user_department = dept;

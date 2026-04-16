@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveApiConfig } from "@/lib/api-helper";
 
-const API_TARGET = process.env.API_BASE;
 
 async function forwardResponse(res: Response) {
   const data = await res.json().catch(() => null);
@@ -15,6 +15,14 @@ async function forwardResponse(res: Response) {
 
 export async function GET(request: NextRequest) {
   try {
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const API_TARGET = config.apiBase;
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get("mode");
 
@@ -39,6 +47,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const API_TARGET = config.apiBase;
     const body = await request.json();
     const res = await fetch(`${API_TARGET}/items/employee_allowance`, {
       method: "POST",
@@ -53,6 +69,14 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const API_TARGET = config.apiBase;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
@@ -71,6 +95,14 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const API_TARGET = config.apiBase;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });

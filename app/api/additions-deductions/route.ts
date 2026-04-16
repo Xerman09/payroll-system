@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
+import { resolveApiConfig } from "@/lib/api-helper";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const EXTERNAL_API_BASE =
-  process.env.API_BASE ||
-  process.env.DIRECTUS_URL ||
-  process.env.NEXT_PUBLIC_DIRECTUS_URL ||
-  "";
 
 function normalizeBase(base: string): string {
   if (!base) return "";
@@ -97,6 +93,11 @@ function logErr(...args: unknown[]) {
 // GET
 // =====================
 export async function GET(request: Request) {
+  const config = await resolveApiConfig();
+  if (!config) {
+    return jsonError("No enterprise entity selected. Please visit the portal to choose one.", 400);
+  }
+  const EXTERNAL_API_BASE = config.apiBase;
   const base = normalizeBase(EXTERNAL_API_BASE);
   const { searchParams } = new URL(request.url);
   const resource = searchParams.get("resource") as ResourceKey | null;
@@ -160,6 +161,11 @@ export async function GET(request: Request) {
 type PostBody = { resource: ResourceKey; data: unknown };
 
 export async function POST(request: Request) {
+  const config = await resolveApiConfig();
+  if (!config) {
+    return jsonError("No enterprise entity selected. Please visit the portal to choose one.", 400);
+  }
+  const EXTERNAL_API_BASE = config.apiBase;
   const base = normalizeBase(EXTERNAL_API_BASE);
   if (!base) return jsonError("API_BASE is not set. Set API_BASE and restart.", 500);
 
@@ -207,6 +213,11 @@ export async function POST(request: Request) {
 type PatchBody = { resource: ResourceKey; id: string | number; data: unknown };
 
 export async function PATCH(request: Request) {
+  const config = await resolveApiConfig();
+  if (!config) {
+    return jsonError("No enterprise entity selected. Please visit the portal to choose one.", 400);
+  }
+  const EXTERNAL_API_BASE = config.apiBase;
   const base = normalizeBase(EXTERNAL_API_BASE);
   if (!base) return jsonError("API_BASE is not set. Set API_BASE and restart.", 500);
 
@@ -254,6 +265,7 @@ export async function PATCH(request: Request) {
 // DELETE
 // =====================
 export async function DELETE(request: Request) {
+  const EXTERNAL_API_BASE = (await resolveApiConfig()).apiBase;
   const base = normalizeBase(EXTERNAL_API_BASE);
   if (!base) return jsonError("API_BASE is not set. Set API_BASE and restart.", 500);
 

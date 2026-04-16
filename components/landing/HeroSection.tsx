@@ -21,7 +21,8 @@ export function HeroSection() {
   if (!mounted) return null;
 
   return (
-    <section className="relative min-h-[110vh] flex flex-col items-center justify-center overflow-hidden bg-slate-950 pt-20">
+    <>
+      <section className="relative min-h-[110vh] flex flex-col items-center justify-center overflow-hidden bg-slate-950 pt-20">
       {/* Background Parallax Image */}
       <motion.div 
         style={{ y: bgY }}
@@ -65,7 +66,7 @@ export function HeroSection() {
 
         <div className="flex items-center gap-4">
           <Link
-            href="/auth/login"
+            href="/portal"
             className="px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest text-white bg-white/5 hover:bg-cyan-500/20 border border-white/10 transition-all active:scale-95 hover:border-cyan-500/50"
           >
             LOGIN
@@ -119,7 +120,7 @@ export function HeroSection() {
           className="flex flex-col sm:flex-row items-center justify-center gap-6"
         >
           <Link
-            href="/auth/login"
+            href="/portal"
             className="group relative px-10 py-5 rounded-[2rem] bg-indigo-600 text-white font-black uppercase tracking-widest text-sm shadow-2xl shadow-indigo-600/40 hover:scale-105 transition-all flex items-center gap-3 overflow-hidden active:scale-95"
           >
             <span className="relative z-10">Access System</span>
@@ -166,6 +167,7 @@ export function HeroSection() {
         <span className="text-white/30 text-xs font-medium tracking-widest uppercase mb-2">Scroll</span>
         <div className="w-[1px] h-12 bg-gradient-to-b from-white/30 to-transparent" />
       </motion.div>
-    </section>
+      </section>
+    </>
   );
 }

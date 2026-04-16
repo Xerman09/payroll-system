@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState, useCallback } from "react";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -7,10 +8,8 @@ import {
   Calendar,
   CreditCard,
   LayoutDashboard,
-  Search,
   Settings,
   User,
-  Users,
   Briefcase,
   History,
   FileText,
@@ -40,11 +39,18 @@ interface CommandPaletteProps {
   setOpen: (open: boolean) => void;
 }
 
+interface EmployeeSearch {
+  user_id: string | number;
+  user_fname: string;
+  user_lname: string;
+  user_image?: string;
+  user_position: string;
+}
+
 export function CommandPalette({ open, setOpen }: CommandPaletteProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [employees, setEmployees] = useState<EmployeeSearch[]>([]);
   const loggedUser = getLoggedUser();
   const userId = loggedUser?.user_id || "me";
 
@@ -68,14 +74,11 @@ export function CommandPalette({ open, setOpen }: CommandPaletteProps) {
         return;
       }
 
-      setLoading(true);
       try {
         const results = await searchEmployees(query);
         setEmployees(results);
       } catch (err) {
         console.error("Search failed:", err);
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -256,6 +259,3 @@ export function CommandPalette({ open, setOpen }: CommandPaletteProps) {
     </CommandDialog>
   );
 }
-
-// Add necessary imports that were missing
-import { useEffect, useState, useCallback } from "react";

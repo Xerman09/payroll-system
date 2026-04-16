@@ -60,25 +60,38 @@ interface ColorThemeContextType {
 const ColorThemeContext = createContext<ColorThemeContextType | undefined>(undefined);
 
 export function ColorThemeProvider({ children }: { children: React.ReactNode }) {
-  const [activeColor, setActiveColorState] = useState<ThemeColor>("blue");
-  const [customHue, setCustomHueState] = useState<number>(260);
-  const [customHex, setCustomHexState] = useState<string>("#0448ff");
-  const [savedThemes, setSavedThemes] = useState<UserTheme[]>([]);
+  const [activeColor, setActiveColorState] = useState<ThemeColor>(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("vtc_theme_color") as ThemeColor) || "blue";
+    }
+    return "blue";
+  });
+  const [customHue, setCustomHueState] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("vtc_custom_hue");
+      return saved ? Number(saved) : 260;
+    }
+    return 260;
+  });
+  const [customHex, setCustomHexState] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("vtc_custom_hex") || "#0448ff";
+    }
+    return "#0448ff";
+  });
+  const [savedThemes, setSavedThemes] = useState<UserTheme[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("vtc_themes_library");
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
   const { theme: mode } = useTheme();
 
-  // Load from localStorage on mount
+  // No-op mount effect to ensure hydration consistency if needed, 
+  // but state is now initialized lazily.
   useEffect(() => {
-    const savedColor = localStorage.getItem("vtc_theme_color") as ThemeColor;
-    if (savedColor) setActiveColorState(savedColor);
-
-    const savedHue = localStorage.getItem("vtc_custom_hue");
-    if (savedHue) setCustomHueState(Number(savedHue));
-
-    const savedHex = localStorage.getItem("vtc_custom_hex");
-    if (savedHex) setCustomHexState(savedHex);
-
-    const savedLib = localStorage.getItem("vtc_themes_library");
-    if (savedLib) setSavedThemes(JSON.parse(savedLib));
+    // We can keep this empty or remove if not needed for other side effects
   }, []);
 
   const setActiveColor = (color: ThemeColor) => {
@@ -121,11 +134,9 @@ export function ColorThemeProvider({ children }: { children: React.ReactNode }) 
   // Inject CSS Variables
   useEffect(() => {
     const root = document.documentElement;
-    const isCustomPickerActive = activeColor === "custom";
-    
     // Find hue: 1. Curated List, 2. Library, 3. Custom Wheel
-    let config = THEMES[activeColor as string];
-    let savedTheme = !config ? savedThemes.find(t => t.id === activeColor) : null;
+    const config = THEMES[activeColor as string];
+    const savedTheme = !config ? savedThemes.find(t => t.id === activeColor) : null;
     
     const isDark = mode === "dark";
 

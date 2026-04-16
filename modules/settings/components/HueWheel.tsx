@@ -62,8 +62,12 @@ export function HueWheel({ hue, onChange, hex, onHexChange, className }: HueWhee
 
   // Sync internal state if external hex/hue changes
   useEffect(() => {
-    setHexValue(hex || hueToHex(hue));
-  }, [hue, hex]);
+    const nextHex = hex || hueToHex(hue);
+    if (nextHex !== hexValue) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setHexValue(nextHex);
+    }
+  }, [hue, hex, hexValue]);
 
   const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newHex = e.target.value;

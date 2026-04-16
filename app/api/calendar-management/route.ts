@@ -1,80 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveApiConfig } from "@/lib/api-helper";
 
 type ResourceKey = "users" | "holidays";
 
-function getEnv(name: string) {
-  const v = process.env[name];
-  return v && v.trim().length ? v.trim() : undefined;
+function getResource(req: NextRequest): ResourceKey {
+  const resource = (req.nextUrl.searchParams.get("resource") || "").toLowerCase();
+  if (resource === "users" || resource === "holidays") return resource as ResourceKey;
+  throw new Error("Invalid or missing resource");
 }
 
-/**
- * Upstream API proxy for Calendar Management
- *
- * Defaults to Directus-style:
- *   BASE_URL + /items/<collection>
- *
- * Env vars:
- * - CALENDAR_API_BASE_URL (preferred)
- *   or DIRECTUS_URL / NEXT_PUBLIC_DIRECTUS_URL
- * - CALENDAR_API_STYLE = "directus" | "rest" (default: directus)
- * - CALENDAR_API_TOKEN (optional Bearer token)
- *
- * Collection overrides:
- * - CAL_USERS_COLLECTION (default: "users")
- * - CAL_HOLIDAYS_COLLECTION (default: "holidays")
- */
-const BASE_URL =
-  getEnv("CALENDAR_API_BASE_URL") ||
-  getEnv("DIRECTUS_URL") ||
-  getEnv("NEXT_PUBLIC_DIRECTUS_URL");
-
-const STYLE = (getEnv("CALENDAR_API_STYLE") || "directus").toLowerCase();
-const TOKEN =
-  getEnv("CALENDAR_API_TOKEN") ||
-  getEnv("DIRECTUS_TOKEN") ||
-  getEnv("DIRECTUS_STATIC_TOKEN");
-
-const COLLECTIONS: Record<ResourceKey, string> = {
-  users: getEnv("CAL_USERS_COLLECTION") || "user",
-  holidays: getEnv("CAL_HOLIDAYS_COLLECTION") || "holiday_calendar",
-};
-
-function assertConfig() {
-  if (!BASE_URL) {
-    throw new Error(
-      "Missing upstream base URL. Set CALENDAR_API_BASE_URL (recommended) or DIRECTUS_URL / NEXT_PUBLIC_DIRECTUS_URL."
-    );
-  }
+interface CalendarConfig {
+  baseUrl: string;
+  token: string | undefined;
+  style: string;
+  collections: Record<ResourceKey, string>;
 }
 
-function buildUpstreamUrl(resource: ResourceKey, id?: string, searchParams?: URLSearchParams) {
-  assertConfig();
-  const collection = COLLECTIONS[resource];
+async function resolveCalendarConfig() {
+  const config = await resolveApiConfig();
+  if (!config) return null;
 
-  const base = BASE_URL!.replace(/\/+$/, "");
-  let path = "";
+  const TOKEN = process.env.DIRECTUS_TOKEN || process.env.DIRECTUS_STATIC_TOKEN;
 
-  if (STYLE === "rest") {
-    path = `/${collection}${id ? `/${encodeURIComponent(id)}` : ""}`;
-  } else {
-    path = `/items/${collection}${id ? `/${encodeURIComponent(id)}` : ""}`;
-  }
+  return {
+    baseUrl: config.apiBase,
+    token: TOKEN,
+    style: "directus",
+    collections: {
+      users: "user",
+      holidays: "holiday_calendar",
+    }
+  };
+}
 
+function buildUpstreamUrl(config: CalendarConfig, resource: ResourceKey, id?: string, searchParams?: URLSearchParams) {
+  if (!config.baseUrl) throw new Error("Missing upstream base URL.");
+  const collection = config.collections[resource];
+  const base = config.baseUrl.replace(/\/+$/, "");
+  
+  const path = `/items/${collection}${id ? `/${encodeURIComponent(id)}` : ""}`;
   const url = new URL(base + path);
 
-  if (STYLE !== "rest") {
-    if (!searchParams?.has("limit")) url.searchParams.set("limit", "-1");
-    if (!searchParams?.has("fields")) url.searchParams.set("fields", "*");
-  }
+  if (!searchParams?.has("limit")) url.searchParams.set("limit", "-1");
+  if (!searchParams?.has("fields")) url.searchParams.set("fields", "*");
 
   searchParams?.forEach((v, k) => url.searchParams.set(k, v));
   return url;
 }
 
-async function upstreamFetch(url: URL, init?: RequestInit) {
+async function upstreamFetch(config: CalendarConfig, url: URL, init?: RequestInit) {
   const headers = new Headers(init?.headers || {});
   headers.set("Accept", "application/json");
-  if (TOKEN) headers.set("Authorization", `Bearer ${TOKEN}`);
+  if (config.token) headers.set("Authorization", `Bearer ${config.token}`);
   if (init?.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
 
   const res = await fetch(url.toString(), { ...init, headers, cache: "no-store" });
@@ -88,34 +65,33 @@ async function upstreamFetch(url: URL, init?: RequestInit) {
   }
 
   if (!res.ok) {
-  const j = json as Record<string, unknown> | null;
-  const errorMsg =
-    (j && (j.error as { message?: string })?.message || j?.error || j?.message) ||
-    text ||
-    `Upstream request failed (${res.status})`;
-  return NextResponse.json({ error: errorMsg }, { status: res.status });
-}
+    const j = json as Record<string, unknown> | null;
+    const errorMsg =
+      (j && (j.error as { message?: string })?.message || j?.error || j?.message) ||
+      text ||
+      `Upstream request failed (${res.status})`;
+    return NextResponse.json({ error: errorMsg }, { status: res.status });
+  }
 
-const normalized = json && typeof json === "object" && "data" in (json as object) ? json : { data: json };
+  const normalized = json && typeof json === "object" && "data" in (json as object) ? json : { data: json };
   return NextResponse.json(normalized, { status: 200 });
-}
-
-function getResource(req: NextRequest): ResourceKey {
-  const resource = (req.nextUrl.searchParams.get("resource") || "").toLowerCase();
-  if (resource === "users" || resource === "holidays") return resource;
-  throw new Error("Invalid or missing resource");
 }
 
 export async function GET(req: NextRequest) {
   try {
+    const config = await resolveCalendarConfig();
+    if (!config) {
+      return NextResponse.json({ error: "No enterprise entity selected. Please visit the portal." }, { status: 400 });
+    }
+
     const resource = getResource(req);
     const id = req.nextUrl.searchParams.get("id") || undefined;
 
     const params = new URLSearchParams(req.nextUrl.searchParams);
     params.delete("resource");
 
-    const url = buildUpstreamUrl(resource, id, params);
-    return upstreamFetch(url, { method: "GET" });
+    const url = buildUpstreamUrl(config, resource, id, params);
+    return upstreamFetch(config, url, { method: "GET" });
   } catch (error: unknown) {
     const e = error as Error;
     return NextResponse.json({ error: e?.message || "Bad Request" }, { status: 400 });
@@ -124,14 +100,19 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const config = await resolveCalendarConfig();
+    if (!config) {
+      return NextResponse.json({ error: "No enterprise entity selected. Please visit the portal." }, { status: 400 });
+    }
+
     const body = await req.json().catch(() => ({}));
     const resource = (String(body?.resource || "") as string).toLowerCase() as ResourceKey;
     if (!["users", "holidays"].includes(resource)) throw new Error("Invalid resource");
     const data = body?.data;
     if (!data || typeof data !== "object") throw new Error("Missing data");
 
-    const url = buildUpstreamUrl(resource);
-    return upstreamFetch(url, { method: "POST", body: JSON.stringify(data) });
+    const url = buildUpstreamUrl(config, resource);
+    return upstreamFetch(config, url, { method: "POST", body: JSON.stringify(data) });
   } catch (error: unknown) {
     const e = error as Error;
     return NextResponse.json({ error: e?.message || "Bad Request" }, { status: 400 });
@@ -140,6 +121,11 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
+    const config = await resolveCalendarConfig();
+    if (!config) {
+      return NextResponse.json({ error: "No enterprise entity selected. Please visit the portal." }, { status: 400 });
+    }
+
     const body = await req.json().catch(() => ({}));
     const resource = (String(body?.resource || "") as string).toLowerCase() as ResourceKey;
     if (!["users", "holidays"].includes(resource)) throw new Error("Invalid resource");
@@ -148,8 +134,8 @@ export async function PATCH(req: NextRequest) {
     const data = body?.data;
     if (!data || typeof data !== "object") throw new Error("Missing data");
 
-    const url = buildUpstreamUrl(resource, String(id));
-    return upstreamFetch(url, { method: "PATCH", body: JSON.stringify(data) });
+    const url = buildUpstreamUrl(config, resource, String(id));
+    return upstreamFetch(config, url, { method: "PATCH", body: JSON.stringify(data) });
   } catch (error: unknown) {
     const e = error as Error;
     return NextResponse.json({ error: e?.message || "Bad Request" }, { status: 400 });
@@ -158,6 +144,11 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const config = await resolveCalendarConfig();
+    if (!config) {
+      return NextResponse.json({ error: "No enterprise entity selected. Please visit the portal." }, { status: 400 });
+    }
+
     const resource = getResource(req);
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new Error("Missing id");
@@ -166,8 +157,8 @@ export async function DELETE(req: NextRequest) {
     params.delete("resource");
     params.delete("id");
 
-    const url = buildUpstreamUrl(resource, id, params);
-    return upstreamFetch(url, { method: "DELETE" });
+    const url = buildUpstreamUrl(config, resource, id, params);
+    return upstreamFetch(config, url, { method: "DELETE" });
   } catch (error: unknown) {
     const e = error as Error;
     return NextResponse.json({ error: e?.message || "Bad Request" }, { status: 400 });

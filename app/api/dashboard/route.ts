@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { resolveApiConfig } from "@/lib/api-helper";
 
-const BASE = process.env.API_BASE || process.env.NEXT_PUBLIC_API_BASE;
 
 const SERVICE_TOKEN =
   process.env.DIRECTUS_TOKEN ||
@@ -41,12 +41,14 @@ async function parseJsonSafe(res: Response) {
 
 export async function GET(req: NextRequest) {
   try {
-    if (!BASE) {
+    const config = await resolveApiConfig();
+    if (!config) {
       return NextResponse.json(
-        { error: "Missing API base URL" },
-        { status: 500 }
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
       );
     }
+    const BASE = config.apiBase;
 
     const url = new URL(req.url);
     const path = url.searchParams.get("path") || "";
