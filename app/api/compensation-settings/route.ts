@@ -1,5 +1,6 @@
 // app/api/compensation-settings/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { resolveApiConfig } from "@/lib/api-helper";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
@@ -18,10 +19,6 @@ export async function OPTIONS() {
   });
 }
 
-const API_BASE =
-  process.env.API_BASE ||
-  process.env.NEXT_PUBLIC_API_BASE ||
-  "";
 
 const DIRECTUS_TOKEN =
   process.env.DIRECTUS_TOKEN ||
@@ -29,14 +26,14 @@ const DIRECTUS_TOKEN =
   process.env.NEXT_PUBLIC_DIRECTUS_TOKEN ||
   "";
 
-function buildUrl(path: string) {
-  const base = String(API_BASE || "").replace(/\/+$/, "");
+function buildUrl(base: string, path: string) {
+  const b = String(base || "").replace(/\/+$/, "");
   const p = path.startsWith("/") ? path : `/${path}`;
-  return `${base}${p}`;
+  return `${b}${p}`;
 }
 
-async function directusFetch(method: HttpMethod, path: string, body?: unknown) {
-  const url = buildUrl(path);
+async function directusFetch(method: HttpMethod, path: string, base: string, body?: unknown) {
+  const url = buildUrl(base, path);
   const headers: Record<string, string> = {
     Accept: "application/json",
   };
@@ -83,7 +80,15 @@ export async function GET(req: NextRequest) {
 
   if (!table) return NextResponse.json({ error: "Invalid resource" }, { status: 400 });
 
-  const result = await directusFetch("GET", `/items/${table}`);
+  const config = await resolveApiConfig();
+  if (!config) {
+    return NextResponse.json(
+      { error: "No enterprise entity selected. Please visit the portal to choose one." },
+      { status: 400 }
+    );
+  }
+  const base = config.apiBase;
+  const result = await directusFetch("GET", `/items/${table}`, base);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json(result.data, { headers: corsHeaders() });
 }
@@ -95,8 +100,16 @@ export async function POST(req: NextRequest) {
 
   if (!table) return NextResponse.json({ error: "Invalid resource" }, { status: 400 });
 
+  const config = await resolveApiConfig();
+  if (!config) {
+    return NextResponse.json(
+      { error: "No enterprise entity selected. Please visit the portal to choose one." },
+      { status: 400 }
+    );
+  }
+  const base = config.apiBase;
   const payload = await req.json().catch(() => null);
-  const result = await directusFetch("POST", `/items/${table}`, payload);
+  const result = await directusFetch("POST", `/items/${table}`, base, payload);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json(result.data, { headers: corsHeaders() });
 }
@@ -112,7 +125,15 @@ export async function PATCH(req: NextRequest) {
   const id = payload?.id;
   if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
 
-  const result = await directusFetch("PATCH", `/items/${table}/${id}`, payload);
+  const config = await resolveApiConfig();
+  if (!config) {
+    return NextResponse.json(
+      { error: "No enterprise entity selected. Please visit the portal to choose one." },
+      { status: 400 }
+    );
+  }
+  const base = config.apiBase;
+  const result = await directusFetch("PATCH", `/items/${table}/${id}`, base, payload);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json(result.data, { headers: corsHeaders() });
 }
@@ -125,7 +146,15 @@ export async function DELETE(req: NextRequest) {
 
   if (!table || !id) return NextResponse.json({ error: "Invalid resource or missing ID" }, { status: 400 });
 
-  const result = await directusFetch("DELETE" as HttpMethod, `/items/${table}/${id}`);
+  const config = await resolveApiConfig();
+  if (!config) {
+    return NextResponse.json(
+      { error: "No enterprise entity selected. Please visit the portal to choose one." },
+      { status: 400 }
+    );
+  }
+  const base = config.apiBase;
+  const result = await directusFetch("DELETE" as HttpMethod, `/items/${table}/${id}`, base);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json({ message: "Deleted" }, { headers: corsHeaders() });
 }

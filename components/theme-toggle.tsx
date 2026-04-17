@@ -2,7 +2,7 @@
 
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { Moon, Sun, Monitor } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 
 type ThemeToggleProps = {
   // Keeping props for backward compatibility if needed, 
@@ -16,6 +16,7 @@ export function ThemeToggle({ toggleTheme, currentTheme }: ThemeToggleProps) {
   const [mounted, setMounted] = useState(false);
 
   // Avoid hydration mismatch by waiting for mount
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
   if (!mounted) {

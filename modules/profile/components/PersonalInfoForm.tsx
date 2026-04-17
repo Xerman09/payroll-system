@@ -11,6 +11,7 @@ import { updateUserProfile } from "../providers/profileApi";
 import { toast } from "sonner";
 
 interface PersonalInfoFormProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   user: any;
   onRefresh: () => void;
 }

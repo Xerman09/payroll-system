@@ -149,7 +149,7 @@ export default function LoginModule() {
               {/* Back Link */}
               <div className="pt-2">
                 <Link
-                  href="/"
+                  href="/portal"
                   className="text-[10px] font-black uppercase tracking-[0.3em] text-white/15 hover:text-cyan-400 transition-colors duration-300"
                 >
                   ← Return to Portal

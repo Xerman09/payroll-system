@@ -142,7 +142,6 @@ export async function buildPayrollSummaryPdf(args: { data: ReportCompany[]; meta
     fontSize?: number;
     headerFontSize?: number;
     highlightLastRow?: boolean;
-    drawDepartmentColumn?: boolean;
   }) => {
     const x = opts.x;
     let y = opts.y;
@@ -479,52 +478,59 @@ export async function buildPayrollSummaryPdf(args: { data: ReportCompany[]; meta
     const compSorted = [...companySums].sort((a, b) => Math.abs(b.currNet) - Math.abs(a.currNet));
     const totalCurrAll = compSorted.reduce((a, c) => a + (c.currNet || 0), 0);
 
-    // Split into 3 columns if more than 3 companies
+    // Split into up to 3 columns if more than 3 companies
     const useMultiCols = compSorted.length > 3;
 
     if (useMultiCols) {
       const colGap = 8;
-      const subTW = (ctW - colGap * 2) / 3;
-
-      const c1 = compSorted.slice(0, 3);
-      const c2 = compSorted.slice(3, 6);
-      const c3 = compSorted.slice(6, 9);
+      const maxCols = 3;
+      // We need space for companies + 1 Total row
+      const totalItems = compSorted.length + 1;
+      const rowsPerCol = Math.ceil(totalItems / maxCols);
+      const subTW = (ctW - colGap * (maxCols - 1)) / maxCols;
 
       const subCols: Col[] = [
-        { key: "c", label: "Company", w: Math.floor(subTW * 0.45), align: "left" },
-        { key: "net", label: "Curr. Net", w: subTW - Math.floor(subTW * 0.45), align: "right" },
+        { key: "c", label: "Company", w: Math.floor(subTW * 0.55), align: "left" },
+        { key: "net", label: "Curr. Net", w: subTW - Math.floor(subTW * 0.55), align: "right" },
       ];
 
-      const drawSubTable = (list: CompanySummary[], sx: number) => {
-        if (list.length === 0) return;
-        const rows = list.map(c => ({
+      for (let i = 0; i < maxCols; i++) {
+        const start = i * rowsPerCol;
+        const end = start + rowsPerCol;
+        const chunk = compSorted.slice(start, end);
+        if (chunk.length === 0 && i > 0) continue; // Skip empty columns unless it's the first
+
+        const sx = ctX + i * (subTW + colGap);
+        const rows = chunk.map(c => ({
           c: ellipsize(c.name, subCols[0].w - 4),
           net: fmtMoney(c.currNet)
         }));
+
+        // If this is the last item of the last column that contains data, or the very last column
+        const isLastColumnPotential = (i === maxCols - 1) || (end >= compSorted.length);
+        
+        // Add TOTAL to the last possible spot
+        if (isLastColumnPotential && end >= compSorted.length) {
+          // If the column is full, the total might need to go to the next one, 
+          // but rowsPerCol already accounts for the +1 item.
+          rows.push({
+            c: "TOTAL",
+            net: fmtMoney(totalCurrAll)
+          });
+        }
+
         drawTable({
           x: sx,
           y: ctY,
           w: subTW,
           cols: subCols,
-          rows: rows,
-          maxRows: 3,
+          rows: rows as Record<string, string | number | boolean | null | undefined>[],
+          maxRows: rowsPerCol,
+          highlightLastRow: end >= compSorted.length,
         });
-      };
 
-      drawSubTable(c1, ctX);
-      drawSubTable(c2, ctX + subTW + colGap);
-      drawSubTable(c3, ctX + (subTW + colGap) * 2);
-
-      // Grand Total Row (Shared) - Only at the bottom of the last column
-      const gy = ctY + 16 + (3 * 14); // 3 rows max
-      const gx = ctX + (subTW + colGap) * 2; // Position in last column
-      setFill(BLUE_50);
-      doc.rect(gx, gy, subTW, 14, "F");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(7);
-      setText(BLUE_900);
-      doc.text("TOTAL", gx + 4, gy + 10);
-      doc.text(`${fmtMoney(totalCurrAll)}`, gx + subTW - 4, gy + 10, { align: "right" });
+        if (end >= compSorted.length) break; // Done drawing
+      }
 
     } else {
       const compCols: Col[] = [
@@ -533,7 +539,7 @@ export async function buildPayrollSummaryPdf(args: { data: ReportCompany[]; meta
         { key: "net", label: "Curr. Net", w: ctW - Math.floor(ctW * 0.50) - Math.floor(ctW * 0.25), align: "right" },
       ];
 
-      const compRows: Record<string, string>[] = compSorted.map((c) => ({
+      const compRows = compSorted.map((c) => ({
         c: ellipsize(c.name, compCols[0].w - 6),
         prev: fmtMoney(c.prevNet),
         net: fmtMoney(c.currNet),
@@ -547,7 +553,7 @@ export async function buildPayrollSummaryPdf(args: { data: ReportCompany[]; meta
         y: ctY,
         w: ctW,
         cols: compCols,
-        rows: compRows,
+        rows: compRows as Record<string, string | number | boolean | null | undefined>[],
         maxRows: 5,
         highlightLastRow: true,
       });

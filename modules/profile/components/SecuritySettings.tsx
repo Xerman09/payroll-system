@@ -9,6 +9,7 @@ import { updatePassword, verifyCurrentPassword } from "../providers/profileApi";
 import { toast } from "sonner";
 
 interface SecuritySettingsProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   user: any;
 }
 

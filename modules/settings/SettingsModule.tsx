@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -18,7 +17,6 @@ import {
   Navigation, 
   RotateCcw, 
   Command, 
-  Monitor, 
   MousePointer2,
   Trash2,
   Moon,
@@ -65,24 +63,34 @@ export function SettingsModule() {
   const { autoCollapse, setAutoCollapse } = useSidebar();
   
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState("general");
-  const [compactMode, setCompactMode] = useState(false);
+  const [activeTab, setActiveTab] = useState(() => {
+    const tabParam = searchParams?.get("tab");
+    if (tabParam && ["general", "shortcuts", "navigation"].includes(tabParam)) {
+      return tabParam;
+    }
+    return "general";
+  });
+  
+  const [compactMode, setCompactMode] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("setting_compact_mode") === "true";
+    }
+    return false;
+  });
+
   const [newThemeName, setNewThemeName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   // Sync with URL tab param
   useEffect(() => {
-    const tabParam = searchParams.get("tab");
+    const tabParam = searchParams?.get("tab");
     if (tabParam && ["general", "shortcuts", "navigation"].includes(tabParam)) {
-      setActiveTab(tabParam);
+      if (tabParam !== activeTab) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setActiveTab(tabParam);
+      }
     }
-  }, [searchParams]);
-
-  // Load local settings
-  useEffect(() => {
-    const savedCompact = localStorage.getItem("setting_compact_mode") === "true";
-    setCompactMode(savedCompact);
-  }, []);
+  }, [searchParams, activeTab]);
 
   const handleSaveTheme = () => {
     if (!newThemeName.trim()) return;

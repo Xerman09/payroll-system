@@ -1,16 +1,8 @@
 "use client";
 
-import { getLoggedUser } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
 const BASE_API = "/api/profile";
-
-function getAuthHeaders() {
-  const token = typeof window !== "undefined" ? sessionStorage.getItem("user_token") : null;
-  return {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
 
 async function apiFetch(path: string, options?: RequestInit) {
   const url = `${BASE_API}?path=${encodeURIComponent(path)}`;
@@ -42,7 +34,8 @@ export async function fetchUserProfile(userId: string | number) {
 /**
  * Update user profile information
  */
-export async function updateUserProfile(userId: string | number, payload: any) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function updateUserProfile(userId: string | number, payload: Record<string, any>) {
   const res = await fetch(BASE_API, {
     method: "PATCH",
     headers: {

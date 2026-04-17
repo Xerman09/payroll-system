@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
 import { signJWT } from "@/lib/auth";
 import { compare } from "bcryptjs";
+import { resolveApiConfig } from "@/lib/api-helper";
 
-const API_BASE =
-  process.env.API_BASE ||
-  process.env.NEXT_PUBLIC_API_BASE ||
-  "";
 
 export async function POST(req: Request) {
   try {
-    if (!API_BASE) {
+    const config = await resolveApiConfig();
+    if (!config) {
       return NextResponse.json(
-        { status: "error", message: "API base not configured" },
-        { status: 500 }
+        { status: "error", message: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
       );
     }
+    const API_BASE = config.apiBase;
+    const deptId = config.deptId;
     // ... REST OF THE BODY ...
     const { email, password } = await req.json();
 
@@ -25,7 +25,6 @@ export async function POST(req: Request) {
       );
     }
 
-    const deptId = process.env.DEFAULT_DEPT_ID;
 
     const qs = new URLSearchParams();
     qs.append("limit", "1");

@@ -13,17 +13,27 @@ import StaffTab from './components/StaffTab';
 import VehicleTypeTab from './components/VehicleTypeTab';
 
 export default function CompensationSettingsModule() {
-  const [activeTab, setActiveTab] = useState("area");
   const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => {
+    const tabParam = searchParams?.get("tab");
+    const validTabs = ["area", "location", "vehicle", "staff"];
+    if (tabParam && validTabs.includes(tabParam)) {
+      return tabParam;
+    }
+    return "area";
+  });
 
   // Synchronize activeTab with URL 'tab' parameter
   useEffect(() => {
-    const tabParam = searchParams.get("tab");
+    const tabParam = searchParams?.get("tab");
     const validTabs = ["area", "location", "vehicle", "staff"];
     if (tabParam && validTabs.includes(tabParam)) {
-      setActiveTab(tabParam);
+      if (tabParam !== activeTab) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setActiveTab(tabParam);
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, activeTab]);
 
   return (
     <DashboardLayout>

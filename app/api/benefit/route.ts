@@ -1,15 +1,10 @@
 // app/api/benefit/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { resolveApiConfig } from "@/lib/api-helper";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const RAW_DIRECTUS_URL =
-  process.env.DIRECTUS_URL ||
-  process.env.API_BASE ||
-  "";
-
-const DIRECTUS_BASE = RAW_DIRECTUS_URL.replace(/\/+$/, "");
 
 const SERVICE_TOKEN =
   process.env.DIRECTUS_TOKEN ||
@@ -54,8 +49,17 @@ async function forward(req: NextRequest) {
     return NextResponse.json({ error: "Missing ?path=" }, { status: 400 });
   }
 
+  const config = await resolveApiConfig();
+  if (!config) {
+    return NextResponse.json(
+      { error: "No enterprise entity selected. Please visit the portal to choose one." },
+      { status: 400 }
+    );
+  }
+  const DIRECTUS_BASE = (config.apiBase || "").replace(/\/+$/, "");
+
   if (path === "config") {
-    return NextResponse.json({ companyName: process.env.API_BASE_NAME || "MEN2 MARKETING CORPORATION" });
+    return NextResponse.json({ companyName: config.name });
   }
 
   const targetUrl = joinUrl(DIRECTUS_BASE, path);
