@@ -265,7 +265,11 @@ export async function PATCH(request: Request) {
 // DELETE
 // =====================
 export async function DELETE(request: Request) {
-  const EXTERNAL_API_BASE = (await resolveApiConfig()).apiBase;
+  const config = await resolveApiConfig();
+  if (!config) {
+    return jsonError("No enterprise entity selected. Please visit the portal to choose one.", 400);
+  }
+  const EXTERNAL_API_BASE = config.apiBase;
   const base = normalizeBase(EXTERNAL_API_BASE);
   if (!base) return jsonError("API_BASE is not set. Set API_BASE and restart.", 500);
 

@@ -151,10 +151,8 @@ export default function PayrollRunModule() {
         return;
       }
 
-      const apiUser = (await api.fetchUserById(logged.user_id as number)) as unknown as Record<string, unknown>;
-      if (!apiUser) return alert("User record not found.");
-      if (passwordInput !== (apiUser.user_password as string))
-        return alert("Incorrect password.");
+      // Secure backend verification
+      await api.verifyPassword(Number(logged.user_id), passwordInput);
 
       const ts = new Date().toISOString();
       const deptName = selectedDepartment ? selectedDepartment.name : "All Departments";

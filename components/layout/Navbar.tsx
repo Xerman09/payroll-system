@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useSidebar } from "@/providers/SidebarProvider";
 import { getLoggedUser, type JWTPayload } from "@/lib/auth";
+import { getCompanyById } from "@/lib/companies";
 
 export default function Navbar() {
   const { theme, setTheme } = useTheme();
@@ -41,11 +42,31 @@ export default function Navbar() {
   };
 
   const [user, setUser] = useState<JWTPayload | null>(() => getLoggedUser());
+  const [companyName, setCompanyName] = useState("Vertex Technology Corps.");
 
   useEffect(() => {
     // Listen for storage changes in other tabs
     const handleStorage = () => setUser(getLoggedUser());
     window.addEventListener("storage", handleStorage);
+
+    // Retrieve the active company from cookie
+    const getCookie = (name: string) => {
+      if (typeof document === 'undefined') return null;
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop()?.split(';').shift();
+      return null;
+    };
+    
+    const compId = getCookie("selected_company_id");
+    if (compId) {
+      const comp = getCompanyById(compId);
+      if (comp) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setCompanyName(comp.name);
+      }
+    }
+
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
@@ -71,7 +92,7 @@ export default function Navbar() {
           <Menu size={20} />
         </button>
         <h1 className="font-semibold text-lg transition-transform duration-300 hidden sm:block">
-          Vertex Technology Corps.
+          {companyName}
         </h1>
       </div>
 

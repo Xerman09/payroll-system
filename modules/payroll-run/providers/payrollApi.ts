@@ -114,6 +114,19 @@ export async function fetchUserById(userId: number): Promise<UserRow> {
   return json.data;
 }
 
+export async function verifyPassword(userId: number, password: string) {
+  const res = await fetch("/api/auth/verify-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId, password }),
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(json?.message || "Password verification failed");
+  }
+  return json;
+}
+
 export async function logPayrollRunAccess(
   openedById: number,
   cutoffId: number,

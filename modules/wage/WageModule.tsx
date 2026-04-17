@@ -171,16 +171,10 @@ export function WageModule() {
         toast.error("User not logged in.");
         return;
       }
- 
-      const apiUser = await wageApi.fetchUserById(Number(logged.user_id));
-      if (!apiUser) {
-        toast.error("User record not found.");
-        return;
-      }
-      if (passwordInput !== apiUser.user_password) {
-        toast.error("Incorrect password.");
-        return;
-      }
+
+      // Secure backend verification
+      await wageApi.verifyPassword(Number(logged.user_id), passwordInput);
+
       if (!selectedEmployee) {
         toast.error("No employee selected.");
         return;

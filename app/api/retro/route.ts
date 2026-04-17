@@ -143,7 +143,14 @@ export async function PATCH(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const EXTERNAL_API_BASE = (await resolveApiConfig()).apiBase;
+    const config = await resolveApiConfig();
+    if (!config) {
+      return NextResponse.json(
+        { error: "No enterprise entity selected. Please visit the portal to choose one." },
+        { status: 400 }
+      );
+    }
+    const EXTERNAL_API_BASE = config.apiBase;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 

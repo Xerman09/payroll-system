@@ -52,7 +52,7 @@ function Sidebar() {
       {
         panel: "Dashboard",
         items: [
-          { title: "Dashboard", href: `/dashboard/${userId}`, icon: <Home size={20} /> },
+          { title: "Dashboard", href: `/dashboard/${userId}`, icon: <Home size={18} /> },
         ],
       },
       {
@@ -61,32 +61,32 @@ function Sidebar() {
           {
             title: "Compensation Management",
             href: `/wage/${userId}`,
-            icon: <PhilippinePeso size={20} />,
+            icon: <PhilippinePeso size={18} />,
           },
           {
             title: "COOP",
             href: `/coop/${userId}`,
-            icon: <PiggyBank size={20} />,
+            icon: <PiggyBank size={18} />,
           },
           {
             title: "Holiday Calendar",
             href: `/calendar-management/${userId}`,
-            icon: <Calendar size={20} />,
+            icon: <Calendar size={18} />,
           },
           {
             title: "Benefits Management",
             href: `/benefit-settings/${userId}`,
-            icon: <HandCoins size={20} />,
+            icon: <HandCoins size={18} />,
           },
           {
             title: "Cutoff Settings",
             href: `/cutoff-settings/${userId}`,
-            icon: <Calendars size={20} />,
+            icon: <Calendars size={18} />,
           },
           {
             title: "Logistics Compensation",
             href: "#",
-            icon: <Anchor size={20} />,
+            icon: <Anchor size={18} />,
             subItems: [
               {
                 title: "Compensation Settings",
@@ -106,7 +106,7 @@ function Sidebar() {
           {
             title: "Payroll Run",
             href: `/payroll-run/${userId}`,
-            icon: <Calculator size={20} />,
+            icon: <Calculator size={18} />,
           },
         ],
       },
@@ -116,7 +116,7 @@ function Sidebar() {
           {
             title: "Payroll Records",
             href: `/payroll-records/${userId}`,
-            icon: <Folders size={20} />,
+            icon: <Folders size={18} />,
           },
         ],
       },
@@ -126,11 +126,21 @@ function Sidebar() {
 
   const toggleDropdown = (title: string) => {
     setOpenDropdowns((prev) =>
-      prev.includes(title)
-        ? prev.filter((item) => item !== title)
-        : [...prev, title]
+      prev.includes(title) ? [] : [title]
     );
   };
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== 'undefined' && window.innerHeight < 750) {
+        setCollapsed(true);
+      }
+    };
+    
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [setCollapsed]);
 
   // Auto-expand parent if sub-item is active
   React.useEffect(() => {
@@ -220,9 +230,9 @@ function Sidebar() {
             </button>
 
             {/* Navigation */}
-            <div className="flex flex-col flex-1 mt-6 px-2 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700">
+            <div className="flex flex-col flex-1 mt-6 px-2 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               {menuItems.map((panel, pIdx) => (
-                <div key={pIdx} className="mb-4">
+                <div key={pIdx} className="mb-2">
                   {/* Panel Title */}
                   {!collapsed && (
                     <div className="px-3 mb-1 text-xs text-gray-500 uppercase font-medium">
@@ -251,7 +261,7 @@ function Sidebar() {
                                   }
                                 }}
                                 className={cn(
-                                  "w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ease-out mt-1",
+                                  "w-full flex items-center gap-2 py-2 px-3 text-sm rounded-xl transition-all duration-200 ease-out mt-0.5",
                                   "text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 hover:shadow-md",
                                   collapsed ? "justify-center" : "justify-start",
                                   isActive && "bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary"
@@ -269,7 +279,7 @@ function Sidebar() {
                               <Link
                                 href={item.href}
                                 className={cn(
-                                  "flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ease-out mt-1",
+                                  "flex items-center gap-2 py-2 px-3 text-sm rounded-xl transition-all duration-200 ease-out mt-0.5",
                                   "text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 hover:shadow-md",
                                   collapsed ? "justify-center" : "justify-start",
                                   pathname === item.href &&
@@ -306,7 +316,7 @@ function Sidebar() {
                                     key={sIdx}
                                     href={sub.href}
                                     className={cn(
-                                      "p-2 text-sm rounded-lg transition-colors block",
+                                      "py-1.5 px-2 text-sm rounded-lg transition-colors block",
                                       "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-800",
                                       pathname === sub.href && "text-primary font-medium"
                                     )}
@@ -332,13 +342,13 @@ function Sidebar() {
                   <Link
                     href={`/profile/${userId}`}
                     className={cn(
-                      "flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ease-out",
+                      "flex items-center gap-2 py-2 px-3 rounded-xl transition-all duration-200 ease-out",
                       "text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 hover:shadow-md",
                       collapsed ? "justify-center" : "justify-start",
                       pathname === `/profile/${userId}` && "bg-primary text-primary-foreground hover:bg-primary/90"
                     )}
                   >
-                    <User size={20} />
+                    <User size={18} />
                     {!collapsed && <span className="font-medium text-sm">My Profile</span>}
                   </Link>
                 </TooltipTrigger>
@@ -352,13 +362,13 @@ function Sidebar() {
                   <Link
                     href={`/settings/${userId}`}
                     className={cn(
-                      "flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ease-out",
+                      "flex items-center gap-2 py-2 px-3 rounded-xl transition-all duration-200 ease-out",
                       "text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-700 hover:shadow-md",
                       collapsed ? "justify-center" : "justify-start",
                       pathname === `/settings/${userId}` && "bg-primary text-primary-foreground hover:bg-primary/90"
                     )}
                   >
-                    <Settings size={20} />
+                    <Settings size={18} />
                     {!collapsed && <span className="font-medium text-sm">System Settings</span>}
                   </Link>
                 </TooltipTrigger>

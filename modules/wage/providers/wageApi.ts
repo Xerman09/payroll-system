@@ -180,6 +180,19 @@ export async function fetchUserById(userId: number) {
   return json.data;
 }
 
+export async function verifyPassword(userId: number, password: string) {
+  const res = await fetch("/api/auth/verify-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId, password }),
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(json?.message || "Password verification failed");
+  }
+  return json;
+}
+
 export async function fetchWageByUser(userId: number): Promise<WageRecord | null> {
   const json = await apiFetch(`/items/user_wage_management?filter[user_id][_eq]=${userId}`);
   return (json.data && json.data[0]) || null;

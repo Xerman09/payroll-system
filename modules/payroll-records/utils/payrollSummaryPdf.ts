@@ -523,6 +523,7 @@ export async function buildPayrollSummaryPdf(args: { data: ReportCompany[]; meta
           x: sx,
           y: ctY,
           w: subTW,
+          cols: subCols,
           rows: rows as Record<string, string | number | boolean | null | undefined>[],
           maxRows: rowsPerCol,
           highlightLastRow: end >= compSorted.length,

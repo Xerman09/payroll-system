@@ -58,6 +58,7 @@ async function readBody(req: NextRequest) {
 
 async function baseUrl() {
   const config = await resolveApiConfig();
+  if (!config) return "";
   const b = config.apiBase;
   return b ? String(b).replace(/\/+$/, "") : "";
 }
