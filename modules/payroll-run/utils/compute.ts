@@ -1196,13 +1196,13 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const coopSavingsItemizedManual = buildManualItemizationsForBreakdown(coopSavingsRowsManual);
   const coopLoanItemized = buildManualItemizationsForBreakdown(coopLoanRows);
 
-  const manualAdds = round2(itemizedBase.manual_addition_items.reduce((sum, x) => sum + n(x.amount), 0));
+  let manualAdds = round2(itemizedBase.manual_addition_items.reduce((sum, x) => sum + n(x.amount), 0));
 
-  const shortageDeduction = round2(itemizedBase.manual_deduction_summary.shortage_total);
-  const drDeduction = round2(itemizedBase.manual_deduction_summary.dr_total);
-  const otherDeductions = round2(itemizedBase.manual_deduction_summary.other_total);
+  let shortageDeduction = round2(itemizedBase.manual_deduction_summary.shortage_total);
+  let drDeduction = round2(itemizedBase.manual_deduction_summary.dr_total);
+  let otherDeductions = round2(itemizedBase.manual_deduction_summary.other_total);
 
-  const coopLoan = round2(coopLoanItemized.manual_deduction_items.reduce((sum, x) => sum + n(x.amount), 0));
+  let coopLoan = round2(coopLoanItemized.manual_deduction_items.reduce((sum, x) => sum + n(x.amount), 0));
 
   /* ------------------------------ Retro Pay (Option B + Manual) ------------------------------ */
 
@@ -1242,7 +1242,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
   // Merge + dedupe by item_key
   const retro_items_all = dedupeByItemKey<BreakdownItem>([...retro_items_manual, ...retro_items_table]);
-  const retroPay = round2(retro_items_all.reduce((sum, x) => sum + n(x.amount), 0));
+  let retroPay = round2(retro_items_all.reduce((sum, x) => sum + n(x.amount), 0));
 
   // Backward compat array name (your old UI may be reading retro_pay_items)
   const retro_pay_items = retro_items_all;
@@ -1302,10 +1302,10 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     ...coop_savings_items_table,
   ]);
 
-  const coopSavings = round2(coop_savings_items.reduce((sum, x) => sum + n(x.amount), 0));
+  let coopSavings = round2(coop_savings_items.reduce((sum, x) => sum + n(x.amount), 0));
 
   // Manual deductions total includes coop savings + coop loan
-  const manualDeductions = round2(shortageDeduction + drDeduction + otherDeductions + coopSavings + coopLoan);
+  let manualDeductions = round2(shortageDeduction + drDeduction + otherDeductions + coopSavings + coopLoan);
 
   /* ------------------------------ Govt benefits ------------------------------ */
 
@@ -1317,9 +1317,9 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const philMonthly = n(args.wage?.philhealth_employee);
   const pagibigMonthly = n(args.wage?.pagibig_employee);
 
-  const benefitSSS = round2(sssMonthly * multSSS);
-  const benefitPhilhealth = round2(philMonthly * multPhil);
-  const benefitPagibig = round2(pagibigMonthly * multPagibig);
+  let benefitSSS = round2(sssMonthly * multSSS);
+  let benefitPhilhealth = round2(philMonthly * multPhil);
+  let benefitPagibig = round2(pagibigMonthly * multPagibig);
 
   /* --------------------------- Employee loans 50/50 --------------------------- */
 
@@ -1343,7 +1343,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
       .reduce((sum, x) => sum + n(x.amount), 0),
   );
 
-  const loanTotal = round2(loanVale + loanCar + loanCoop);
+  let loanTotal = round2(loanVale + loanCar + loanCoop);
 
   /* ----------------------- Benefit loans (SSS/PAGIBIG) ----------------------- */
 
@@ -1386,7 +1386,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     bLoanItems.filter((x) => x.benefit_code === "PAGIBIG").reduce((sum, x) => sum + n(x.amount_this_cutoff), 0),
   );
 
-  const benefitLoanTotal = round2(benefitLoanSSS + benefitLoanPagibig);
+  let benefitLoanTotal = round2(benefitLoanSSS + benefitLoanPagibig);
 
   /* ------------------------------- Allowances ------------------------------- */
 
@@ -1397,7 +1397,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     cutoffType,
   });
 
-  const allowance = round2(allowanceCalc.total);
+  let allowance = round2(allowanceCalc.total);
 
   /* ------------------------------- Proration flags ------------------------------- */
 
@@ -1417,6 +1417,56 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     : null;
 
   /* -------------------------------- Totals -------------------------------- */
+
+  // ✅ ENFORCE ON-HOLD: If employee is on hold, they receive zero earnings and zero deductions for this run.
+  if (args.onHold) {
+    basicPay = 0;
+    otAmount = 0;
+    holidayPay = 0;
+    restDayAmount = 0;
+    nightDiffAmount = 0;
+    allowance = 0;
+    retroPay = 0;
+    manualAdds = 0;
+
+    lateDeduction = 0;
+    undertimeDeduction = 0;
+    shortageDeduction = 0;
+    loanTotal = 0;
+    benefitLoanTotal = 0;
+    benefitSSS = 0;
+    benefitPhilhealth = 0;
+    benefitPagibig = 0;
+    drDeduction = 0;
+    otherDeductions = 0;
+    coopSavings = 0;
+    coopLoan = 0;
+    manualDeductions = 0;
+
+    // Clear itemizations for the breakdown_json
+    holidayItems.length = 0;
+    restDayItems.length = 0;
+    // @ts-ignore - altering local lists
+    retro_items_all.length = 0;
+    // @ts-ignore - altering local lists
+    retro_pay_items.length = 0;
+    // @ts-ignore - altering local lists
+    coop_savings_items.length = 0;
+    // @ts-ignore - altering local lists
+    allowanceCalc.items = [];
+    allowanceCalc.total = 0;
+    // @ts-ignore - altering local lists
+    employeeLoanItems.length = 0;
+    // @ts-ignore - altering local lists
+    bLoanItems.length = 0;
+    // @ts-ignore - altering local lists
+    itemizedBase.manual_addition_items.length = 0;
+    // @ts-ignore - altering local lists
+    itemizedBase.manual_deduction_items.length = 0;
+    // @ts-ignore - altering local lists
+    coopLoanItemized.manual_deduction_items.length = 0;
+  }
+
 
   const grossPay = round2(
     basicPay + otAmount + holidayPay + restDayAmount + nightDiffAmount + allowance + retroPay + manualAdds,
