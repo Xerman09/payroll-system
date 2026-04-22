@@ -116,9 +116,9 @@ export function buildTapSheetRows(
 
     // New Logic: 
     // Gross = Basic + OT + Holiday + Rest Day + Night Diff
-    // Additions = Original Additions - (OT + Holiday + Rest Day + Night Diff)
+    // Additions = Original Additions - BASIC - (OT + Holiday + Rest Day + Night Diff)
     const adjustedGross = basic + ot + hol + rest + nd;
-    const adjustedAdds = addsOrig - (ot + hol + rest + nd);
+    const adjustedAdds = addsOrig - basic - (ot + hol + rest + nd);
 
     return {
       user_id: pr.user_id,
