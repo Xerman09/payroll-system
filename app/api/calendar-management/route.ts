@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveApiConfig } from "@/lib/api-helper";
+import { resolveApiConfig, buildForwardHeaders, CompanyConfig } from "@/lib/api-helper";
+
+export const dynamic = "force-dynamic";
 
 type ResourceKey = "users" | "holidays";
 
@@ -11,7 +13,7 @@ function getResource(req: NextRequest): ResourceKey {
 
 interface CalendarConfig {
   baseUrl: string;
-  token: string | undefined;
+  config: CompanyConfig; // Updated
   style: string;
   collections: Record<ResourceKey, string>;
 }
@@ -20,11 +22,9 @@ async function resolveCalendarConfig() {
   const config = await resolveApiConfig();
   if (!config) return null;
 
-  const TOKEN = process.env.DIRECTUS_TOKEN || process.env.DIRECTUS_STATIC_TOKEN;
-
   return {
     baseUrl: config.apiBase,
-    token: TOKEN,
+    config, // Keep the whole config for helper usage
     style: "directus",
     collections: {
       users: "user",
@@ -38,7 +38,8 @@ function buildUpstreamUrl(config: CalendarConfig, resource: ResourceKey, id?: st
   const collection = config.collections[resource];
   const base = config.baseUrl.replace(/\/+$/, "");
   
-  const path = `/items/${collection}${id ? `/${encodeURIComponent(id)}` : ""}`;
+  const collectionPath = collection === "user" ? "/users" : `/items/${collection}`;
+  const path = `${collectionPath}${id ? `/${encodeURIComponent(id)}` : ""}`;
   const url = new URL(base + path);
 
   if (!searchParams?.has("limit")) url.searchParams.set("limit", "-1");
@@ -48,13 +49,14 @@ function buildUpstreamUrl(config: CalendarConfig, resource: ResourceKey, id?: st
   return url;
 }
 
-async function upstreamFetch(config: CalendarConfig, url: URL, init?: RequestInit) {
-  const headers = new Headers(init?.headers || {});
-  headers.set("Accept", "application/json");
-  if (config.token) headers.set("Authorization", `Bearer ${config.token}`);
-  if (init?.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-
-  const res = await fetch(url.toString(), { ...init, headers, cache: "no-store" });
+async function upstreamFetch(config: CalendarConfig, req: NextRequest, url: URL, init?: RequestInit) {
+  const res = await fetch(url.toString(), { 
+    ...init, 
+    headers: buildForwardHeaders(req, config.config, { 
+      contentType: init?.body ? "application/json" : undefined 
+    }),
+    cache: "no-store" 
+  });
   const text = await res.text();
 
   let json: unknown = null;
@@ -91,7 +93,7 @@ export async function GET(req: NextRequest) {
     params.delete("resource");
 
     const url = buildUpstreamUrl(config, resource, id, params);
-    return upstreamFetch(config, url, { method: "GET" });
+    return upstreamFetch(config, req, url, { method: "GET" });
   } catch (error: unknown) {
     const e = error as Error;
     return NextResponse.json({ error: e?.message || "Bad Request" }, { status: 400 });
@@ -112,7 +114,7 @@ export async function POST(req: NextRequest) {
     if (!data || typeof data !== "object") throw new Error("Missing data");
 
     const url = buildUpstreamUrl(config, resource);
-    return upstreamFetch(config, url, { method: "POST", body: JSON.stringify(data) });
+    return upstreamFetch(config, req, url, { method: "POST", body: JSON.stringify(data) });
   } catch (error: unknown) {
     const e = error as Error;
     return NextResponse.json({ error: e?.message || "Bad Request" }, { status: 400 });
@@ -135,7 +137,7 @@ export async function PATCH(req: NextRequest) {
     if (!data || typeof data !== "object") throw new Error("Missing data");
 
     const url = buildUpstreamUrl(config, resource, String(id));
-    return upstreamFetch(config, url, { method: "PATCH", body: JSON.stringify(data) });
+    return upstreamFetch(config, req, url, { method: "PATCH", body: JSON.stringify(data) });
   } catch (error: unknown) {
     const e = error as Error;
     return NextResponse.json({ error: e?.message || "Bad Request" }, { status: 400 });
@@ -158,7 +160,7 @@ export async function DELETE(req: NextRequest) {
     params.delete("id");
 
     const url = buildUpstreamUrl(config, resource, id, params);
-    return upstreamFetch(config, url, { method: "DELETE" });
+    return upstreamFetch(config, req, url, { method: "DELETE" });
   } catch (error: unknown) {
     const e = error as Error;
     return NextResponse.json({ error: e?.message || "Bad Request" }, { status: 400 });

@@ -5,8 +5,11 @@ const BASE_API = "/api/compensation-settings";
 async function apiFetch(resource: string, options: RequestInit = {}) {
   const url = `${BASE_API}?resource=${resource}`;
   const res = await fetch(url, options);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "API request failed");
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : {}; } catch { data = { error: text }; }
+  
+  if (!res.ok) throw new Error(data?.error || "API request failed");
   return data;
 }
 
@@ -17,8 +20,11 @@ async function apiMutate(method: "POST" | "PATCH" | "DELETE", resource: string, 
     headers: { "Content-Type": "application/json" },
     body: method !== "DELETE" ? JSON.stringify(body) : undefined,
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "API mutation failed");
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : {}; } catch { data = { error: text }; }
+
+  if (!res.ok) throw new Error(data?.error || "API mutation failed");
   return data;
 }
 

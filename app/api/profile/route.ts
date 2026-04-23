@@ -1,46 +1,10 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
-import { resolveApiConfig } from "@/lib/api-helper";
+import { NextRequest, NextResponse } from "next/server";
+import { resolveApiConfig, buildForwardHeaders, buildProxyUrl, parseJsonSafe, joinUrl } from "@/lib/api-helper";
 
-const SERVICE_TOKEN = process.env.DIRECTUS_TOKEN || process.env.DIRECTUS_SERVICE_TOKEN || "";
-
-function joinUrl(base: string, path: string) {
-  const b = (base || "").replace(/\/+$/, "");
-  const p = (path || "").startsWith("/") ? path : `/${path}`;
-  return `${b}${p}`;
-}
-
-function buildForwardHeaders(req: NextRequest, contentType?: string) {
-  const headers: Record<string, string> = {};
-  if (contentType) headers["Content-Type"] = contentType;
-
-  const auth = req.headers.get("authorization");
-  if (auth) headers["Authorization"] = auth;
-
-  // Use service token if no user auth is present
-  if (!headers["Authorization"] && SERVICE_TOKEN) {
-    headers["Authorization"] = `Bearer ${SERVICE_TOKEN}`;
-  }
-
-  return headers;
-}
-
-async function parseJsonSafe(res: Response) {
-  const text = await res.text();
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { raw: text };
-  }
-}
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    const path = url.searchParams.get("path") || "";
-    url.searchParams.delete("path");
-    
     const config = await resolveApiConfig();
     if (!config) {
       return NextResponse.json(
@@ -49,13 +13,11 @@ export async function GET(req: NextRequest) {
       );
     }
     const BASE = config.apiBase;
-    const extra = url.searchParams.toString();
-    
-    const fetchUrl = `${joinUrl(BASE || "", path)}${extra ? (path.includes("?") ? "&" : "?") + extra : ""}`;
+    const fetchUrl = buildProxyUrl(req.url, BASE);
 
     const res = await fetch(fetchUrl, {
       method: "GET",
-      headers: buildForwardHeaders(req),
+      headers: buildForwardHeaders(req, config),
       cache: "no-store",
     });
 
@@ -82,7 +44,7 @@ export async function PATCH(req: NextRequest) {
     const BASE = config.apiBase;
     const res = await fetch(joinUrl(BASE || "", path), {
       method: "PATCH",
-      headers: buildForwardHeaders(req, "application/json"),
+      headers: buildForwardHeaders(req, config, { contentType: "application/json" }),
       body: JSON.stringify(payload),
     });
 
@@ -113,9 +75,7 @@ export async function POST(req: NextRequest) {
       const BASE = config.apiBase;
       const res = await fetch(joinUrl(BASE || "", path), {
         method: "POST",
-        headers: {
-          "Authorization": req.headers.get("authorization") || `Bearer ${SERVICE_TOKEN}`,
-        },
+        headers: buildForwardHeaders(req, config),
         body: formData,
       });
       
@@ -136,7 +96,7 @@ export async function POST(req: NextRequest) {
     const BASE = config.apiBase;
     const res = await fetch(joinUrl(BASE || "", path), {
       method: "POST",
-      headers: buildForwardHeaders(req, "application/json"),
+      headers: buildForwardHeaders(req, config, { contentType: "application/json" }),
       body: JSON.stringify(payload),
     });
 

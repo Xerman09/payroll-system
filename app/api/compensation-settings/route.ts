@@ -1,6 +1,8 @@
-// app/api/compensation-settings/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { resolveApiConfig } from "@/lib/api-helper";
+import { resolveApiConfig, buildForwardHeaders } from "@/lib/api-helper";
+import type { CompanyConfig } from "@/lib/api-helper";
+
+export const dynamic = "force-dynamic";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
@@ -20,29 +22,21 @@ export async function OPTIONS() {
 }
 
 
-const DIRECTUS_TOKEN =
-  process.env.DIRECTUS_TOKEN ||
-  process.env.DIRECTUS_STATIC_TOKEN ||
-  process.env.NEXT_PUBLIC_DIRECTUS_TOKEN ||
-  "";
-
 function buildUrl(base: string, path: string) {
   const b = String(base || "").replace(/\/+$/, "");
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${b}${p}`;
 }
 
-async function directusFetch(method: HttpMethod, path: string, base: string, body?: unknown) {
-  const url = buildUrl(base, path);
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-  };
-  if (method !== "GET") headers["Content-Type"] = "application/json";
-  if (DIRECTUS_TOKEN) headers.Authorization = `Bearer ${DIRECTUS_TOKEN}`;
+async function directusFetch(req: NextRequest, method: HttpMethod, path: string, config: CompanyConfig, body?: unknown) {
+  const url = buildUrl(config.apiBase, path);
 
   const res = await fetch(url, {
     method,
-    headers,
+    headers: buildForwardHeaders(req, config, { 
+      contentType: method !== "GET" ? "application/json" : undefined,
+      useGlobalToken: true
+    }),
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
   });
@@ -87,8 +81,8 @@ export async function GET(req: NextRequest) {
       { status: 400 }
     );
   }
-  const base = config.apiBase;
-  const result = await directusFetch("GET", `/items/${table}`, base);
+
+  const result = await directusFetch(req, "GET", `/items/${table}`, config);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json(result.data, { headers: corsHeaders() });
 }
@@ -107,9 +101,9 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  const base = config.apiBase;
+
   const payload = await req.json().catch(() => null);
-  const result = await directusFetch("POST", `/items/${table}`, base, payload);
+  const result = await directusFetch(req, "POST", `/items/${table}`, config, payload);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json(result.data, { headers: corsHeaders() });
 }
@@ -132,8 +126,7 @@ export async function PATCH(req: NextRequest) {
       { status: 400 }
     );
   }
-  const base = config.apiBase;
-  const result = await directusFetch("PATCH", `/items/${table}/${id}`, base, payload);
+  const result = await directusFetch(req, "PATCH", `/items/${table}/${id}`, config, payload);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json(result.data, { headers: corsHeaders() });
 }
@@ -153,8 +146,8 @@ export async function DELETE(req: NextRequest) {
       { status: 400 }
     );
   }
-  const base = config.apiBase;
-  const result = await directusFetch("DELETE" as HttpMethod, `/items/${table}/${id}`, base);
+
+  const result = await directusFetch(req, "DELETE", `/items/${table}/${id}`, config);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json({ message: "Deleted" }, { headers: corsHeaders() });
 }

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveApiConfig } from "@/lib/api-helper";
+import { resolveApiConfig, buildForwardHeaders } from "@/lib/api-helper";
+
+export const dynamic = "force-dynamic";
 
 // Access the environment variable securely
 
 /**
  * GET: Fetch all employees and retro pays
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const config = await resolveApiConfig();
     if (!config) {
@@ -19,9 +21,13 @@ export async function GET() {
     const [empRes, retroRes] = await Promise.all([
       fetch(
         `${EXTERNAL_API_BASE}/items/user?limit=-1&fields=user_id,user_fname,user_mname,user_lname,user_email,user_position`,
-        { cache: "no-store" }
+        { 
+          headers: buildForwardHeaders(req, config),
+          cache: "no-store" 
+        }
       ),
       fetch(`${EXTERNAL_API_BASE}/items/retro_pay?fields=*,user_id.*`, {
+        headers: buildForwardHeaders(req, config),
         cache: "no-store",
       }),
     ]);
@@ -63,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     const res = await fetch(`${EXTERNAL_API_BASE}/items/retro_pay`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildForwardHeaders(request, config, { contentType: "application/json" }),
       body: JSON.stringify(body),
     });
 
@@ -114,7 +120,7 @@ export async function PATCH(request: NextRequest) {
 
     const res = await fetch(`${EXTERNAL_API_BASE}/items/retro_pay/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: buildForwardHeaders(request, config, { contentType: "application/json" }),
       body: JSON.stringify(body),
     });
 
@@ -163,6 +169,7 @@ export async function DELETE(request: NextRequest) {
 
     const res = await fetch(`${EXTERNAL_API_BASE}/items/retro_pay/${id}`, {
       method: "DELETE",
+      headers: buildForwardHeaders(request, config),
     });
 
     if (!res.ok) {

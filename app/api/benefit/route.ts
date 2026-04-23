@@ -1,34 +1,12 @@
 // app/api/benefit/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { resolveApiConfig } from "@/lib/api-helper";
+import { resolveApiConfig, buildForwardHeaders, buildProxyUrl } from "@/lib/api-helper";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 
-const SERVICE_TOKEN =
-  process.env.DIRECTUS_TOKEN ||
-  process.env.DIRECTUS_SERVICE_TOKEN ||
-  process.env.DIRECTUS_ACCESS_TOKEN ||
-  "";
 
-function joinUrl(base: string, path: string) {
-  const p = path.startsWith("/") ? path : `/${path}`;
-  return `${base}${p}`;
-}
-
-function buildForwardHeaders(req: NextRequest, contentType?: string) {
-  const h: Record<string, string> = {};
-
-  // pass through Authorization if present
-  const auth = req.headers.get("authorization");
-  if (auth) h["Authorization"] = auth;
-  else if (SERVICE_TOKEN) h["Authorization"] = `Bearer ${SERVICE_TOKEN}`;
-
-  if (contentType) h["Content-Type"] = contentType;
-
-  return h;
-}
 
 async function readBodyIfAny(req: NextRequest) {
   // Some methods have no body; avoid crashing on empty
@@ -42,13 +20,6 @@ async function readBodyIfAny(req: NextRequest) {
 }
 
 async function forward(req: NextRequest) {
-  const url = new URL(req.url);
-  const path = url.searchParams.get("path");
-
-  if (!path) {
-    return NextResponse.json({ error: "Missing ?path=" }, { status: 400 });
-  }
-
   const config = await resolveApiConfig();
   if (!config) {
     return NextResponse.json(
@@ -58,11 +29,13 @@ async function forward(req: NextRequest) {
   }
   const DIRECTUS_BASE = (config.apiBase || "").replace(/\/+$/, "");
 
+  const url = new URL(req.url);
+  const path = url.searchParams.get("path");
   if (path === "config") {
     return NextResponse.json({ companyName: config.name });
   }
 
-  const targetUrl = joinUrl(DIRECTUS_BASE, path);
+  const targetUrl = buildProxyUrl(req.url, DIRECTUS_BASE);
 
   const method = req.method.toUpperCase();
 
@@ -72,7 +45,7 @@ async function forward(req: NextRequest) {
 
   const init: RequestInit = {
     method,
-    headers: buildForwardHeaders(req, payload ? "application/json" : undefined),
+    headers: buildForwardHeaders(req, config, { contentType: payload ? "application/json" : undefined }),
     // Only attach body for methods that normally carry body
     body:
       payload && (method === "POST" || method === "PATCH" || method === "PUT")

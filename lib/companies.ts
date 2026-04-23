@@ -12,6 +12,7 @@ export interface CompanyConfig {
   description: string;
   color: string;
   hidden?: boolean;
+  token?: string;
 }
 
 const ROMAN_MAP: Record<string, number> = {
@@ -55,7 +56,8 @@ function discoverCompanies(): CompanyConfig[] {
         deptId: process.env[`API_DEPT_ID_${roman}`] || "1",
         description: process.env[`API_BASE_DESC_${roman}`] || "Enterprise Resource Hub",
         color: process.env[`API_BASE_COLOR_${roman}`] || generateColor(name),
-        hidden: process.env[`API_BASE_HIDDEN_${roman}`] === "true"
+        hidden: process.env[`API_BASE_HIDDEN_${roman}`] === "true",
+        token: process.env[`API_BASE_TOKEN_${roman}`] || undefined
       };
       
       found.push({ num, config });

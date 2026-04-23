@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveApiConfig } from "@/lib/api-helper";
+import { resolveApiConfig, buildForwardHeaders } from "@/lib/api-helper";
 
 /**
  * Proxy route for Directus assets.
@@ -18,16 +18,13 @@ export async function GET(
       return new NextResponse("Not Found: Company not selected", { status: 404 });
     }
 
-    const SERVICE_TOKEN = process.env.DIRECTUS_TOKEN || process.env.DIRECTUS_SERVICE_TOKEN || "";
     const directusUrl = config.apiBase.replace(/\/+$/, "");
     const assetUrl = `${directusUrl}/assets/${id}`;
 
     // Forward the request to Directus
     const res = await fetch(assetUrl, {
       method: "GET",
-      headers: {
-        "Authorization": req.headers.get("Authorization") || (SERVICE_TOKEN ? `Bearer ${SERVICE_TOKEN}` : ""),
-      },
+      headers: buildForwardHeaders(req, config),
       // Do not cache on the server side to ensure we respect company switching
       cache: 'no-store'
     });

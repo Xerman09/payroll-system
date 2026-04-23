@@ -1,49 +1,7 @@
-// app/api/wage/route.ts
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
-import { resolveApiConfig } from "@/lib/api-helper";
+import { NextRequest, NextResponse } from "next/server";
+import { resolveApiConfig, buildForwardHeaders, buildProxyUrl, parseJsonSafe, joinUrl } from "@/lib/api-helper";
 
-
-// Optional service token (recommended for server-to-Directus calls)
-const SERVICE_TOKEN =
-  process.env.DIRECTUS_TOKEN ||
-  process.env.DIRECTUS_SERVICE_TOKEN ||
-  process.env.NEXT_PUBLIC_DIRECTUS_TOKEN ||
-  "";
-
-function joinUrl(base: string, path: string) {
-  const b = (base || "").replace(/\/+$/, "");
-  const p = (path || "").startsWith("/") ? path : `/${path}`;
-  return `${b}${p}`;
-}
-
-function buildForwardHeaders(req: NextRequest, contentType?: string) {
-  const headers: Record<string, string> = {};
-
-  if (contentType) headers["Content-Type"] = contentType;
-
-  const auth = req.headers.get("authorization");
-  if (auth) headers["Authorization"] = auth;
-
-  const cookie = req.headers.get("cookie");
-  if (cookie) headers["Cookie"] = cookie;
-
-  if (!headers["Authorization"] && SERVICE_TOKEN) {
-    headers["Authorization"] = `Bearer ${SERVICE_TOKEN}`;
-  }
-
-  return headers;
-}
-
-async function parseJsonSafe(res: Response) {
-  const text = await res.text();
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { raw: text };
-  }
-}
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -56,20 +14,12 @@ export async function GET(req: NextRequest) {
     }
     const BASE = config.apiBase;
 
-    const url = new URL(req.url);
-    const path = url.searchParams.get("path") || "";
-
-    // remove "path" from query string and append remaining to the downstream request
-    url.searchParams.delete("path");
-    const extra = url.searchParams.toString();
-
-    const hasQueryAlready = path.includes("?");
-    const fetchUrl = `${joinUrl(BASE, path)}${extra ? (hasQueryAlready ? "&" : "?") + extra : ""
-      }`;
+    const fetchUrl = buildProxyUrl(req.url, BASE);
+    const fwdHeaders = buildForwardHeaders(req, config);
 
     const res = await fetch(fetchUrl, {
       method: "GET",
-      headers: buildForwardHeaders(req),
+      headers: fwdHeaders,
       cache: "no-store",
     });
 
@@ -106,7 +56,7 @@ export async function POST(req: NextRequest) {
 
     const res = await fetch(joinUrl(BASE, path), {
       method: "POST",
-      headers: buildForwardHeaders(req, "application/json"),
+      headers: buildForwardHeaders(req, config, { contentType: "application/json" }),
       body: JSON.stringify(payload),
     });
 
@@ -143,7 +93,7 @@ export async function PATCH(req: NextRequest) {
 
     const res = await fetch(joinUrl(BASE, path), {
       method: "PATCH",
-      headers: buildForwardHeaders(req, "application/json"),
+      headers: buildForwardHeaders(req, config, { contentType: "application/json" }),
       body: JSON.stringify(payload),
     });
 
@@ -193,7 +143,7 @@ export async function DELETE(req: NextRequest) {
 
     const res = await fetch(joinUrl(BASE, path), {
       method: "DELETE",
-      headers: buildForwardHeaders(req),
+      headers: buildForwardHeaders(req, config),
     });
 
     // Directus may return 204 No Content

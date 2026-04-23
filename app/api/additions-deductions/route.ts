@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { resolveApiConfig } from "@/lib/api-helper";
+import { NextRequest, NextResponse } from "next/server";
+import { resolveApiConfig, buildForwardHeaders, CompanyConfig } from "@/lib/api-helper";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,21 +10,10 @@ function normalizeBase(base: string): string {
   return base.endsWith("/") ? base.slice(0, -1) : base;
 }
 
-function getToken(): string {
-  return (
-    process.env.API_TOKEN ||
-    process.env.DIRECTUS_TOKEN ||
-    process.env.DIRECTUS_STATIC_TOKEN ||
-    ""
-  );
-}
-
-function buildHeaders(opts?: { json?: boolean }): Headers {
-  const h = new Headers();
-  h.set("Accept", "application/json");
-  if (opts?.json) h.set("Content-Type", "application/json");
-  const token = getToken();
-  if (token) h.set("Authorization", `Bearer ${token}`);
+function buildHeaders(req: NextRequest, config: CompanyConfig, opts?: { json?: boolean }): Headers {
+  const h = new Headers(buildForwardHeaders(req, config, { 
+    contentType: opts?.json ? "application/json" : undefined 
+  }));
   return h;
 }
 
@@ -92,7 +81,7 @@ function logErr(...args: unknown[]) {
 // =====================
 // GET
 // =====================
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const config = await resolveApiConfig();
   if (!config) {
     return jsonError("No enterprise entity selected. Please visit the portal to choose one.", 400);
@@ -123,7 +112,7 @@ export async function GET(request: Request) {
 
     const res = await fetch(url, {
       cache: "no-store",
-      headers: buildHeaders(),
+      headers: buildHeaders(request as NextRequest, config),
     });
 
     log("External response:", { status: res.status, ok: res.ok, url });
@@ -160,7 +149,7 @@ export async function GET(request: Request) {
 // =====================
 type PostBody = { resource: ResourceKey; data: unknown };
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const config = await resolveApiConfig();
   if (!config) {
     return jsonError("No enterprise entity selected. Please visit the portal to choose one.", 400);
@@ -187,7 +176,7 @@ export async function POST(request: Request) {
 
     const res = await fetch(url, {
       method: "POST",
-      headers: buildHeaders({ json: true }),
+      headers: buildHeaders(request as NextRequest, config, { json: true }),
       body: JSON.stringify(data),
     });
 
@@ -212,7 +201,7 @@ export async function POST(request: Request) {
 // =====================
 type PatchBody = { resource: ResourceKey; id: string | number; data: unknown };
 
-export async function PATCH(request: Request) {
+export async function PATCH(request: NextRequest) {
   const config = await resolveApiConfig();
   if (!config) {
     return jsonError("No enterprise entity selected. Please visit the portal to choose one.", 400);
@@ -241,7 +230,7 @@ export async function PATCH(request: Request) {
 
     const res = await fetch(url, {
       method: "PATCH",
-      headers: buildHeaders({ json: true }),
+      headers: buildHeaders(request as NextRequest, config, { json: true }),
       body: JSON.stringify(data),
     });
 
@@ -264,7 +253,7 @@ export async function PATCH(request: Request) {
 // =====================
 // DELETE
 // =====================
-export async function DELETE(request: Request) {
+export async function DELETE(request: NextRequest) {
   const config = await resolveApiConfig();
   if (!config) {
     return jsonError("No enterprise entity selected. Please visit the portal to choose one.", 400);
@@ -291,7 +280,7 @@ export async function DELETE(request: Request) {
 
     const res = await fetch(url, {
       method: "DELETE",
-      headers: buildHeaders(),
+      headers: buildHeaders(request as NextRequest, config),
     });
 
     log("External response:", { status: res.status, ok: res.ok, url });

@@ -1446,24 +1446,15 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     // Clear itemizations for the breakdown_json
     holidayItems.length = 0;
     restDayItems.length = 0;
-    // @ts-ignore - altering local lists
     retro_items_all.length = 0;
-    // @ts-ignore - altering local lists
     retro_pay_items.length = 0;
-    // @ts-ignore - altering local lists
     coop_savings_items.length = 0;
-    // @ts-ignore - altering local lists
     allowanceCalc.items = [];
     allowanceCalc.total = 0;
-    // @ts-ignore - altering local lists
     employeeLoanItems.length = 0;
-    // @ts-ignore - altering local lists
     bLoanItems.length = 0;
-    // @ts-ignore - altering local lists
     itemizedBase.manual_addition_items.length = 0;
-    // @ts-ignore - altering local lists
     itemizedBase.manual_deduction_items.length = 0;
-    // @ts-ignore - altering local lists
     coopLoanItemized.manual_deduction_items.length = 0;
   }
 

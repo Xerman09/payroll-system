@@ -103,7 +103,7 @@ export async function fetchDepartments(): Promise<Department[]> {
 }
 
 export async function fetchEmployees(): Promise<Employee[]> {
-  const allUsers = await fetchAllInBatches<Employee>("/items/user");
+  const allUsers = await fetchAllInBatches<Employee>("/items/user?fields=user_id,user_fname,user_lname,user_department,is_deleted");
   return allUsers.filter((emp) => !emp.is_deleted || (emp.is_deleted as unknown as { data: number[] })?.data?.[0] === 0);
 }
 
@@ -164,6 +164,7 @@ export async function fetchEmployeesPaged({
     sort: sortOrder === "desc" ? `-${String(sortField)}` : String(sortField),
     meta: "filter_count",
     filter: JSON.stringify(filterParams),
+    fields: "user_id,user_fname,user_lname,user_department,is_deleted",
   };
 
   const query = new URLSearchParams(params).toString();
@@ -176,7 +177,7 @@ export async function fetchEmployeesPaged({
 }
 
 export async function fetchUserById(userId: number) {
-  const json = await apiFetch(`/items/user/${userId}`);
+  const json = await apiFetch(`/items/user/${userId}?fields=user_id,user_fname,user_lname,user_department,is_deleted`);
   return json.data;
 }
 
