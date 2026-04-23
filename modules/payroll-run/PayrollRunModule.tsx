@@ -291,18 +291,7 @@ export default function PayrollRunModule() {
         postedBy: 1, // TODO: auth
       });
 
-      // Optional (recommended): stamp DR payments as posted only when payroll is posted.
-      if (ws && computed) {
-        const employeeIds = computed.lines
-          .map((x) => Number(x.user_id))
-          .filter((x) => Number.isFinite(x) && x > 0);
 
-        await svc.postDRPaymentsToPayroll({
-          cutoff: ws.cutoff,
-          payrollRefNo: run.payroll_ref_no,
-          employeeIds,
-        });
-      }
 
       toast.success("Payroll POSTED successfully.");
       setRun((p) => (p ? { ...p, status: "POSTED" } : p));
