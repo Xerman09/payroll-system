@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveApiConfig } from "@/lib/api-helper";
-import { COMPANIES } from "@/lib/companies";
+import { resolveApiConfig, buildForwardHeaders } from "@/lib/api-helper";
+import { COMPANIES, CompanyConfig } from "@/lib/companies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function authHeaders() {
-  const token = process.env.DIRECTUS_TOKEN || process.env.DIRECTUS_STATIC_TOKEN;
-
-  const h: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) h["Authorization"] = `Bearer ${token}`;
-  return h;
-}
 
 function pickArray(payload: unknown): Record<string, unknown>[] {
   if (payload && typeof payload === "object" && "data" in payload) {
@@ -78,7 +71,7 @@ export async function GET(req: NextRequest) {
     const url = `${API_BASE}${path}`;
     const res = await fetch(url, {
       cache: "no-store",
-      headers: authHeaders(),
+      headers: buildForwardHeaders(req, config),
     });
 
     const text = await res.text();
@@ -266,13 +259,17 @@ export async function GET(req: NextRequest) {
       const APIS = COMPANIES.map(c => ({
         name: c.name,
         url: c.apiBase,
-        isPrimary: c.id === config.id, // Current selection is the baseline
-        isMain: c.id === config.id      // Current selection is the focus for PDF breakdown
+        token: c.token, // Include token
+        isPrimary: c.id === config.id,
+        isMain: c.id === config.id
       })).filter(a => !!a.url);
 
-      async function fetchFromApi(baseUrl: string, path: string) {
+      async function fetchFromApi(baseUrl: string, path: string, token?: string) {
         const url = `${baseUrl}${path}`;
-        const res = await fetch(url, { headers: authHeaders(), cache: "no-store" });
+        const res = await fetch(url, { 
+          headers: buildForwardHeaders(null, { token } as CompanyConfig), 
+          cache: "no-store" 
+        });
         if (!res.ok) return null;
         return res.json().then((p) => pickArray(p));
       }
@@ -283,7 +280,7 @@ export async function GET(req: NextRequest) {
       const histPath = `/items/cutoff_settings_history?sort=-event_at` +
         `&filter[start_date][_lt]=${cutoffStart}` +
         `&limit=1`;
-      const prevHist = await fetchFromApi(sourceUrl, histPath);
+      const prevHist = await fetchFromApi(sourceUrl, histPath, primaryApi.token);
       const prevCutoff = prevHist?.[0];
 
       // 3. Fetch all data concurrently
@@ -308,10 +305,10 @@ export async function GET(req: NextRequest) {
 
             // Parallelize WITHIN the company too
             const [currentRunArr, prevRunArr, currEmpsArr, prevEmpsArr] = await Promise.all([
-              fetchFromApi(baseUrl, runPath),
-              prevRunPath ? fetchFromApi(baseUrl, prevRunPath) : Promise.resolve([]),
-              fetchFromApi(baseUrl, currEmpPath),
-              prevEmpPath ? fetchFromApi(baseUrl, prevEmpPath) : Promise.resolve([]),
+              fetchFromApi(baseUrl, runPath, api.token),
+              prevRunPath ? fetchFromApi(baseUrl, prevRunPath, api.token) : Promise.resolve([]),
+              fetchFromApi(baseUrl, currEmpPath, api.token),
+              prevEmpPath ? fetchFromApi(baseUrl, prevEmpPath, api.token) : Promise.resolve([]),
             ]);
 
             const currentRun = currentRunArr?.[0];

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildExternalUrlFromUrl } from "./_routeHelpers";
-import { resolveApiConfig } from "@/lib/api-helper";
+import { resolveApiConfig, buildForwardHeaders } from "@/lib/api-helper";
+
+export const dynamic = "force-dynamic";
 
 
 export async function GET(req: NextRequest) {
@@ -15,7 +17,7 @@ export async function GET(req: NextRequest) {
     const EXTERNAL_API_BASE = config.apiBase;
     const url = buildExternalUrlFromUrl(req.url, EXTERNAL_API_BASE);
     const res = await fetch(url, {
-      headers: { "Content-Type": "application/json" },
+      headers: buildForwardHeaders(req, config),
     });
 
     if (!res.ok) {
@@ -46,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildForwardHeaders(req, config, { contentType: "application/json" }),
       body: JSON.stringify(body),
     });
 
@@ -78,7 +80,7 @@ export async function PATCH(req: NextRequest) {
 
     const res = await fetch(url, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: buildForwardHeaders(req, config, { contentType: "application/json" }),
       body: JSON.stringify(body),
     });
 
@@ -107,7 +109,10 @@ export async function DELETE(req: NextRequest) {
     const EXTERNAL_API_BASE = config.apiBase;
     const url = buildExternalUrlFromUrl(req.url, EXTERNAL_API_BASE);
 
-    const res = await fetch(url, { method: "DELETE" });
+    const res = await fetch(url, { 
+      method: "DELETE",
+      headers: buildForwardHeaders(req, config),
+    });
 
     if (!res.ok) {
       const errorText = await res.text();

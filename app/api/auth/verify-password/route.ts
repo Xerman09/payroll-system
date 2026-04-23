@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { compare } from "bcryptjs";
-import { resolveApiConfig } from "@/lib/api-helper";
+import { resolveApiConfig, buildForwardHeaders } from "@/lib/api-helper";
 
 export async function POST(req: Request) {
   try {
@@ -21,11 +21,24 @@ export async function POST(req: Request) {
       );
     }
 
-    const res = await fetch(`${API_BASE}/items/user/${userId}`, {
+    const fields = [
+      "user_id",
+      "user_fname",
+      "user_mname",
+      "user_lname",
+      "user_email",
+      "user_password",
+      "hash_password",
+      "role",
+      "user_department",
+      "user_position",
+      "user_image",
+    ].join(",");
+
+    const res = await fetch(`${API_BASE}/items/user/${userId}?fields=${fields}`, {
       cache: "no-store",
-      headers: {
-        Accept: "application/json",
-      },
+      // Use the company/service token — request specific fields only, never wildcard with a token.
+      headers: buildForwardHeaders(req, config, { forceServiceToken: true }),
     });
 
     if (!res.ok) {

@@ -1,6 +1,7 @@
-// app/api/payroll-run/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { resolveApiConfig } from "@/lib/api-helper";
+import { resolveApiConfig, buildForwardHeaders } from "@/lib/api-helper";
+
+export const dynamic = "force-dynamic";
 
 type ResourceKey =
   | "payroll_run"
@@ -53,18 +54,6 @@ const ALLOWED: Record<ResourceKey, true> = {
 };
 
 
-function pickAuth(req: NextRequest) {
-  const incoming = req.headers.get("authorization");
-  if (incoming) return incoming;
-
-  const staticToken =
-    process.env.DIRECTUS_TOKEN ??
-    process.env.DIRECTUS_STATIC_TOKEN ??
-    process.env.API_TOKEN ??
-    null;
-
-  return staticToken ? `Bearer ${staticToken}` : null;
-}
 
 function jsonError(status: number, error: string, details?: unknown) {
   return NextResponse.json({ error, details }, { status });
@@ -104,14 +93,18 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
     }
   }
 
+  const endpointPath = `/items/${resource}`;
+  
+  // Inject explicit fields for user table to prevent 500 Server Errors due to broken columns
+  if (resource === "user" && !sp.has("fields")) {
+    sp.set("fields", "user_id,user_fname,user_mname,user_lname,user_department,is_deleted,user_position");
+  }
   const endpoint =
     idRaw && String(idRaw).trim() !== ""
-      ? `${directus}/items/${resource}/${encodeURIComponent(String(idRaw))}`
-      : `${directus}/items/${resource}`;
+      ? `${directus}${endpointPath}/${encodeURIComponent(String(idRaw))}`
+      : `${directus}${endpointPath}`;
 
   const finalUrl = sp.toString() ? `${endpoint}?${sp.toString()}` : endpoint;
-
-  const auth = pickAuth(req);
 
   let body: unknown = undefined;
   if (req.method !== "GET" && req.method !== "HEAD") {
@@ -121,10 +114,7 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
 
   const res = await fetch(finalUrl, {
     method: req.method,
-    headers: {
-      ...(body != null ? { "Content-Type": "application/json" } : {}),
-      ...(auth ? { Authorization: auth } : {}),
-    },
+    headers: buildForwardHeaders(req, config, { contentType: body != null ? "application/json" : undefined }),
     ...(body != null ? { body: JSON.stringify(body) } : {}),
     cache: "no-store",
   });

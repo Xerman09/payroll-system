@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { signJWT } from "@/lib/auth";
 import { compare } from "bcryptjs";
-import { resolveApiConfig } from "@/lib/api-helper";
+import { resolveApiConfig, buildForwardHeaders } from "@/lib/api-helper";
 
 
 export async function POST(req: Request) {
@@ -30,21 +30,36 @@ export async function POST(req: Request) {
     qs.append("limit", "1");
     qs.append("filter[user_email][_eq]", email.trim());
     qs.append("filter[user_department][_eq]", String(deptId));
-    qs.append("fields", "*");
+    // Request only the specific fields needed — never use * with a service token
+    // as it causes a 500 if any field is outside the token role's permission scope.
+    qs.append("fields", [
+      "user_id",
+      "user_fname",
+      "user_mname",
+      "user_lname",
+      "user_email",
+      "user_password",
+      "hash_password",
+      "role",
+      "user_department",
+      "user_position",
+      "user_image",
+    ].join(","));
 
     const url = `${API_BASE}/items/user?${qs.toString()}`;
 
     const res = await fetch(url, {
       cache: "no-store",
-      headers: {
-        Accept: "application/json",
-      },
+      // Use the company/service token — the user collection requires auth.
+      headers: buildForwardHeaders(req, config, { forceServiceToken: true }),
     });
 
     if (!res.ok) {
+      const errorText = await res.text().catch(() => "No error details available");
+      console.error(`[Login] Backend fetch failed for ${url}. Status: ${res.status}. Error: ${errorText}`);
       return NextResponse.json(
-        { status: "error", message: "Backend fetch failed" },
-        { status: 500 }
+        { status: "error", message: `Backend fetch failed (${res.status})`, details: errorText },
+        { status: res.status }
       );
     }
 

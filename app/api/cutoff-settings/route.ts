@@ -1,6 +1,7 @@
 // app/api/cutoff-settings/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { resolveApiConfig } from "@/lib/api-helper";
+import { resolveApiConfig, buildForwardHeaders } from "@/lib/api-helper";
+import { COMPANIES } from "@/lib/companies";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
@@ -20,11 +21,6 @@ export async function OPTIONS() {
 }
 
 
-const DIRECTUS_TOKEN =
-  process.env.DIRECTUS_TOKEN ||
-  process.env.DIRECTUS_STATIC_TOKEN ||
-  process.env.NEXT_PUBLIC_DIRECTUS_TOKEN ||
-  "";
 
 function normalizeBaseUrl(url: string) {
   return String(url || "").replace(/\/+$/, "");
@@ -56,15 +52,12 @@ async function safeJsonParse(text: string) {
  * Authenticated fetch (uses DIRECTUS_TOKEN if available)
  * Good for collections that require token access.
  */
-async function directusFetchAuth(method: HttpMethod, path: string, base: string, body?: unknown) {
+async function directusFetchAuth(method: HttpMethod, path: string, base: string, body?: unknown, req?: NextRequest) {
   const url = buildUrl(base, path);
+  const config = COMPANIES.find(c => c.apiBase === normalizeBaseUrl(base)) || null;
 
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-  };
-
-  if (method !== "GET") headers["Content-Type"] = "application/json";
-  if (DIRECTUS_TOKEN) headers.Authorization = `Bearer ${DIRECTUS_TOKEN}`;
+  const headers = buildForwardHeaders(req, config, { contentType: method !== "GET" ? "application/json" : undefined });
+  headers["Accept"] = "application/json";
 
   const res = await fetch(url, {
     method,
@@ -101,45 +94,7 @@ async function directusFetchAuth(method: HttpMethod, path: string, base: string,
  * No-auth fetch (NO Bearer token)
  * Matches your /api/auth/login behavior for /items/user
  */
-async function directusFetchNoAuth(method: HttpMethod, path: string, base: string, body?: unknown) {
-  const url = buildUrl(base, path);
 
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-  };
-
-  if (method !== "GET") headers["Content-Type"] = "application/json";
-
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-    cache: "no-store",
-  });
-
-  const text = await res.text();
-  const json = await safeJsonParse(text);
-
-  if (!res.ok) {
-    const message =
-      json?.errors?.[0]?.message ||
-      json?.message ||
-      `Directus request failed (${res.status}).`;
-
-    return {
-      ok: false as const,
-      status: res.status,
-      error: message,
-      raw: json ?? text,
-    };
-  }
-
-  return {
-    ok: true as const,
-    status: res.status,
-    data: json,
-  };
-}
 
 function buildCutoffSettingsQuery(month?: string | null, year?: string | null) {
   const qs = new URLSearchParams();
@@ -309,8 +264,8 @@ export async function GET(req: NextRequest) {
     const ids = parseIdsParam(url.searchParams.get("ids"));
     const qs = buildUsersQuery(ids);
 
-    // Use no-auth for users, like login
-    const result = await directusFetchNoAuth("GET", `/items/user?${qs}`, API_BASE);
+    // Use auth proxy to allow Directus to authenticate the request
+    const result = await directusFetchAuth("GET", `/items/user?${qs}`, API_BASE, undefined, req);
 
     if (!result.ok) {
       return NextResponse.json(
@@ -330,7 +285,7 @@ export async function GET(req: NextRequest) {
   const year = url.searchParams.get("year");
   const qs = buildCutoffSettingsQuery(month, year);
 
-  const result = await directusFetchAuth("GET", `/items/cutoff_settings?${qs}`, API_BASE);
+  const result = await directusFetchAuth("GET", `/items/cutoff_settings?${qs}`, API_BASE, undefined, req);
 
   if (!result.ok) {
     return NextResponse.json(
@@ -360,7 +315,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const result = await directusFetchAuth("POST", `/items/cutoff_settings`, API_BASE, payload);
+  const result = await directusFetchAuth("POST", `/items/cutoff_settings`, API_BASE, payload, req);
 
   if (!result.ok) {
     return NextResponse.json(
@@ -410,7 +365,7 @@ export async function PATCH(req: NextRequest) {
 
     if (id) {
       // Fetch OLD data for comparison if needed
-      const oldRes = await directusFetchAuth("GET", `/items/cutoff_settings/${id}`, API_BASE);
+      const oldRes = await directusFetchAuth("GET", `/items/cutoff_settings/${id}`, API_BASE, undefined, req);
       const oldData = oldRes.ok ? (oldRes.data as { data?: Record<string, unknown> })?.data || oldRes.data as Record<string, unknown> : null;
 
       const patchBody = { ...item };
@@ -419,7 +374,8 @@ export async function PATCH(req: NextRequest) {
         "PATCH",
         `/items/cutoff_settings/${id}`,
         API_BASE,
-        patchBody
+        patchBody,
+        req
       );
 
       if (!r.ok) {
@@ -450,7 +406,7 @@ export async function PATCH(req: NextRequest) {
 
       results.push(newData);
     } else {
-      const r = await directusFetchAuth("POST", `/items/cutoff_settings`, API_BASE, item);
+      const r = await directusFetchAuth("POST", `/items/cutoff_settings`, API_BASE, item, req);
 
       if (!r.ok) {
         return NextResponse.json(
@@ -508,10 +464,10 @@ export async function DELETE(req: NextRequest) {
   }
 
   // Fetch data BEFORE deletion for history
-  const getOld = await directusFetchAuth("GET", `/items/cutoff_settings/${id}`, API_BASE);
+  const getOld = await directusFetchAuth("GET", `/items/cutoff_settings/${id}`, API_BASE, undefined, req);
   const oldData = getOld.ok ? (getOld.data as { data?: Record<string, unknown> })?.data || getOld.data as Record<string, unknown> : null;
 
-  const result = await directusFetchAuth("DELETE", `/items/cutoff_settings/${id}`, API_BASE);
+  const result = await directusFetchAuth("DELETE", `/items/cutoff_settings/${id}`, API_BASE, undefined, req);
 
   if (!result.ok) {
     return NextResponse.json(
