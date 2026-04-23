@@ -1361,37 +1361,7 @@ export async function enforceOnHoldEmployeesAndMaybeRerun(args: {
   };
 }
 
-// ✅ NEW: stamp DR payments as posted to payroll
-export async function postDRPaymentsToPayroll(args: {
-  cutoff: CutoffSetting;
-  payrollRefNo: string;
-  employeeIds: number[];
-}): Promise<void> {
-  const employeeIds = (args.employeeIds ?? []).filter((x) => Number.isFinite(x) && x > 0);
-  if (!employeeIds.length) return;
 
-  const rows = await safeList<Record<string, unknown>>(RES.drPayments, {
-    "filter[employee_id][_in]": employeeIds.join(","),
-    "filter[cutoff_from][_lte]": args.cutoff.end_date,
-    "filter[cutoff_to][_gte]": args.cutoff.start_date,
-    "filter[payment_method][_eq]": "PAYROLL_DEDUCTION",
-    "filter[is_posted_to_payroll][_eq]": 0,
-    limit: 20000,
-  });
-
-  if (!rows.length) return;
-
-  await Promise.all(
-    rows.map((r) => {
-      const id = n(r.dr_payment_id ?? r.id);
-      if (!id) return Promise.resolve();
-      return api.patchItem(RES.drPayments, id, {
-        is_posted_to_payroll: 1,
-        payroll_ref_no: args.payrollRefNo,
-      });
-    }),
-  );
-}
 
 // ------------------------------
 // Manual Entries CRUD (Adjustments)
@@ -2226,6 +2196,24 @@ export async function postRun(args: { payrollRunId: number; postedBy: number }):
     // Don't block posting for logging failure, just warn
   }
 
+  try {
+    await updateOneTimeAllowancesAsProcessed({ payrollRunId: pid, payrollRefNo });
+  } catch (e: unknown) {
+    console.error("Failed to process one-time allowances:", e);
+  }
+
+  try {
+    await updateRetroPaysAsProcessed({ payrollRunId: pid, payrollRefNo });
+  } catch (e: unknown) {
+    console.error("Failed to process retro pays:", e);
+  }
+
+  try {
+    await updateDRPaymentsAsProcessed({ payrollRunId: pid, payrollRefNo });
+  } catch (e: unknown) {
+    console.error("Failed to process DR Payments:", e);
+  }
+
   // Mark as POSTED
   await api.patchItem(RES.payrollRun, pid, {
     status: "POSTED",
@@ -2427,6 +2415,165 @@ async function updateBenefitLoanAccumulations(args: { payrollRunId: number; payr
       throw e;
     }
   }
+}
+
+/**
+ * Update `is_processed=1` for one-time allowances applied in this cutoff.
+ */
+async function updateOneTimeAllowancesAsProcessed(args: { payrollRunId: number; payrollRefNo: string }): Promise<void> {
+  const employees = await safeList<Record<string, unknown>>(
+    RES.payrollLines,
+    {
+      "filter[payroll_run_id][_eq]": args.payrollRunId,
+      "filter[on_hold][_neq]": 1,
+      fields: "breakdown_json",
+      limit: 5000,
+    },
+    []
+  );
+
+  const allowanceIds = new Set<number>();
+  for (const emp of employees) {
+    const breakdown = normalizeJsonOrNull(emp.breakdown_json) as PayrollBreakdownJson | null;
+    const items = arr<{ source_table?: string; source_id?: number }>(breakdown?.earnings?.allowance_items);
+    for (const item of items) {
+      if (item.source_table === "employee_allowance" && item.source_id) {
+        allowanceIds.add(n(item.source_id));
+      }
+    }
+  }
+
+  if (allowanceIds.size === 0) return;
+
+  // Fetch these allowances to confirm which ones are one-time
+  const allowances = await safeList<Record<string, unknown>>(
+    RES.allowances,
+    {
+      "filter[allowance_id][_in]": Array.from(allowanceIds).join(","),
+      "filter[is_recurring][_eq]": 0,
+      "filter[is_processed][_eq]": 0,
+      fields: "allowance_id",
+      limit: 5000,
+    },
+    []
+  );
+
+  const idsToProcess = allowances.map(a => n(a.allowance_id)).filter(id => id > 0);
+  if (idsToProcess.length === 0) return;
+
+  await runWithConcurrency(
+    idsToProcess.map(id => async () => {
+      await api.patchItem(RES.allowances, id, { is_processed: 1 });
+    }),
+    6
+  );
+}
+
+/**
+ * Update `is_processed=1` for retro pays applied in this cutoff.
+ */
+async function updateRetroPaysAsProcessed(args: { payrollRunId: number; payrollRefNo: string }): Promise<void> {
+  const employees = await safeList<Record<string, unknown>>(
+    RES.payrollLines,
+    {
+      "filter[payroll_run_id][_eq]": args.payrollRunId,
+      "filter[on_hold][_neq]": 1,
+      fields: "breakdown_json",
+      limit: 5000,
+    },
+    []
+  );
+
+  const retroIds = new Set<number>();
+  for (const emp of employees) {
+    const breakdown = normalizeJsonOrNull(emp.breakdown_json) as PayrollBreakdownJson | null;
+    const earnings = (breakdown?.earnings as Record<string, unknown>) ?? {};
+    const items = arr<{ source_table?: string; source_id?: number }>(earnings.retro_pay_items ?? earnings.retro_items_all);
+    for (const item of items) {
+      if (item.source_table === "retro_pay" && item.source_id) {
+        retroIds.add(n(item.source_id));
+      }
+    }
+  }
+
+  if (retroIds.size === 0) return;
+
+  const retroPays = await safeList<Record<string, unknown>>(
+    RES.retro_pay,
+    {
+      "filter[retro_id][_in]": Array.from(retroIds).join(","),
+      "filter[is_processed][_eq]": 0,
+      fields: "retro_id",
+      limit: 5000,
+    },
+    []
+  );
+
+  const idsToProcess = retroPays.map(r => n(r.retro_id)).filter(id => id > 0);
+  if (idsToProcess.length === 0) return;
+
+  await runWithConcurrency(
+    idsToProcess.map(id => async () => {
+      await api.patchItem(RES.retro_pay, id, { is_processed: 1 });
+    }),
+    6
+  );
+}
+
+/**
+ * Update `is_posted_to_payroll=1` for DR Payments applied in this cutoff.
+ */
+async function updateDRPaymentsAsProcessed(args: { payrollRunId: number; payrollRefNo: string }): Promise<void> {
+  const employees = await safeList<Record<string, unknown>>(
+    RES.payrollLines,
+    {
+      "filter[payroll_run_id][_eq]": args.payrollRunId,
+      "filter[on_hold][_neq]": 1,
+      fields: "breakdown_json",
+      limit: 5000,
+    },
+    []
+  );
+
+  const drIds = new Set<number>();
+  for (const emp of employees) {
+    const breakdown = normalizeJsonOrNull(emp.breakdown_json) as PayrollBreakdownJson | null;
+    const deductions = (breakdown?.deductions as Record<string, unknown>) ?? {};
+    const drItems = arr<{ category?: string; source_id?: number | string }>(deductions.manual_deduction_items);
+    for (const item of drItems) {
+      if (item.category === "DR_PAYMENT" && item.source_id) {
+        // compute.ts sends negative ids for drPayments: id: -Math.abs(drId)
+        const absoluteId = Math.abs(n(item.source_id));
+        if (absoluteId > 0) drIds.add(absoluteId);
+      }
+    }
+  }
+
+  if (drIds.size === 0) return;
+
+  const drPays = await safeList<Record<string, unknown>>(
+    RES.drPayments,
+    {
+      "filter[dr_payment_id][_in]": Array.from(drIds).join(","),
+      "filter[is_posted_to_payroll][_eq]": 0,
+      fields: "dr_payment_id",
+      limit: 5000,
+    },
+    []
+  );
+
+  const idsToProcess = drPays.map(d => n(d.dr_payment_id)).filter(id => id > 0);
+  if (idsToProcess.length === 0) return;
+
+  await runWithConcurrency(
+    idsToProcess.map(id => async () => {
+      await api.patchItem(RES.drPayments, id, {
+        is_posted_to_payroll: 1,
+        payroll_ref_no: args.payrollRefNo,
+      });
+    }),
+    6
+  );
 }
 
 /**

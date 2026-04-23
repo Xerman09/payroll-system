@@ -287,7 +287,7 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
     "created_at"
   ].join(",");
 
-  const pathSystem = `/items/payroll_run_employee?limit=5000&filter[payroll_run_id][status][_eq]=POSTED&sort=-created_at&fields=${fields}`;
+  const pathSystem = `/items/payroll_run_employee?limit=5000&filter[payroll_run_id][status][_eq]=POSTED&filter[on_hold][_neq]=1&sort=-created_at&fields=${fields}`;
 
   // 2. Fetch new benefit_logs (Manual/Adjustments)
   // We need user details to display name consistently
