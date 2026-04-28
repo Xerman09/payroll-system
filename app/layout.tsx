@@ -3,6 +3,7 @@ import { SidebarProvider } from "@/providers/SidebarProvider";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { ColorThemeProvider } from "@/providers/ColorThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
+import DevToolsBlocker from "@/components/DevToolsBlocker";
 
 export default function RootLayout({
   children,
@@ -23,6 +24,7 @@ export default function RootLayout({
           </ColorThemeProvider>
         </ThemeProvider>
         <Toaster position="top-right" richColors />
+        <DevToolsBlocker />
       </body>
     </html>
   );
