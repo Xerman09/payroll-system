@@ -64,7 +64,7 @@ export default function DevToolsBlocker() {
               }
               b(++i);
             })(0);
-          } catch (e) {}
+          } catch {}
         })();
       })();
     };
