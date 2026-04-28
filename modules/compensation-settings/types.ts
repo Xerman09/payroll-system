@@ -13,7 +13,10 @@ export interface LogisticsLocation {
   id: number;
   location_id: number;
   area_id: number;
-  location: string;
+  region: string;
+  province: string;
+  city: string;
+  location?: string; // Re-added as optional for legacy compatibility and runtime safety
   distance?: number | null;
   is_deleted: number;
   created_by?: number | null;
@@ -35,4 +38,30 @@ export interface LogisticsVehicleType {
   id: number;
   type_name: string;
   is_payroll?: boolean | number;
+}
+
+export interface PSGCRegion {
+  code: string;
+  name: string;
+  regionName: string;
+  islandGroupCode: string;
+}
+
+export interface PSGCProvince {
+  code: string;
+  name: string;
+  regionCode: string;
+  islandGroupCode: string;
+}
+
+export interface PSGCCityMunicipality {
+  code: string;
+  name: string;
+  oldName: string;
+  isCity: boolean;
+  isMunicipality: boolean;
+  provinceCode: string;
+  districtCode: string;
+  regionCode: string;
+  islandGroupCode: string;
 }

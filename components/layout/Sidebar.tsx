@@ -23,6 +23,7 @@ import {
   ChevronRight,
   Settings,
   User,
+  Truck,
 } from "lucide-react";
 import { getLoggedUser } from "@/lib/auth";
 
@@ -108,6 +109,11 @@ function Sidebar() {
             href: `/payroll-run/${userId}`,
             icon: <Calculator size={18} />,
           },
+          {
+            title: "Logistics Payroll Run",
+            href: `/logistics-payroll-run/${userId}`,
+            icon: <Truck size={18} />,
+          },
         ],
       },
       {
@@ -136,7 +142,7 @@ function Sidebar() {
         setCollapsed(true);
       }
     };
-    
+
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);

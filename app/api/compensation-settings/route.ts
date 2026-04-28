@@ -56,13 +56,13 @@ async function directusFetch(req: NextRequest, method: HttpMethod, path: string,
   return { ok: true as const, status: res.status, data: json };
 }
 
-// Helper to map resource to table name
-function getTableName(resource: string | null) {
+// Helper to map resource to table name and metadata
+function getResourceInfo(resource: string | null) {
   switch (resource) {
-    case "area": return "payroll_logistics_area";
-    case "location": return "payroll_logistics_location";
-    case "staff": return "payroll_logistics_staff";
-    case "vehicle_type": return "vehicle_type";
+    case "area": return { table: "payroll_logistics_area", softDelete: true };
+    case "location": return { table: "payroll_logistics_location", softDelete: true };
+    case "staff": return { table: "payroll_logistics_staff", softDelete: true };
+    case "vehicle_type": return { table: "vehicle_type", softDelete: false };
     default: return null;
   }
 }
@@ -70,9 +70,10 @@ function getTableName(resource: string | null) {
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const resource = url.searchParams.get("resource");
-  const table = getTableName(resource);
+  const info = getResourceInfo(resource);
 
-  if (!table) return NextResponse.json({ error: "Invalid resource" }, { status: 400 });
+  if (!info) return NextResponse.json({ error: "Invalid resource" }, { status: 400 });
+  const { table, softDelete } = info;
 
   const config = await resolveApiConfig();
   if (!config) {
@@ -82,7 +83,21 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const result = await directusFetch(req, "GET", `/items/${table}`, config);
+  // Forward any Directus query params (filter, fields, limit, etc.)
+  const directusParams = new URLSearchParams();
+  url.searchParams.forEach((value, key) => {
+    if (key !== "resource") directusParams.set(key, value);
+  });
+
+  // Default filter for soft deletion if supported and not overridden
+  if (softDelete && !directusParams.has("filter[is_deleted][_eq]")) {
+    directusParams.set("filter[is_deleted][_eq]", "0");
+  }
+
+  const queryString = directusParams.toString();
+  const path = `/items/${table}${queryString ? `?${queryString}` : ""}`;
+
+  const result = await directusFetch(req, "GET", path, config);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json(result.data, { headers: corsHeaders() });
 }
@@ -90,9 +105,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const url = new URL(req.url);
   const resource = url.searchParams.get("resource");
-  const table = getTableName(resource);
+  const info = getResourceInfo(resource);
 
-  if (!table) return NextResponse.json({ error: "Invalid resource" }, { status: 400 });
+  if (!info) return NextResponse.json({ error: "Invalid resource" }, { status: 400 });
+  const { table } = info;
 
   const config = await resolveApiConfig();
   if (!config) {
@@ -103,6 +119,32 @@ export async function POST(req: NextRequest) {
   }
 
   const payload = await req.json().catch(() => null);
+
+  // Special handling for soft-deleted resources with unique constraints
+  if (info.softDelete) {
+    let lookupFilter = "";
+    if (resource === "staff" && payload.staff_id) {
+      lookupFilter = `filter[staff_id][_eq]=${payload.staff_id}`;
+    } else if (resource === "area" && payload.area_name) {
+      lookupFilter = `filter[area_name][_eq]=${encodeURIComponent(payload.area_name)}`;
+    }
+
+    if (lookupFilter) {
+      // Check if record exists (including deleted ones)
+      const existing = await directusFetch(req, "GET", `/items/${table}?${lookupFilter}`, config);
+      const items = existing.data?.data || [];
+      
+      if (items.length > 0) {
+        const id = items[0].id;
+        // Reactivate and update
+        const updatePayload = { ...payload, is_deleted: 0 };
+        const result = await directusFetch(req, "PATCH", `/items/${table}/${id}`, config, updatePayload);
+        if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+        return NextResponse.json(result.data, { headers: corsHeaders() });
+      }
+    }
+  }
+
   const result = await directusFetch(req, "POST", `/items/${table}`, config, payload);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json(result.data, { headers: corsHeaders() });
@@ -111,9 +153,10 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const url = new URL(req.url);
   const resource = url.searchParams.get("resource");
-  const table = getTableName(resource);
+  const info = getResourceInfo(resource);
 
-  if (!table) return NextResponse.json({ error: "Invalid resource" }, { status: 400 });
+  if (!info) return NextResponse.json({ error: "Invalid resource" }, { status: 400 });
+  const { table } = info;
 
   const payload = await req.json().catch(() => null);
   const id = payload?.id;
@@ -134,10 +177,11 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const url = new URL(req.url);
   const resource = url.searchParams.get("resource");
-  const table = getTableName(resource);
+  const info = getResourceInfo(resource);
   const id = url.searchParams.get("id");
 
-  if (!table || !id) return NextResponse.json({ error: "Invalid resource or missing ID" }, { status: 400 });
+  if (!info || !id) return NextResponse.json({ error: "Invalid resource or missing ID" }, { status: 400 });
+  const { table, softDelete } = info;
 
   const config = await resolveApiConfig();
   if (!config) {
@@ -147,7 +191,10 @@ export async function DELETE(req: NextRequest) {
     );
   }
 
-  const result = await directusFetch(req, "DELETE", `/items/${table}/${id}`, config);
+  const result = softDelete 
+    ? await directusFetch(req, "PATCH", `/items/${table}/${id}`, config, { is_deleted: 1 })
+    : await directusFetch(req, "DELETE", `/items/${table}/${id}`, config);
+
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
-  return NextResponse.json({ message: "Deleted" }, { headers: corsHeaders() });
+  return NextResponse.json({ message: softDelete ? "Archived" : "Deleted" }, { headers: corsHeaders() });
 }
