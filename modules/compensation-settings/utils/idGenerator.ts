@@ -25,3 +25,20 @@ export function generateNextBinaryId(existingIds: number[]): number {
 
   return Number(nextBinaryString);
 }
+
+/**
+ * Generates multiple sequential binary IDs.
+ */
+export function generateNextBinaryIds(existingIds: number[], count: number): number[] {
+  if (count <= 0) return [];
+  const results: number[] = [];
+  const currentPool = [...existingIds];
+
+  for (let i = 0; i < count; i++) {
+    const next = generateNextBinaryId(currentPool);
+    results.push(next);
+    currentPool.push(next);
+  }
+
+  return results;
+}

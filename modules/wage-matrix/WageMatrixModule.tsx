@@ -25,6 +25,14 @@ import { WageMatrixHeader } from './components/WageMatrixHeader';
 import { WageMatrixTable } from './components/WageMatrixTable';
 import { WageMatrixEmptyState } from './components/WageMatrixEmptyState';
 
+const shortenVT = (name: string) => {
+  return name
+    .replace(/ WHEELER TRUCK/i, "W")
+    .replace(/ WHEELER/i, "W")
+    .replace(/ TRUCK/i, "")
+    .trim();
+};
+
 export default function WageMatrixModule() {
   const [data, setData] = useState<WageMatrixData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,22 +48,59 @@ export default function WageMatrixModule() {
       .filter(vt => !!vt.is_payroll)
       .map(vt => ({
         key: `driver_${vt.id}`,
-        label: vt.type_name,
+        label: shortenVT(vt.type_name),
         group: 'Fleet Operator',
         role: 'Driver' as const,
         vehicleType: vt.type_name,
         vehicleTypeId: vt.id
       }));
 
+    // Standard helper columns
     const helperCols = [
       { key: 'helper_extra', label: 'Extra', group: 'Helper', role: 'Helper' as const, employmentType: 'EXTRA' },
       { key: 'helper_probationary', label: 'Probationary', group: 'Helper', role: 'Helper' as const, employmentType: 'PROBATIONARY' },
     ];
 
-    const crewCols = [
+    // Dynamic Helper columns based on assigned vehicles for Regular categories - ONLY ACTIVE STAFF
+    const relevantStaff = data.staff.filter(s => 
+      s.is_deleted !== 1 &&
+      s.role === 'Helper' && 
+      (s.employment_type === 'REGULAR(<10W)' || s.employment_type === 'REGULAR(10W/T)') &&
+      s.vehicle_type_id !== null
+    );
+
+    // Group by unique (employment_type, vehicle_type_id)
+    const seen = new Set<string>();
+    const dynamicCrewCols: MatrixColumn[] = [];
+
+    relevantStaff.forEach(s => {
+      const key = `${s.employment_type}_${s.vehicle_type_id}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      const vt = data.vehicleTypes.find(v => v.id === s.vehicle_type_id);
+      const vtName = vt?.type_name || `VT ${s.vehicle_type_id}`;
+      const vtLabel = shortenVT(vtName);
+      const empLabel = s.employment_type === 'REGULAR(<10W)' ? '<10W' : '10W/T';
+
+      dynamicCrewCols.push({
+        key: `helper_${s.employment_type}_vt${s.vehicle_type_id}`,
+        label: `REGULAR (${vtLabel})`,
+        group: 'Logistics Crew',
+        role: 'Helper' as const,
+        employmentType: s.employment_type || undefined,
+        vehicleTypeId: s.vehicle_type_id || undefined,
+        vehicleType: vtLabel
+      });
+    });
+
+    // Base Regular columns — only include if there's an ACTIVE staff member with NO assigned vehicle
+    const baseCrewChoices = [
       { key: 'logistics_regular_lt_10w', label: 'Regular (<10W)', group: 'Logistics Crew', role: 'Helper' as const, employmentType: 'REGULAR(<10W)' },
       { key: 'logistics_regular_10w_t', label: 'Regular (10W/T)', group: 'Logistics Crew', role: 'Helper' as const, employmentType: 'REGULAR(10W/T)' },
-    ];
+    ].filter(base => data.staff.some(s => s.is_deleted !== 1 && s.role === 'Helper' && s.employment_type === base.employmentType && s.vehicle_type_id === null));
+
+    const crewCols = [...baseCrewChoices, ...dynamicCrewCols];
 
     return [...driverCols, ...helperCols, ...crewCols];
   }, [data]);
@@ -82,31 +127,50 @@ export default function WageMatrixModule() {
         { key: 'helper_probationary', role: 'Helper' as const, vehicleTypeId: undefined as number | undefined, employmentType: 'PROBATIONARY'       },
       ];
 
-      const localCrewCols = [
+      const localDynamicCrewCols: any[] = [];
+      const seen = new Set<string>();
+      res.staff
+        .filter(s => s.is_deleted !== 1 && s.role === 'Helper' && (s.employment_type === 'REGULAR(<10W)' || s.employment_type === 'REGULAR(10W/T)') && s.vehicle_type_id !== null)
+        .forEach(s => {
+          const key = `${s.employment_type}_${s.vehicle_type_id}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          localDynamicCrewCols.push({
+            key: `helper_${s.employment_type}_vt${s.vehicle_type_id}`,
+            role: 'Helper' as const,
+            vehicleTypeId: s.vehicle_type_id || undefined,
+            employmentType: s.employment_type || undefined,
+          });
+        });
+
+      const localBaseCrewChoices = [
         { key: 'logistics_regular_lt_10w', role: 'Helper' as const, vehicleTypeId: undefined as number | undefined, employmentType: 'REGULAR(<10W)'  },
         { key: 'logistics_regular_10w_t',  role: 'Helper' as const, vehicleTypeId: undefined as number | undefined, employmentType: 'REGULAR(10W/T)' },
       ];
 
+      const localCrewCols = [...localBaseCrewChoices, ...localDynamicCrewCols];
+
       const localCols = [...localDriverCols, ...localHelperCols, ...localCrewCols];
 
       // Initialize draft from matrix data using the local columns
+      // Logic: Match items by (role, employment_type, vehicle_type_id) to the defined columns
       const initialDraft: Record<string, string> = {};
       res.matrix.forEach(item => {
-        const staff = res.staff.find(s => s.staff_id === item.staff_id);
-        if (!staff) return;
+        const itemStaff = res.staff.find(s => s.staff_id === item.staff_id);
+        if (!itemStaff) return;
 
         const col = localCols.find(c => {
-          if (staff.role !== c.role) return false;
+          if (itemStaff.role !== c.role) return false;
 
           if (c.role === 'Driver') {
-            // Driver columns are keyed by vehicle_type_id in the matrix row
             return c.vehicleTypeId === item.vehicle_type_id;
           }
 
-          // Helper / Logistics Crew: match employment_type + null vehicle
+          // Helper / Logistics Crew: Match by category rather than specific staff_id
+          // This ensures if a staff_id changed but category is same, the old rate shows up.
           return (
-            c.employmentType === staff.employment_type &&
-            item.vehicle_type_id === null
+            c.employmentType === itemStaff.employment_type &&
+            (item.vehicle_type_id === (c.vehicleTypeId ?? null))
           );
         });
 
@@ -162,9 +226,18 @@ export default function WageMatrixModule() {
       const creates: SalaryMatrix[] = [];
       
       // Pre-compute O(1) lookup map for existing matrix items
+      // Key: areaId_role_empType_vtId
       const matrixLookup: Record<string, SalaryMatrix> = {};
       data.matrix.forEach(m => {
-        matrixLookup[`${m.area_id}_${m.staff_id}_${m.vehicle_type_id}`] = m;
+        const mStaff = data.staff.find(s => s.staff_id === m.staff_id);
+        if (!mStaff) return;
+        
+        const vtIdPart = m.vehicle_type_id !== null ? `vt${m.vehicle_type_id}` : 'vt_null';
+        const empTypePart = mStaff.employment_type ? mStaff.employment_type : 'emp_null';
+        const lookupKey = `${m.area_id}_${mStaff.role}_${empTypePart}_${vtIdPart}`;
+        
+        // If multiple exist (orphans), the active one will likely be processed last or we just pick one
+        matrixLookup[lookupKey] = m;
       });
       
       // Construct payload from draft
@@ -180,19 +253,26 @@ export default function WageMatrixModule() {
         const staff = staffByColumn[colKey];
         if (!staff || !colConfig) return;
 
-        const vtId = getVehicleTypeId(colConfig.vehicleType);
+        const vtId = colConfig.vehicleTypeId ?? getVehicleTypeId(colConfig.vehicleType);
+        
+        // Look up by category to see if we should UPDATE an existing record (even with different staff_id)
+        const vtIdPart = vtId !== null ? `vt${vtId}` : 'vt_null';
+        const empTypePart = colConfig.employmentType ? colConfig.employmentType : 'emp_null';
+        const lookupKey = `${areaId}_${colConfig.role}_${empTypePart}_${vtIdPart}`;
+        
+        const existing = matrixLookup[lookupKey];
 
         const record = {
           area_id: areaId,
-          staff_id: staff.staff_id,
+          staff_id: staff.staff_id, // Always use the CURRENT template staff_id
           vehicle_type_id: vtId,
           wage_amount: amount
         };
 
-        const existing = matrixLookup[`${areaId}_${staff.staff_id}_${vtId}`];
-
         if (existing?.id) {
-          if (existing.wage_amount !== amount) {
+          // If record changed, or if we are migrating to a new staff_id
+          const hasChanges = existing.wage_amount !== amount || existing.staff_id !== staff.staff_id;
+          if (hasChanges) {
             updates.push({ 
               ...record, 
               id: existing.id,
@@ -258,16 +338,17 @@ export default function WageMatrixModule() {
     columns.forEach(col => {
       const found = data.staff.find(s => {
         const matchesRole = s.role === col.role;
+        const matchesActive = s.is_deleted !== 1;
 
         if (col.role === 'Driver') {
-          // All driver wage buckets share the same staff record in this schema.
-          // We only need a Driver staff to exist — the vehicle_type_id that
-          // identifies the bucket comes from the MatrixColumn, not the staff row.
-          return matchesRole;
+          return matchesRole && matchesActive;
         }
 
-        // Helper / Logistics Crew: additionally match employment_type
-        return matchesRole && s.employment_type === (col.employmentType ?? null);
+        // Helper / Logistics Crew: additionally match employment_type + vehicle_type_id
+        return matchesRole && 
+               matchesActive &&
+               s.employment_type === (col.employmentType ?? null) &&
+               s.vehicle_type_id === (col.vehicleTypeId ?? null);
       });
       mapping[col.key] = found;
     });

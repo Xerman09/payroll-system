@@ -129,16 +129,16 @@ export function WageMatrixTable({
                
                {/* Column Headers */}
                <TableRow className="bg-slate-50/50 dark:bg-slate-900/30">
-                 <TableHead className="w-[160px] px-3 font-semibold text-[11px] text-slate-800 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-950/95 z-10 border-r border-slate-200/50">Areas</TableHead>
-                 <TableHead className="w-[70px] text-center font-semibold text-[9px] text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800 leading-tight">Max # Days</TableHead>
+                  <TableHead className="w-[130px] px-2 font-bold text-[10px] text-slate-800 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-950/95 z-10 border-r border-slate-200/50">Areas</TableHead>
+                  <TableHead className="w-[50px] text-center font-bold text-[8px] text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800 leading-tight p-1">Days</TableHead>
                  
                  {columns.map((col) => {
                    const colUnsaved = unsavedCountByCol[col.key] ?? 0;
                    return (
-                     <TableHead key={col.key} className="text-center min-w-[90px] px-2 py-2 border-r last:border-r-0 border-slate-200/50 dark:border-slate-800/50">
-                       <div className="flex flex-col items-center gap-1">
-                         <span className="text-[10px] font-bold text-slate-700 dark:text-slate-400 uppercase tracking-tighter leading-none">
-                           {col.label}
+                  <TableHead key={col.key} className="text-center min-w-[65px] px-1 py-1.5 border-r last:border-r-0 border-slate-200/50 dark:border-slate-800/50">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <span className="text-[9px] font-black text-slate-700 dark:text-slate-400 uppercase tracking-tighter leading-none">
+                        {col.label}
                          </span>
                          {colUnsaved > 0 && (
                            <Tooltip>
@@ -185,13 +185,13 @@ export function WageMatrixTable({
                       <TableRow key={area.id} className={`group transition-colors border-b border-slate-200/60 dark:border-slate-800/50 ${
                         rowUnsavedCount > 0 ? 'hover:bg-amber-50/30 dark:hover:bg-amber-900/5' : 'hover:bg-primary/5 dark:hover:bg-primary/10'
                       }`}>
-                        <TableCell className={`px-3 py-1.5 font-medium text-[11px] text-slate-950 dark:text-slate-100 sticky left-0 z-10 border-r border-slate-200/30 transition-colors ${
+                        <TableCell className={`px-2 py-1 font-bold text-[10px] text-slate-950 dark:text-slate-100 sticky left-0 z-10 border-r border-slate-200/30 transition-colors ${
                           rowUnsavedCount > 0
                             ? 'bg-amber-50/80 dark:bg-amber-900/10 group-hover:bg-amber-50 dark:group-hover:bg-amber-900/20'
                             : 'bg-white/95 dark:bg-slate-950/95 group-hover:bg-primary/5 dark:group-hover:bg-primary/10'
                         }`}>
-                          <div className="flex items-center gap-2">
-                            <span className="truncate max-w-[120px]">{area.area_name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate max-w-[100px]">{area.area_name}</span>
                             {rowUnsavedCount > 0 && (
                               <span className="flex-shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-400 dark:bg-amber-500 text-white text-[8px] font-black leading-none">
                                 {rowUnsavedCount}
@@ -199,7 +199,7 @@ export function WageMatrixTable({
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="text-center font-mono text-[10px] text-slate-600 border-r border-slate-200 dark:border-slate-800">
+                        <TableCell className="text-center font-mono text-[9px] text-slate-500 border-r border-slate-200 dark:border-slate-800 p-1">
                           {area.max_days || "—"}
                         </TableCell>
                         {columns.map((col) => {
@@ -224,18 +224,18 @@ export function WageMatrixTable({
                                    <TooltipTrigger asChild>
                                      <div className="relative">
                                        <Input 
-                                         type="number"
-                                         value={cellValue}
-                                         onChange={(e) => handleInputChange(area.area_id, col.key, e.target.value)}
-                                         className={`h-7 text-center font-mono text-[10px] border-none focus:ring-1 rounded-md transition-all px-1 ${
-                                           isNew
-                                             ? 'bg-emerald-50/70 dark:bg-emerald-900/10 text-emerald-700 dark:text-emerald-400 focus:ring-emerald-500/50'
-                                             : isChanged
-                                             ? 'bg-amber-50/70 dark:bg-amber-900/10 text-amber-700 dark:text-amber-400 focus:ring-amber-500/50'
-                                             : 'bg-transparent text-slate-900 dark:text-slate-100 focus:ring-primary/50'
-                                         }`}
-                                         placeholder="0.00"
-                                       />
+                                          type="number"
+                                          value={cellValue}
+                                          onChange={(e) => handleInputChange(area.area_id, col.key, e.target.value)}
+                                          className={`h-6 text-center font-mono text-[10px] border-none focus:ring-1 rounded-md transition-all px-0.5 ${
+                                            isNew
+                                              ? 'bg-emerald-50/70 dark:bg-emerald-900/10 text-emerald-700 dark:text-emerald-400 focus:ring-emerald-500/50'
+                                              : isChanged
+                                              ? 'bg-amber-50/70 dark:bg-amber-900/10 text-amber-700 dark:text-amber-400 focus:ring-amber-500/50'
+                                              : 'bg-transparent text-slate-950 dark:text-slate-100 focus:ring-primary/50'
+                                          }`}
+                                          placeholder="0.00"
+                                        />
                                        {/* Status dot */}
                                        {isNew && (
                                          <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="New — not yet saved" />

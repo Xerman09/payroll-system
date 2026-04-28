@@ -67,10 +67,10 @@ export async function GET(req: NextRequest) {
 
 
   const [areas, staff, vehicleTypes, matrix] = await Promise.all([
-    directusFetch(req, "GET", "/items/payroll_logistics_area", config),
-    directusFetch(req, "GET", "/items/payroll_logistics_staff", config),
-    directusFetch(req, "GET", "/items/vehicle_type", config),
-    directusFetch(req, "GET", "/items/payroll_logistics_salary_matrix", config)
+    directusFetch(req, "GET", "/items/payroll_logistics_area?limit=-1&filter[is_deleted][_eq]=0", config),
+    directusFetch(req, "GET", "/items/payroll_logistics_staff?limit=-1", config),
+    directusFetch(req, "GET", "/items/vehicle_type?limit=-1", config),
+    directusFetch(req, "GET", "/items/payroll_logistics_salary_matrix?limit=-1", config)
   ]);
 
   if (!areas.ok) return NextResponse.json({ error: areas.error }, { status: areas.status });

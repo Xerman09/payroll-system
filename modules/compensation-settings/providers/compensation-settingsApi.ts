@@ -3,7 +3,7 @@ import { LogisticsArea, LogisticsLocation, LogisticsStaff, LogisticsVehicleType 
 const BASE_API = "/api/compensation-settings";
 
 async function apiFetch(resource: string, options: RequestInit = {}) {
-  const url = `${BASE_API}?resource=${resource}`;
+  const url = `${BASE_API}?resource=${resource}&limit=-1`;
   const res = await fetch(url, options);
   const text = await res.text();
   let data = null;
