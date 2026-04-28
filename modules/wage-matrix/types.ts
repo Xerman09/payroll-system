@@ -12,6 +12,7 @@ export interface LogisticsStaff {
   role: 'Driver' | 'Helper';
   employment_type: string | null;
   vehicle_type_id: number | null;
+  is_deleted: number;
 }
 
 export interface LogisticsVehicleType {

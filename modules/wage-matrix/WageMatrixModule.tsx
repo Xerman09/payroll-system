@@ -81,7 +81,8 @@ export default function WageMatrixModule() {
       const vt = data.vehicleTypes.find(v => v.id === s.vehicle_type_id);
       const vtName = vt?.type_name || `VT ${s.vehicle_type_id}`;
       const vtLabel = shortenVT(vtName);
-      const empLabel = s.employment_type === 'REGULAR(<10W)' ? '<10W' : '10W/T';
+
+
 
       dynamicCrewCols.push({
         key: `helper_${s.employment_type}_vt${s.vehicle_type_id}`,
@@ -127,7 +128,12 @@ export default function WageMatrixModule() {
         { key: 'helper_probationary', role: 'Helper' as const, vehicleTypeId: undefined as number | undefined, employmentType: 'PROBATIONARY'       },
       ];
 
-      const localDynamicCrewCols: any[] = [];
+      const localDynamicCrewCols: Array<{
+        key: string;
+        role: 'Driver' | 'Helper';
+        vehicleTypeId?: number;
+        employmentType?: string;
+      }> = [];
       const seen = new Set<string>();
       res.staff
         .filter(s => s.is_deleted !== 1 && s.role === 'Helper' && (s.employment_type === 'REGULAR(<10W)' || s.employment_type === 'REGULAR(10W/T)') && s.vehicle_type_id !== null)

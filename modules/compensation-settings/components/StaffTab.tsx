@@ -173,7 +173,7 @@ export default function StaffTab() {
     const idMatch = s.staff_id.toString().toLowerCase().includes(searchTerm.toLowerCase());
     
     // Dynamic role label matching
-    let roleLabel = s.role;
+    let roleLabel: string = s.role;
     if (s.role === 'Helper') {
       if (s.employment_type === 'REGULAR(<10W)') roleLabel = 'Helper < 10W';
       else if (s.employment_type === 'REGULAR(10W/T)') roleLabel = 'Helper 10W/T';
