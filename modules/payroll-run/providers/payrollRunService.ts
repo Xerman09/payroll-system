@@ -710,12 +710,33 @@ export async function loadWorkspace(args: {
   const wages = new Map<number, WageProfile>();
   for (const w of wagesArr) wages.set(w.user_id, w);
 
+  const holidays = await safeList<HolidayRow>(RES.holidays, {
+    "filter[holiday_date][_between]": `${cutoff.start_date},${cutoff.end_date}`,
+    limit: 500,
+  });
+
+  const lwdDates = new Set<string>();
+  for (const h of holidays ?? []) {
+    const rawLwd = h.last_working_day;
+    const d = s(rawLwd).slice(0, 10);
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      lwdDates.add(d);
+    }
+  }
+
   const attendanceArr = userIds.length
     ? await api.listItems<AttendanceApproval>(RES.attendance, {
       "filter[employee_id][_in]": userIds.join(","),
-      "filter[date_schedule][_between]": `${cutoff.start_date},${cutoff.end_date}`,
       "filter[status][_eq]": "approved",
       limit: 50000,
+      ...(lwdDates.size > 0
+        ? {
+          "filter[_or][0][date_schedule][_between]": `${cutoff.start_date},${cutoff.end_date}`,
+          "filter[_or][1][date_schedule][_in]": Array.from(lwdDates).join(","),
+        }
+        : {
+          "filter[date_schedule][_between]": `${cutoff.start_date},${cutoff.end_date}`,
+        }),
     })
     : [];
 
@@ -729,11 +750,6 @@ export async function loadWorkspace(args: {
       night_diff_minutes: n(r.night_diff_minutes),
     });
   }
-
-  const holidays = await safeList<HolidayRow>(RES.holidays, {
-    "filter[holiday_date][_between]": `${cutoff.start_date},${cutoff.end_date}`,
-    limit: 500,
-  });
 
   // ✅ Wage proration logs (effective-date driven within cutoff window)
   const prorationRows = userIds.length

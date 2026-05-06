@@ -47,9 +47,20 @@ export default function EnterprisePortal() {
     async function loadEntities() {
       try {
         const res = await fetch("/api/entities");
-        const json = await res.json();
-        if (json.success) {
-          setEntities(json.data);
+        if (!res.ok) {
+          console.warn(`API /api/entities returned status: ${res.status}`);
+          setLoading(false);
+          return;
+        }
+        
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const json = await res.json();
+          if (json.success) {
+            setEntities(json.data);
+          }
+        } else {
+          console.warn("API /api/entities did not return JSON");
         }
       } catch (err) {
         console.error("Failed to load entities:", err);
