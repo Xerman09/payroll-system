@@ -848,7 +848,6 @@ function eligibleForUnworkedHolidayPay(args: {
   if (!h || !h.is_paid) return false;
   const lwd = h.last_working_day;
   if (!lwd) return false;
-  if (!inRange(lwd, args.cutoffStart, args.cutoffEnd)) return false;
   return args.approvedAttendanceDates.has(lwd);
 }
 
@@ -925,12 +924,15 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     ? true
     : n(args.wage.paid_holiday ?? 1) !== 0;
 
-  // ✅ attendance is cutoff-scoped and approved
-  const att = (args.attendance ?? [])
+  // ✅ All approved attendance records (including LWD dates outside cutoff window)
+  // Used exclusively for unworked holiday eligibility checking.
+  const allApprovedNorm = (args.attendance ?? [])
     .map(normAttendance)
     .filter((r) => String(r.status ?? "").toLowerCase() === "approved")
-    .filter((r) => !!r.date_schedule)
-    .filter((r) => inRange(r.date_schedule, args.cutoffStart, args.cutoffEnd));
+    .filter((r) => !!r.date_schedule);
+
+  // ✅ Cutoff-scoped attendance — used for pay computation only
+  const att = allApprovedNorm.filter((r) => inRange(r.date_schedule, args.cutoffStart, args.cutoffEnd));
 
   const holidayMap = new Map<string, HolidayInfo>();
   for (const h of (args.holidays ?? []).map(normHoliday)) {
@@ -950,9 +952,9 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     });
   }
 
-  const approvedAttendanceDates = new Set(att.map((r) => r.date_schedule));
-  // ✅ FIX: Only consider holiday/rest dates as "attended" if they have work minutes.
-  // This allows the unworked holiday logic to pay the employee if they were absent but had an approved record on their last working day.
+  // ✅ Dates within the cutoff window (used for pay computation)
+  const approvedAttendanceDates = new Set(allApprovedNorm.map((r) => r.date_schedule));
+  // ✅ Dates with actual work minutes within cutoff — used to skip unworked holiday logic
   const attendedHolidayDates = new Set(att.filter(r => n(r.work_minutes) > 0).map((r) => r.date_schedule));
 
   let totalWorkMinutes = 0;
