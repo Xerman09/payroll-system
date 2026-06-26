@@ -254,7 +254,7 @@ function getDayMultipliers(args: {
 
   if (isRestDay && holiday === "NONE") return { baseMult: 1.3, otMult: 1.69, bucket: "REST" };
 
-  return { baseMult: 1.0, otMult: 1.25, bucket: "NORMAL" };
+  return { baseMult: 1.0, otMult: 1, bucket: "NORMAL" };
 }
 
 /* ------------------------------ Allowances ------------------------------ */
@@ -311,15 +311,17 @@ function allowanceAmountForCutoff(args: {
   cutoffStart: string;
   cutoffEnd: string;
   cutoffType?: string;
-}): { total: number; items: Array<{
-  allowance_id: number;
-  description: string | null;
-  pay_cycle: AllowancePayCycle;
-  is_recurring: number;
-  amount_full: number;
-  amount_this_cutoff: number;
-  source: "RECURRING" | "ONE_TIME";
-}> } {
+}): {
+  total: number; items: Array<{
+    allowance_id: number;
+    description: string | null;
+    pay_cycle: AllowancePayCycle;
+    is_recurring: number;
+    amount_full: number;
+    amount_this_cutoff: number;
+    source: "RECURRING" | "ONE_TIME";
+  }>
+} {
   const cutoffType = String(args.cutoffType ?? "").toUpperCase();
   const rows = (Array.isArray(args.allowances) ? args.allowances : []).map(normAllowance);
 
