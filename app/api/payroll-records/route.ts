@@ -113,6 +113,7 @@ export async function GET(req: NextRequest) {
         ].join(","),
       );
 
+      qp.set("filter[is_employee][_eq]", "1");
       const r = await directusFetch(`/items/user?${qp.toString()}`);
       if (!r.ok) return json({ error: "External API error", ...r }, config.name, { status: r.status });
       return json(r.body, config.name);

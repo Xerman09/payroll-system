@@ -97,6 +97,7 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
             {
               limit: String(userIds.length),
               ["filter[user_id][_in]"]: userIds.join(","),
+              ["filter[is_employee][_eq]"]: "1",
             },
             signal
           );

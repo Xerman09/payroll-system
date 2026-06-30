@@ -136,7 +136,7 @@ export async function fetchBenefitSettings(): Promise<BenefitSetting[]> {
 }
 
 export async function fetchUsers(): Promise<UserData[]> {
-  const json = await apiFetch("/items/user?limit=2000&fields=user_id,user_fname,user_lname,user_department");
+  const json = await apiFetch("/items/user?limit=2000&fields=user_id,user_fname,user_lname,user_department&filter[is_employee][_eq]=1");
   return json.data || [];
 }
 

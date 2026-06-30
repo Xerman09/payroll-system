@@ -54,7 +54,8 @@ async function fetchAllInBatches<T>(endpoint: string, baseParams: Record<string,
 
 export async function fetchUsers(params: Record<string, string> = {}): Promise<Record<string, unknown>[]> {
   // Always fetch in batches to ensure we get everything regardless of system limits
-  return fetchAllInBatches<Record<string, unknown>>("/items/user", params);
+  const mergedParams = { ...params, "filter[is_employee][_eq]": "1" };
+  return fetchAllInBatches<Record<string, unknown>>("/items/user", mergedParams);
 }
 
 export async function fetchDepartments(): Promise<Record<string, unknown>[]> {

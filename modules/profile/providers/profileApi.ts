@@ -114,6 +114,8 @@ export async function fetchDepartments() {
  */
 export async function searchEmployees(query: string) {
   if (!query || query.length < 2) return [];
-  const json = await apiFetch(`/items/user?fields=user_id,user_fname,user_lname,user_image,user_position&search=${encodeURIComponent(query)}&limit=8`);
+  const json = await apiFetch(
+    `/items/user?fields=user_id,user_fname,user_lname,user_image,user_position&search=${encodeURIComponent(query)}&limit=8&filter[is_employee][_eq]=1`
+  );
   return json.data || [];
 }

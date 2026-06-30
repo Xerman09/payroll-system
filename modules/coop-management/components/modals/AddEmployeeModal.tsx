@@ -298,7 +298,10 @@ export function AddEmployeeModal({
     const runUsers = async () => {
       setLoadingUsers(true);
       try {
-        const res = await listItems<User>("user", { limit: "-1" });
+        const res = await listItems<User>("user", {
+          limit: "-1",
+          "filter[is_employee][_eq]": "1",
+        });
         setAvailableUsers(res.data);
       } catch (e) {
         console.error("Failed to fetch employees", e);

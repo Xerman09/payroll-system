@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     const EXTERNAL_API_BASE = config.apiBase;
     const [empRes, retroRes] = await Promise.all([
       fetch(
-        `${EXTERNAL_API_BASE}/items/user?limit=-1&fields=user_id,user_fname,user_mname,user_lname,user_email,user_position`,
+        `${EXTERNAL_API_BASE}/items/user?limit=-1&fields=user_id,user_fname,user_mname,user_lname,user_email,user_position&filter[is_employee][_eq]=1`,
         { 
           headers: buildForwardHeaders(req, config),
           cache: "no-store" 

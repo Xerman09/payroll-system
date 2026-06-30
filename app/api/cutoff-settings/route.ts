@@ -232,6 +232,7 @@ function buildUsersQuery(ids: string[]) {
 
   // If you want stable ordering. Some roles block sort; remove if needed.
   // qs.set("sort", "user_lname");
+  qs.set("filter[is_employee][_eq]", "1");
 
   if (ids.length) {
     // Filter by user_id in ids

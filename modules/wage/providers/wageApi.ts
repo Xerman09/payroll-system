@@ -107,7 +107,7 @@ export async function fetchDepartments(): Promise<Department[]> {
 }
 
 export async function fetchEmployees(): Promise<Employee[]> {
-  const allUsers = await fetchAllInBatches<Employee>("/items/user?fields=user_id,user_fname,user_lname,user_department,is_deleted");
+  const allUsers = await fetchAllInBatches<Employee>("/items/user?fields=user_id,user_fname,user_lname,user_department,is_deleted&filter[is_employee][_eq]=1");
   return allUsers.filter((emp) => !emp.is_deleted || (emp.is_deleted as unknown as { data: number[] })?.data?.[0] === 0);
 }
 
@@ -136,6 +136,7 @@ export async function fetchEmployeesPaged({
       {
         _or: [{ is_deleted: { _null: true } }, { is_deleted: { _eq: 0 } }],
       },
+      { is_employee: { _eq: 1 } },
     ],
   };
 

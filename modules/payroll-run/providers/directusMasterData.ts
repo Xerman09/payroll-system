@@ -97,7 +97,9 @@ export async function fetchDepartments(): Promise<DepartmentRow[]> {
 }
 
 export async function fetchUsersForDeptJoin(): Promise<UserRow[]> {
-  return fetchAllItems<UserRow>("user", "user_id,user_department");
+  return fetchAllItems<UserRow>("user", "user_id,user_department", {
+    "filter[is_employee][_eq]": 1,
+  });
 }
 
 /**

@@ -23,7 +23,7 @@ function endpoints(resource: ResourceKey) {
   switch (resource) {
     case "users":
       return {
-        list: "/items/user?limit=-1",
+        list: "/items/user?limit=-1&filter[is_employee][_eq]=1",
         single: (id: string) => `/items/user/${id}`,
         create: "/items/user",
       };

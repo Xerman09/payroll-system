@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const mode = searchParams.get("mode");
 
     if (mode === "users") {
-      const res = await fetch(`${API_TARGET}/items/user?limit=-1`, {
+      const res = await fetch(`${API_TARGET}/items/user?limit=-1&filter[is_employee][_eq]=1`, {
         headers: buildForwardHeaders(request, config),
         cache: "no-store",
       });
