@@ -18,10 +18,10 @@ export function money(n: string | number | null | undefined) {
   return v.toFixed(2);
 }
 
-export function computeMonthlyPayment(principal: number, terms: number, interestRate: number = 0): number {
+export function computeMonthlyPayment(principal: number, terms: number, _interestRate: number = 0): number {
   if (terms <= 0) return principal;
-  const interest = principal * interestRate;
-  const total = principal + interest;
+  // Total amount to be paid is based on the loan amount
+  const total = principal;
   return round2(total / terms);
 }
 

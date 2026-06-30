@@ -543,7 +543,8 @@ export async function downloadPayslipsPdf(args: {
     const loanVale = n(r?.loan_vale ?? 0);
     const loanCar = n(r?.loan_car ?? 0);
     const loanCoop = n(r?.loan_coop ?? 0);
-    const loanTotal = n(r?.loan_total ?? loanVale + loanCar + loanCoop);
+    const loanElectronics = n(r?.loan_electronics ?? 0);
+    const loanTotal = n(r?.loan_total ?? loanVale + loanCar + loanCoop + loanElectronics);
 
     const coopSavings = n(r?.coop_savings ?? 0);
     const coopLoan = n(r?.coop_loan ?? 0);
@@ -571,6 +572,7 @@ export async function downloadPayslipsPdf(args: {
     if (loanVale) extraLoanLines.push(`Vale: ${fmtMoney(loanVale)}`);
     if (loanCar) extraLoanLines.push(`Car Loan: ${fmtMoney(loanCar)}`);
     if (loanCoop) extraLoanLines.push(`Coop Loan: ${fmtMoney(loanCoop)}`);
+    if (loanElectronics) extraLoanLines.push(`Electronics Loan: ${fmtMoney(loanElectronics)}`);
 
     const deductionsLines = uniqLines([
       ...deductionsLinesFromBreakdown,

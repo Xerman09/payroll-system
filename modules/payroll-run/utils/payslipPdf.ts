@@ -933,9 +933,10 @@ export async function buildPayslipsPdf(args: {
     const loanVale = n(row?.loan_vale ?? 0);
     const loanCar = n(row?.loan_car ?? 0);
     const loanCoopLegacy = n(row?.loan_coop ?? 0);
+    const loanElectronics = n(row?.loan_electronics ?? 0);
 
     const loanTotalRaw = n(
-      row?.loan_total ?? loanVale + loanCar + loanCoopLegacy,
+      row?.loan_total ?? loanVale + loanCar + loanCoopLegacy + loanElectronics,
     );
 
     // ✅ derive COOP loan from breakdown employee-loan items (COOP), fallback to legacy fields
@@ -957,7 +958,7 @@ export async function buildPayslipsPdf(args: {
         ? loanTotalRaw
         : empLoansFromItemsAll !== 0
           ? empLoansFromItemsAll
-          : loanVale + loanCar + loanCoopLegacy;
+          : loanVale + loanCar + loanCoopLegacy + loanElectronics;
 
     // ✅ EL shown without COOP (COOP goes to overview as CL)
     const empLoansExCoop = Math.max(0, empLoansAll - coopLoanTotal);

@@ -75,6 +75,7 @@ type Props = {
 type LoanDraft = {
   loan_amount: string;
   loan_type: LoanType;
+  description: string;
   months_to_pay: string;
   start_date: string;
   end_date: string;
@@ -206,6 +207,7 @@ export default function WageModal({
     return {
       loan_amount: "0.00",
       loan_type: "VALE",
+      description: "",
       months_to_pay: "1",
       start_date: today,
       end_date: "",
@@ -338,6 +340,7 @@ export default function WageModal({
       if (editingLoanId) {
         await wageApi.patchEmployeeLoan(editingLoanId, {
           loan_type: loanDraft.loan_type,
+          description: loanDraft.description || null,
           loan_amount,
           months_to_pay,
           monthly_payment,
@@ -345,6 +348,7 @@ export default function WageModal({
           interest_rate,
           interest_amount,
           net_amount_released,
+          accumulated_amount: Number(loanDraft.accumulated_amount) || 0,
           updated_by: loggedUserId,
         });
         toast.success("Loan updated.");
@@ -352,6 +356,7 @@ export default function WageModal({
         await wageApi.createEmployeeLoan({
           user_id: selectedEmployee.user_id,
           loan_type: loanDraft.loan_type,
+          description: loanDraft.description || null,
           loan_amount,
           months_to_pay,
           monthly_payment,
@@ -407,6 +412,7 @@ export default function WageModal({
       const rate = l.loan_type === "COOP" ? COOP_INTEREST_RATE : 0;
       const base: LoanDraft = {
         loan_type: l.loan_type,
+        description: l.description || "",
         loan_amount,
         months_to_pay,
         start_date,

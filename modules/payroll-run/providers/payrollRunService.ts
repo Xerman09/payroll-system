@@ -1693,6 +1693,7 @@ function buildPayrollRunEmployeePayload(args: {
     loan_vale: n(l.loan_vale),
     loan_car: n(l.loan_car),
     loan_coop: n(l.loan_coop),
+    loan_electronics: n(l.loan_electronics),
     loan_total: n(l.loan_total),
 
     benefit_loan_sss: sssLoan,

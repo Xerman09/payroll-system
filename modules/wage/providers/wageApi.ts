@@ -59,6 +59,10 @@ async function apiFetch(path: string, options?: RequestInit) {
     cache: "no-store",
     ...options,
   });
+  
+  if (options?.body) {
+    console.log("apiFetch payload for", path, ":", options.body);
+  }
 
   const json = await res.json().catch(() => null);
 

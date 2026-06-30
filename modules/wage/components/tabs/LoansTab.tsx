@@ -48,6 +48,7 @@ type PayrollUiTokens = {
 
 type LoanDraft = {
   loan_type: LoanType;
+  description: string;
   loan_amount: string;
   months_to_pay: string;
   monthly_payment: string;
@@ -315,12 +316,30 @@ export function LoansTab({
                   <SelectItem value="VALE">VALE</SelectItem>
                   <SelectItem value="CAR LOAN">Car Loan</SelectItem>
                   <SelectItem value="COOP">COOP</SelectItem>
+                  <SelectItem value="ELECTRONICS">Electronics</SelectItem>
                 </SelectContent>
               </Select>
 
               {loanDraft.loan_type === "COOP" && (
                 <div className="text-xs text-slate-600 dark:text-slate-300 mt-1">
                   COOP loans auto-compute 3% interest and net amount released.
+                </div>
+              )}
+              
+              {loanDraft.loan_type === "ELECTRONICS" && (
+                <div className="mt-4 flex flex-col">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                    Description
+                  </label>
+                  <Input
+                    type="text"
+                    value={loanDraft.description}
+                    onChange={(e) =>
+                      setLoanDraft((p) => ({ ...p, description: e.target.value }))
+                    }
+                    placeholder="Enter item description..."
+                    className="h-10"
+                  />
                 </div>
               )}
             </div>
@@ -616,6 +635,9 @@ export function LoansTab({
                 Type
               </TableHead>
               <TableHead className="text-gray-600 font-semibold text-xs">
+                Description
+              </TableHead>
+              <TableHead className="text-gray-600 font-semibold text-xs">
                 Amount
               </TableHead>
               <TableHead className="text-gray-600 font-semibold text-xs">
@@ -641,7 +663,7 @@ export function LoansTab({
             {loanLoading ? (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={9}
                   className="h-12 text-center text-gray-500 text-sm"
                 >
                   Loading loans...
@@ -650,7 +672,7 @@ export function LoansTab({
             ) : loans.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={9}
                   className="h-12 text-center text-gray-500 text-sm"
                 >
                   No loans found.
@@ -659,7 +681,7 @@ export function LoansTab({
             ) : totalFiltered === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={9}
                   className="h-12 text-center text-gray-500 text-sm"
                 >
                   No results{q ? ` for "${q}"` : ""}.
@@ -675,7 +697,12 @@ export function LoansTab({
                     key={l.loan_id}
                     className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
                   >
-                    <TableCell className="font-medium text-sm">{l.loan_type}</TableCell>
+                    <TableCell className="font-medium text-sm">
+                      {l.loan_type}
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-500">
+                      {l.description || "—"}
+                    </TableCell>
                     <TableCell className="text-sm">₱ {money(l.loan_amount)}</TableCell>
                     <TableCell className="text-sm">{l.months_to_pay}</TableCell>
                     <TableCell className="text-sm">

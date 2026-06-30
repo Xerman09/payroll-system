@@ -594,6 +594,7 @@ export interface PayrollComputedLine {
   loan_vale: number;
   loan_car: number;
   loan_coop: number;
+  loan_electronics: number;
   loan_total: number;
 
   // benefit loans (SSS/PAGIBIG)

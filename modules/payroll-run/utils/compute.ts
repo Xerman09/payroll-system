@@ -1347,7 +1347,13 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
       .reduce((sum, x) => sum + n(x.amount), 0),
   );
 
-  let loanTotal = round2(loanVale + loanCar + loanCoop);
+  const loanElectronics = round2(
+    employeeLoanItems
+      .filter((x) => String(x.code ?? "").toUpperCase() === "ELECTRONICS")
+      .reduce((sum, x) => sum + n(x.amount), 0),
+  );
+
+  let loanTotal = round2(loanVale + loanCar + loanCoop + loanElectronics);
 
   /* ----------------------- Benefit loans (SSS/PAGIBIG) ----------------------- */
 
@@ -1552,6 +1558,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     loan_vale: round2(loanVale),
     loan_car: round2(loanCar),
     loan_coop: round2(loanCoop),
+    loan_electronics: round2(loanElectronics),
     loan_total: round2(loanTotal),
 
     benefit_loan_sss: round2(benefitLoanSSS),
@@ -1642,6 +1649,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
           vale: round2(loanVale),
           car_loan: round2(loanCar),
           coop: round2(loanCoop),
+          electronics: round2(loanElectronics),
           total: round2(loanTotal),
         },
         employee_loan_items: employeeLoanItems,

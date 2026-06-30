@@ -1,6 +1,6 @@
 // @modules/wage/types.ts
 
-export type LoanType = "VALE" | "CAR LOAN" | "COOP";
+export type LoanType = "VALE" | "CAR LOAN" | "COOP" | "ELECTRONICS";
 
 export type Department = {
   department_id: number;
@@ -100,6 +100,7 @@ export type EmployeeLoanRecord = {
   user_id: number;
 
   loan_type: LoanType;
+  description: string | null;
   loan_amount: string | number;
   months_to_pay: number;
   monthly_payment: string | number;
@@ -125,6 +126,7 @@ export type EmployeeLoanCreatePayload = {
   user_id: number;
 
   loan_type: LoanType;
+  description: string | null;
   loan_amount: number;
   months_to_pay: number;
   monthly_payment: number;
@@ -146,6 +148,7 @@ export type EmployeeLoanCreatePayload = {
 
 export type EmployeeLoanPatchPayload = Partial<{
   loan_type: LoanType;
+  description: string | null;
   loan_amount: number;
   months_to_pay: number;
   monthly_payment: number;
@@ -156,6 +159,7 @@ export type EmployeeLoanPatchPayload = Partial<{
   interest_rate: number;
   interest_amount: number;
   net_amount_released: number;
+  accumulated_amount: number;
 
   status: "ACTIVE" | "PAID" | "CANCELLED";
 

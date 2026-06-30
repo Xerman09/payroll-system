@@ -127,6 +127,7 @@ export function toPayrollRunEmployeeInsert(args: {
     loan_coop: loanCoop,
     // ✅ mirror to coop_loan too (important if UI/API reads this column instead)
     coop_loan: loanCoop,
+    loan_electronics: round2(n(line.loan_electronics)),
 
     loan_total: round2(n(line.loan_total)),
 

@@ -1246,6 +1246,10 @@ export function EmployeeDetailsSheet({
                                 label="Coop Loan"
                                 value={formatPHP(line?.loan_coop ?? 0)}
                               />
+                              <Row
+                                label="Electronics Loan"
+                                value={formatPHP(line?.loan_electronics ?? 0)}
+                              />
                               <Separator className="my-2" />
                               <Row
                                 label="Total"
@@ -1354,6 +1358,10 @@ export function EmployeeDetailsSheet({
                           <Row
                             label="Coop Loan"
                             value={formatPHP(line?.loan_coop ?? 0)}
+                          />
+                          <Row
+                            label="Electronics Loan"
+                            value={formatPHP(line?.loan_electronics ?? 0)}
                           />
                           <Row
                             label="Employee Loans Total"

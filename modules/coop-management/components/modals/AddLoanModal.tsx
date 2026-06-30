@@ -89,11 +89,13 @@ export function AddLoanModal({
     const payload = {
       user_id: Number(userId),
       loan_amount: Number(Number(loanAmount).toFixed(2)),
+      loan_type: "COOP" as const,
       interest_rate: 3.0,
       interest_amount: Number(interestAmount.toFixed(2)),
       net_amount_released: Number(netReceived.toFixed(2)),
       months_to_pay: Number(monthsToPay),
       monthly_payment: Number(monthlyPayment.toFixed(2)),
+      accumulated_amount: 0,
       start_date: startDate,
       end_date: null,
       status: "ACTIVE" as const,
