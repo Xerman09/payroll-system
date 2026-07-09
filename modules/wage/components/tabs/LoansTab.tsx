@@ -517,26 +517,44 @@ export function LoansTab({
             )}
 
             {loanDraft.loan_type !== "COOP" && (
-              <div className="flex flex-col col-span-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  Accumulated Amount
-                </label>
-                <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">
-                    ₱
-                  </span>
-                <Input
-                  type="text"
-                  value={loanDraft.accumulated_amount || ""}
-                  disabled
-                  className="h-10 pl-6 bg-gray-100 dark:bg-gray-800/60"
-                  placeholder="0.00"
-                />
+              <>
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                    Start Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={loanDraft.start_date}
+                    onChange={(e) =>
+                      setLoanDraft((p) => ({
+                        ...p,
+                        start_date: e.target.value,
+                      }))
+                    }
+                    className="h-10"
+                  />
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  Total amount deducted from payroll so far
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                    Accumulated Amount
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">
+                      ₱
+                    </span>
+                  <Input
+                    type="text"
+                    value={loanDraft.accumulated_amount || ""}
+                    disabled
+                    className="h-10 pl-6 bg-gray-100 dark:bg-gray-800/60"
+                    placeholder="0.00"
+                  />
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Total amount deducted from payroll so far
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
 
