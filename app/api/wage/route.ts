@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing body.path" }, { status: 400 });
     }
 
+    console.log("[wage POST payload to Directus]:", JSON.stringify(payload));
     const res = await fetch(joinUrl(BASE, path), {
       method: "POST",
       headers: buildForwardHeaders(req, config, { contentType: "application/json" }),

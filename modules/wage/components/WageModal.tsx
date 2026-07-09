@@ -340,7 +340,6 @@ export default function WageModal({
       if (editingLoanId) {
         await wageApi.patchEmployeeLoan(editingLoanId, {
           loan_type: loanDraft.loan_type,
-          description: loanDraft.description || null,
           loan_amount,
           months_to_pay,
           monthly_payment,
@@ -348,7 +347,7 @@ export default function WageModal({
           interest_rate,
           interest_amount,
           net_amount_released,
-          accumulated_amount: Number(loanDraft.accumulated_amount) || 0,
+          accumulated_amount: String(Number(loanDraft.accumulated_amount) || 0),
           updated_by: loggedUserId,
         });
         toast.success("Loan updated.");
@@ -356,7 +355,6 @@ export default function WageModal({
         await wageApi.createEmployeeLoan({
           user_id: selectedEmployee.user_id,
           loan_type: loanDraft.loan_type,
-          description: loanDraft.description || null,
           loan_amount,
           months_to_pay,
           monthly_payment,

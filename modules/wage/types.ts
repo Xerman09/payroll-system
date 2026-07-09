@@ -126,7 +126,6 @@ export type EmployeeLoanCreatePayload = {
   user_id: number;
 
   loan_type: LoanType;
-  description: string | null;
   loan_amount: number;
   months_to_pay: number;
   monthly_payment: number;
@@ -138,7 +137,7 @@ export type EmployeeLoanCreatePayload = {
   interest_amount: number;
   net_amount_released: number;
 
-  accumulated_amount: number;
+  accumulated_amount?: string | number;
 
   status: "ACTIVE" | "PAID" | "CANCELLED";
 
@@ -148,7 +147,6 @@ export type EmployeeLoanCreatePayload = {
 
 export type EmployeeLoanPatchPayload = Partial<{
   loan_type: LoanType;
-  description: string | null;
   loan_amount: number;
   months_to_pay: number;
   monthly_payment: number;
@@ -159,7 +157,7 @@ export type EmployeeLoanPatchPayload = Partial<{
   interest_rate: number;
   interest_amount: number;
   net_amount_released: number;
-  accumulated_amount: number;
+  accumulated_amount: string | number;
 
   status: "ACTIVE" | "PAID" | "CANCELLED";
 
