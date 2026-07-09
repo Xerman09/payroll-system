@@ -4,6 +4,7 @@ export const ALLOWED_COLLECTIONS = [
   "employee_loan_payment",
   "coop_savings_membership",
   "cutoff_settings",
+  "payroll_run_employee",
 ] as const;
 
 export type AllowedCollection = (typeof ALLOWED_COLLECTIONS)[number];

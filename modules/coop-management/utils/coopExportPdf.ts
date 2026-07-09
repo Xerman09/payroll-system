@@ -148,6 +148,8 @@ export async function exportCoopPdf(args: {
 
   // --- FILTER BY CUTOFF ---
   let filteredData = rawData;
+  let cutoffDeductions: Record<number, number> = {};
+
   if (cutoffId) {
     const selected = cutoffs?.find(c => c.id === cutoffId);
     if (selected) {
@@ -163,6 +165,26 @@ export async function exportCoopPdf(args: {
 
         return true;
       });
+
+      // Fetch deductions specifically for this cutoff
+      try {
+        const sp = new URLSearchParams();
+        sp.set("collection", "payroll_run_employee");
+        sp.set("limit", "-1");
+        sp.set("filter[cutoff_id][_eq]", String(cutoffId));
+        const res = await fetch(`/api/coop?${sp.toString()}`);
+        if (res.ok) {
+          const json = await res.json();
+          const records = Array.isArray(json?.data) ? json.data : [];
+          for (const row of records) {
+             const uid = Number(row.user_id);
+             if (!uid) continue;
+             cutoffDeductions[uid] = Number(type === "savings" ? row.coop_savings : row.coop_loan) || 0;
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to fetch cutoff deductions", err);
+      }
     }
   }
 
@@ -195,52 +217,119 @@ export async function exportCoopPdf(args: {
   const lastY = renderHeader(true);
 
   if (type === "savings") {
-    const head = [["No.", "Membership ID", "Name", "Monthly", "Total Collection", "Months", "Status"]];
-    const body = filteredData.map((r, i) => [
-      i + 1,
-      r.membershipId || "-",
-      r.name,
-      formatPeso(r.monthly),
-      formatPeso(r.totalCollection),
-      r.totalMonths,
-      r.raw.is_active === 1 ? "Active" : "Inactive",
-    ]);
+    const head = cutoffId 
+      ? [["No.", "Membership ID", "Name", "Monthly", "Cutoff Deduct", "Total Collection", "Months", "Status"]]
+      : [["No.", "Membership ID", "Name", "Monthly", "Total Collection", "Months", "Status"]];
+      
+    let sumMonthly = 0;
+    let sumCutoff = 0;
+    let sumTotalCol = 0;
+
+    const body = filteredData.map((r, i) => {
+      sumMonthly += Number(r.monthly || 0);
+      sumTotalCol += Number(r.totalCollection || 0);
+
+      const baseRow = [
+        i + 1,
+        r.membershipId || "-",
+        r.name,
+        formatPeso(r.monthly),
+      ];
+      if (cutoffId) {
+        const cVal = cutoffDeductions[Number(r.raw.user_id)] || 0;
+        sumCutoff += cVal;
+        baseRow.push(formatPeso(cVal));
+      }
+      baseRow.push(
+        formatPeso(r.totalCollection),
+        r.totalMonths,
+        r.raw.is_active === 1 ? "Active" : "Inactive"
+      );
+      return baseRow;
+    });
+
+    const foot = cutoffId 
+      ? [["", "", "TOTAL", formatPeso(sumMonthly), formatPeso(sumCutoff), formatPeso(sumTotalCol), "", ""]]
+      : [["", "", "TOTAL", formatPeso(sumMonthly), formatPeso(sumTotalCol), "", ""]];
 
     autoTable(doc, {
       startY: lastY + 10,
       head,
       body,
+      foot,
       theme: "striped",
       margin: { left: marginX, right: marginX, bottom: footerH + 10 },
       styles: { fontSize: 8, cellPadding: 5 },
       headStyles: { fillColor: DARK_BLUE, textColor: [255, 255, 255] },
-      columnStyles: {
+      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
+      columnStyles: cutoffId ? {
+        3: { halign: "right" },
+        4: { halign: "right" },
+        5: { halign: "right" },
+        6: { halign: "center" },
+      } : {
         3: { halign: "right" },
         4: { halign: "right" },
         5: { halign: "center" },
       },
     });
   } else {
-    const head = [["No.", "Name", "Loan Amount", "Total Paid", "Balance", "Monthly", "Status"]];
-    const body = filteredData.map((r, i) => [
-      i + 1,
-      r.name,
-      formatPeso(r.loanAmount),
-      formatPeso(r.totalPaid),
-      formatPeso(r.balance),
-      formatPeso(r.loan.monthly_payment),
-      r.loan.status,
-    ]);
+    const head = cutoffId 
+      ? [["No.", "Name", "Loan Amount", "Cutoff Deduct", "Total Paid", "Balance", "Monthly", "Status"]]
+      : [["No.", "Name", "Loan Amount", "Total Paid", "Balance", "Monthly", "Status"]];
+
+    let sumLoanAmt = 0;
+    let sumCutoff = 0;
+    let sumTotalPaid = 0;
+    let sumBalance = 0;
+    let sumMonthly = 0;
+
+    const body = filteredData.map((r, i) => {
+      sumLoanAmt += Number(r.loanAmount || 0);
+      sumTotalPaid += Number(r.totalPaid || 0);
+      sumBalance += Number(r.balance || 0);
+      sumMonthly += Number(r.loan.monthly_payment || 0);
+
+      const baseRow = [
+        i + 1,
+        r.name,
+        formatPeso(r.loanAmount),
+      ];
+      if (cutoffId) {
+        const cVal = cutoffDeductions[Number(r.raw.user_id)] || 0;
+        sumCutoff += cVal;
+        baseRow.push(formatPeso(cVal));
+      }
+      baseRow.push(
+        formatPeso(r.totalPaid),
+        formatPeso(r.balance),
+        formatPeso(r.loan.monthly_payment),
+        r.loan.status
+      );
+      return baseRow;
+    });
+
+    const foot = cutoffId 
+      ? [["", "TOTAL", formatPeso(sumLoanAmt), formatPeso(sumCutoff), formatPeso(sumTotalPaid), formatPeso(sumBalance), formatPeso(sumMonthly), ""]]
+      : [["", "TOTAL", formatPeso(sumLoanAmt), formatPeso(sumTotalPaid), formatPeso(sumBalance), formatPeso(sumMonthly), ""]];
 
     autoTable(doc, {
       startY: lastY + 10,
       head,
       body,
+      foot,
       theme: "striped",
       margin: { left: marginX, right: marginX, bottom: footerH + 10 },
       styles: { fontSize: 8, cellPadding: 5 },
       headStyles: { fillColor: DARK_BLUE, textColor: [255, 255, 255] },
-      columnStyles: {
+      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
+      columnStyles: cutoffId ? {
+        2: { halign: "right" },
+        3: { halign: "right" },
+        4: { halign: "right" },
+        5: { halign: "right" },
+        6: { halign: "right" },
+      } : {
         2: { halign: "right" },
         3: { halign: "right" },
         4: { halign: "right" },

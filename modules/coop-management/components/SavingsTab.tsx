@@ -11,7 +11,7 @@ import {
   TableRow,
   TableHead,
 } from "@/components/ui/table";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, Eye } from "lucide-react";
 
 import type { Membership, SortConfig, TabContentProps, User } from "../types";
 import { formatPeso } from "../helpers";
@@ -20,6 +20,7 @@ import { SortableHeader } from "./SortableHeader";
 import { AddEmployeeModal } from "./modals/AddEmployeeModal";
 import { EditEmployeeModal } from "./modals/EditEmployeeModal";
 import { CoopTableSkeleton } from "./CoopTableSkeleton";
+import { CoopSavingsDetailsModal } from "./modals/CoopSavingsDetailsModal";
 
 const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
   function SavingsTab(
@@ -39,6 +40,10 @@ const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
   const [editingMembership, setEditingMembership] = useState<Membership | null>(
     null
   );
+  const [aggSavingsMap, setAggSavingsMap] = useState<Record<number, { sum: number; count: number }>>({});
+  
+  const [detailsUserId, setDetailsUserId] = useState<number | null>(null);
+  const [detailsUserName, setDetailsUserName] = useState<string>("");
 
   const rowsPerPage = 10;
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -79,6 +84,8 @@ const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
         );
 
         let userList: User[] = [];
+        let aggSavingsMap: Record<number, { sum: number; count: number }> = {};
+
         if (userIds.length > 0) {
           const ur = await listItems<User>(
             "user",
@@ -90,15 +97,42 @@ const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
             signal
           );
           userList = ur.data;
+
+          try {
+            const query = new URLSearchParams();
+            query.set("aggregate[sum]", "coop_savings");
+            query.set("aggregate[count]", "id");
+            query.set("groupBy[]", "user_id");
+            query.set("filter[user_id][_in]", userIds.join(","));
+            query.set("filter[coop_savings][_gt]", "0");
+
+            const aggRes = await fetch(`/api/coop?collection=payroll_run_employee&${query.toString()}`, { signal });
+            if (aggRes.ok) {
+              const aggJson = await aggRes.json();
+              if (Array.isArray(aggJson.data)) {
+                for (const row of aggJson.data) {
+                  const uid = Number(row.user_id);
+                  aggSavingsMap[uid] = {
+                    sum: Number(row.sum?.coop_savings) || 0,
+                    count: Number(row.count?.id) || 0
+                  };
+                }
+              }
+            }
+          } catch (e: unknown) {
+             const err = e as Error;
+             if (err?.name !== "AbortError") console.error("Failed to aggregate savings", err);
+          }
         }
 
         if (signal?.aborted) return;
         setUsers(userList);
+        setAggSavingsMap(aggSavingsMap);
       } catch (err: unknown) {
         const e = err as Error;
         if (e?.name === "AbortError") return;
         console.error(err);
-        setError("Failed to load savings or users.");
+        setError("Failed to load data.");
       } finally {
         if (!signal?.aborted) setLoading(false);
       }
@@ -125,34 +159,38 @@ const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
   };
 
   const processedRows = useMemo(() => {
-    let data = memberships.map((m) => {
-      const user = users.find((u) => Number(u.user_id) === Number(m.user_id));
-      const name = user
-        ? `${user.user_fname} ${user.user_lname}`
-        : `User #${m.user_id}`;
+    let data = memberships
+      .filter((m) => users.some((u) => Number(u.user_id) === Number(m.user_id)))
+      .map((m) => {
+        const user = users.find((u) => Number(u.user_id) === Number(m.user_id));
+        const name = user
+          ? `${user.user_fname} ${user.user_lname}`
+          : `User #${m.user_id}`;
 
-      // ✅ Use stored DB values only. Payroll Run updates these.
-      const mRecord = m as unknown as Record<string, unknown>;
-      const monthly = Number(mRecord?.monthly_amount ?? 0);
-      const totalMonths = Number(mRecord?.total_months ?? 0);
-      const totalCollection = Number(mRecord?.total_collection ?? 0);
+        const mRecord = m as unknown as Record<string, unknown>;
+        const monthly = Number(mRecord?.monthly_amount ?? 0);
+        
+        const uid = Number(m.user_id);
+        const agg = aggSavingsMap[uid] || { sum: 0, count: 0 };
+        const totalCollection = agg.sum;
+        const totalMonths = monthly > 0 ? Number((totalCollection / monthly).toFixed(2)) : 0;
 
-      const start = m.start_date || null;
-      const end = m.end_date || null;
-      const membershipId = String(mRecord?.membership_id ?? "-");
+        const start = m.start_date || null;
+        const end = m.end_date || null;
+        const membershipId = String(mRecord?.membership_id ?? "-");
 
-      return {
-        id: m.id,
-        membershipId,
-        name,
-        monthly,
-        totalMonths,
-        totalCollection,
-        start,
-        end,
-        raw: m,
-      };
-    });
+        return {
+          id: m.id,
+          membershipId,
+          name,
+          monthly,
+          totalMonths,
+          totalCollection,
+          start,
+          end,
+          raw: m,
+        };
+      });
 
     if (searchTerm) {
       const lower = searchTerm.toLowerCase();
@@ -338,6 +376,19 @@ const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
                       <Button
                         variant="ghost"
                         size="icon"
+                        onClick={() => {
+                          setDetailsUserId(Number(r.raw.user_id));
+                          setDetailsUserName(r.name);
+                        }}
+                        className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        title="View Deductions"
+                      >
+                        <Eye size={14} />
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => setEditingMembership(r.raw)}
                         className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/5"
                       >
@@ -419,6 +470,13 @@ const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
         users={users}
         onClose={() => setEditingMembership(null)}
         onEdited={handleEdited}
+      />
+
+      <CoopSavingsDetailsModal
+        isOpen={!!detailsUserId}
+        onClose={() => setDetailsUserId(null)}
+        userId={detailsUserId!}
+        userName={detailsUserName}
       />
     </>
   );

@@ -2618,14 +2618,15 @@ async function updateCoopSavingsAccumulations(args: { payrollRunId: number; payr
   for (const emp of employees) {
     const breakdown = normalizeJsonOrNull(emp.breakdown_json) as PayrollBreakdownJson | null;
     const deductions = (breakdown?.deductions as Record<string, unknown>) ?? {};
-    const coopItems = arr<{ source_table?: string; membership_id?: string; amount: number }>(
+    const coopItems = arr<{ source_table?: string; meta?: { membership_id?: string }; amount: number }>(
       deductions?.coop_savings_items,
     );
 
     for (const item of coopItems) {
-      if (item.source_table === "coop_savings_membership" && item.membership_id) {
+      const memId = item.meta?.membership_id;
+      if (item.source_table === "coop_savings_membership" && memId) {
         updates.push({
-          membership_id: String(item.membership_id),
+          membership_id: String(memId),
           amount: n(item.amount),
         });
       }

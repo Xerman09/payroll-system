@@ -126,6 +126,37 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
           }
         }
 
+        // Add dynamic payroll run deductions
+        if (userIds.length > 0) {
+          try {
+            const query = new URLSearchParams();
+            query.set("aggregate[sum]", "coop_loan");
+            query.set("groupBy[]", "user_id");
+            query.set("filter[user_id][_in]", userIds.join(","));
+            query.set("filter[coop_loan][_gt]", "0");
+
+            const aggRes = await fetch(`/api/coop?collection=payroll_run_employee&${query.toString()}`, { signal });
+            if (aggRes.ok) {
+              const aggJson = await aggRes.json();
+              if (Array.isArray(aggJson.data)) {
+                for (const row of aggJson.data) {
+                  const uid = Number(row.user_id);
+                  const sumLoan = Number(row.sum?.coop_loan) || 0;
+                  
+                  const activeLoan = loanList.find(ln => Number(ln.user_id) === uid);
+                  if (activeLoan) {
+                    const lid = Number(activeLoan.loan_id);
+                    map[lid] = (map[lid] || 0) + sumLoan;
+                  }
+                }
+              }
+            }
+          } catch (e: unknown) {
+             const err = e as Error;
+             if (err?.name !== "AbortError") console.error("Failed to aggregate loans", err);
+          }
+        }
+
         if (signal?.aborted) return;
         setPaymentsMap(map);
       } catch (err: unknown) {
@@ -180,7 +211,9 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
   };
 
   const processedRows = useMemo(() => {
-    let data: LoanRowData[] = loans.map((ln) => {
+    let data: LoanRowData[] = loans
+      .filter((ln) => users.some((u) => Number(u.user_id) === Number(ln.user_id)))
+      .map((ln) => {
       const loanAmount = Number(ln.loan_amount || 0);
       const totalPaid = paymentsMap[Number(ln.loan_id)] ?? 0;
       const balance = Math.max(0, loanAmount - totalPaid);
