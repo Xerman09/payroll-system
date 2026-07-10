@@ -36,6 +36,7 @@ export type WageDataState = {
 
   lastUpdatedBy: string;
   lastUpdateDate: string;
+  effectivityDate: string;
 };
 
 export type WageRecord = {

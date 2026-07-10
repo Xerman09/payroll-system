@@ -336,6 +336,19 @@ export function WageTab({
                 />
               </div>
 
+              {/* Effectivity Date */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  Effectivity Date
+                </label>
+                <Input
+                  type="date"
+                  value={wageData.effectivityDate || ""}
+                  onChange={(e) => setWageData({ effectivityDate: e.target.value })}
+                  className="h-10 bg-white dark:bg-slate-900/30 dark:border-slate-700"
+                />
+              </div>
+
               {/* Daily Wage */}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-slate-600 dark:text-slate-300">

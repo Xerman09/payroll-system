@@ -67,6 +67,11 @@ export function WageModule() {
     null
   );
 
+  const todayDateObj = new Date();
+  const currentYmd = `${todayDateObj.getFullYear()}-${String(
+    todayDateObj.getMonth() + 1
+  ).padStart(2, "0")}-${String(todayDateObj.getDate()).padStart(2, "0")}`;
+
   const emptyWageData: WageDataState = {
     id: null,
     schedule_id: null,
@@ -81,6 +86,7 @@ export function WageModule() {
     philhealth: "0.00",
     lastUpdatedBy: "",
     lastUpdateDate: "",
+    effectivityDate: currentYmd,
   };
 
   const [wageData, setWageData] = useState<WageDataState>(emptyWageData);
@@ -253,6 +259,7 @@ export function WageModule() {
         philhealth: String(record.philhealth_contribution_monthly ?? "0.00"),
         lastUpdatedBy: fullName || "",
         lastUpdateDate: lastDate,
+        effectivityDate: currentYmd,
       });
     } catch (e) {
       console.error(e);
@@ -294,7 +301,7 @@ export function WageModule() {
     if (!selectedEmployee) return;
 
     const now = new Date();
-    const todayYmd = `${now.getFullYear()}-${String(
+    const effectivityDate = wageData.effectivityDate || `${now.getFullYear()}-${String(
       now.getMonth() + 1
     ).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
@@ -340,20 +347,20 @@ export function WageModule() {
       philhealth_contribution_monthly: wageData.philhealth,
       // Persist the salary grade link (null clears it)
       schedule_id: wageData.schedule_id ?? null,
-      ...(wageChanged ? { cutoff_wage_date_update: todayYmd } : {}),
+      ...(wageChanged ? { cutoff_wage_date_update: effectivityDate } : {}),
     };
 
     try {
       if (existingId) {
         await wageApi.patchWage(existingId, payload);
       } else {
-        payload.cutoff_wage_date_update = todayYmd;
+        payload.cutoff_wage_date_update = effectivityDate;
         await wageApi.createWage(payload);
       }
 
       if (wageChanged) {
         try {
-          const cutoff = await wageApi.findCutoffSettingByDate(todayYmd);
+          const cutoff = await wageApi.findCutoffSettingByDate(effectivityDate);
           const cutoffId =
             cutoff?.id !== undefined && cutoff?.id !== null
               ? Number(cutoff.id)
@@ -361,7 +368,7 @@ export function WageModule() {
 
           let fallbackCutoffId = cutoffId;
           if (!fallbackCutoffId) {
-            const currentDay = now.getDate();
+            const currentDay = parseInt(effectivityDate.split("-")[2], 10);
             // If day is 26th up to end of month, or 1st up to 10th
             if (currentDay >= 26 || currentDay <= 10) {
               fallbackCutoffId = 1;
@@ -372,7 +379,7 @@ export function WageModule() {
             
             console.warn(
               "[Wage] No cutoff_settings row matched date",
-              todayYmd,
+              effectivityDate,
               `- proceeding with fallback cutoff_id = ${fallbackCutoffId}`
             );
           }
@@ -381,7 +388,7 @@ export function WageModule() {
             user_id: selectedEmployee.user_id,
             previous_daily_wage: existingId ? Number(prevWageFixed) : 0,
             new_daily_wage: Number(nextWageFixed),
-            effective_date: todayYmd,
+            effective_date: effectivityDate,
             cutoff_id: fallbackCutoffId,
             updated_by: loggedUserId,
           });
@@ -390,7 +397,7 @@ export function WageModule() {
             user_id: selectedEmployee.user_id,
             previous_daily_wage: existingId ? Number(prevWageFixed) : 0,
             new_daily_wage: Number(nextWageFixed),
-            effective_date: todayYmd,
+            effective_date: effectivityDate,
             cutoff_id: fallbackCutoffId,
             updated_by: loggedUserId,
           });
