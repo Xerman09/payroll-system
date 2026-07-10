@@ -44,6 +44,17 @@ function round2(x: number): number {
   return Math.round((x + Number.EPSILON) * 100) / 100;
 }
 
+function formatDateShort(dateStr: string | null | undefined): string {
+  if (!dateStr || typeof dateStr !== "string" || dateStr.length < 10) return String(dateStr ?? "—");
+  try {
+    const [y, m, d] = dateStr.slice(0, 10).split("-").map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(dateObj);
+  } catch {
+    return dateStr;
+  }
+}
+
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 text-sm">
@@ -579,6 +590,10 @@ export function EmployeeDetailsSheet({
   );
 
   const [restDayOpen, setRestDayOpen] = React.useState(false);
+
+  // ✅ Paid Leave itemization from compute.ts
+  const leaveItems = (breakdown?.earnings?.leave_items as Record<string, unknown>[]) ?? [];
+  const [leaveOpen, setLeaveOpen] = React.useState(false);
 
   const rawEntries = Array.isArray(manualEntries) ? manualEntries : [];
   const entries = rawEntries.map((e) => normalizeEntry(e) as unknown as ManualEntry);
@@ -1209,6 +1224,75 @@ export function EmployeeDetailsSheet({
                               label="Manual Additions"
                               value={formatPHP(line?.manual_additions ?? 0)}
                             />
+                            <Collapsible
+                              open={leaveOpen}
+                              onOpenChange={setLeaveOpen}
+                              className="group/leave"
+                            >
+                              <div className="flex items-center justify-between gap-3 text-sm">
+                                <CollapsibleTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="group inline-flex items-center gap-2 text-muted-foreground hover:text-foreground"
+                                  >
+                                    <span>Paid Leave</span>
+                                    {leaveItems.length > 0 ? (
+                                      <span className="text-[11px] text-muted-foreground">
+                                        ({leaveItems.length})
+                                      </span>
+                                    ) : null}
+                                    <ChevronDown
+                                      className={cn(
+                                        "h-4 w-4 transition-transform",
+                                        leaveOpen && "rotate-180",
+                                      )}
+                                    />
+                                  </button>
+                                </CollapsibleTrigger>
+
+                                <div className="font-mono tabular-nums">
+                                  {formatPHP(line?.leave_amount ?? 0)}
+                                </div>
+                              </div>
+                              <CollapsibleContent className="data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down overflow-hidden">
+                                {leaveItems.length > 0 && (
+                                  <div className="mt-2 space-y-2 pb-3">
+                                    {leaveItems.map((lIn: unknown, i: number) => {
+                                      const l = lIn as Record<string, unknown>;
+                                      const meta = l.meta as Record<string, unknown>;
+                                      return (
+                                        <div key={i} className="flex flex-col gap-1.5 border-l-2 border-primary/20 pl-3">
+                                          <div className="flex items-start justify-between gap-3 rounded-xl border bg-muted/10 px-3 py-2">
+                                            <div className="min-w-0">
+                                              <div className="truncate text-sm font-medium">
+                                                {String(l.description || "Paid Leave")}
+                                              </div>
+                                              <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                                <span className="font-mono">
+                                                  {formatDateShort(meta?.leave_start as string)} to {formatDateShort(meta?.leave_end as string)}
+                                                </span>
+                                                {meta?.days_in_cutoff != null ? (
+                                                  <>
+                                                    {" "}
+                                                    •{" "}
+                                                    <span className="font-mono">
+                                                      {String(meta.days_in_cutoff)} days
+                                                    </span>
+                                                  </>
+                                                ) : null}
+                                              </div>
+                                            </div>
+                                            <div className="shrink-0 font-mono text-xs tabular-nums text-emerald-700">
+                                              {formatPHP(Number(l.amount ?? 0))}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </CollapsibleContent>
+                            </Collapsible>
                             {retroTotal > 0 ? (
                               <Row
                                 label="Retro Pay"

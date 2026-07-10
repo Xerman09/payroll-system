@@ -14,6 +14,7 @@ import type {
   UserRow,
   WageProfile,
   WageProrationLog,
+  PaidLeaveRequest,
 } from "../types";
 
 type ComputeArgs = {
@@ -40,6 +41,9 @@ type ComputeArgs = {
 
   // ✅ wage proration logs for this user (effective-date driven)
   wageProrationLogs?: WageProrationLog[];
+
+  // ✅ Paid Leave requests overlapping cutoff
+  paidLeaves?: PaidLeaveRequest[];
 
   // ✅ Option B tables (dedicated collections)
   retroPays?: RetroPayRow[];
@@ -970,6 +974,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
   let holidayPay = 0;
   let restDayAmount = 0;
+  let leaveAmount = 0;
 
   let lateDeduction = 0;
   let undertimeDeduction = 0;
@@ -1438,6 +1443,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     allowance = 0;
     retroPay = 0;
     manualAdds = 0;
+    leaveAmount = 0;
 
     lateDeduction = 0;
     undertimeDeduction = 0;
@@ -1469,8 +1475,62 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   }
 
 
+  /* ------------------------------ Paid Leaves ------------------------------ */
+
+  const paidLeavesArr = args.paidLeaves ?? [];
+  const leaveItems: BreakdownItem[] = [];
+
+  for (const leave of paidLeavesArr) {
+    if (!leave.is_paid || !leave.leave_start || !leave.leave_end) continue;
+    
+    const start = leave.leave_start < args.cutoffStart ? args.cutoffStart : leave.leave_start;
+    const end = leave.leave_end > args.cutoffEnd ? args.cutoffEnd : leave.leave_end;
+    if (start > end) continue;
+
+    let amount = 0;
+    let daysInCutoff = 0;
+    
+    // Loop dates to count overlapping days and calculate rate per day
+    const startParts = start.split("-").map(Number);
+    const endParts = end.split("-").map(Number);
+    let curr = new Date(startParts[0], startParts[1] - 1, startParts[2], 12, 0, 0);
+    const endD = new Date(endParts[0], endParts[1] - 1, endParts[2], 12, 0, 0);
+    
+    while (curr <= endD) {
+      const yyyy = curr.getFullYear();
+      const mm = String(curr.getMonth() + 1).padStart(2, "0");
+      const dd = String(curr.getDate()).padStart(2, "0");
+      const ymd = `${yyyy}-${mm}-${dd}`;
+      
+      // We assume paid leave doesn't apply to rest days (Sundays)
+      if (curr.getDay() !== 0) {
+        amount += rate.dailyForDate(ymd);
+        daysInCutoff++;
+      }
+      curr.setDate(curr.getDate() + 1);
+    }
+
+    if (amount > 0) {
+      leaveAmount += round2(amount);
+      leaveItems.push({
+        item_key: `LV:${leave.leave_id}`,
+        type: "EARNING",
+        category: "PAID_LEAVE",
+        description: `Paid Leave (${leave.leave_type})`,
+        amount: round2(amount),
+        source_table: "leave_request",
+        source_id: leave.leave_id,
+        meta: {
+          days_in_cutoff: daysInCutoff,
+          leave_start: leave.leave_start,
+          leave_end: leave.leave_end,
+        }
+      });
+    }
+  }
+
   const grossPay = round2(
-    basicPay + otAmount + holidayPay + restDayAmount + nightDiffAmount + allowance + retroPay + manualAdds,
+    basicPay + otAmount + holidayPay + restDayAmount + nightDiffAmount + allowance + retroPay + manualAdds + leaveAmount,
   );
 
   const totalDeductions = round2(
@@ -1496,7 +1556,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
   const varianceFlag = prev > 0 && Math.abs(n(variancePct)) >= 10;
 
   const daysWorked = new Set(att.filter((x) => n(x.work_minutes) > 0).map((x) => x.date_schedule)).size;
-  const totalEarnings = round2(basicPay + otAmount + holidayPay + restDayAmount + nightDiffAmount + allowance + retroPay + manualAdds);
+  const totalEarnings = round2(basicPay + otAmount + holidayPay + restDayAmount + nightDiffAmount + allowance + retroPay + manualAdds + leaveAmount);
 
   const allowance_items: BreakdownItem[] = allowanceCalc.items.map((x) => ({
     item_key: `AL:${x.allowance_id}`,
@@ -1542,6 +1602,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     allowance: round2(allowance),
     retro_pay: round2(retroPay),
     manual_additions: round2(manualAdds),
+    leave_amount: round2(leaveAmount),
 
     // ✅ Option B totals now visible at top-level too
     coop_savings: round2(coopSavings),
@@ -1617,6 +1678,10 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
 
         // ✅ retro pay (multiple per cutoff supported)
         retro_pay: round2(retroPay),
+        
+        // ✅ paid leave
+        leave_amount: round2(leaveAmount),
+        leave_items: leaveItems,
 
         // NEW canonical field for payroll_run_employee_item sync
         retro_items: retro_items_all.map((x) => ({

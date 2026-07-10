@@ -26,6 +26,7 @@ import type {
   WageProrationLog,
   CutoffType,
   AllowancePayCycle,
+  PaidLeaveRequest,
 } from "../types";
 
 import { computeEmployeeLine } from "../utils/compute";
@@ -66,6 +67,9 @@ export const RES = {
 
   // ✅ Benefit Logs
   benefitLogs: "benefit_logs",
+  
+  // ✅ Leave Requests
+  leaveRequests: "leave_request",
 } as const;
 
 // ------------------------------
@@ -1012,6 +1016,38 @@ export async function loadWorkspace(args: {
     benefitLoans.get(userId)!.push(r as unknown as BenefitLoanRow);
   }
 
+  // ✅ Paid Leave requests
+  const rawLeaves = userIds.length
+    ? await safeList<Record<string, unknown>>(RES.leaveRequests, {
+      "filter[user_id][_in]": userIds.join(","),
+      "filter[status][_eq]": "approved",
+      "filter[is_paid][_eq]": 1,
+      "filter[leave_start][_lte]": cutoff.end_date,
+      "filter[leave_end][_gte]": cutoff.start_date,
+      limit: 20000,
+    })
+    : [];
+
+  const paidLeaves = new Map<number, PaidLeaveRequest[]>();
+  for (const raw of rawLeaves ?? []) {
+    const r = raw as Record<string, unknown>;
+    const userId = n(r.user_id);
+    if (!userId) continue;
+
+    const row: PaidLeaveRequest = {
+      leave_id: n(r.leave_id ?? r.id),
+      user_id: userId,
+      leave_type: s(r.leave_type),
+      leave_start: s(r.leave_start).slice(0, 10),
+      leave_end: s(r.leave_end).slice(0, 10),
+      total_days: n(r.total_days),
+      is_paid: bitToNum(r.is_paid),
+    };
+
+    if (!paidLeaves.has(userId)) paidLeaves.set(userId, []);
+    paidLeaves.get(userId)!.push(row);
+  }
+
   const rawAllowances = userIds.length
     ? await safeList<Record<string, unknown>>(RES.allowances, {
       "filter[user_id][_in]": userIds.join(","),
@@ -1077,6 +1113,7 @@ export async function loadWorkspace(args: {
     benefitLoans,
 
     allowances,
+    paidLeaves,
 
     wageProrationLogs,
     companyName,
@@ -1135,6 +1172,8 @@ export function computeRegister(args: {
 
       allowances: alw,
       wageProrationLogs: prLogs,
+      
+      paidLeaves: ws.paidLeaves?.get(u.id) ?? [],
 
       retroPays: retro,
       coopSavingsMemberships: coop,

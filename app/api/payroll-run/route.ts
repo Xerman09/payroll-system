@@ -26,6 +26,7 @@ type ResourceKey =
   | "coop_savings_membership"
   | "payroll_run_access_log"
   | "benefit_logs"
+  | "leave_request"
   ;
 
 const ALLOWED: Record<ResourceKey, true> = {
@@ -51,6 +52,7 @@ const ALLOWED: Record<ResourceKey, true> = {
   coop_savings_membership: true,
   payroll_run_access_log: true,
   benefit_logs: true,
+  leave_request: true,
 };
 
 

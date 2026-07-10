@@ -173,6 +173,16 @@ export interface HolidayRow {
   last_working_day?: string | null; // YYYY-MM-DD
 }
 
+export interface PaidLeaveRequest {
+  leave_id: number;
+  user_id: number;
+  leave_type: string;
+  leave_start: string;
+  leave_end: string;
+  total_days: number;
+  is_paid: number;
+}
+
 // ------------------------------
 // Manual entries (adjustments)
 // ------------------------------
@@ -435,7 +445,10 @@ export interface PayrollWorkspace {
   allowances: Map<number, EmployeeAllowance[]>;
 
   wageProrationLogs: Map<number, WageProrationLog[]>;
-
+  
+  // ✅ Paid Leave requests overlapping cutoff
+  paidLeaves?: Map<number, PaidLeaveRequest[]>;
+  
   companyName?: string;
 }
 
