@@ -187,7 +187,7 @@ export default function OvertimeReportModule() {
                     <tr key={row.overtime_id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors">
                       <td className="px-4 py-3 font-medium">{row.employee_name}</td>
                       <td className="px-4 py-3 text-muted-foreground">{row.department_name}</td>
-                      <td className="px-4 py-3 font-medium">{row.request_date}</td>
+                      <td className="px-4 py-3 font-medium">{row.request_date ? new Date(row.request_date).toLocaleDateString() : ""}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col text-xs">
                           <span className="text-gray-500">From: {row.ot_from}</span>
