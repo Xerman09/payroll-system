@@ -201,8 +201,8 @@ export default function LeaveReportModule() {
                       <td className="px-4 py-3">{getLeaveTypeBadge(row.leave_type, row.is_paid)}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col text-xs">
-                          <span>Start: {row.leave_start}</span>
-                          <span>End: {row.leave_end}</span>
+                          <span>Start: {row.leave_start ? new Date(row.leave_start).toLocaleDateString() : ""}</span>
+                          <span>End: {row.leave_end ? new Date(row.leave_end).toLocaleDateString() : ""}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-center font-medium">{row.total_days}</td>
