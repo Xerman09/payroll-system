@@ -133,6 +133,10 @@ function Sidebar() {
               {
                 title: "Leave Report",
                 href: `/reports/leave/${userId}`,
+              },
+              {
+                title: "Undertime Report",
+                href: `/reports/undertime/${userId}`,
               }
             ]
           }
