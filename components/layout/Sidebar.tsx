@@ -24,6 +24,7 @@ import {
   Settings,
   User,
   Truck,
+  FileText,
 } from "lucide-react";
 import { getLoggedUser } from "@/lib/auth";
 
@@ -124,6 +125,17 @@ function Sidebar() {
             href: `/payroll-records/${userId}`,
             icon: <Folders size={18} />,
           },
+          {
+            title: "Reports",
+            href: "#",
+            icon: <FileText size={18} />,
+            subItems: [
+              {
+                title: "Leave Report",
+                href: `/reports/leave/${userId}`,
+              }
+            ]
+          }
         ],
       },
     ],
@@ -324,7 +336,7 @@ function Sidebar() {
                                     className={cn(
                                       "py-1.5 px-2 text-sm rounded-lg transition-colors block",
                                       "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-800",
-                                      pathname === sub.href && "text-primary font-medium"
+                                      pathname === sub.href && "text-primary dark:text-primary font-medium"
                                     )}
                                   >
                                     {sub.title}
