@@ -61,6 +61,7 @@ export function SalaryGradeManagement() {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -178,6 +179,7 @@ export function SalaryGradeManagement() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
       if (editingId) {
         await wageApi.patchSalarySchedule(editingId, formData);
@@ -191,6 +193,8 @@ export function SalaryGradeManagement() {
     } catch (err) {
       console.error(err);
       toast.error("Failed to save schedule.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -620,11 +624,45 @@ export function SalaryGradeManagement() {
               >
                 Cancel
               </Button>
+              {!editingId && (
+                <Button 
+                  type="button" 
+                  disabled={isSubmitting}
+                  onClick={async () => {
+                    setIsSubmitting(true);
+                    try {
+                      const res = await wageApi.createSalaryScheduleToAll(formData);
+                      if (res?.errors?.length > 0) {
+                        const errDetails = res.errors.map((e: any) => `${e.company}: ${e.error}`).join(" | ");
+                        const companyNames = res.errors.map((e: any) => e.company).join(", ");
+                        if (process.env.NODE_ENV !== "production") {
+                          console.warn(`[Apply to All] Failed for ${res.errors.length} companies:`, errDetails);
+                        }
+                        toast.warning(`Failed for ${res.errors.length} companies: ${companyNames}`);
+                      } else {
+                        toast.success("Schedule applied to all companies successfully.");
+                      }
+                      setModalOpen(false);
+                      handleRefresh();
+                    } catch (err: unknown) {
+                      console.error(err);
+                      const e = err as Error;
+                      toast.error(e?.message || "Failed to apply schedule to all companies.");
+                    } finally {
+                      setIsSubmitting(false);
+                    }
+                  }}
+                  className="w-full sm:flex-1 h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase tracking-[0.2em] rounded-xl shadow-xl shadow-indigo-900/20 active:scale-[0.97] transition-all disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  {isSubmitting ? "Applying..." : "Apply to All"}
+                </Button>
+              )}
               <Button 
                 type="submit" 
-                className="w-full sm:flex-1 h-10 bg-gray-900 dark:bg-primary hover:bg-black dark:hover:bg-primary/90 text-white font-bold text-[10px] uppercase tracking-[0.2em] rounded-xl shadow-xl shadow-primary/10 active:scale-[0.97] transition-all"
+                disabled={isSubmitting}
+                className="w-full sm:flex-1 h-10 bg-gray-900 dark:bg-primary hover:bg-black dark:hover:bg-primary/90 text-white font-bold text-[10px] uppercase tracking-[0.2em] rounded-xl shadow-xl shadow-primary/10 active:scale-[0.97] transition-all disabled:opacity-50 disabled:pointer-events-none"
               >
-                {editingId ? "Finalize Update" : "Save Changes"}
+                {isSubmitting ? "Saving..." : (editingId ? "Finalize Update" : "Save Changes")}
               </Button>
             </DialogFooter>
           </form>

@@ -77,7 +77,7 @@ export default function Navbar() {
   const NEXT_PUBLIC_DIRECTUS_URL = process.env.NEXT_PUBLIC_DIRECTUS_URL || "";
   const imageUrl = user?.user_image
     ? (user.user_image.startsWith('http') ? user.user_image : `${NEXT_PUBLIC_DIRECTUS_URL}/assets/${user.user_image}`)
-    : "/profile.jpg";
+    : undefined;
 
   return (
     <header

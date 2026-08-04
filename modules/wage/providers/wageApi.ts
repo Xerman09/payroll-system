@@ -757,6 +757,30 @@ export async function createSalarySchedule(payload: SalarySchedulePayload) {
   });
 }
 
+export async function createSalaryScheduleToAll(payload: SalarySchedulePayload) {
+  const res = await fetch("/api/wage/apply-all", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: "/items/salary_schedules",
+      payload,
+    }),
+  });
+
+  const json = await res.json().catch(() => null);
+  
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[wageApi.ts] createSalaryScheduleToAll response:", res.status, json);
+  }
+  
+  // Do not throw if status is 207 (partial success) or 200 (full success)
+  if (!res.ok && res.status !== 207) {
+    throw new Error(json?.message || "Failed to apply to all companies");
+  }
+
+  return json;
+}
+
 export async function patchSalarySchedule(id: number, payload: Partial<SalarySchedulePayload>) {
   return apiFetch(`/items/salary_schedules/${id}`, {
     method: "PATCH",
