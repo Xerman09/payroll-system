@@ -9,6 +9,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const path = body?.path;
     const payload = body?.payload;
+    const targetCompanies = body?.targetCompanies as string[] | undefined;
 
     if (!path || !payload) {
       return NextResponse.json({ error: "Missing body.path or body.payload" }, { status: 400 });
@@ -17,8 +18,14 @@ export async function POST(req: NextRequest) {
     const results: any[] = [];
     const errors: any[] = [];
 
-    // Apply to all companies concurrently
-    const promises = COMPANIES.map(async (company) => {
+    // Filter companies if targetCompanies is provided
+    let activeCompanies = COMPANIES;
+    if (targetCompanies && targetCompanies.length > 0) {
+      activeCompanies = COMPANIES.filter(c => targetCompanies.includes(c.id));
+    }
+
+    // Apply to companies concurrently
+    const promises = activeCompanies.map(async (company) => {
       try {
         let res = await fetch(joinUrl(company.apiBase, path), {
           method: "POST",

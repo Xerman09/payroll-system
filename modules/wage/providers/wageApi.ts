@@ -757,13 +757,14 @@ export async function createSalarySchedule(payload: SalarySchedulePayload) {
   });
 }
 
-export async function createSalaryScheduleToAll(payload: SalarySchedulePayload) {
+export async function createSalaryScheduleToAll(data: any, targetCompanies?: string[]): Promise<any> {
   const res = await fetch("/api/wage/apply-all", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       path: "/items/salary_schedules",
-      payload,
+      payload: data,
+      targetCompanies,
     }),
   });
 

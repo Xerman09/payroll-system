@@ -46,7 +46,8 @@ import {
   Award, 
   Wallet,
   AlertTriangle,
-  RotateCcw
+  RotateCcw,
+  Building2
 } from "lucide-react";
 import { toast } from "sonner";
 import * as wageApi from "../providers/wageApi";
@@ -79,6 +80,24 @@ export function SalaryGradeManagement() {
   const [dontAskAgain, setDontAskAgain] = useState(false);
   const [pendingEdit, setPendingEdit] = useState<SalarySchedule | null>(null);
 
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
+  const [companyModalOpen, setCompanyModalOpen] = useState(false);
+
+  useEffect(() => {
+    const loadCompanies = async () => {
+      try {
+        const res = await fetch("/api/companies");
+        const data = await res.json();
+        const arr = Array.isArray(data) ? data : [];
+        setCompanies(arr);
+        setSelectedCompanies(arr.map((c: any) => c.id));
+      } catch (err) {
+        console.error("Failed to load companies:", err);
+      }
+    };
+    loadCompanies();
+  }, []);
 
   useEffect(() => {
     loadSchedules();
@@ -130,6 +149,7 @@ export function SalaryGradeManagement() {
       monthly_rate: 0,
     });
     setRateDisplay("");
+    setSelectedCompanies(companies.map(c => c.id));
     setModalOpen(true);
   };
 
@@ -532,51 +552,43 @@ export function SalaryGradeManagement() {
               {/* GRADE & STEP GRID */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="grade" className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-[0.12em] ml-1 flex items-center gap-2">
+                  <div className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-[0.12em] ml-1 flex items-center gap-2">
                     <Layers size={11} className="text-gray-400" />
                     Salary Grade
-                  </Label>
-                  <Select
-                    value={String(formData.salary_grade)}
-                    onValueChange={(v) =>
-                      setFormData({ ...formData, salary_grade: Number(v) })
+                  </div>
+                  <select
+                    value={formData.salary_grade}
+                    onChange={(e) =>
+                      setFormData({ ...formData, salary_grade: Number(e.target.value) })
                     }
+                    className="w-full h-10 px-3 bg-gray-50/50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-800 rounded-xl focus:ring-4 focus:ring-primary/5 font-semibold transition-all appearance-none text-sm text-gray-900 dark:text-gray-100"
                   >
-                    <SelectTrigger className="h-10 bg-gray-50/50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800 rounded-xl focus:ring-4 focus:ring-primary/5 font-semibold transition-all">
-                      <SelectValue placeholder="SG" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-2xl border-gray-100 dark:border-gray-800">
-                      {Array.from({ length: 33 }, (_, i) => i + 1).map((g) => (
-                        <SelectItem key={g} value={String(g)} className="font-bold text-xs py-2.5">
-                          SG {g}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    {Array.from({ length: 33 }, (_, i) => i + 1).map((g) => (
+                      <option key={g} value={g} className="font-bold text-xs py-2.5">
+                        SG {g}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="step" className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-[0.12em] ml-1 flex items-center gap-2">
+                  <div className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-[0.12em] ml-1 flex items-center gap-2">
                     <TrendingUp size={11} className="text-gray-400" />
                     Step Level
-                  </Label>
-                  <Select
-                    value={String(formData.step)}
-                    onValueChange={(v) =>
-                      setFormData({ ...formData, step: Number(v) })
+                  </div>
+                  <select
+                    value={formData.step}
+                    onChange={(e) =>
+                      setFormData({ ...formData, step: Number(e.target.value) })
                     }
+                    className="w-full h-10 px-3 bg-gray-50/50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-800 rounded-xl focus:ring-4 focus:ring-primary/5 font-semibold transition-all appearance-none text-sm text-gray-900 dark:text-gray-100"
                   >
-                    <SelectTrigger className="h-10 bg-gray-50/50 dark:bg-gray-900/30 border-gray-100 dark:border-gray-800 rounded-xl focus:ring-4 focus:ring-primary/5 font-semibold transition-all">
-                      <SelectValue placeholder="Step" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-2xl border-gray-100 dark:border-gray-800">
-                      {Array.from({ length: 8 }, (_, i) => i + 1).map((s) => (
-                        <SelectItem key={s} value={String(s)} className="font-semibold text-xs py-2.5">
-                          Step {s}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    {Array.from({ length: 8 }, (_, i) => i + 1).map((s) => (
+                      <option key={s} value={s} className="font-bold text-xs py-2.5">
+                        Step {s}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -628,33 +640,10 @@ export function SalaryGradeManagement() {
                 <Button 
                   type="button" 
                   disabled={isSubmitting}
-                  onClick={async () => {
-                    setIsSubmitting(true);
-                    try {
-                      const res = await wageApi.createSalaryScheduleToAll(formData);
-                      if (res?.errors?.length > 0) {
-                        const errDetails = res.errors.map((e: any) => `${e.company}: ${e.error}`).join(" | ");
-                        const companyNames = res.errors.map((e: any) => e.company).join(", ");
-                        if (process.env.NODE_ENV !== "production") {
-                          console.warn(`[Apply to All] Failed for ${res.errors.length} companies:`, errDetails);
-                        }
-                        toast.warning(`Failed for ${res.errors.length} companies: ${companyNames}`);
-                      } else {
-                        toast.success("Schedule applied to all companies successfully.");
-                      }
-                      setModalOpen(false);
-                      handleRefresh();
-                    } catch (err: unknown) {
-                      console.error(err);
-                      const e = err as Error;
-                      toast.error(e?.message || "Failed to apply schedule to all companies.");
-                    } finally {
-                      setIsSubmitting(false);
-                    }
-                  }}
+                  onClick={() => setCompanyModalOpen(true)}
                   className="w-full sm:flex-1 h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase tracking-[0.2em] rounded-xl shadow-xl shadow-indigo-900/20 active:scale-[0.97] transition-all disabled:opacity-50 disabled:pointer-events-none"
                 >
-                  {isSubmitting ? "Applying..." : "Apply to All"}
+                  {isSubmitting ? "Applying..." : "Apply to Other"}
                 </Button>
               )}
               <Button 
@@ -723,6 +712,127 @@ export function SalaryGradeManagement() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- COMPANY SELECTION DIALOG --- */}
+      <Dialog open={companyModalOpen} onOpenChange={setCompanyModalOpen}>
+        <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden border-gray-100 dark:border-gray-900 bg-white dark:bg-black rounded-3xl shadow-2xl">
+          <div className="bg-gray-50/50 dark:bg-gray-900/20 px-6 py-5 border-b border-gray-100 dark:border-gray-900/50">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-black text-gray-900 dark:text-gray-100 tracking-tight flex items-center gap-2">
+                <Building2 size={20} className="text-primary" />
+                Select Companies
+              </DialogTitle>
+              <DialogDescription className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                Choose which companies should receive this Salary Grade update.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          
+          <div className="p-6 space-y-4">
+            <div className="flex justify-between items-center px-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                {selectedCompanies.length} selected
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedCompanies.length === companies.length) {
+                    setSelectedCompanies([]);
+                  } else {
+                    setSelectedCompanies(companies.map(c => c.id));
+                  }
+                }}
+                className="text-[10px] font-bold text-primary hover:underline uppercase tracking-widest transition-all"
+              >
+                {selectedCompanies.length === companies.length ? "Deselect All" : "Select All"}
+              </button>
+            </div>
+            
+            <div className="bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800 rounded-2xl max-h-[300px] overflow-y-auto p-2 custom-scrollbar shadow-inner">
+              {companies.map((company) => (
+                <div 
+                  key={company.id} 
+                  className="flex items-center space-x-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-900/50 rounded-xl transition-colors cursor-pointer group"
+                  onClick={() => {
+                    setSelectedCompanies(prev => 
+                      prev.includes(company.id) 
+                        ? prev.filter(id => id !== company.id)
+                        : [...prev, company.id]
+                    );
+                  }}
+                >
+                  <Checkbox 
+                    id={`company-modal-${company.id}`}
+                    checked={selectedCompanies.includes(company.id)} 
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedCompanies(prev => [...prev, company.id]);
+                      } else {
+                        setSelectedCompanies(prev => prev.filter(id => id !== company.id));
+                      }
+                    }}
+                    className="border-gray-300 dark:border-gray-700 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                  />
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <label
+                      htmlFor={`company-modal-${company.id}`}
+                      className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-none cursor-pointer group-hover:text-primary transition-colors truncate"
+                    >
+                      {company.name}
+                    </label>
+                    <span className="text-[10px] text-gray-500 font-medium mt-1.5 truncate">
+                      {company.description}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <DialogFooter className="bg-gray-50/50 dark:bg-gray-900/20 px-6 py-4 border-t border-gray-100 dark:border-gray-900/50 flex gap-2">
+            <Button 
+              type="button" 
+              variant="ghost" 
+              onClick={() => setCompanyModalOpen(false)} 
+              className="flex-1 sm:flex-none h-10 px-4 rounded-xl text-gray-500 font-bold text-[10px] uppercase tracking-widest hover:bg-gray-200 dark:hover:bg-gray-800 transition-all"
+            >
+              Back
+            </Button>
+            <Button 
+              type="button"
+              disabled={isSubmitting || selectedCompanies.length === 0}
+              onClick={async () => {
+                setIsSubmitting(true);
+                try {
+                  const res = await wageApi.createSalaryScheduleToAll(formData, selectedCompanies);
+                  if (res?.errors?.length > 0) {
+                    const errDetails = res.errors.map((e: any) => `${e.company}: ${e.error}`).join(" | ");
+                    const companyNames = res.errors.map((e: any) => e.company).join(", ");
+                    if (process.env.NODE_ENV !== "production") {
+                      console.warn(`[Apply to All] Failed for ${res.errors.length} companies:`, errDetails);
+                    }
+                    toast.warning(`Failed for ${res.errors.length} companies: ${companyNames}`);
+                  } else {
+                    toast.success("Schedule applied successfully.");
+                  }
+                  setCompanyModalOpen(false);
+                  setModalOpen(false);
+                  handleRefresh();
+                } catch (err: unknown) {
+                  console.error(err);
+                  const e = err as Error;
+                  toast.error(e?.message || "Failed to apply schedule to companies.");
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+              className="flex-2 sm:flex-1 h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase tracking-[0.15em] rounded-xl shadow-lg shadow-indigo-900/20 active:scale-[0.97] transition-all disabled:opacity-50"
+            >
+              {isSubmitting ? "Syncing..." : (selectedCompanies.length === companies.length ? "Confirm Sync to All" : `Confirm Sync to ${selectedCompanies.length} Companies`)}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
