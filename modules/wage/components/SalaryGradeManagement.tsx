@@ -386,7 +386,7 @@ export function SalaryGradeManagement() {
                 paginatedSchedules.map((sch) => (
                   <TableRow key={sch.schedule_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                     <TableCell className="px-4 py-3 font-medium text-gray-500 text-sm whitespace-nowrap">
-                      {sch.effectivity_date}
+                      {new Date(sch.effectivity_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                     </TableCell>
                     <TableCell className="px-4 py-3 text-center">
                       {getStatus(sch.effectivity_date) === "Active" ? (
