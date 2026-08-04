@@ -155,9 +155,10 @@ export default function EmployeesTab({
           <select
             className="border px-2 py-1 rounded bg-white dark:bg-gray-800 w-full"
             value={filterDept ?? ""}
-            onChange={(e) =>
-              setFilterDept(e.target.value ? parseInt(e.target.value) : null)
-            }
+            onChange={(e) => {
+              setFilterDept(e.target.value ? parseInt(e.target.value) : null);
+              setCurrentPage(1);
+            }}
           >
             <option value="">All Departments</option>
             {departments.map((dept) => (
@@ -174,7 +175,10 @@ export default function EmployeesTab({
             type="text"
             placeholder="Type name..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
             className="border px-2 py-1 rounded bg-white dark:bg-gray-800 w-full"
           />
         </div>
