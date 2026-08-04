@@ -137,6 +137,10 @@ function Sidebar() {
               {
                 title: "Undertime Report",
                 href: `/reports/undertime/${userId}`,
+              },
+              {
+                title: "Overtime Report",
+                href: `/reports/overtime/${userId}`,
               }
             ]
           }
