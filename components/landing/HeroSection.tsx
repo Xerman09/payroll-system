@@ -90,7 +90,7 @@ export function HeroSection() {
           className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-black uppercase tracking-[0.2em] mb-12 backdrop-blur-xl"
         >
           <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-          VTC - Advanced Payroll Systems
+          VTC - Advanced HR and Payroll Systems
         </motion.div>
 
         <motion.h1
@@ -100,7 +100,7 @@ export function HeroSection() {
           className="text-6xl md:text-[6rem] font-black tracking-tighter mb-8 leading-[0.9] uppercase text-white"
         >
           Vertex Tech Corps. <br />
-          <span className="text-gradient-cyan">Payroll System</span>
+          <span className="text-gradient-cyan">HR and Payroll System</span>
         </motion.h1>
 
         <motion.p

@@ -85,7 +85,7 @@ const pageContent = `import { Metadata } from "next";
 import ${pascalFeature}Module from "@/modules/${featureName}/${pascalFeature}Module";
 
 export const metadata: Metadata = {
-  title: "${pascalFeature} | Payroll System",
+  title: "${pascalFeature} | HR and Payroll System",
 };
 
 export default function ${pascalFeature}Page() {

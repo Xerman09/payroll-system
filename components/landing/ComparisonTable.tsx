@@ -23,7 +23,7 @@ export function ComparisonTable() {
             >
                 <div className="text-center mb-16">
                     <h2 className="text-4xl font-bold text-white mb-4">The Standard vs. <span className="text-gradient-cyan">Precision</span></h2>
-                    <p className="text-white/40">Why logistics leaders choose VTC - Payroll System over generic alternatives.</p>
+                    <p className="text-white/40">Why logistics leaders choose VTC - HR and Payroll System over generic alternatives.</p>
                 </div>
 
                 <div className="max-w-4xl mx-auto">
@@ -33,7 +33,7 @@ export function ComparisonTable() {
                                 <tr className="border-b border-white/10 bg-white/5">
                                     <th className="p-6 text-white/40 font-medium text-sm border-r border-white/10">Features</th>
                                     <th className="p-6 text-white/40 font-medium text-sm border-r border-white/10 text-center">Standard Systems</th>
-                                    <th className="p-6 text-cyan-400 font-bold text-sm text-center">VTC - Payroll System</th>
+                                    <th className="p-6 text-cyan-400 font-bold text-sm text-center">VTC - HR and Payroll System</th>
                                 </tr>
                             </thead>
                             <tbody>

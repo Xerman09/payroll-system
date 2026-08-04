@@ -1,4 +1,4 @@
-# Payroll System
+# HR and Payroll System
 
 🚀 **Agent-Ready Repository**: This project is configured with the **WAT v2** framework for high-reliability AI collaboration. See [.agent/WAT_V2_INSTRUCTIONS.md](.agent/WAT_V2_INSTRUCTIONS.md) for details.
 

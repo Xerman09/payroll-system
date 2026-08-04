@@ -49,8 +49,8 @@ export function SystemOverview() {
               <span className="text-gradient-cyan">The Core</span>
             </h2>
             <p className="text-xl text-white/40 mb-14 max-w-xl leading-relaxed font-medium">
-              VTC - Payroll System is a high-performance engine designed for bimonthly operations. We handle vehicle-area mapping and stacked holiday pay 
-              logic with deterministic speed.
+              VTC - HR and Payroll System is a high-performance engine designed for bimonthly operations. We handle vehicle-area mapping and stacked holiday pay 
+              calculations natively, ensuring 100% compliance out-of-the-box.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-10">

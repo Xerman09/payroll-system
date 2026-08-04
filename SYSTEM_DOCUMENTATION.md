@@ -1,4 +1,4 @@
-# Payroll System - Detailed System Documentation
+# HR and Payroll System - Detailed System Documentation
 
 ---
 

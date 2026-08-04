@@ -68,8 +68,8 @@ export function CTAAndFooter() {
                                 <span className="text-2xl font-black text-white italic tracking-tighter uppercase">VTC</span>
                             </div>
                             <p className="text-white/30 max-w-sm leading-relaxed mb-10 font-medium">
-                                VTC - Payroll System. Engineering the future of logistics-centric 
-                                compensation with deterministic accuracy and headless flexibility.
+                                VTC - HR and Payroll System. Engineering the future of logistics-centric 
+                                compensation architectures.
                             </p>
                             <div className="flex items-center gap-4">
                                 <input 
