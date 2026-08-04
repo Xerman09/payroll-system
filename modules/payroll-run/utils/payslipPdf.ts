@@ -924,6 +924,8 @@ export async function buildPayslipsPdf(args: {
       row?.retro_pay ?? row?.retroPay ?? be?.retro_pay ?? 0,
     );
 
+    const leaveAmount = n(row?.leave_amount ?? row?.leaveAmount ?? be?.leave_amount ?? 0);
+
     const lateDed = n(row?.late_deduction ?? bd?.late_deduction ?? 0);
     const undertimeDed = n(row?.undertime_deduction ?? bd?.undertime_deduction ?? 0);
     const shortageDed = n(row?.shortage_deduction ?? bd?.shortage_deduction ?? 0);
@@ -1006,6 +1008,7 @@ export async function buildPayslipsPdf(args: {
         { label: "NIGHT DIFF", value: nightDiffAmount },
         { label: "ALLOWANCE", value: allowanceTotal },
         { label: "RETRO", value: retroPayTotal },
+        { label: "LEAVE PAY", value: leaveAmount },
         { label: "MANUAL ADDITIONS", value: manualAdditions },
       ],
       { includeZero: true },
