@@ -6,5 +6,6 @@ export const metadata = {
 };
 
 export default function PayrollRunPage() {
-  return <PayrollRunModule />;
+  const showModal = process.env.SHOW_MOBAL_ART_103 === "true";
+  return <PayrollRunModule showLaborLawModal={showModal} />;
 }

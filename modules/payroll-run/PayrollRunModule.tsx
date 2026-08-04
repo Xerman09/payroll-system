@@ -71,7 +71,7 @@ function statusClasses(status?: string | null) {
   return "border-border bg-muted/40 text-muted-foreground";
 }
 
-export default function PayrollRunModule() {
+export default function PayrollRunModule({ showLaborLawModal = true }: { showLaborLawModal?: boolean }) {
   const [step, setStep] = useState<PayrollStep>(1);
 
   // master data
@@ -102,8 +102,10 @@ export default function PayrollRunModule() {
   // labor law modal
   const [showLaborLaw, setShowLaborLaw] = useState(false);
   useEffect(() => {
-    setShowLaborLaw(true);
-  }, []);
+    if (showLaborLawModal) {
+      setShowLaborLaw(true);
+    }
+  }, [showLaborLawModal]);
 
   // computed register
   const computed = useMemo(() => {
