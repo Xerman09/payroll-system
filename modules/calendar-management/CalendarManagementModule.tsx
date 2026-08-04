@@ -101,7 +101,7 @@ export function CalendarManagementModule() {
 
   const getUserName = (id: number | undefined | null) => {
     if (!id && id !== 0) return "Unknown";
-    const u = users.find((x) => x.user_id === id);
+    const u = users.find((x) => Number(x.user_id) === Number(id));
     return u ? `${u.user_fname} ${u.user_lname}` : `User ${id}`;
   };
 
@@ -231,7 +231,9 @@ export function CalendarManagementModule() {
 
     try {
       // 1. Create locally first to ensure author (created_by) is attributed properly
-      await calendarApi.createHoliday(localPayload).catch(() => {});
+      await calendarApi.createHoliday(localPayload).catch((e) => {
+        console.error("Local creation failed before Apply to All:", e);
+      });
 
       // 2. Apply to all (will UPSERT locally safely without touching created_by)
       const res = await calendarApi.createHolidayToAll(globalPayload);

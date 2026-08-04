@@ -37,8 +37,7 @@ function buildUpstreamUrl(config: CalendarConfig, resource: ResourceKey, id?: st
   if (!config.baseUrl) throw new Error("Missing upstream base URL.");
   const collection = config.collections[resource];
   const base = config.baseUrl.replace(/\/+$/, "");
-  
-  const collectionPath = collection === "user" ? "/users" : `/items/${collection}`;
+  const collectionPath = `/items/${collection}`;
   const path = `${collectionPath}${id ? `/${encodeURIComponent(id)}` : ""}`;
   const url = new URL(base + path);
 
