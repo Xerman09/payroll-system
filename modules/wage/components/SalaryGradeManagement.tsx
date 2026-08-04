@@ -345,7 +345,7 @@ export function SalaryGradeManagement() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-40 text-center text-gray-400">
+                  <TableCell colSpan={7} className="h-40 text-center text-gray-400">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-10 w-10 border-4 border-primary/10 border-t-primary rounded-full animate-spin"></div>
                       <span className="text-sm font-semibold tracking-wide uppercase">Fetching Records</span>
@@ -354,7 +354,7 @@ export function SalaryGradeManagement() {
                 </TableRow>
               ) : filteredSchedules.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-40 font-medium text-center text-gray-400">
+                  <TableCell colSpan={7} className="h-40 font-medium text-center text-gray-400">
                     No active salary schedules found.
                   </TableCell>
                 </TableRow>
