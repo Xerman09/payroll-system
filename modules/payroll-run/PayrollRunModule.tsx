@@ -11,8 +11,16 @@ import {
   ClipboardCheck,
   PlayCircle,
   RefreshCcw,
+  Scale,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 import type {
   CutoffSetting,
@@ -90,6 +98,12 @@ export default function PayrollRunModule() {
 
   // password dialog
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+
+  // labor law modal
+  const [showLaborLaw, setShowLaborLaw] = useState(false);
+  useEffect(() => {
+    setShowLaborLaw(true);
+  }, []);
 
   // computed register
   const computed = useMemo(() => {
@@ -623,6 +637,74 @@ export default function PayrollRunModule() {
             </details>
           </div>
         </Card>
+
+        {/* Premium Labor Law Modal */}
+        <Dialog open={showLaborLaw} onOpenChange={setShowLaborLaw}>
+          <DialogContent className="sm:max-w-[550px] p-0 overflow-hidden border-none shadow-2xl rounded-2xl bg-background [&>button]:hidden">
+            <div className="relative p-6 pb-5 bg-gradient-to-br from-indigo-50/80 via-background to-background dark:from-indigo-950/30 dark:via-background dark:to-background border-b border-indigo-100/50 dark:border-indigo-900/50">
+              <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none">
+                <Scale className="w-24 h-24 text-indigo-500" />
+              </div>
+              <DialogHeader className="relative z-10 space-y-2">
+                <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center mb-1 shadow-sm border border-indigo-200/50 dark:border-indigo-800/50">
+                  <Scale className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <DialogTitle className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                  Labor Code of the Philippines
+                </DialogTitle>
+                <DialogDescription className="text-sm text-slate-600 dark:text-slate-400">
+                  Important compliance reminder regarding wage payment frequency.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+            
+            <div className="p-6 space-y-5 bg-slate-50/50 dark:bg-slate-900/20 max-h-[45vh] overflow-y-auto">
+              <div className="bg-white dark:bg-slate-950 p-6 rounded-xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm relative overflow-hidden">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
+                <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-2">
+                  <span className="text-indigo-600 dark:text-indigo-400">Art. 103.</span> Time of payment
+                </h4>
+                <div className="space-y-4 text-slate-700 dark:text-slate-300 leading-relaxed text-sm">
+                  <p>
+                    Wages shall be paid at least once every two (2) weeks or twice a month at intervals not exceeding <strong className="font-semibold text-slate-900 dark:text-slate-100">sixteen (16) days</strong>.
+                  </p>
+                  <p>
+                    If on account of force majeure or circumstances beyond the employer&apos;s control, payment of wages on or within the time herein provided cannot be made, the employer shall pay the wages immediately after such force majeure or circumstances have ceased.
+                  </p>
+                  <p className="font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 p-3 rounded-lg border border-amber-200/50 dark:border-amber-900/50">
+                    No employer shall make payment with less frequency than once a month.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-950 p-6 rounded-xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm relative overflow-hidden">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-500"></div>
+                <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-2">
+                  <span className="text-rose-600 dark:text-rose-400">Strict Prohibition</span> on Delay of Payment
+                </h4>
+                <div className="space-y-4 text-slate-700 dark:text-slate-300 leading-relaxed text-sm">
+                  <p>
+                    The Labor Code strictly mandates the timely payment of wages. There is <strong className="font-semibold text-rose-600 dark:text-rose-400">no legal excuse</strong> for delayed payments outside of legitimate force majeure events.
+                  </p>
+                  <ul className="list-disc pl-5 space-y-2">
+                    <li>Financial difficulties or &quot;cash flow problems&quot; are <strong>not considered valid legal grounds</strong> for delaying salary payments.</li>
+                    <li>If a scheduled payday falls on a weekend or a holiday, wages must be released on the last working day prior to that date.</li>
+                    <li>Failure to pay wages on time can result in labor complaints and penalties from the Department of Labor and Employment (DOLE).</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-background border-t flex justify-end">
+              <Button 
+                onClick={() => setShowLaborLaw(false)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200 dark:shadow-none transition-all px-6 rounded-lg font-medium"
+              >
+                Acknowledge & Continue
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
