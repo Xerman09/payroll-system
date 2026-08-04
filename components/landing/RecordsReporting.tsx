@@ -1,13 +1,18 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { FileText, History, PieChart, FileCheck, ChevronRight } from "lucide-react";
+import { FileText, History, PieChart, FileCheck, ChevronRight, Clock } from "lucide-react";
 
 const reports = [
   {
     title: "Historical Auditing",
     desc: "Every adjustment and processing step is logged with a full audit trail.",
     icon: <History className="w-5 h-5 text-blue-400" />,
+  },
+  {
+    title: "Time & Attendance Analytics",
+    desc: "Comprehensive insights into Leave, Overtime, and Undertime reports for accurate payroll generation.",
+    icon: <Clock className="w-5 h-5 text-purple-400" />,
   },
   {
     title: "Top Sheet Summaries",

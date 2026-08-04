@@ -43,7 +43,7 @@ const features = [
   },
   {
     title: "Records & Analysis",
-    description: "Real-time top sheet summaries and automated PDF reporting engine.",
+    description: "Real-time top sheet summaries, automated PDF reporting, and comprehensive leave, overtime, & undertime analytics.",
     icon: <BarChart3 className="w-6 h-6" />,
     color: "from-indigo-500 to-blue-500",
   },
