@@ -57,6 +57,34 @@ export async function POST(req: NextRequest) {
           }
         }
 
+        // Auto-upsert logic for unique constraint violations on holidays
+        if (!res.ok && path.includes("/items/holiday_calendar")) {
+          const isUniqueError = data?.errors?.some((e: any) => e.message?.toLowerCase().includes("unique"));
+          if (isUniqueError && payload.holiday_date && payload.holiday_type) {
+            // Find existing record using the UNIQUE KEY `uq_holiday_date_type`
+            const queryParams = new URLSearchParams({
+              "filter[holiday_date][_eq]": payload.holiday_date,
+              "filter[holiday_type][_eq]": payload.holiday_type
+            });
+            const searchRes = await fetch(joinUrl(company.apiBase, `/items/holiday_calendar?${queryParams.toString()}`), {
+              method: "GET",
+              headers: buildForwardHeaders(req, company, { forceServiceToken: true })
+            });
+            const searchData = await parseJsonSafe(searchRes);
+            const existingId = searchData?.data?.[0]?.id;
+            
+            if (existingId) {
+              // Patch it instead
+              res = await fetch(joinUrl(company.apiBase, `/items/holiday_calendar/${existingId}`), {
+                method: "PATCH",
+                headers: buildForwardHeaders(req, company, { contentType: "application/json", forceServiceToken: true }),
+                body: JSON.stringify(payload),
+              });
+              data = await parseJsonSafe(res);
+            }
+          }
+        }
+
         if (!res.ok) {
           let errorMsg = data?.error || `HTTP ${res.status}`;
           if (data?.errors && Array.isArray(data.errors) && data.errors.length > 0) {

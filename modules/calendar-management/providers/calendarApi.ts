@@ -63,6 +63,29 @@ export async function createHoliday(data: Partial<Holiday>): Promise<Holiday> {
   return json?.data;
 }
 
+export async function createHolidayToAll(data: Partial<Holiday>): Promise<any> {
+  const res = await fetch("/api/wage/apply-all", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: "/items/holiday_calendar",
+      payload: data,
+    }),
+  });
+
+  const json = await res.json().catch(() => null);
+  
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[calendarApi.ts] createHolidayToAll response:", res.status, json);
+  }
+
+  if (!res.ok && res.status !== 207) {
+    throw new Error(json?.message || "Failed to apply to all companies");
+  }
+
+  return json;
+}
+
 export async function updateHoliday(id: number, data: Partial<Holiday>): Promise<Holiday> {
   const res = await fetch(`/api/calendar-management`, {
     method: "PATCH",

@@ -199,6 +199,46 @@ export function CalendarManagementModule() {
     }
   };
 
+  const handleApplyToAll = async () => {
+    if (!holidayDate || !description) {
+      alert("Please fill all required fields");
+      return;
+    }
+
+    const cutoffSettingId = await getCutoffSettingId(holidayDate);
+
+    const payload: Partial<Holiday> = {
+      holiday_date: holidayDate,
+      last_working_day: lastWorkingDay || null,
+      description,
+      holiday_type: holidayType,
+      is_recurring: isRecurring ? 1 : 0,
+      is_paid: isPaid ? 1 : 0,
+      cutoff_setting_id: cutoffSettingId,
+    };
+
+    try {
+      const res = await calendarApi.createHolidayToAll(payload);
+      if (res?.errors?.length > 0) {
+        const errDetails = res.errors.map((e: any) => `${e.company}: ${e.error}`).join(" | ");
+        const companyNames = res.errors.map((e: any) => e.company).join(", ");
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(`[Apply to All] Failed for ${res.errors.length} companies:`, errDetails);
+        }
+        toast.warning(`Failed for ${res.errors.length} companies: ${companyNames}`);
+      } else {
+        toast.success("Holiday applied to all companies successfully.");
+      }
+      setModalOpen(false);
+      resetForm();
+      await loadData();
+    } catch (err: unknown) {
+      console.error("Failed to apply holiday to all companies:", err);
+      const msg = err instanceof Error ? err.message : "Failed to apply to all";
+      toast.error(msg);
+    }
+  };
+
   const handleDeleteHoliday = async (e: React.MouseEvent, id: number) => {
     e.stopPropagation(); // Prevent triggering the row click
     if (!confirm("Delete this holiday?")) return;
@@ -798,6 +838,14 @@ export function CalendarManagementModule() {
                   >
                     Cancel
                   </button>
+                  {!editingHolidayId && (
+                    <button
+                      onClick={handleApplyToAll}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium shadow-sm transition-colors"
+                    >
+                      Apply to All
+                    </button>
+                  )}
                   <button
                     onClick={handleSaveHoliday}
                     className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium shadow-sm transition-colors"
