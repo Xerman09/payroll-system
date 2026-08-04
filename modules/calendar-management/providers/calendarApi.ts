@@ -120,3 +120,29 @@ export async function deleteHoliday(id: number): Promise<void> {
     throw new Error(err?.error || "Failed to delete holiday.");
   }
 }
+
+export async function deleteHolidayToAll(holidayDate: string, holidayType: string): Promise<any> {
+  const res = await fetch("/api/wage/delete-all", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: "/items/holiday_calendar",
+      query: {
+        holiday_date: holidayDate,
+        holiday_type: holidayType
+      }
+    }),
+  });
+
+  const json = await res.json().catch(() => null);
+  
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[calendarApi.ts] deleteHolidayToAll response:", res.status, json);
+  }
+
+  if (!res.ok && res.status !== 207) {
+    throw new Error(json?.message || "Failed to delete from all companies");
+  }
+
+  return json;
+}

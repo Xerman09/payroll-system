@@ -207,7 +207,19 @@ export function CalendarManagementModule() {
 
     const cutoffSettingId = await getCutoffSettingId(holidayDate);
 
-    const payload: Partial<Holiday> = {
+    const localPayload: Partial<Holiday> = {
+      holiday_date: holidayDate,
+      last_working_day: lastWorkingDay || null,
+      description,
+      holiday_type: holidayType,
+      is_recurring: isRecurring ? 1 : 0,
+      is_paid: isPaid ? 1 : 0,
+      cutoff_setting_id: cutoffSettingId,
+      created_by: Number(getSessionUserId()),
+      updated_by: Number(getSessionUserId()),
+    };
+
+    const globalPayload: Partial<Holiday> = {
       holiday_date: holidayDate,
       last_working_day: lastWorkingDay || null,
       description,
@@ -218,7 +230,11 @@ export function CalendarManagementModule() {
     };
 
     try {
-      const res = await calendarApi.createHolidayToAll(payload);
+      // 1. Create locally first to ensure author (created_by) is attributed properly
+      await calendarApi.createHoliday(localPayload).catch(() => {});
+
+      // 2. Apply to all (will UPSERT locally safely without touching created_by)
+      const res = await calendarApi.createHolidayToAll(globalPayload);
       if (res?.errors?.length > 0) {
         const errDetails = res.errors.map((e: any) => `${e.company}: ${e.error}`).join(" | ");
         const companyNames = res.errors.map((e: any) => e.company).join(", ");
@@ -249,6 +265,32 @@ export function CalendarManagementModule() {
     } catch (err: unknown) {
       console.error("Failed to delete holiday:", err);
       const msg = err instanceof Error ? err.message : "Failed to delete";
+      toast.error(msg);
+    }
+  };
+
+  const handleDeleteAllHoliday = async (e: React.MouseEvent, item: Holiday) => {
+    e.stopPropagation(); // Prevent triggering the row click
+    if (!confirm("Delete this holiday across ALL companies?")) return;
+    try {
+      const res = await calendarApi.deleteHolidayToAll(item.holiday_date, item.holiday_type);
+      if (res?.errors?.length > 0) {
+        const errDetails = res.errors.map((e: any) => `${e.company}: ${e.error}`).join(" | ");
+        const companyNames = res.errors.map((e: any) => e.company).join(", ");
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(`[Delete from All] Failed for ${res.errors.length} companies:`, errDetails);
+        }
+        toast.warning(`Failed to delete from ${res.errors.length} companies: ${companyNames}`);
+      } else {
+        toast.success("Holiday deleted from all companies successfully.");
+      }
+      
+      // Also delete from local db to ensure UI updates immediately
+      await calendarApi.deleteHoliday(item.id).catch(() => {});
+      await loadData();
+    } catch (err: unknown) {
+      console.error("Failed to delete holiday from all companies:", err);
+      const msg = err instanceof Error ? err.message : "Failed to delete from all";
       toast.error(msg);
     }
   };
@@ -690,6 +732,13 @@ export function CalendarManagementModule() {
                                 onClick={(e) => handleDeleteHoliday(e, item.id)}
                                 className="p-1.5 hover:bg-red-100 rounded text-red-600 transition-colors"
                                 title="Delete"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => handleDeleteAllHoliday(e, item)}
+                                className="p-1.5 hover:bg-orange-100 rounded text-orange-600 transition-colors"
+                                title="Delete from All Companies"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
