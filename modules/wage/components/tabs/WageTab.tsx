@@ -63,12 +63,12 @@ export function WageTab({
 
   const estMonthly = React.useMemo(() => {
     // simple, friendly estimate
-    const base = (Number(wageData.dailyWage) || 0) * WORKING_DAYS_PER_MONTH;
+    const base = (Number(wageData.dailyWage) || 0) * (wageData.workingDaysPerMonth || 26);
     return base.toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
-  }, [wageData.dailyWage]);
+  }, [wageData.dailyWage, wageData.workingDaysPerMonth]);
 
   // ------------------------------------------------------------------
   // Salary Grade helpers
@@ -134,7 +134,7 @@ export function WageTab({
       }
 
       const monthlyRate = Number(schedule.monthly_rate) || 0;
-      const computedDaily = round2(monthlyRate / WORKING_DAYS_PER_MONTH);
+      const computedDaily = round2(monthlyRate / (wageData.workingDaysPerMonth || 26));
 
       setWageData({
         schedule_id: scheduleId,
@@ -142,7 +142,7 @@ export function WageTab({
         dailyWageInput: computedDaily.toFixed(2),
       });
     },
-    [salarySchedules, setWageData]
+    [salarySchedules, setWageData, wageData.workingDaysPerMonth]
   );
 
   /** Format a monthly rate nicely */
@@ -194,7 +194,7 @@ export function WageTab({
                 </div>
                 <div className="text-xs text-slate-500">
                   {applyGrade
-                    ? `Selecting a grade auto-fills the daily wage (monthly ÷ ${WORKING_DAYS_PER_MONTH}).`
+                    ? `Selecting a grade auto-fills the daily wage (monthly ÷ ${wageData.workingDaysPerMonth || 26}).`
                     : "Enable to link a salary grade to this employee."}
                 </div>
               </div>
@@ -290,9 +290,9 @@ export function WageTab({
                 Grade {linkedSchedule.salary_grade} · Step {linkedSchedule.step}
               </span>
               <span>
-                Monthly ₱{fmtMoney(linkedSchedule.monthly_rate)} ÷ {WORKING_DAYS_PER_MONTH} ={" "}
+                Monthly ₱{fmtMoney(linkedSchedule.monthly_rate)} ÷ {wageData.workingDaysPerMonth || 26} ={" "}
                 <span className="font-semibold text-persian-blue-900 dark:text-persian-blue-100">
-                  ₱{round2(Number(linkedSchedule.monthly_rate) / WORKING_DAYS_PER_MONTH).toFixed(2)}
+                  ₱{round2(Number(linkedSchedule.monthly_rate) / (wageData.workingDaysPerMonth || 26)).toFixed(2)}
                   /day
                 </span>
               </span>
@@ -406,12 +406,41 @@ export function WageTab({
                     </span>
                   </span>
                   <span className="hidden sm:inline">
-                    Est. monthly ({WORKING_DAYS_PER_MONTH}d):{" "}
+                    Est. monthly ({wageData.workingDaysPerMonth || 26}d):{" "}
                     <span className="font-medium text-slate-700 dark:text-slate-200">
                       ₱ {estMonthly}
                     </span>
                   </span>
                 </div>
+              </div>
+
+              {/* Working Days Per Month */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  Working Days per Month
+                </label>
+                <Input
+                  type="number"
+                  value={wageData.workingDaysPerMonth || 26}
+                  onChange={(e) => {
+                    const days = Number(e.target.value);
+                    if (days > 0) {
+                      const updates: Partial<WageDataState> = { workingDaysPerMonth: days };
+                      if (applyGrade && linkedSchedule) {
+                        const monthlyRate = Number(linkedSchedule.monthly_rate) || 0;
+                        const computedDaily = round2(monthlyRate / days);
+                        updates.dailyWage = computedDaily;
+                        updates.dailyWageInput = computedDaily.toFixed(2);
+                      }
+                      setWageData(updates);
+                    } else if (e.target.value === "") {
+                       // Allow temporary empty state
+                       setWageData({ workingDaysPerMonth: "" as any });
+                    }
+                  }}
+                  className="h-10 bg-white dark:bg-slate-900/30 dark:border-slate-700"
+                  min={1}
+                />
               </div>
 
               {/* Flags */}

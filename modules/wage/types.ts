@@ -23,6 +23,8 @@ export type WageDataState = {
   // Salary Grade link
   schedule_id: number | null;
 
+  workingDaysPerMonth: number;
+
   dailyWageInput: string;
   dailyWage: number;
   vacationLeave: number;
@@ -53,6 +55,8 @@ export type WageRecord = {
   sss_contribution_monthly: string | number | null;
   pagibig_contribution_monthly: string | number | null;
   philhealth_contribution_monthly: string | number | null;
+  
+  working_days_per_month?: string | number | null;
 
   /** FK → salary_schedules.schedule_id; null when no grade is linked */
   schedule_id: number | null;
@@ -80,6 +84,8 @@ export type WagePayload = {
   sss_contribution_monthly: string;
   pagibig_contribution_monthly: string;
   philhealth_contribution_monthly: string;
+
+  working_days_per_month?: number | null;
 
   /** FK → salary_schedules.schedule_id; null to unlink */
   schedule_id?: number | null;

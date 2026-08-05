@@ -76,6 +76,7 @@ export function WageModule() {
   const emptyWageData: WageDataState = {
     id: null,
     schedule_id: null,
+    workingDaysPerMonth: 26,
     dailyWage: 0,
     dailyWageInput: "0.00",
     vacationLeave: 0,
@@ -252,6 +253,7 @@ export function WageModule() {
       setWageData({
         id: record.id ?? null,
         schedule_id: scheduleId,
+        workingDaysPerMonth: record.working_days_per_month ? Number(record.working_days_per_month) : 26,
         dailyWage: dailyWageNum,
         dailyWageInput: dailyWageNum.toFixed(2),
         vacationLeave: Number(record.vacation_leave_per_year) || 0,
@@ -349,6 +351,7 @@ export function WageModule() {
       sss_contribution_monthly: wageData.sss,
       pagibig_contribution_monthly: wageData.pagibig,
       philhealth_contribution_monthly: wageData.philhealth,
+      working_days_per_month: Number(wageData.workingDaysPerMonth) || 26,
       // Persist the salary grade link (null clears it)
       schedule_id: wageData.schedule_id ?? null,
       ...(wageChanged ? { cutoff_wage_date_update: effectivityDate } : {}),
