@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import { Pencil, Trash2, Plus, Search, X } from "lucide-react";
+import { format } from "date-fns";
 
 import type { Employee, EmployeeLoanRecord, LoanType } from "../../types";
 
@@ -130,6 +131,15 @@ function normalize(v: unknown) {
   return String(v ?? "")
     .toLowerCase()
     .trim();
+}
+
+function safeFormatDate(d: string | null | undefined) {
+  if (!d) return "—";
+  try {
+    return format(new Date(d), "MMM dd, yyyy");
+  } catch {
+    return d.substring(0, 10);
+  }
 }
 
 function buildLoanHaystack(l: EmployeeLoanRecord) {
@@ -731,7 +741,7 @@ export function LoansTab({
                     <TableCell className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
                       ₱ {money(l.accumulated_amount || 0)}
                     </TableCell>
-                    <TableCell className="text-sm">{(l.start_date || "").substring(0, 10)}</TableCell>
+                    <TableCell className="text-sm">{safeFormatDate(l.start_date)}</TableCell>
 
                     <TableCell>
                       {(() => {

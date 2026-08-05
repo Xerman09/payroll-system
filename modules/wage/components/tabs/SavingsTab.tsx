@@ -3,7 +3,8 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { Pencil, Trash2, Plus, RefreshCcw, Search, X } from "lucide-react";
+import { Pencil, Trash2, Plus, RefreshCcw, Search, X, Eye } from "lucide-react";
+import { format } from "date-fns";
 
 import type { Employee, CoopSavingsMembershipRecord } from "../../types";
 import * as wageApi from "../../providers/wageApi";
@@ -68,6 +69,15 @@ function boolToFlag(v: boolean): 0 | 1 {
 
 function flagToBool(v: unknown): boolean {
   return Number(v) === 1;
+}
+
+function safeFormatDate(d: string | null | undefined) {
+  if (!d) return "—";
+  try {
+    return format(new Date(d), "MMM dd, yyyy");
+  } catch {
+    return d.substring(0, 10);
+  }
 }
 
 function getLoggedUserId(): number | null {
@@ -802,10 +812,10 @@ export function SavingsTab({ selectedEmployee, open }: Props) {
                   </TableCell>
                   <TableCell className="text-sm">₱ {money(r.monthly_amount)}</TableCell>
                   <TableCell className="text-sm text-gray-700 dark:text-gray-200">
-                    {(r.start_date || "").substring(0, 10) || "—"}
+                    {safeFormatDate(r.start_date)}
                   </TableCell>
                   <TableCell className="text-sm text-gray-700 dark:text-gray-200">
-                    {(r.end_date || "").substring(0, 10) || "—"}
+                    {safeFormatDate(r.end_date)}
                   </TableCell>
                   <TableCell className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">₱ {money(r.total_collection)}</TableCell>
                   <TableCell className="text-sm">{Number(r.total_months || 0)}</TableCell>
