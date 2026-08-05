@@ -59,13 +59,18 @@ function Sidebar() {
         ],
       },
       {
-        panel: "File Management",
+        panel: "Human Resource Management",
         items: [
           {
             title: "Employee Management",
             href: `/employees/${userId}`,
             icon: <Users size={18} />,
           },
+        ],
+      },
+      {
+        panel: "File Management",
+        items: [
           {
             title: "Compensation Management",
             href: `/wage/${userId}`,
