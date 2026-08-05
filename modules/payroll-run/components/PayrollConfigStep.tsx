@@ -12,6 +12,7 @@ import {
 
 import type { CutoffSetting, Department, PayrollConfigState } from "../types";
 import { formatCutoffLabel } from "../utils/payroll";
+import { format } from "date-fns";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,14 @@ function normalizeText(v: unknown) {
 }
 
 
+function safeFormatDate(d: string) {
+  try {
+    return format(new Date(d), "MMM dd, yyyy");
+  } catch (e) {
+    return d;
+  }
+}
+
 function cutoffRangeHint(c: CutoffSetting) {
   // optional: show start/end if present (won't break if absent)
   const anyC = c as unknown as Record<string, unknown>;
@@ -61,8 +70,12 @@ function cutoffRangeHint(c: CutoffSetting) {
   );
   const b = normalizeText(c.end_date ?? anyC.cutoff_end ?? anyC.date_to);
   if (!a && !b) return "";
-  if (a && b) return `${a} → ${b}`;
-  return a || b;
+  
+  const formattedA = a ? safeFormatDate(a) : "";
+  const formattedB = b ? safeFormatDate(b) : "";
+
+  if (formattedA && formattedB) return `${formattedA} → ${formattedB}`;
+  return formattedA || formattedB;
 }
 
 function deptLabel(d: Department) {
