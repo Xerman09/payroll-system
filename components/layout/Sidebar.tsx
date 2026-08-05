@@ -131,6 +131,10 @@ function Sidebar() {
             icon: <FileText size={18} />,
             subItems: [
               {
+                title: "Payroll Report",
+                href: `/reports/payroll/${userId}`,
+              },
+              {
                 title: "Leave Report",
                 href: `/reports/leave/${userId}`,
               },
