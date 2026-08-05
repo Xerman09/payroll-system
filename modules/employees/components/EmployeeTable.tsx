@@ -104,9 +104,7 @@ export default function EmployeeTable({
         <Table>
           <TableHeader className="bg-gray-50 dark:bg-gray-900">
             <TableRow>
-              <TableHead className="w-24">
-                ID <SortIcon field="user_id" />
-              </TableHead>
+              <TableHead className="w-16">#</TableHead>
               <TableHead>
                 Name <SortIcon field="user_fname" />
               </TableHead>
@@ -135,13 +133,13 @@ export default function EmployeeTable({
                 </TableCell>
               </TableRow>
             ) : (
-              employees.map((emp) => {
+              employees.map((emp, index) => {
                 const dept = departments.find((d) => d.department_id === emp.user_department);
                 const isInactive = emp.is_deleted == 1 || emp.is_deleted === true;
                 return (
                   <TableRow key={emp.user_id} className={isInactive ? "opacity-60" : ""}>
                     <TableCell className="font-medium text-gray-600">
-                      {emp.user_id}
+                      {(page - 1) * pageSize + index + 1}
                     </TableCell>
                     <TableCell>
                       <div className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">

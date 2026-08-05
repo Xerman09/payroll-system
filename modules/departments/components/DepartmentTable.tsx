@@ -103,9 +103,7 @@ export default function DepartmentTable({
         <Table>
           <TableHeader className="bg-gray-50 dark:bg-gray-900">
             <TableRow>
-              <TableHead className="w-24">
-                ID <SortIcon field="department_id" />
-              </TableHead>
+              <TableHead className="w-16">#</TableHead>
               <TableHead>
                 Department Name <SortIcon field="department_name" />
               </TableHead>
@@ -132,7 +130,7 @@ export default function DepartmentTable({
                 </TableCell>
               </TableRow>
             ) : (
-              departments.map((dept) => {
+              departments.map((dept, index) => {
                 const parent = allDepartments.find((d) => d.department_id === dept.parent_division);
                 
                 let headName = dept.department_head;
@@ -148,7 +146,7 @@ export default function DepartmentTable({
                 return (
                   <TableRow key={dept.department_id}>
                     <TableCell className="font-medium text-gray-600">
-                      {dept.department_id}
+                      {(page - 1) * pageSize + index + 1}
                     </TableCell>
                     <TableCell>
                       <div className="font-semibold text-gray-900 dark:text-gray-100">
