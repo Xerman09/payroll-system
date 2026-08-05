@@ -146,10 +146,12 @@ export function makeUserNameMap(users: UserRow[]): Map<string, string> {
 
   return map;
 }
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function listUsers(_ids?: Array<string | number>): Promise<UserRow[]> {
+export async function listUsers(ids?: Array<string | number>): Promise<UserRow[]> {
   const qs = new URLSearchParams();
   qs.set("resource", "users");
+  if (ids && ids.length > 0) {
+    qs.set("ids", ids.join(","));
+  }
 
   const res = await fetch(`/api/cutoff-settings?${qs.toString()}`, {
     cache: "no-store",

@@ -230,13 +230,9 @@ function buildUsersQuery(ids: string[]) {
   qs.set("fields", "user_id,user_fname,user_mname,user_lname,user_email");
   qs.set("limit", "500");
 
-  // If you want stable ordering. Some roles block sort; remove if needed.
-  // qs.set("sort", "user_lname");
-  qs.set("filter[is_employee][_eq]", "1");
-
   if (ids.length) {
-    // Filter by user_id in ids
-    qs.set("filter[user_id][_in]", ids.join(","));
+    const idList = ids.join(",");
+    qs.set("filter[user_id][_in]", idList);
   }
 
   return qs.toString();

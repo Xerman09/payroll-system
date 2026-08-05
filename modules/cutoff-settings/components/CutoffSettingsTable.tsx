@@ -2,6 +2,7 @@
 "use client";
 
 import type { CutoffSettingRow } from "../types";
+import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,9 +16,11 @@ import { Pencil, User } from "lucide-react";
 
 function formatDate(v: string | null | undefined) {
   if (!v) return "—";
-  // If it's already YYYY-MM-DD, keep it consistent and simple.
-  // You can switch to locale formatting anytime.
-  return v;
+  try {
+    return format(new Date(v), "MMM dd, yyyy");
+  } catch (e) {
+    return v;
+  }
 }
 
 function cutoffTitle(type: CutoffSettingRow["cutoff_type"]) {
