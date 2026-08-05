@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
+import { format } from "date-fns";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -407,10 +408,10 @@ const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
                   </TableCell>
 
                   <TableCell className="text-gray-500 text-sm">
-                    {r.start ?? "-"}
+                    {r.start ? format(new Date(r.start), "MMM dd, yyyy") : "-"}
                   </TableCell>
                   <TableCell className="text-gray-500 text-sm">
-                    {r.end ?? "-"}
+                    {r.end ? format(new Date(r.end), "MMM dd, yyyy") : "-"}
                   </TableCell>
                 </TableRow>
               ))
