@@ -40,6 +40,7 @@ export default function EmployeesTab({
 }) {
   const [filterDept, setFilterDept] = React.useState<number | null>(null);
   const [searchTerm, setSearchTerm] = React.useState("");
+  const [showInactive, setShowInactive] = React.useState(false);
   const [sortConfig, setSortConfig] = React.useState<{
     key: "id" | "fname" | "lname" | "department";
     direction: "asc" | "desc";
@@ -69,6 +70,9 @@ export default function EmployeesTab({
   const filteredEmployees = React.useMemo(() => {
     return employees
       .filter((emp) => {
+        const isDeleted = emp.is_deleted?.data?.[0] === 1;
+        if (!showInactive && isDeleted) return false;
+
         const fullName =
           `${emp.user_fname} ${emp.user_mname ?? ""} ${emp.user_lname}`.toLowerCase();
         const matchesDept = filterDept
@@ -111,7 +115,7 @@ export default function EmployeesTab({
         const bNum = Number(bVal);
         return sortConfig.direction === "asc" ? aNum - bNum : bNum - aNum;
       });
-  }, [employees, departments, filterDept, searchTerm, sortConfig]);
+  }, [employees, departments, filterDept, searchTerm, sortConfig, showInactive]);
 
   const totalPages = Math.ceil(filteredEmployees.length / rowsPerPage);
   const paginatedEmployees = filteredEmployees.slice(
@@ -144,8 +148,18 @@ export default function EmployeesTab({
 
   return (
     <div className="space-y-6">
-      <CardHeader className="px-0">
+      <CardHeader className="px-0 flex flex-row items-center justify-between">
         <CardTitle>Employee List</CardTitle>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setShowInactive(!showInactive);
+            setCurrentPage(1);
+          }}
+        >
+          {showInactive ? "Hide Inactive" : "Show Inactive"}
+        </Button>
       </CardHeader>
 
       {/* Filters */}

@@ -70,9 +70,7 @@ export default function PayrollRecordsModule() {
         const name = empRes.meta?.companyName || deptRes.meta?.companyName || cutRes.meta?.companyName || "";
         if (name) setCompanyName(name);
 
-        const activeEmployees = empRes.data.filter((e) => !e.is_deleted?.data?.[0]);
-
-        setEmployees(activeEmployees);
+        setEmployees(empRes.data);
         setDepartments(deptRes.data);
         setCutoffs(cutRes.data);
       } finally {
