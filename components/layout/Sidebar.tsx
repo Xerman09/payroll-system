@@ -26,6 +26,7 @@ import {
   Truck,
   FileText,
   Users,
+  Building2,
 } from "lucide-react";
 import { getLoggedUser } from "@/lib/auth";
 
@@ -65,6 +66,11 @@ function Sidebar() {
             title: "Employee Management",
             href: `/employees/${userId}`,
             icon: <Users size={18} />,
+          },
+          {
+            title: "Department Management",
+            href: `/departments/${userId}`,
+            icon: <Building2 size={18} />,
           },
         ],
       },
