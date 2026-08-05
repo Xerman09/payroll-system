@@ -7,6 +7,16 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Building2, Plus, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import type { Department, UserLookup } from "./types";
 import * as departmentApi from "./providers/departmentApi";
@@ -34,6 +44,9 @@ export function DepartmentModule() {
   // Modals
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deptToDelete, setDeptToDelete] = useState<Department | null>(null);
 
   // Fetch lookups
   useEffect(() => {
@@ -97,16 +110,23 @@ export function DepartmentModule() {
     setFormModalOpen(true);
   };
 
-  const handleDelete = async (dept: Department) => {
-    if (!dept.department_id) return;
-    if (!window.confirm(`Are you sure you want to delete ${dept.department_name}?`)) return;
+  const confirmDelete = (dept: Department) => {
+    setDeptToDelete(dept);
+    setDeleteDialogOpen(true);
+  };
 
+  const handleDelete = async () => {
+    if (!deptToDelete?.department_id) return;
+    
     try {
-      await departmentApi.deleteDepartment(dept.department_id);
+      await departmentApi.deleteDepartment(deptToDelete.department_id);
       toast.success("Department deleted successfully");
       setRefreshKey((k) => k + 1);
     } catch (err: any) {
       toast.error(err.message || "Failed to delete department");
+    } finally {
+      setDeleteDialogOpen(false);
+      setDeptToDelete(null);
     }
   };
 
@@ -171,7 +191,7 @@ export function DepartmentModule() {
                 }
               }}
               onEdit={openEditModal}
-              onDelete={handleDelete}
+              onDelete={confirmDelete}
             />
           </CardContent>
         </Card>
@@ -187,6 +207,30 @@ export function DepartmentModule() {
           setRefreshKey((k) => k + 1);
         }}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the department "{deptToDelete?.department_name}".
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

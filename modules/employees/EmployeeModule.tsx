@@ -7,6 +7,16 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Users, Plus, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import type { Employee, Department, EmploymentStatus } from "./types";
 import * as employeeApi from "./providers/employeeApi";
@@ -36,6 +46,9 @@ export function EmployeeModule() {
   // Modals
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
 
   // Fetch lookups
   useEffect(() => {
@@ -112,16 +125,23 @@ export function EmployeeModule() {
     setFormModalOpen(true);
   };
 
-  const handleDelete = async (emp: Employee) => {
-    if (!emp.user_id) return;
-    if (!window.confirm(`Are you sure you want to delete ${emp.user_fname} ${emp.user_lname}?`)) return;
+  const confirmDelete = (emp: Employee) => {
+    setEmployeeToDelete(emp);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!employeeToDelete?.user_id) return;
 
     try {
-      await employeeApi.deleteEmployee(emp.user_id);
+      await employeeApi.deleteEmployee(employeeToDelete.user_id);
       toast.success("Employee deleted successfully");
       setRefreshKey((k) => k + 1);
     } catch (err: any) {
       toast.error(err.message || "Failed to delete employee");
+    } finally {
+      setDeleteDialogOpen(false);
+      setEmployeeToDelete(null);
     }
   };
 
@@ -229,7 +249,7 @@ export function EmployeeModule() {
                 }
               }}
               onEdit={openEditModal}
-              onDelete={handleDelete}
+              onDelete={confirmDelete}
             />
           </CardContent>
         </Card>
@@ -245,6 +265,30 @@ export function EmployeeModule() {
           setRefreshKey((k) => k + 1);
         }}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete employee "{employeeToDelete?.user_fname} {employeeToDelete?.user_lname}".
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
