@@ -72,10 +72,22 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
     ? sortedCutoffs[sortedCutoffs.length - 1].total
     : 0;
 
+  const previousPayrollAmount = sortedCutoffs.length > 1
+    ? sortedCutoffs[sortedCutoffs.length - 2].total
+    : 0;
+
+  let percentageChange: number | null = null;
+  if (previousPayrollAmount > 0) {
+    percentageChange = ((latestPayrollAmount - previousPayrollAmount) / previousPayrollAmount) * 100;
+  } else if (latestPayrollAmount > 0 && previousPayrollAmount === 0) {
+    percentageChange = 100;
+  }
+
   return {
     stats: {
       employees: activeEmpCount,
       payrollThisMonth: latestPayrollAmount,
+      payrollPercentageChange: percentageChange,
       upcomingLeaves: 0,
       pendingApprovals: pendingApprovalsRaw.length,
     },

@@ -17,6 +17,7 @@ export default function DashboardModule() {
   const [stats, setStats] = useState<DashboardStats>({
     employees: 0,
     payrollThisMonth: 0,
+    payrollPercentageChange: null,
     upcomingLeaves: 0,
     pendingApprovals: 0,
   });
@@ -90,10 +91,10 @@ export default function DashboardModule() {
           />
           <StatsCard
             title="Payroll (Latest)"
-            value={`₱${stats.payrollThisMonth.toLocaleString()}`}
+            value={`₱${stats.payrollThisMonth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             icon={DollarSign}
-            trend="+2.5%" 
-            trendUp={true}
+            trend={stats.payrollPercentageChange !== null ? `${stats.payrollPercentageChange > 0 ? '+' : ''}${stats.payrollPercentageChange.toFixed(1)}%` : undefined} 
+            trendUp={stats.payrollPercentageChange !== null ? stats.payrollPercentageChange >= 0 : undefined}
             description="Since last cutoff"
             loading={loading}
             delay={2}

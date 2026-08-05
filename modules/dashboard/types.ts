@@ -3,6 +3,7 @@
 export interface DashboardStats {
   employees: number;
   payrollThisMonth: number;
+  payrollPercentageChange: number | null;
   upcomingLeaves: number;
   pendingApprovals: number;
 }
