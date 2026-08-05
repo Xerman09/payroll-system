@@ -24,9 +24,10 @@ import {
   Settings,
   User,
   Truck,
-  FileText,
   Users,
   Building2,
+  ClipboardCheck,
+  FileText,
 } from "lucide-react";
 import { getLoggedUser } from "@/lib/auth";
 
@@ -122,6 +123,11 @@ function Sidebar() {
       {
         panel: "Processing",
         items: [
+          {
+            title: "Attendance Approval",
+            href: `/attendance-approval/${userId}`,
+            icon: <ClipboardCheck size={18} />,
+          },
           {
             title: "Payroll Run",
             href: `/payroll-run/${userId}`,
