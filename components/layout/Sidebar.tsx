@@ -25,6 +25,7 @@ import {
   User,
   Truck,
   FileText,
+  Users,
 } from "lucide-react";
 import { getLoggedUser } from "@/lib/auth";
 
@@ -60,6 +61,11 @@ function Sidebar() {
       {
         panel: "File Management",
         items: [
+          {
+            title: "Employee Management",
+            href: `/employees/${userId}`,
+            icon: <Users size={18} />,
+          },
           {
             title: "Compensation Management",
             href: `/wage/${userId}`,

@@ -1,4 +1,4 @@
-import { PSGCProvince, PSGCCityMunicipality, PSGCRegion } from "../types";
+import { PSGCProvince, PSGCCityMunicipality, PSGCRegion, PSGCBarangay } from "../types";
 
 const PSGC_BASE_URL = "https://psgc.gitlab.io/api";
 
@@ -77,6 +77,23 @@ export async function getProvinces(): Promise<PSGCProvince[]> {
 }
 
 /**
+ * Fetches all provinces and districts combined (useful when Region is omitted).
+ */
+export async function getAllProvincesAndDistricts(): Promise<PSGCProvince[]> {
+  const [provRes, distRes] = await Promise.all([
+    fetch(`${PSGC_BASE_URL}/provinces/`),
+    fetch(`${PSGC_BASE_URL}/districts/`)
+  ]);
+  
+  let results: PSGCProvince[] = [];
+  if (provRes.ok) results = [...results, ...(await provRes.json())];
+  if (distRes.ok) results = [...results, ...(await distRes.json())];
+  
+  // Sort alphabetically by name
+  return results.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
  * Fetches provinces for a specific region.
  */
 export async function getProvincesInRegion(regionCode: string): Promise<PSGCProvince[]> {
@@ -138,4 +155,13 @@ export function formatLocation(city: string, province: string): string {
   if (!city) return province;
   if (!province) return city;
   return `${city}, ${province}`;
+}
+
+/**
+ * Fetches barangays for a specific city or municipality.
+ */
+export async function getBarangaysInCity(cityMunicipalityCode: string): Promise<PSGCBarangay[]> {
+  const response = await fetch(`${PSGC_BASE_URL}/cities-municipalities/${cityMunicipalityCode}/barangays/`);
+  if (!response.ok) throw new Error(`Failed to fetch barangays for ${cityMunicipalityCode}`);
+  return response.json();
 }

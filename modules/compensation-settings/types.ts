@@ -65,3 +65,13 @@ export interface PSGCCityMunicipality {
   regionCode: string;
   islandGroupCode: string;
 }
+
+export interface PSGCBarangay {
+  code: string;
+  name: string;
+  oldName: string;
+  cityMunicipalityCode: string;
+  provinceCode: string;
+  regionCode: string;
+  islandGroupCode: string;
+}
