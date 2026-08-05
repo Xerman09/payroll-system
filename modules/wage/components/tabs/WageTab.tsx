@@ -11,6 +11,7 @@ import {
   GraduationCap,
   X,
 } from "lucide-react";
+import { format } from "date-fns";
 
 import type { Employee, WageDataState, SalarySchedule } from "../../types";
 import { WORKING_DAYS_PER_MONTH } from "../../utils/payrollConstants";
@@ -31,6 +32,15 @@ import {
 /** Round to 2 decimal places */
 function round2(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+function safeFormatDate(d: string | null | undefined) {
+  if (!d) return "—";
+  try {
+    return format(new Date(d), "MMM dd, yyyy");
+  } catch (e) {
+    return d;
+  }
 }
 
 export function WageTab({
@@ -250,7 +260,7 @@ export function WageTab({
                       Grade {s.salary_grade} · Step {s.step} —{" "}
                       ₱{fmtMoney(s.monthly_rate)}/mo
                       <span className="ml-1 text-xs text-slate-400">
-                        (eff. {s.effectivity_date})
+                        (eff. {safeFormatDate(s.effectivity_date)})
                       </span>
                     </SelectItem>
                   ))}
@@ -287,7 +297,7 @@ export function WageTab({
                 </span>
               </span>
               <span className="text-persian-blue-500 dark:text-persian-blue-400 text-[10px] uppercase tracking-wider font-medium">
-                Effectivity: {linkedSchedule.effectivity_date}
+                Effectivity: {safeFormatDate(linkedSchedule.effectivity_date)}
               </span>
             </div>
           )}
@@ -536,7 +546,7 @@ export function WageTab({
                 <div className="mt-2 flex items-center justify-between gap-3">
                   <span className="text-slate-500">Last Update Date</span>
                   <span className="font-medium text-slate-800 dark:text-slate-100">
-                    {wageData.lastUpdateDate || "—"}
+                    {safeFormatDate(wageData.lastUpdateDate)}
                   </span>
                 </div>
               </div>
