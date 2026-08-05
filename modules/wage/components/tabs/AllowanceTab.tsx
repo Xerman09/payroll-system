@@ -4,6 +4,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { Pencil, Trash2, Plus, RefreshCcw, Search, X } from "lucide-react";
+import { format } from "date-fns";
 
 import type {
   Employee,
@@ -98,6 +99,15 @@ function getLoggedUserId(): number | null {
   }
   const n = Number(logged?.user_id);
   return Number.isFinite(n) ? n : null;
+}
+
+function safeFormatDate(d: string | null | undefined) {
+  if (!d) return "—";
+  try {
+    return format(new Date(d), "MMM dd, yyyy");
+  } catch {
+    return d.substring(0, 10);
+  }
 }
 
 function cutoffLabel(c: CutoffSetting) {
@@ -522,11 +532,11 @@ export function AllowanceTab({
       const isRecurring = flagToBool(r.is_recurring);
       const mode: AllowanceMode = isRecurring ? "RECURRING" : "ONE_TIME";
 
-      const start_date = (r.start_date || "").substring(0, 10);
-      const end_date = (r.end_date || "").substring(0, 10);
+      const start_date = r.start_date ?? "";
+      const end_date = r.end_date ?? "";
 
-      const cutoff_start = (r.cutoff_start || "").substring(0, 10);
-      const cutoff_end = (r.cutoff_end || "").substring(0, 10);
+      const cutoff_start = r.cutoff_start ?? "";
+      const cutoff_end = r.cutoff_end ?? "";
 
       const matchedCutoff =
         cutoffs.find(
@@ -1114,18 +1124,6 @@ export function AllowanceTab({
                   ? "RECURRING"
                   : "ONE_TIME";
 
-                const period = isRecurring
-                  ? `${r.pay_cycle} • ${
-                      (r.start_date || "").substring(0, 10) || "—"
-                    }${
-                      r.end_date
-                        ? ` → ${(r.end_date || "").substring(0, 10)}`
-                        : ""
-                    }`
-                  : `${(r.cutoff_start || "").substring(0, 10) || "—"} → ${
-                      (r.cutoff_end || "").substring(0, 10) || "—"
-                    }`;
-
                 return (
                   <TableRow
                     key={r.allowance_id}
@@ -1138,7 +1136,12 @@ export function AllowanceTab({
                     </TableCell>
                     <TableCell>{modeBadge(mode)}</TableCell>
                     <TableCell className="text-sm text-gray-700 dark:text-gray-200">
-                      {period}
+                      {isRecurring
+                        ? r.pay_cycle === "PER_MONTH"
+                          ? `${safeFormatDate(r.start_date)}` +
+                            (r.end_date ? ` → ${safeFormatDate(r.end_date)}` : " → Ongoing")
+                          : r.pay_cycle
+                        : `${safeFormatDate(r.cutoff_start)} → ${safeFormatDate(r.cutoff_end)}`}
                     </TableCell>
                     <TableCell>₱ {money(r.amount)}</TableCell>
                     <TableCell>

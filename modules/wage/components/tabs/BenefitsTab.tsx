@@ -4,6 +4,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { Plus, RefreshCcw, Pencil, Trash2, Search, X, MoreVertical } from "lucide-react";
+import { format } from "date-fns";
 
 import type {
   Employee,
@@ -155,9 +156,18 @@ function getLoggedUserId(): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function safeFormatDate(d: string | null | undefined) {
+  if (!d) return "—";
+  try {
+    return format(new Date(d), "MMM dd, yyyy");
+  } catch {
+    return d.substring(0, 10);
+  }
+}
+
 function cutoffLabel(c: CutoffSetting) {
   const t = c.cutoff_type === "FIRST" ? "1st" : "2nd";
-  return `${t} • ${c.start_date} → ${c.end_date} (ID:${c.id})`;
+  return `${t} • ${safeFormatDate(c.start_date)} → ${safeFormatDate(c.end_date)} (ID:${c.id})`;
 }
 
 // Compact cutoff range like: 2026-01-11–25
@@ -171,16 +181,16 @@ function formatCutoffRange(start?: string | null, end?: string | null) {
 
   if (sYm === eYm) {
     const endDay = e.slice(8, 10);
-    return `${s}–${endDay}`;
+    return `${safeFormatDate(s)}–${endDay}`;
   }
 
   const sY = s.slice(0, 4);
   const eY = e.slice(0, 4);
   if (sY === eY) {
-    return `${s}–${e.slice(5)}`;
+    return `${safeFormatDate(s)}–${e.slice(5)}`;
   }
 
-  return `${s}–${e}`;
+  return `${safeFormatDate(s)}–${safeFormatDate(e)}`;
 }
 
 function statusBadge(s: BenefitLoanStatus) {
@@ -1714,7 +1724,7 @@ export function BenefitsTab({
 
                   return (
                     <TableRow key={r.benefit_log_id} className="group hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                      <TableCell>{(r.created_date || "").substring(0, 10)}</TableCell>
+                      <TableCell>{safeFormatDate(r.created_date)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-normal">
                           {r.benefit_code}

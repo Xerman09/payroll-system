@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import { Pencil, Trash2, Plus, Search, X, MoreVertical } from "lucide-react";
+import { format } from "date-fns";
 
 import type {
   Employee,
@@ -68,7 +69,7 @@ function flagToBool(v: unknown): boolean {
 }
 function cutoffLabel(c: CutoffSetting) {
   const typeLabel = c.cutoff_type === "FIRST" ? "1st Cutoff" : "2nd Cutoff";
-  return `${typeLabel} (${c.start_date} → ${c.end_date})`;
+  return `${typeLabel} (${safeFormatDate(c.start_date)} → ${safeFormatDate(c.end_date)})`;
 }
 function retroProcessedBadge(isProcessed: number | 0 | 1) {
   return Number(isProcessed) === 1 ? (
@@ -102,6 +103,15 @@ function buildRetroHaystack(r: RetroPayRecord) {
       " "
     )
   );
+}
+
+function safeFormatDate(d: string | null | undefined) {
+  if (!d) return "—";
+  try {
+    return format(new Date(d), "MMM dd, yyyy");
+  } catch {
+    return d.substring(0, 10);
+  }
 }
 
 function getPageItems(totalPages: number, currentPage: number) {
@@ -346,7 +356,7 @@ export function RetroPayTab({
                 <div className="flex flex-col">
                   <span className="text-xs text-gray-500">Cutoff Start</span>
                   <Input
-                    value={retroDraft.cutoff_start || ""}
+                    value={retroDraft.cutoff_start ? safeFormatDate(retroDraft.cutoff_start) : ""}
                     disabled
                     className="h-9 bg-gray-100 dark:bg-gray-800/60"
                   />
@@ -354,7 +364,7 @@ export function RetroPayTab({
                 <div className="flex flex-col">
                   <span className="text-xs text-gray-500">Cutoff End</span>
                   <Input
-                    value={retroDraft.cutoff_end || ""}
+                    value={retroDraft.cutoff_end ? safeFormatDate(retroDraft.cutoff_end) : ""}
                     disabled
                     className="h-9 bg-gray-100 dark:bg-gray-800/60"
                   />
@@ -532,9 +542,9 @@ export function RetroPayTab({
                   <TableCell className="font-medium">
                     {r.description || <span className="text-gray-400">—</span>}
                   </TableCell>
-                  <TableCell>
-                    {(r.cutoff_start || "").substring(0, 10)} →{" "}
-                    {(r.cutoff_end || "").substring(0, 10)}
+                  <TableCell className="text-sm">
+                    {safeFormatDate(r.cutoff_start)} →{" "}
+                    {safeFormatDate(r.cutoff_end)}
                   </TableCell>
                   <TableCell>₱ {money(r.amount)}</TableCell>
                   <TableCell>{retroProcessedBadge(r.is_processed)}</TableCell>

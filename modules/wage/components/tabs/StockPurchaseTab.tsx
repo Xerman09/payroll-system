@@ -10,7 +10,9 @@ import {
   Trash2,
   Search,
   X,
+  RefreshCcw,
 } from "lucide-react";
+import { format } from "date-fns";
 import { getLoggedUser } from "@/lib/auth";
 
 import type {
@@ -105,6 +107,15 @@ function getLoggedUserId(): number | null {
   if (!logged) return null;
   const n = Number(logged?.user_id);
   return Number.isFinite(n) ? n : null;
+}
+
+function safeFormatDate(d: string | null | undefined) {
+  if (!d) return "—";
+  try {
+    return format(new Date(d), "MMM dd, yyyy");
+  } catch {
+    return d.substring(0, 10);
+  }
 }
 
 function normalize(v: unknown) {
@@ -450,6 +461,15 @@ export function StockPurchaseTab({
 
   return (
     <div className="space-y-4">
+      {confirmConfig && (
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title={confirmConfig.title}
+          description={confirmConfig.description}
+          onConfirm={confirmConfig.onConfirm}
+        />
+      )}
       {/* ---------- Title row (match RetroPayTab placement) ---------- */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="space-y-0.5">
@@ -465,16 +485,27 @@ export function StockPurchaseTab({
           </div>
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          className="h-9 px-4"
-          onClick={openAdd}
-          disabled={!selectedEmployee || saving}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add DR Payment
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={load}
+            disabled={loading}
+          >
+            <RefreshCcw className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-9 px-4"
+            onClick={openAdd}
+            disabled={!selectedEmployee || saving}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add DR Payment
+          </Button>
+        </div>
       </div>
 
       {/* ---------- Search + Page Size Controls (match RetroPayTab) ---------- */}
@@ -542,16 +573,16 @@ export function StockPurchaseTab({
               <TableHead className="text-gray-600 font-semibold w-[14%]">
                 DR No
               </TableHead>
-              <TableHead className="text-gray-600 font-semibold w-[18%]">
+              <TableHead className="text-gray-600 font-semibold w-[20%]">
                 Cutoff
               </TableHead>
-              <TableHead className="text-gray-600 font-semibold w-[10%]">
+              <TableHead className="text-gray-600 font-semibold w-[12%]">
                 Pay Date
               </TableHead>
               <TableHead className="text-gray-600 font-semibold w-[10%] text-right">
                 Amount
               </TableHead>
-              <TableHead className="text-gray-600 font-semibold w-[16%]">
+              <TableHead className="text-gray-600 font-semibold w-[14%]">
                 Method
               </TableHead>
               <TableHead className="text-gray-600 font-semibold w-[12%]">
@@ -597,9 +628,6 @@ export function StockPurchaseTab({
             ) : (
               pagedRows.map((r) => {
                 const isPosted = Number(r.is_posted_to_payroll) === 1;
-                const cutoffFrom = (r.cutoff_from || "").substring(0, 10);
-                const cutoffTo = (r.cutoff_to || "").substring(0, 10);
-                const payDate = (r.payment_date || "").substring(0, 10);
 
                 return (
                   <TableRow
@@ -610,17 +638,13 @@ export function StockPurchaseTab({
                       {r.delivery_receipt_number}
                     </TableCell>
 
-                    <TableCell className="text-xs text-slate-700 dark:text-slate-200 break-words">
-                      <div className="leading-4">
-                        <div>{cutoffFrom}</div>
-                        <div className="text-slate-500 dark:text-slate-400">
-                          to {cutoffTo}
-                        </div>
-                      </div>
+                    <TableCell className="text-xs text-slate-700 dark:text-slate-200">
+                      {safeFormatDate(r.cutoff_from)} →{" "}
+                      {safeFormatDate(r.cutoff_to)}
                     </TableCell>
 
                     <TableCell className="text-xs whitespace-nowrap">
-                      {payDate || "—"}
+                      {safeFormatDate(r.payment_date)}
                     </TableCell>
 
                     <TableCell className="text-right text-xs font-semibold whitespace-nowrap">

@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import { Trash2, Plus, Search, X } from "lucide-react";
+import { format } from "date-fns";
 
 import type {
   Employee,
@@ -51,6 +52,15 @@ type PayrollUiTokens = {
   iconEdit: string;
   iconDelete: string;
 };
+
+function safeFormatDate(d: string | null | undefined) {
+  if (!d) return "—";
+  try {
+    return format(new Date(d), "MMM dd, yyyy");
+  } catch {
+    return d.substring(0, 10);
+  }
+}
 
 function cutoffLabel(c: CutoffSetting) {
   const typeLabel = c.cutoff_type === "FIRST" ? "1st Cutoff" : "2nd Cutoff";
@@ -298,24 +308,6 @@ export function OtherADTab({
 
     openForm(next);
   };
-
-  // const startEditUnified = (u: UnifiedRow) => {
-  //   if (u.kind === "add") {
-  //     setFormKind("add");
-  //     setDedFormOpen(false);
-  //     resetDedDraft();
-  //     setAddFormOpen(true);
-  //     startEditOtherAddition(u.row);
-  //   } else {
-  //     setFormKind("ded");
-  //     setAddFormOpen(false);
-  //     resetAddDraft();
-  //     setDedFormOpen(true);
-  //     startEditOtherDeduction(u.row);
-  //   }
-
-  //   if (cutoffs.length === 0 && !cutoffsLoading) ensureCutoffs();
-  // };
 
   const deleteUnified = (u: UnifiedRow) => {
     if (u.kind === "add") return deleteOtherAddition(u.row.id);
@@ -660,8 +652,6 @@ export function OtherADTab({
               ) : (
                 pagedRows.map((u) => {
                   const r = u.row;
-                  const start = String(r.cutoff_start || "").substring(0, 10);
-                  const end = String(r.cutoff_end || "").substring(0, 10);
 
                   return (
                     <TableRow
@@ -678,10 +668,18 @@ export function OtherADTab({
                         </div>
                       </TableCell>
 
-                      <TableCell>
-                        <div className="truncate">
-                          {start} → {end}
-                        </div>
+                      <TableCell className="text-sm">
+                        {(() => {
+                          const start = safeFormatDate(r.cutoff_start);
+                          const end = safeFormatDate(r.cutoff_end);
+                          return start && end ? (
+                            <span>
+                              {start} → {end}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          );
+                        })()}
                       </TableCell>
 
                       <TableCell>₱ {money(r.amount)}</TableCell>
