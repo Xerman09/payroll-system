@@ -58,6 +58,7 @@ export function WageModule() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage] = useState(5);
+  const [showInactive, setShowInactive] = useState(false);
 
   // Salary schedules list (for the grade picker in WageTab)
   const [salarySchedules, setSalarySchedules] = useState<SalarySchedule[]>([]);
@@ -123,6 +124,7 @@ export function WageModule() {
         deptId: selectedDept,
         sortField,
         sortOrder,
+        showInactive,
       })
       .then(({ rows, total }) => {
         setEmployees(rows);
@@ -143,6 +145,7 @@ export function WageModule() {
     sortField,
     sortOrder,
     refreshKey,
+    showInactive,
   ]);
 
   const handleRefresh = () => setRefreshKey((prev) => prev + 1);
@@ -153,6 +156,7 @@ export function WageModule() {
     setSortField("user_id");
     setSortOrder("asc");
     setCurrentPage(1);
+    setShowInactive(false);
     handleRefresh();
   };
 
@@ -494,6 +498,8 @@ export function WageModule() {
                       currentPage={currentPage}
                       setCurrentPage={setCurrentPage}
                       totalEmployees={totalEmployees}
+                      showInactive={showInactive}
+                      setShowInactive={setShowInactive}
                       onRefresh={handleRefresh}
                       onReset={handleReset}
                     />

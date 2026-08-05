@@ -20,7 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { Search, RotateCcw, RefreshCcw } from "lucide-react";
+import { Search, RotateCcw, RefreshCcw, Eye, EyeOff } from "lucide-react";
 import type { Department, Employee } from "../types";
 
 type Props = {
@@ -37,6 +37,8 @@ type Props = {
   setCurrentPage: (page: number) => void;
   rowsPerPage: number;
   totalEmployees: number;
+  showInactive: boolean;
+  setShowInactive: (val: boolean) => void;
   onRefresh: () => void;
   onReset: () => void;
 };
@@ -55,6 +57,8 @@ export default function EmployeeTable({
   setCurrentPage,
   rowsPerPage,
   totalEmployees,
+  showInactive,
+  setShowInactive,
   onRefresh,
   onReset,
 }: Props) {
@@ -142,6 +146,15 @@ export default function EmployeeTable({
               >
                 <RotateCcw className="h-4 w-4" />
                 <span className="hidden lg:inline">Reset</span>
+              </Button>
+              <Button
+                variant="outline"
+                className={`h-10 px-3 gap-2 border-gray-300 ${showInactive ? "bg-muted text-muted-foreground" : "text-gray-600"}`}
+                onClick={() => setShowInactive(!showInactive)}
+                title={showInactive ? "Hide Inactive Users" : "Show Inactive Users"}
+              >
+                {showInactive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                <span className="hidden lg:inline">{showInactive ? "Hide Inactive" : "Show Inactive"}</span>
               </Button>
               <Button
                 className="h-10 px-4 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"

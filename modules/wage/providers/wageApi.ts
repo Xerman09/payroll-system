@@ -118,6 +118,7 @@ export type EmployeeListParams = {
   deptId?: number | null;
   sortField?: keyof Employee;
   sortOrder?: "asc" | "desc";
+  showInactive?: boolean;
 };
 
 export async function fetchEmployeesPaged({
@@ -127,18 +128,22 @@ export async function fetchEmployeesPaged({
   deptId,
   sortField = "user_id",
   sortOrder = "asc",
+  showInactive = false,
 }: EmployeeListParams): Promise<{ rows: Employee[]; total: number }> {
   type DirectusFilter = {
     _and: Array<Record<string, unknown>>;
   };
   const filterParams: DirectusFilter = {
     _and: [
-      {
-        _or: [{ is_deleted: { _null: true } }, { is_deleted: { _eq: 0 } }],
-      },
       { is_employee: { _eq: 1 } },
     ],
   };
+
+  if (!showInactive) {
+    filterParams._and.push({
+      _or: [{ is_deleted: { _null: true } }, { is_deleted: { _eq: 0 } }],
+    });
+  }
 
   const q = (search ?? "").trim();
 
