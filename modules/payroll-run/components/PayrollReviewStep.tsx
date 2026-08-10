@@ -686,7 +686,7 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                     const onHold = getOnHold(row);
 
                     return (
-                      <TableRow key={String(id)}>
+                      <TableRow key={String(id)} className={rowTyped?.is_deleted === 1 ? "bg-red-50 dark:bg-red-500/10" : ""}>
                         <TableCell className="align-top">
                           <div className="font-semibold">{name}</div>
                           <ProrationDetails row={row} />
@@ -724,6 +724,10 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                           {onHold ? (
                             <span className="inline-flex rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-semibold text-yellow-900">
                               On hold
+                            </span>
+                          ) : rowTyped?.is_deleted === 1 ? (
+                            <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-900">
+                              Inactive
                             </span>
                           ) : (
                             <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">

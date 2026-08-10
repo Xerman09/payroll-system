@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import type { Department, Employee } from "../types";
+import { cn } from "@/lib/utils";
 
 
 import { CardHeader, CardTitle } from "@/components/ui/card";
@@ -262,9 +263,10 @@ export default function EmployeesTab({
                 const deptName =
                   departments.find((d) => d.department_id === emp.user_department)
                     ?.department_name ?? "N/A";
+                const isDeleted = emp.is_deleted?.data?.[0] === 1 || emp.is_deleted === 1 || emp.is_deleted === true;
 
                 return (
-                  <TableRow key={emp.user_id} className="border-b">
+                  <TableRow key={emp.user_id} className={cn("border-b", isDeleted && "bg-red-50 dark:bg-red-500/10")}>
                     <TableCell>{emp.user_id}</TableCell>
                     <TableCell>
                       {`${emp.user_fname} ${emp.user_mname ?? ""} ${emp.user_lname}`}

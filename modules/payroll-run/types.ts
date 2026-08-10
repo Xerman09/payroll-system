@@ -641,6 +641,9 @@ export interface PayrollComputedLine {
   on_hold: boolean;
   is_card?: number;
 
+  // status
+  is_deleted?: number;
+
   // proration
   is_prorated?: boolean;
   proration_json?: unknown | null;

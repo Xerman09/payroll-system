@@ -754,7 +754,10 @@ export function PayrollAdjustStep({
                   return (
                     <TableRow
                       key={l.user_id}
-                      className={cn(isHold && "opacity-60")}
+                      className={cn(
+                        isHold && "opacity-60",
+                        l.is_deleted === 1 && "bg-red-50 dark:bg-red-500/10"
+                      )}
                     >
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -775,6 +778,10 @@ export function PayrollAdjustStep({
                             ) : isHold ? (
                               <span className="font-bold text-destructive">
                                 HOLD
+                              </span>
+                            ) : l.is_deleted === 1 ? (
+                              <span className="font-bold text-destructive">
+                                Inactive
                               </span>
                             ) : (
                               <span className="text-muted-foreground">

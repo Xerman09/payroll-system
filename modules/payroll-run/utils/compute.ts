@@ -1577,6 +1577,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     last_name: args.user.last_name ?? null,
     position,
     department_name: departmentResolved,
+    is_deleted: args.user.is_deleted ?? 0,
 
     // rates
     daily_rate: round2(rate.baseDaily),
