@@ -9,7 +9,7 @@ export type Employee = {
   user_position: string;
   user_dateOfHire: string;
   user_contact: string;
-  is_deleted?: { data?: (number | null)[] };
+  is_deleted?: { data?: (number | null)[] } | number | boolean;
 };
 
 export type Department = {
