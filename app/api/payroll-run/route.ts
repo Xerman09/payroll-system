@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveApiConfig, buildForwardHeaders } from "@/lib/api-helper";
+import { encryptNumber, decryptNumber } from "@/lib/encryption";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +113,14 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
   if (req.method !== "GET" && req.method !== "HEAD") {
     const raw = await req.json().catch(() => null);
     body = raw?.payload ?? raw ?? null;
+
+    if (resource === "user_wage_management" && body && typeof body === "object") {
+      let b = body as Record<string, any>;
+      if (b.daily_wage !== undefined) {
+        b.encrypted_daily_wage = encryptNumber(b.daily_wage);
+        b.daily_wage = 0;
+      }
+    }
   }
 
   const res = await fetch(finalUrl, {
@@ -130,6 +139,21 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
   let data: unknown = null;
   try {
     data = text ? JSON.parse(text) : null;
+    
+    // Intercept and decrypt user_wage_management data
+    if (resource === "user_wage_management" && data && typeof data === "object") {
+      const d = data as any;
+      if (Array.isArray(d.data)) {
+        d.data = d.data.map((row: any) => ({
+          ...row,
+          daily_wage: row.encrypted_daily_wage ? decryptNumber(row.encrypted_daily_wage) : Number(row.daily_wage || 0)
+        }));
+      } else if (typeof d.data === "object" && d.data) {
+        d.data.daily_wage = d.data.encrypted_daily_wage 
+          ? decryptNumber(d.data.encrypted_daily_wage) 
+          : Number(d.data.daily_wage || 0);
+      }
+    }
   } catch {
     data = text;
   }

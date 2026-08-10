@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveApiConfig, buildForwardHeaders, buildProxyUrl, parseJsonSafe, joinUrl } from "@/lib/api-helper";
+import { encryptNumber, decryptNumber } from "@/lib/encryption";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,21 @@ export async function GET(req: NextRequest) {
     });
 
     const data = await parseJsonSafe(res);
+    
+    // Intercept and decrypt user_wage_management data
+    if (fetchUrl.includes("user_wage_management") && data?.data) {
+      if (Array.isArray(data.data)) {
+        data.data = data.data.map((row: any) => ({
+          ...row,
+          daily_wage: row.encrypted_daily_wage ? decryptNumber(row.encrypted_daily_wage) : Number(row.daily_wage || 0)
+        }));
+      } else if (typeof data.data === "object") {
+        data.data.daily_wage = data.data.encrypted_daily_wage 
+          ? decryptNumber(data.data.encrypted_daily_wage) 
+          : Number(data.data.daily_wage || 0);
+      }
+    }
+
     return NextResponse.json(data, { status: res.status });
   } catch (error: unknown) {
     const e = error as Error;
@@ -54,11 +70,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing body.path" }, { status: 400 });
     }
 
-    console.log("[wage POST payload to Directus]:", JSON.stringify(payload));
+    // Intercept and encrypt user_wage_management data
+    let modifiedPayload = { ...payload };
+    if (path.includes("user_wage_management") && modifiedPayload.daily_wage !== undefined) {
+      modifiedPayload.encrypted_daily_wage = encryptNumber(modifiedPayload.daily_wage);
+      modifiedPayload.daily_wage = 0; // Save as 0 to satisfy decimal constraint
+    }
+
+    console.log("[wage POST payload to Directus]:", JSON.stringify(modifiedPayload));
     const res = await fetch(joinUrl(BASE, path), {
       method: "POST",
       headers: buildForwardHeaders(req, config, { contentType: "application/json" }),
-      body: JSON.stringify(payload),
+      body: JSON.stringify(modifiedPayload),
     });
 
     const data = await parseJsonSafe(res);
@@ -92,10 +115,17 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Missing body.path" }, { status: 400 });
     }
 
+    // Intercept and encrypt user_wage_management data
+    let modifiedPayload = { ...payload };
+    if (path.includes("user_wage_management") && modifiedPayload.daily_wage !== undefined) {
+      modifiedPayload.encrypted_daily_wage = encryptNumber(modifiedPayload.daily_wage);
+      modifiedPayload.daily_wage = 0; // Save as 0 to satisfy decimal constraint
+    }
+
     const res = await fetch(joinUrl(BASE, path), {
       method: "PATCH",
       headers: buildForwardHeaders(req, config, { contentType: "application/json" }),
-      body: JSON.stringify(payload),
+      body: JSON.stringify(modifiedPayload),
     });
 
     const data = await parseJsonSafe(res);
