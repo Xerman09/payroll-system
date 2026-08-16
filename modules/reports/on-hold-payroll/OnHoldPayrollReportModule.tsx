@@ -12,6 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import EmployeeDetailsSheet from "@/modules/payroll-run/components/EmployeeDetailsSheet";
+import type { PayrollComputedLine } from "@/modules/payroll-run/types";
 import { format, parseISO } from "date-fns";
 
 type OnHoldPayroll = {
@@ -19,7 +22,11 @@ type OnHoldPayroll = {
   payroll_run_id: number;
   user_id: number;
   employee_name: string;
+  position: string;
   department_name: string;
+  basic_pay: number;
+  total_additions: number;
+  total_deductions: number;
   gross_pay: number;
   net_pay: number;
   cutoff_start: string;
@@ -45,6 +52,9 @@ export default function OnHoldPayrollReportModule() {
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDept, setSelectedDept] = useState("all");
+  const [selectedCutoff, setSelectedCutoff] = useState("all");
+
+  const [selectedItem, setSelectedItem] = useState<PayrollComputedLine | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -72,6 +82,12 @@ export default function OnHoldPayrollReportModule() {
     return Array.from(depts).sort();
   }, [data]);
 
+  const cutoffs = useMemo(() => {
+    const cutoffSet = new Set(data.map((d) => d.cutoff_period));
+    // Sort descending ideally, but alphabetical is fine since it starts with YYYY-MM-DD
+    return Array.from(cutoffSet).sort((a, b) => b.localeCompare(a));
+  }, [data]);
+
   const filteredData = useMemo(() => {
     return data.filter((item) => {
       const matchSearch =
@@ -79,10 +95,11 @@ export default function OnHoldPayrollReportModule() {
         item.cutoff_period.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchDept = selectedDept === "all" || item.department_name === selectedDept;
+      const matchCutoff = selectedCutoff === "all" || item.cutoff_period === selectedCutoff;
 
-      return matchSearch && matchDept;
+      return matchSearch && matchDept && matchCutoff;
     });
-  }, [data, searchTerm, selectedDept]);
+  }, [data, searchTerm, selectedDept, selectedCutoff]);
 
   if (error) {
     return (
@@ -116,8 +133,23 @@ export default function OnHoldPayrollReportModule() {
               />
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
+              
+              <Select value={selectedCutoff} onValueChange={setSelectedCutoff}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Cutoff Period" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Cutoffs</SelectItem>
+                  {cutoffs.map((cutoff) => (
+                    <SelectItem key={cutoff} value={cutoff}>
+                      {cutoff.split(" to ").map(d => formatDate(d)).join(" - ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
               <Select value={selectedDept} onValueChange={setSelectedDept}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Department" />
@@ -145,19 +177,20 @@ export default function OnHoldPayrollReportModule() {
                   <th className="px-4 py-3">Cutoff Period</th>
                   <th className="px-4 py-3 text-right">Gross Pay</th>
                   <th className="px-4 py-3 text-right">Net Pay</th>
-                  <th className="px-4 py-3 text-center">Run Status</th>
+                  <th className="px-4 py-3 text-center">Payroll Status</th>
+                  <th className="px-4 py-3 text-center">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="h-32 text-center">
+                    <td colSpan={7} className="h-32 text-center">
                       <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                     </td>
                   </tr>
                 ) : filteredData.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="h-32 text-center text-muted-foreground">
+                    <td colSpan={7} className="h-32 text-center text-muted-foreground">
                       No on-hold payroll records found.
                     </td>
                   </tr>
@@ -180,6 +213,15 @@ export default function OnHoldPayrollReportModule() {
                           {row.run_status}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedItem(row as unknown as PayrollComputedLine)}
+                        >
+                          View Details
+                        </Button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -188,6 +230,16 @@ export default function OnHoldPayrollReportModule() {
           </div>
         </CardContent>
       </Card>
+
+      <EmployeeDetailsSheet
+        open={!!selectedItem}
+        line={selectedItem}
+        manualEntries={[]}
+        isPosted={true}
+        onOpenChange={(v) => !v && setSelectedItem(null)}
+        onEditEntry={() => {}}
+        onDeleteEntry={() => {}}
+      />
     </div>
   );
 }

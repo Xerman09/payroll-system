@@ -1697,20 +1697,21 @@ export function EmployeeDetailsSheet({
                         grouped per column.
                       </div>
                     </div>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        openAdjust();
-                      }}
-                      disabled={!line}
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add
-                    </Button>
+                    {(!isPosted && !!onOpenAdjust) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (onOpenAdjust) onOpenAdjust();
+                        }}
+                        disabled={!line}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add
+                      </Button>
+                    )}
                   </div>
 
                   <div className="space-y-4">
@@ -1815,18 +1816,20 @@ export function EmployeeDetailsSheet({
                 <Button variant="outline" onClick={() => onOpenChange(false)}>
                   Close
                 </Button>
-                <Button
-                  variant="secondary"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    openAdjust();
-                  }}
-                  disabled={!line}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Adjustment
-                </Button>
+                {(!isPosted && !!onOpenAdjust) && (
+                  <Button
+                    variant="secondary"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (onOpenAdjust) onOpenAdjust();
+                    }}
+                    disabled={!line}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Adjustment
+                  </Button>
+                )}
               </div>
             </div>
           </div>

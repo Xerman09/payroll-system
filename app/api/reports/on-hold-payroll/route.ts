@@ -108,17 +108,23 @@ export async function GET(req: NextRequest) {
         if (!run) return null; // If run is processed or not found, skip
 
         return {
+          ...emp,
           id: emp.id,
           payroll_run_id: runId,
           user_id: emp.user_id,
           employee_name: emp.employee_name || "Unknown Employee",
+          position: emp.position || "Unknown Position",
           department_name: emp.department_name || "Unknown Dept",
+          basic_pay: emp.basic_pay || 0,
+          total_additions: emp.total_additions || 0,
+          total_deductions: emp.total_deductions || 0,
           gross_pay: emp.gross_pay || 0,
           net_pay: emp.net_pay || 0,
           cutoff_start: run.cutoff_start,
           cutoff_end: run.cutoff_end,
           run_status: run.status,
-          cutoff_period: `${run.cutoff_start || ''} to ${run.cutoff_end || ''}`
+          cutoff_period: `${run.cutoff_start || ''} to ${run.cutoff_end || ''}`,
+          breakdown_json: emp.breakdown_json ? (typeof emp.breakdown_json === 'string' ? JSON.parse(emp.breakdown_json) : emp.breakdown_json) : null
         };
       })
       .filter(Boolean); // Remove nulls
