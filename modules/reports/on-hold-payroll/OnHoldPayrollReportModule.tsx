@@ -16,6 +16,10 @@ import { Button } from "@/components/ui/button";
 import EmployeeDetailsSheet from "@/modules/payroll-run/components/EmployeeDetailsSheet";
 import type { PayrollComputedLine } from "@/modules/payroll-run/types";
 import { format, parseISO } from "date-fns";
+import PasswordDialog from "@/modules/payroll-run/components/PasswordDialog";
+import * as api from "@/modules/payroll-run/providers/payrollApi";
+import { getLoggedUser } from "@/lib/auth";
+import { toast } from "sonner";
 
 type OnHoldPayroll = {
   id: number;
@@ -56,7 +60,11 @@ export default function OnHoldPayrollReportModule() {
 
   const [selectedItem, setSelectedItem] = useState<PayrollComputedLine | null>(null);
 
+  const [passwordVerified, setPasswordVerified] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(true);
+
   useEffect(() => {
+    if (!passwordVerified) return;
     async function fetchData() {
       try {
         setLoading(true);
@@ -74,8 +82,27 @@ export default function OnHoldPayrollReportModule() {
         setLoading(false);
       }
     }
+
     fetchData();
-  }, []);
+  }, [passwordVerified]);
+
+  const handlePasswordSubmit = async (passwordInput: string) => {
+    try {
+      const logged = getLoggedUser();
+      if (!logged) {
+        toast.error("User not logged in.");
+        return;
+      }
+
+      await api.verifyPassword(Number(logged.user_id), passwordInput);
+      
+      setPasswordVerified(true);
+      setPasswordDialogOpen(false);
+    } catch (e: unknown) {
+      console.error(e);
+      toast.error("Error verifying password. Try again.");
+    }
+  };
 
   const departments = useMemo(() => {
     const depts = new Set(data.map((d) => d.department_name));
@@ -100,6 +127,18 @@ export default function OnHoldPayrollReportModule() {
       return matchSearch && matchDept && matchCutoff;
     });
   }, [data, searchTerm, selectedDept, selectedCutoff]);
+
+  if (!passwordVerified) {
+    return (
+      <div className="flex h-full min-h-[50vh] items-center justify-center p-6">
+        <PasswordDialog
+          open={passwordDialogOpen}
+          onOpenChange={(open) => setPasswordDialogOpen(open)}
+          onSubmit={handlePasswordSubmit}
+        />
+      </div>
+    );
+  }
 
   if (error) {
     return (
