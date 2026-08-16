@@ -172,6 +172,10 @@ function Sidebar() {
               {
                 title: "On-Hold Payroll",
                 href: `/reports/on-hold-payroll/${userId}`,
+              },
+              {
+                title: "Payslip Dispatch",
+                href: `/reports/payslip-dispatch/${userId}`,
               }
             ]
           }
