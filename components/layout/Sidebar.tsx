@@ -168,6 +168,10 @@ function Sidebar() {
               {
                 title: "Overtime Report",
                 href: `/reports/overtime/${userId}`,
+              },
+              {
+                title: "On-Hold Payroll",
+                href: `/reports/on-hold-payroll/${userId}`,
               }
             ]
           }
