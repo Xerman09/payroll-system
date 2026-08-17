@@ -44,7 +44,7 @@ export async function GET(request: Request) {
     // 2. Fetch employees for these runs who are NOT on hold
     const empQuery = new URLSearchParams({
       "filter[payroll_run_id][_in]": runIds.join(","),
-      "fields": "id,user_id,employee_name,department_name,position,basic_pay,gross_pay,net_pay,payroll_run_id,is_payslip_sent,payslip_sent_at,payslip_sent_by,on_hold",
+      "fields": "id,user_id,employee_name,department_name,department_name_snapshot,position,basic_pay,gross_pay,net_pay,payroll_run_id,is_payslip_sent,payslip_sent_at,payslip_sent_by,on_hold",
       "limit": "-1"
     });
 
@@ -61,6 +61,38 @@ export async function GET(request: Request) {
     
     // Filter out on-hold employees safely in code
     employees = employees.filter((emp: any) => emp.on_hold !== 1 && emp.on_hold !== true && emp.on_hold !== "1" && emp.on_hold !== "true");
+
+    // 2.5 Resolve missing department names from the user -> department relation
+    const userIds = [...new Set(employees.map((e: any) => e.user_id).filter(Boolean))];
+    if (userIds.length > 0) {
+      const userRes = await fetch(`${apiBase}/items/user?filter[user_id][_in]=${userIds.join(",")}&fields=user_id,user_department`, { headers });
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        const users = userData.data || [];
+        const deptIds = [...new Set(users.map((u: any) => u.user_department).filter(Boolean))];
+        
+        let depts: any[] = [];
+        if (deptIds.length > 0) {
+          const deptRes = await fetch(`${apiBase}/items/department?filter[department_id][_in]=${deptIds.join(",")}&fields=department_id,department_name`, { headers });
+          if (deptRes.ok) {
+            const deptData = await deptRes.json();
+            depts = deptData.data || [];
+          }
+        }
+
+        employees.forEach((emp: any) => {
+          if (!emp.department_name && !emp.department_name_snapshot) {
+            const u = users.find((x: any) => x.user_id === emp.user_id);
+            if (u && u.user_department) {
+              const d = depts.find((x: any) => x.department_id === u.user_department);
+              if (d) {
+                emp.department_name = d.department_name;
+              }
+            }
+          }
+        });
+      }
+    }
 
     // 3. Map with cutoff info
     const mapped = employees.map((emp: any) => {

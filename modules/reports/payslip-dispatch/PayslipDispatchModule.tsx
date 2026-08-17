@@ -141,8 +141,12 @@ export default function PayslipDispatchModule() {
   };
 
   const departments = useMemo(() => {
-    const depts = new Set(data.map((d) => d.department_name));
-    return Array.from(depts).sort();
+    const deptSet = new Set<string>();
+    data.forEach((d) => {
+      const dept = d.department_name || d.department_name_snapshot;
+      if (dept) deptSet.add(dept);
+    });
+    return Array.from(deptSet).sort((a, b) => a.localeCompare(b));
   }, [data]);
 
   const cutoffs = useMemo(() => {
@@ -284,7 +288,7 @@ export default function PayslipDispatchModule() {
                         <div className="font-medium text-foreground">{row.employee_name}</div>
                         <div className="text-xs text-muted-foreground">{row.position}</div>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{row.department_name}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{row.department_name || row.department_name_snapshot || "Unknown Department"}</td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {formatDate(row.cutoff_start)} - {formatDate(row.cutoff_end)}
                       </td>
