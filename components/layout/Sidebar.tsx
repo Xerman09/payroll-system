@@ -45,11 +45,24 @@ function Sidebar() {
   const [openDropdowns, setOpenDropdowns] = React.useState<string[]>([]);
 
   const [userId, setUserId] = React.useState<string | number>("me");
+  const [isApprovalsVisible, setIsApprovalsVisible] = React.useState(false);
 
   React.useEffect(() => {
     const user = getLoggedUser();
     if (user?.user_id) {
       setUserId(user.user_id);
+      
+      fetch("/api/payroll-settings")
+        .then(res => res.json())
+        .then(json => {
+          const settings = json.data;
+          if (settings) {
+             const isChecker = Number(settings.checker_id) === Number(user.user_id);
+             const isApprover = Number(settings.approver_id) === Number(user.user_id);
+             setIsApprovalsVisible(isChecker || isApprover);
+          }
+        })
+        .catch(err => console.error("Failed to load payroll settings for sidebar", err));
     }
   }, []);
 
@@ -129,11 +142,11 @@ function Sidebar() {
             href: `/attendance-approval/${userId}`,
             icon: <ClipboardCheck size={18} />,
           },
-          {
+          ...(isApprovalsVisible ? [{
             title: "Payroll Approvals",
             href: `/payroll-approvals/${userId}`,
             icon: <CheckCircle2 size={18} />,
-          },
+          }] : []),
           {
             title: "Payroll Run",
             href: `/payroll-run/${userId}`,
@@ -188,7 +201,7 @@ function Sidebar() {
         ],
       },
     ],
-    [userId]
+    [userId, isApprovalsVisible]
   );
 
   const toggleDropdown = (title: string) => {
