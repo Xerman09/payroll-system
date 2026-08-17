@@ -26,6 +26,7 @@ type PayslipEmployee = {
   employee_name: string;
   position: string;
   department_name: string;
+  department_name_snapshot?: string;
   basic_pay: number;
   gross_pay: number;
   net_pay: number;
