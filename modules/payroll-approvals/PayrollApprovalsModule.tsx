@@ -13,6 +13,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { FileSearch, CheckCircle2, XCircle, ArrowLeft } from "lucide-react";
 
@@ -42,6 +51,9 @@ export default function PayrollApprovalsModule() {
   const [computedLines, setComputedLines] = useState<any[]>([]);
   const [computedSummary, setComputedSummary] = useState<any>(null);
   const [loadingRun, setLoadingRun] = useState(false);
+  
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
   // User role details
   const [isChecker, setIsChecker] = useState(false);
@@ -138,18 +150,27 @@ export default function PayrollApprovalsModule() {
     }
   }
 
-  async function handleReject() {
+  function handleReject() {
     if (!selectedRun || !loggedUser) return;
-    const reason = window.prompt("Reason for rejection:");
-    if (!reason) return; // cancelled or empty
+    setRejectReason("");
+    setRejectModalOpen(true);
+  }
+
+  async function confirmReject() {
+    if (!selectedRun || !loggedUser) return;
+    if (!rejectReason.trim()) {
+      toast.error("Please provide a reason for rejection.");
+      return;
+    }
 
     try {
       await svc.rejectRun({
         payrollRunId: selectedRun.payroll_run_id,
         rejectedBy: Number(loggedUser.user_id),
-        remarks: reason,
+        remarks: rejectReason.trim(),
       });
       toast.success("Payroll run rejected back to Draft.");
+      setRejectModalOpen(false);
       setSelectedRun(null);
       fetchQueue();
     } catch (e: any) {
@@ -209,6 +230,31 @@ export default function PayrollApprovalsModule() {
               />
             )}
           </Card>
+
+          <Dialog open={rejectModalOpen} onOpenChange={setRejectModalOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Reject Payroll Run</DialogTitle>
+                <DialogDescription>
+                  Please provide a reason for rejecting this payroll run. It will be returned to the Draft status.
+                </DialogDescription>
+              </DialogHeader>
+              <Textarea
+                placeholder="Reason for rejection..."
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                rows={4}
+              />
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setRejectModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={confirmReject}>
+                  Reject Payroll
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </DashboardLayout>
     );
