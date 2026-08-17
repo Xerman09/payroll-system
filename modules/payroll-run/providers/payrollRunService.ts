@@ -1295,10 +1295,9 @@ export async function loadPostedEmployeesMap(payrollRunId: number): Promise<Map<
     RES.payrollLines,
     {
       "filter[payroll_run_id][_eq]": pid,
-      "filter[on_hold][_neq]": 1,  // Get employees that are NOT on hold (i.e., posted)
+      "filter[on_hold][_neq]": 1,
       limit: 50000,
       fields: "user_id,on_hold",
-      sort: "user_id",
     },
     [],
   );
@@ -1306,10 +1305,31 @@ export async function loadPostedEmployeesMap(payrollRunId: number): Promise<Map<
   for (const r of rows ?? []) {
     const uid = n(r?.user_id);
     if (!uid) continue;
-    map.set(uid, true);  // Mark as posted
+    map.set(uid, true);
   }
 
   return map;
+}
+
+export async function loadPersistedLines(payrollRunId: number): Promise<PayrollComputedLine[]> {
+  const pid = n(payrollRunId);
+  if (!pid) return [];
+
+  const rows = await safeList<Record<string, unknown>>(
+    RES.payrollLines,
+    {
+      "filter[payroll_run_id][_eq]": pid,
+      limit: 50000,
+    },
+    [],
+  );
+  
+  return rows.map(r => ({
+    ...r,
+    user_id: n(r.user_id),
+    department_id: n(r.department_id),
+    breakdown_json: typeof r.breakdown_json === "string" ? JSON.parse(r.breakdown_json) : r.breakdown_json
+  })) as unknown as PayrollComputedLine[];
 }
 
 
@@ -2277,6 +2297,37 @@ export async function postRun(args: { payrollRunId: number; postedBy: number }):
     posted_at: new Date().toISOString().slice(0, 19).replace("T", " "),
   });
 }
+
+export async function submitToChecker(args: { payrollRunId: number; submittedBy: number }): Promise<void> {
+  const pid = n(args.payrollRunId);
+  if (!pid) return;
+
+  await api.patchItem(RES.payrollRun, pid, {
+    status: "PENDING_CHECKER",
+    remarks: `Submitted to Checker by User ${args.submittedBy}`,
+  });
+}
+
+export async function verifyRun(args: { payrollRunId: number; verifiedBy: number }): Promise<void> {
+  const pid = n(args.payrollRunId);
+  if (!pid) return;
+
+  await api.patchItem(RES.payrollRun, pid, {
+    status: "PENDING_APPROVER",
+    remarks: `Verified by Checker User ${args.verifiedBy}`,
+  });
+}
+
+export async function rejectRun(args: { payrollRunId: number; rejectedBy: number; remarks: string }): Promise<void> {
+  const pid = n(args.payrollRunId);
+  if (!pid) return;
+
+  await api.patchItem(RES.payrollRun, pid, {
+    status: "REJECTED",
+    remarks: `Rejected by User ${args.rejectedBy}. Reason: ${args.remarks}`,
+  });
+}
+
 
 /**
  * Update accumulated amounts for employee loans based on payroll deductions.

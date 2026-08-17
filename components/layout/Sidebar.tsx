@@ -27,6 +27,7 @@ import {
   Users,
   Building2,
   ClipboardCheck,
+  CheckCircle2,
   FileText,
 } from "lucide-react";
 import { getLoggedUser } from "@/lib/auth";
@@ -127,6 +128,11 @@ function Sidebar() {
             title: "Attendance Approval",
             href: `/attendance-approval/${userId}`,
             icon: <ClipboardCheck size={18} />,
+          },
+          {
+            title: "Payroll Approvals",
+            href: `/payroll-approvals/${userId}`,
+            icon: <CheckCircle2 size={18} />,
           },
           {
             title: "Payroll Run",

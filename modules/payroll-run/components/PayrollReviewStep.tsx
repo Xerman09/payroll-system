@@ -86,6 +86,7 @@ type PayrollReviewStepProps = {
   onBackToAdjust?: () => void;
   onStartOver?: () => void;
   onPost?: () => Promise<void>;
+  postLabel?: string;
 };
 
 function getRowId(r: unknown): string {
@@ -640,9 +641,9 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                 {isPosting ? (
                    <>
                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                     Posting...
+                     {props.postLabel ? `Submitting...` : `Posting...`}
                    </>
-                ) : props.onPost ? "Post Payroll" : "Finalize"}
+                ) : props.onPost ? (props.postLabel || "Post Payroll") : "Finalize"}
               </Button>
             ) : null}
           </div>

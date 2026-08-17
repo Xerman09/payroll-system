@@ -298,22 +298,20 @@ export default function PayrollRunModule({ showLaborLawModal = true }: { showLab
     }
   }
 
-  async function postPayroll() {
+  async function submitForChecking() {
     if (!run) return;
 
     try {
-      await svc.postRun({
+      await svc.submitToChecker({
         payrollRunId: run.payroll_run_id,
-        postedBy: 1, // TODO: auth
+        submittedBy: 1, // TODO: auth
       });
 
-
-
-      toast.success("Payroll POSTED successfully.");
-      setRun((p) => (p ? { ...p, status: "POSTED" } : p));
+      toast.success("Payroll Submitted to Checker.");
+      setRun((p) => (p ? { ...p, status: "PENDING_CHECKER" } : p));
     } catch (e: unknown) {
       const err = e as Error;
-      toast.error(err?.message || "Failed to post payroll");
+      toast.error(err?.message || "Failed to submit payroll to checker");
     }
   }
 
@@ -338,7 +336,7 @@ export default function PayrollRunModule({ showLaborLawModal = true }: { showLab
   }, [startOver]);
 
   const busy = loadingMaster || loadingWs || step === 3;
-  const canPost = Boolean(run) && run?.status !== "POSTED" && step === 4;
+  const canPost = Boolean(run) && (run?.status === "DRAFT" || run?.status === "REJECTED") && step === 4;
 
   if (loadingMaster) {
     return (
@@ -472,12 +470,12 @@ export default function PayrollRunModule({ showLaborLawModal = true }: { showLab
 
                 {step === 4 ? (
                   <Button
-                    onClick={postPayroll}
+                    onClick={submitForChecking}
                     disabled={!canPost}
                     className="gap-2"
                   >
                     <CheckCircle2 className="h-4 w-4" />
-                    Post Payroll
+                    Submit to Checker
                   </Button>
                 ) : null}
               </div>
@@ -584,7 +582,8 @@ export default function PayrollRunModule({ showLaborLawModal = true }: { showLab
                   summary={computed.summary}
                   onBackToAdjust={() => setStep(2)}
                   onStartOver={startOver}
-                  onPost={postPayroll}
+                  onPost={submitForChecking}
+                  postLabel="Submit to Checker"
                 />
               </div>
             </Card>

@@ -360,7 +360,10 @@ export interface WageProrationLog {
 // ------------------------------
 export type PayrollRunStatus =
   | "DRAFT"
+  | "PENDING_CHECKER"
+  | "PENDING_APPROVER"
   | "POSTED"
+  | "REJECTED"
   | "PROCESSED"
   | "CANCELLED"
   | string;
