@@ -46,28 +46,35 @@ function Sidebar() {
 
   const [userId, setUserId] = React.useState<string | number>("me");
   const [isApprovalsVisible, setIsApprovalsVisible] = React.useState(false);
+  const [isHR, setIsHR] = React.useState(true);
 
   React.useEffect(() => {
-    const user = getLoggedUser();
+    const user = getLoggedUser() as any;
     if (user?.user_id) {
       setUserId(user.user_id);
       
-      fetch("/api/payroll-settings")
-        .then(res => res.json())
-        .then(json => {
-          const settings = json.data;
-          if (settings) {
-             const isChecker = Number(settings.checker_id) === Number(user.user_id);
-             const isApprover = Number(settings.approver_id) === Number(user.user_id);
-             setIsApprovalsVisible(isChecker || isApprover);
-          }
-        })
-        .catch(err => console.error("Failed to load payroll settings for sidebar", err));
+      if (user.isHR !== undefined) {
+        setIsHR(user.isHR);
+        setIsApprovalsVisible(user.isChecker || user.isApprover);
+      } else {
+        // Fallback for old tokens
+        fetch("/api/payroll-settings")
+          .then(res => res.json())
+          .then(json => {
+            const settings = Array.isArray(json.data) ? json.data[0] : json.data;
+            if (settings) {
+               const isChecker = Number(settings.checker_id) === Number(user.user_id);
+               const isApprover = Number(settings.approver_id) === Number(user.user_id);
+               setIsApprovalsVisible(isChecker || isApprover);
+            }
+          })
+          .catch(err => console.error("Failed to load payroll settings for sidebar", err));
+      }
     }
   }, []);
 
-  const menuItems = useMemo(
-    () => [
+  const menuItems = useMemo(() => {
+    const fullMenu = [
       {
         panel: "Dashboard",
         items: [
@@ -200,9 +207,25 @@ function Sidebar() {
           }
         ],
       },
-    ],
-    [userId, isApprovalsVisible]
-  );
+    ];
+
+    if (!isHR) {
+      return [
+        {
+          panel: "Processing",
+          items: [
+            ...(isApprovalsVisible ? [{
+              title: "Payroll Approvals",
+              href: `/payroll-approvals/${userId}`,
+              icon: <CheckCircle2 size={18} />,
+            }] : []),
+          ]
+        }
+      ];
+    }
+
+    return fullMenu;
+  }, [userId, isApprovalsVisible, isHR]);
 
   const toggleDropdown = (title: string) => {
     setOpenDropdowns((prev) =>

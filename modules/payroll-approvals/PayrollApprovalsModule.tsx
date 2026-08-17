@@ -65,7 +65,7 @@ export default function PayrollApprovalsModule() {
       const res = await fetch("/api/payroll-settings");
       if (res.ok) {
         const json = await res.json();
-        const settings = json.data;
+        const settings = Array.isArray(json.data) ? json.data[0] : json.data;
         if (settings && loggedUser?.user_id) {
           checker = Number(settings.checker_id) === Number(loggedUser.user_id);
           approver = Number(settings.approver_id) === Number(loggedUser.user_id);

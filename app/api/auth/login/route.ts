@@ -29,7 +29,6 @@ export async function POST(req: Request) {
     const qs = new URLSearchParams();
     qs.append("limit", "1");
     qs.append("filter[user_email][_eq]", email.trim());
-    qs.append("filter[user_department][_eq]", String(deptId));
     // Request only the specific fields needed — never use * with a service token
     // as it causes a 500 if any field is outside the token role's permission scope.
     qs.append("fields", [
@@ -73,6 +72,32 @@ export async function POST(req: Request) {
       );
     }
 
+    // --- CHECK AUTHORIZATION ---
+    // Fetch settings to get checker and approver
+    const settingsUrl = `${API_BASE}/items/payroll_settings?limit=1`;
+    const settingsRes = await fetch(settingsUrl, {
+      cache: "no-store",
+      headers: buildForwardHeaders(req, config, { forceServiceToken: true }),
+    });
+    const settingsData = await settingsRes.json();
+    const settings = settingsData?.data?.[0] || {};
+    
+    const checkerId = Number(settings.checker_id);
+    const approverId = Number(settings.approver_id);
+    const userId = Number(user.user_id);
+
+    const isHR = String(user.user_department) === String(deptId);
+    const isChecker = userId === checkerId;
+    const isApprover = userId === approverId;
+
+    if (!isHR && !isChecker && !isApprover) {
+      return NextResponse.json(
+        { status: "error", message: "Unauthorized. You are not in HR or assigned as a Checker/Approver." },
+        { status: 403 }
+      );
+    }
+    // ---------------------------
+
     let isMatch = false;
     if (user.hash_password) {
       isMatch = await compare(password, user.hash_password);
@@ -99,6 +124,9 @@ export async function POST(req: Request) {
       user_department: user.user_department,
       user_position: user.user_position,
       user_image: user.user_image,
+      isHR,
+      isChecker,
+      isApprover,
     };
 
     // Sign into a JWT for tamper-proof transport

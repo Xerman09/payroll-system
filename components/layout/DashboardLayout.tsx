@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
@@ -23,6 +23,7 @@ export default function DashboardLayout({
 }) {
   const { collapsed, toggle: toggleSidebar } = useSidebar();
   const router = useRouter();
+  const pathname = usePathname();
   const loading = useAuthGuard(); // protects dashboard
   useSessionTimeout(15); // auto logout 15 min
 
@@ -32,8 +33,17 @@ export default function DashboardLayout({
       // Only trigger if Alt key is pressed (no meta/ctrl for navigation to avoid conflict with browser/search)
       if (!e.altKey) return;
 
-      const user = getLoggedUser();
+      const user = getLoggedUser() as any;
       const userId = user?.user_id || "me";
+
+      // Prevent shortcuts for non-HR
+      if (user && user.isHR === false) {
+        if (e.key.toLowerCase() === "b") {
+          e.preventDefault();
+          toggleSidebar();
+        }
+        return;
+      }
 
       switch (e.key.toLowerCase()) {
         case "b":
@@ -71,6 +81,16 @@ export default function DashboardLayout({
       console.log(DEV_SIGNATURE);
     } catch {}
   }, []);
+
+  // Route Guard for non-HR
+  useEffect(() => {
+    const user = getLoggedUser() as any;
+    if (user && user.isHR === false) {
+      if (!pathname.startsWith('/payroll-approvals')) {
+        router.replace(`/payroll-approvals/${user.user_id}`);
+      }
+    }
+  }, [pathname, router]);
 
   if (loading) return null; // prevent flashing dashboard
 
