@@ -71,7 +71,7 @@ export default function EmployeesTab({
   const filteredEmployees = React.useMemo(() => {
     return employees
       .filter((emp) => {
-        const isDeleted = emp.is_deleted?.data?.[0] === 1;
+        const isDeleted = (emp.is_deleted as any)?.data?.[0] === 1 || emp.is_deleted === 1 || emp.is_deleted === true;
         if (!showInactive && isDeleted) return false;
 
         const fullName =
@@ -263,7 +263,7 @@ export default function EmployeesTab({
                 const deptName =
                   departments.find((d) => d.department_id === emp.user_department)
                     ?.department_name ?? "N/A";
-                const isDeleted = emp.is_deleted?.data?.[0] === 1 || emp.is_deleted === 1 || emp.is_deleted === true;
+                const isDeleted = (emp.is_deleted as any)?.data?.[0] === 1 || emp.is_deleted === 1 || emp.is_deleted === true;
 
                 return (
                   <TableRow key={emp.user_id} className={cn("border-b", isDeleted && "bg-red-50 dark:bg-red-500/10")}>
