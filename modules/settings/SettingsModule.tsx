@@ -16,15 +16,20 @@ import {
   Palette, 
   Navigation, 
   RotateCcw, 
-  Command, 
+  Command as CommandIcon, 
   MousePointer2,
   Trash2,
   Moon,
   Sun,
   Check,
   Paintbrush,
-  Sparkles
+  Sparkles,
+  UserCheck,
+  ChevronsUpDown
 } from "lucide-react";
+import { toast } from "sonner";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
@@ -65,7 +70,7 @@ export function SettingsModule() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => {
     const tabParam = searchParams?.get("tab");
-    if (tabParam && ["general", "shortcuts", "navigation"].includes(tabParam)) {
+    if (tabParam && ["general", "shortcuts", "navigation", "payroll-workflow"].includes(tabParam)) {
       return tabParam;
     }
     return "general";
@@ -81,10 +86,74 @@ export function SettingsModule() {
   const [newThemeName, setNewThemeName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
+  // Payroll Workflow state
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [checkerId, setCheckerId] = useState<string>("");
+  const [approverId, setApproverId] = useState<string>("");
+  const [loadingWorkflow, setLoadingWorkflow] = useState(false);
+  const [savingWorkflow, setSavingWorkflow] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === "payroll-workflow") {
+      fetchWorkflowData();
+    }
+  }, [activeTab]);
+
+  const fetchWorkflowData = async () => {
+    try {
+      setLoadingWorkflow(true);
+      const filterParams = { _and: [{ is_employee: { _eq: 1 } }, { _or: [{ is_deleted: { _null: true } }, { is_deleted: { _eq: 0 } }] }] };
+      const [empRes, setRes] = await Promise.all([
+        fetch(`/api/employees?path=` + encodeURIComponent(`/items/user?limit=1000&filter=${JSON.stringify(filterParams)}`)),
+        fetch("/api/payroll-settings")
+      ]);
+      if (empRes.ok) {
+        const empData = await empRes.json();
+        setEmployees(empData?.data || []);
+      }
+      if (setRes.ok) {
+        const setData = await setRes.json();
+        const first = setData?.data?.[0];
+        if (first) {
+          setCheckerId(first.checker_id?.toString() || "");
+          setApproverId(first.approver_id?.toString() || "");
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingWorkflow(false);
+    }
+  };
+
+  const saveWorkflowData = async () => {
+    try {
+      setSavingWorkflow(true);
+      const res = await fetch("/api/payroll-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          checker_id: checkerId ? parseInt(checkerId) : null,
+          approver_id: approverId ? parseInt(approverId) : null,
+        }),
+      });
+      if (res.ok) {
+        toast.success("Payroll workflow settings saved.");
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Failed to save workflow settings.");
+      }
+    } catch (e) {
+      toast.error("An error occurred while saving.");
+    } finally {
+      setSavingWorkflow(false);
+    }
+  };
+
   // Sync with URL tab param
   useEffect(() => {
     const tabParam = searchParams?.get("tab");
-    if (tabParam && ["general", "shortcuts", "navigation"].includes(tabParam)) {
+    if (tabParam && ["general", "shortcuts", "navigation", "payroll-workflow"].includes(tabParam)) {
       if (tabParam !== activeTab) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setActiveTab(tabParam);
@@ -112,7 +181,7 @@ export function SettingsModule() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-8 h-12 bg-gray-100 dark:bg-gray-800 p-1.5 rounded-xl">
+        <TabsList className="grid w-full grid-cols-4 mb-8 h-12 bg-gray-100 dark:bg-gray-800 p-1.5 rounded-xl">
           <TabsTrigger value="general" className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700">
             <Palette className="h-4 w-4 mr-2" /> Appearance
           </TabsTrigger>
@@ -121,6 +190,9 @@ export function SettingsModule() {
           </TabsTrigger>
           <TabsTrigger value="navigation" className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700">
             <Navigation className="h-4 w-4 mr-2" /> Navigation
+          </TabsTrigger>
+          <TabsTrigger value="payroll-workflow" className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700">
+            <UserCheck className="h-4 w-4 mr-2" /> Workflow
           </TabsTrigger>
         </TabsList>
 
@@ -392,7 +464,7 @@ export function SettingsModule() {
               </div>
 
               <div className="mt-6 p-4 bg-primary/5 dark:bg-primary/10 rounded-xl border border-primary/10 dark:border-primary/20 flex gap-3 text-primary">
-                <Command className="h-5 w-5 shrink-0 mt-0.5" />
+                <CommandIcon className="h-5 w-5 shrink-0 mt-0.5" />
                 <p className="text-sm">
                   <strong>Tip:</strong> You can hit <kbd className="font-bold">Ctrl + K</kbd> from anywhere to open the search bar and run these commands by name.
                 </p>
@@ -426,6 +498,123 @@ export function SettingsModule() {
                 </div>
                 <Switch checked={false} disabled />
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Payroll Workflow Tab */}
+        <TabsContent value="payroll-workflow" className="outline-none space-y-6">
+          <Card className="border-none shadow-sm bg-white dark:bg-gray-900/50">
+            <CardHeader>
+              <CardTitle className="text-lg">Payroll Workflow Roles</CardTitle>
+              <CardDescription>Assign the Maker, Checker, and Approver for payroll processing.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {loadingWorkflow ? (
+                <div className="py-8 flex justify-center text-muted-foreground">Loading workflow roles...</div>
+              ) : (
+                <div className="space-y-6 max-w-md">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Checker</Label>
+                    <p className="text-xs text-muted-foreground mb-2">User responsible for verifying the generated payroll.</p>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between"
+                        >
+                          {checkerId
+                            ? `${employees.find((e) => e.user_id.toString() === checkerId)?.user_fname} ${employees.find((e) => e.user_id.toString() === checkerId)?.user_lname} (ID: ${checkerId})`
+                            : "-- Select Checker --"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[400px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Search checker..." />
+                          <CommandList>
+                            <CommandEmpty>No employee found.</CommandEmpty>
+                            <CommandGroup>
+                              {employees.map((emp) => (
+                                <CommandItem
+                                  key={emp.user_id}
+                                  value={`${emp.user_fname} ${emp.user_lname} ${emp.user_id}`}
+                                  onSelect={() => {
+                                    setCheckerId(emp.user_id.toString());
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      checkerId === emp.user_id.toString() ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {emp.user_fname} {emp.user_lname} (ID: {emp.user_id})
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Approver</Label>
+                    <p className="text-xs text-muted-foreground mb-2">User authorized to finalize and approve the payroll.</p>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between"
+                        >
+                          {approverId
+                            ? `${employees.find((e) => e.user_id.toString() === approverId)?.user_fname} ${employees.find((e) => e.user_id.toString() === approverId)?.user_lname} (ID: ${approverId})`
+                            : "-- Select Approver --"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[400px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Search approver..." />
+                          <CommandList>
+                            <CommandEmpty>No employee found.</CommandEmpty>
+                            <CommandGroup>
+                              {employees.map((emp) => (
+                                <CommandItem
+                                  key={emp.user_id}
+                                  value={`${emp.user_fname} ${emp.user_lname} ${emp.user_id}`}
+                                  onSelect={() => {
+                                    setApproverId(emp.user_id.toString());
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      approverId === emp.user_id.toString() ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {emp.user_fname} {emp.user_lname} (ID: {emp.user_id})
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <Button 
+                    onClick={saveWorkflowData} 
+                    disabled={savingWorkflow}
+                    className="w-full"
+                  >
+                    {savingWorkflow ? "Saving..." : "Save Workflow Settings"}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
