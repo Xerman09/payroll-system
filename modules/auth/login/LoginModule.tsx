@@ -6,7 +6,7 @@ import { useLogin } from "./providers/useLogin";
 import Link from "next/link";
 import { Shield, Zap, Lock } from "lucide-react";
 
-export default function LoginModule() {
+export default function LoginModule({ companyName, companyColor }: { companyName?: string, companyColor?: string }) {
   const { login, loading } = useLogin();
 
   return (
@@ -133,7 +133,13 @@ export default function LoginModule() {
               className="space-y-8"
             >
               {/* Form Header */}
-              <div className="space-y-2">
+              <div className="space-y-2 relative">
+                {companyName && (
+                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 mb-2">
+                    <div className="w-1.5 h-1.5 rounded-full shadow-sm" style={{ backgroundColor: companyColor || '#06b6d4', boxShadow: `0 0 8px ${companyColor || '#06b6d4'}` }} />
+                    <span className="text-[10px] font-black text-white/70 uppercase tracking-widest">{companyName}</span>
+                  </div>
+                )}
                 <h2 className="text-2xl font-black text-white uppercase tracking-tight">
                   Login Page
                 </h2>
