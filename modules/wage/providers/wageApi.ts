@@ -697,7 +697,7 @@ export async function fetchBenefitLogsByUser(
   userId: number
 ): Promise<BenefitLogRecord[]> {
   const qs = new URLSearchParams({
-    limit: "300",
+    limit: "-1",
     sort: "-created_date",
     [`filter[user_id][_eq]`]: String(userId),
   }).toString();
