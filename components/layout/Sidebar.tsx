@@ -29,6 +29,7 @@ import {
   ClipboardCheck,
   CheckCircle2,
   FileText,
+  FileSearch,
 } from "lucide-react";
 import { getLoggedUser } from "@/lib/auth";
 
@@ -45,6 +46,7 @@ function Sidebar() {
   const [openDropdowns, setOpenDropdowns] = React.useState<string[]>([]);
 
   const [userId, setUserId] = React.useState<string | number>("me");
+  const [isCheckerVisible, setIsCheckerVisible] = React.useState(false);
   const [isApprovalsVisible, setIsApprovalsVisible] = React.useState(false);
   const [isHR, setIsHR] = React.useState(true);
 
@@ -55,7 +57,8 @@ function Sidebar() {
       
       if (user.isHR !== undefined) {
         setIsHR(user.isHR);
-        setIsApprovalsVisible(user.isChecker || user.isApprover);
+        setIsCheckerVisible(user.isChecker);
+        setIsApprovalsVisible(user.isApprover);
       } else {
         // Fallback for old tokens
         fetch("/api/payroll-settings")
@@ -63,9 +66,8 @@ function Sidebar() {
           .then(json => {
             const settings = Array.isArray(json.data) ? json.data[0] : json.data;
             if (settings) {
-               const isChecker = Number(settings.checker_id) === Number(user.user_id);
-               const isApprover = Number(settings.approver_id) === Number(user.user_id);
-               setIsApprovalsVisible(isChecker || isApprover);
+               setIsCheckerVisible(Number(settings.checker_id) === Number(user.user_id));
+               setIsApprovalsVisible(Number(settings.approver_id) === Number(user.user_id));
             }
           })
           .catch(err => console.error("Failed to load payroll settings for sidebar", err));
@@ -149,6 +151,11 @@ function Sidebar() {
             href: `/attendance-approval/${userId}`,
             icon: <ClipboardCheck size={18} />,
           },
+          ...(isCheckerVisible ? [{
+            title: "Payroll Checking",
+            href: `/payroll-checking/${userId}`,
+            icon: <FileSearch size={18} />,
+          }] : []),
           ...(isApprovalsVisible ? [{
             title: "Payroll Approvals",
             href: `/payroll-approvals/${userId}`,
@@ -214,6 +221,11 @@ function Sidebar() {
         {
           panel: "Processing",
           items: [
+            ...(isCheckerVisible ? [{
+              title: "Payroll Checking",
+              href: `/payroll-checking/${userId}`,
+              icon: <FileSearch size={18} />,
+            }] : []),
             ...(isApprovalsVisible ? [{
               title: "Payroll Approvals",
               href: `/payroll-approvals/${userId}`,

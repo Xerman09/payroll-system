@@ -86,8 +86,15 @@ export default function DashboardLayout({
   useEffect(() => {
     const user = getLoggedUser() as any;
     if (user && user.isHR === false) {
-      if (!pathname.startsWith('/payroll-approvals')) {
-        router.replace(`/payroll-approvals/${user.user_id}`);
+      const isChecking = pathname.startsWith('/payroll-checking');
+      const isApproving = pathname.startsWith('/payroll-approvals');
+      
+      if (!isChecking && !isApproving) {
+        if (user.isChecker) {
+          router.replace(`/payroll-checking/${user.user_id}`);
+        } else if (user.isApprover) {
+          router.replace(`/payroll-approvals/${user.user_id}`);
+        }
       }
     }
   }, [pathname, router]);

@@ -88,11 +88,9 @@ export default function PayrollApprovalsModule() {
       setIsApprover(approver);
 
       // 2. Fetch pending runs based on role
-      const allowedStatuses: string[] = [];
-      if (checker) allowedStatuses.push("PENDING_CHECKER");
-      if (approver) allowedStatuses.push("PENDING_APPROVER");
+      const allowedStatuses = ["PENDING_APPROVER"];
 
-      if (allowedStatuses.length === 0) {
+      if (!approver) {
         setRuns([]);
         setLoading(false);
         return;
@@ -138,15 +136,15 @@ export default function PayrollApprovalsModule() {
   async function handleVerify() {
     if (!selectedRun || !loggedUser) return;
     try {
-      await svc.verifyRun({
+      await svc.postRun({
         payrollRunId: selectedRun.payroll_run_id,
-        verifiedBy: Number(loggedUser.user_id),
+        postedBy: Number(loggedUser.user_id),
       });
-      toast.success("Payroll run verified and sent to Approver.");
+      toast.success("Payroll run successfully posted!");
       setSelectedRun(null);
       fetchQueue();
     } catch (e: any) {
-      toast.error(e.message || "Failed to verify run");
+      toast.error(e.message || "Failed to post run");
     }
   }
 
@@ -209,7 +207,7 @@ export default function PayrollApprovalsModule() {
                 <XCircle className="mr-2 h-4 w-4" /> Reject
               </Button>
               <Button variant="default" onClick={handleVerify} className="bg-green-600 hover:bg-green-700">
-                <CheckCircle2 className="mr-2 h-4 w-4" /> Verify
+                <CheckCircle2 className="mr-2 h-4 w-4" /> Post Payroll
               </Button>
             </div>
           </div>
@@ -269,11 +267,11 @@ export default function PayrollApprovalsModule() {
             Payroll Approvals
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Review and verify pending payroll runs.
+            Final review and posting of payroll runs.
           </p>
-          {!isChecker && !isApprover && (
+          {!isApprover && (
             <div className="mt-4 p-4 border rounded-lg bg-yellow-50 text-yellow-800">
-              You are not assigned as a Checker or Approver in the system settings.
+              You are not assigned as an Approver in the system settings.
             </div>
           )}
         </div>
