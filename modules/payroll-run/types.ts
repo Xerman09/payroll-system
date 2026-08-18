@@ -646,6 +646,7 @@ export interface PayrollComputedLine {
 
   // status
   is_deleted?: number;
+  is_already_posted?: boolean;
 
   // proration
   is_prorated?: boolean;

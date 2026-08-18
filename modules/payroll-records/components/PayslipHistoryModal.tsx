@@ -83,6 +83,7 @@ export default function PayslipHistoryModal({
         sp.set("resource", "payroll_run_employee");
         sp.set("fields", "*,payroll_run_id.payroll_ref_no,payroll_run_id.posted_at");
         sp.set("filter[user_id][_eq]", String(employee.user_id));
+        sp.set("filter[payroll_run_id][status][_eq]", "POSTED");
         sp.set("sort", "-cutoff_end");
         sp.set("limit", "1000");
         

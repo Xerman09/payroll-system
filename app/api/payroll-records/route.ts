@@ -234,6 +234,9 @@ export async function GET(req: NextRequest) {
       // ✅ BOOLEAN-SAFE: exclude rows where on_hold === true
       qp.set("filter[on_hold][_neq]", "true");
 
+      // ✅ Only include POSTED payrolls
+      qp.set("filter[payroll_run_id][status][_eq]", "POSTED");
+
       const r = await directusFetch(`/items/payroll_run_employee?${qp.toString()}`);
       if (!r.ok) return json({ error: "External API error", ...r }, config.name, { status: r.status });
 
@@ -295,13 +298,13 @@ export async function GET(req: NextRequest) {
 
           try {
             const runPath = `/items/payroll_run?filter[cutoff_start][_eq]=${cutoffStart}&filter[cutoff_end][_eq]=${cutoffEnd}&filter[status][_eq]=POSTED`;
-            const currEmpPath = `/items/payroll_run_employee?limit=-1&filter[cutoff_start][_eq]=${cutoffStart}&filter[cutoff_end][_eq]=${cutoffEnd}&filter[on_hold][_neq]=true`;
+            const currEmpPath = `/items/payroll_run_employee?limit=-1&filter[cutoff_start][_eq]=${cutoffStart}&filter[cutoff_end][_eq]=${cutoffEnd}&filter[on_hold][_neq]=true&filter[payroll_run_id][status][_eq]=POSTED`;
 
             let prevRunPath = null;
             let prevEmpPath = null;
             if (prevCutoff) {
               prevRunPath = `/items/payroll_run?filter[cutoff_start][_eq]=${prevCutoff.start_date}&filter[cutoff_end][_eq]=${prevCutoff.end_date}&filter[status][_eq]=POSTED`;
-              prevEmpPath = `/items/payroll_run_employee?limit=-1&filter[cutoff_start][_eq]=${prevCutoff.start_date}&filter[cutoff_end][_eq]=${prevCutoff.end_date}&filter[on_hold][_neq]=true`;
+              prevEmpPath = `/items/payroll_run_employee?limit=-1&filter[cutoff_start][_eq]=${prevCutoff.start_date}&filter[cutoff_end][_eq]=${prevCutoff.end_date}&filter[on_hold][_neq]=true&filter[payroll_run_id][status][_eq]=POSTED`;
             }
 
             // Parallelize WITHIN the company too

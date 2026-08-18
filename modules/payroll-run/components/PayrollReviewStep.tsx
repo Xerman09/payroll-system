@@ -722,7 +722,11 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                         </TableCell>
 
                         <TableCell className="text-center">
-                          {onHold ? (
+                          {rowTyped?.is_already_posted ? (
+                            <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                              Posted
+                            </span>
+                          ) : onHold ? (
                             <span className="inline-flex rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-semibold text-yellow-900">
                               On hold
                             </span>

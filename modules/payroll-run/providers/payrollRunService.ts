@@ -1375,6 +1375,11 @@ export async function enforceOnHoldEmployeesAndMaybeRerun(args: {
   const persistedHoldNormalized = normalizeHoldMapForUsers(userIds, persistedHold);
   const postedHadHolds = Array.from(persistedHoldNormalized.values()).some(Boolean);
 
+  // Set already posted flag for UI
+  computed.lines.forEach((line) => {
+    line.is_already_posted = status === "POSTED" && persistedHold.has(line.user_id) && !persistedHold.get(line.user_id);
+  });
+
   // ✅ POSTED runs are only rerunnable if they are "unfinished"
   if (status === "POSTED" && !postedHadHolds) {
     return {
