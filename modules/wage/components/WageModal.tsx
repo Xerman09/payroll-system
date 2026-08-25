@@ -12,6 +12,7 @@ import { BenefitsTab } from "./tabs/BenefitsTab";
 import { OtherADTab } from "./tabs/OtherADTab";
 import { StockPurchaseTab } from "./tabs/StockPurchaseTab";
 import { SavingsTab } from "./tabs/SavingsTab";
+import { BanksTab } from "./tabs/BanksTab";
 import ConfirmDialog from "./ConfirmDialog";
 
 import {
@@ -102,7 +103,7 @@ function getLoggedUserId(): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-type TabKey = "wage" | "savings" | "loans" | "retro" | "allowance" | "benefits" | "stock" | "other";
+type TabKey = "wage" | "banks" | "savings" | "loans" | "retro" | "allowance" | "benefits" | "stock" | "other";
 
 // Theme tokens
 const PAYROLL_PRIMARY =
@@ -1337,7 +1338,24 @@ export default function WageModal({
                           </span>
                         </TabsTrigger>
 
-                        {/* ✅ Savings (now consistent) */}
+                        {/* Banks */}
+                        <TabsTrigger
+                          value="banks"
+                          className="group w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-left
+                            text-slate-700 dark:text-slate-200
+                            data-[state=active]:bg-persian-blue-800 data-[state=active]:text-white
+                            data-[state=active]:shadow-sm"
+                        >
+                          <PiggyBank className="h-4 w-4 opacity-80 group-data-[state=active]:opacity-100" />
+                          <span className="hidden md:flex md:flex-col md:leading-tight">
+                            <span className="text-sm font-medium">Bank Accounts</span>
+                            <span className="text-xs font-normal text-slate-500 group-data-[state=active]:text-white/80">
+                              Banks
+                            </span>
+                          </span>
+                        </TabsTrigger>
+
+                        {/* 1. Savings (now consistent) */}
                         <TabsTrigger
                           value="savings"
                           className="group w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-left
@@ -1504,6 +1522,14 @@ export default function WageModal({
                           wageData={wageData}
                           setWageData={setWageData}
                           salarySchedules={salarySchedules}
+                        />
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="banks" className="mt-0">
+                      <div className="rounded-xl border bg-white p-5 shadow-sm dark:bg-slate-950">
+                        <BanksTab
+                          selectedEmployee={selectedEmployee}
                         />
                       </div>
                     </TabsContent>

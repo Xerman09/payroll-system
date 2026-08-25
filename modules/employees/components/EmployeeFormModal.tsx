@@ -10,9 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { User, MapPin, Briefcase, BadgeCheck, Loader2 } from "lucide-react";
+import { User, MapPin, Briefcase, BadgeCheck, Loader2, PiggyBank, Trash2 } from "lucide-react";
 
-import type { Employee, Department, EmploymentStatus } from "../types";
+import type { Employee, Department, EmploymentStatus, BankName, UserBank } from "../types";
 import type { PSGCRegion, PSGCProvince, PSGCCityMunicipality, PSGCBarangay } from "../../compensation-settings/types";
 import { getAllProvincesAndDistricts, getCitiesInProvince, getBarangaysInCity } from "../../compensation-settings/utils/psgcApi";
 import * as employeeApi from "../providers/employeeApi";
@@ -48,6 +48,13 @@ export default function EmployeeFormModal({
   const [loadingProvinces, setLoadingProvinces] = useState(false);
   const [loadingCities, setLoadingCities] = useState(false);
   const [loadingBarangays, setLoadingBarangays] = useState(false);
+
+  // Bank State
+  const [bankNames, setBankNames] = useState<BankName[]>([]);
+  const [userBanks, setUserBanks] = useState<UserBank[]>([]);
+  const [loadingBanks, setLoadingBanks] = useState(false);
+  const [newBankId, setNewBankId] = useState("");
+  const [newBankAcct, setNewBankAcct] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -87,6 +94,24 @@ export default function EmployeeFormModal({
       }
     }
   }, [open, employee]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (open) {
+      setLoadingBanks(true);
+      Promise.all([
+        employeeApi.fetchBankNames(),
+        employee?.user_id ? employeeApi.fetchUserBanks(employee.user_id) : Promise.resolve([])
+      ]).then(([bn, ub]) => {
+        if (mounted) {
+          setBankNames(bn);
+          setUserBanks(ub);
+        }
+      }).catch(console.error).finally(() => {
+        if (mounted) setLoadingBanks(false);
+      });
+    }
+  }, [open, employee?.user_id]);
 
   // Reverse lookup to populate cascading dropdowns automatically when editing
   useEffect(() => {
@@ -167,6 +192,64 @@ export default function EmployeeFormModal({
     setFormData(prev => ({ ...prev, user_brgy: code ? name : null }));
   };
 
+  const handleAddBank = async () => {
+    if (!employee?.user_id || !newBankId || !newBankAcct) return;
+    try {
+      setSaving(true);
+      const isFirst = userBanks.length === 0;
+      const created = await employeeApi.createUserBank({
+        user_id: employee.user_id,
+        bank_id: Number(newBankId),
+        account_number_hash: newBankAcct,
+        is_active: isFirst ? 1 : 0
+      });
+      const bMatch = bankNames.find(b => b.id === Number(newBankId));
+      setUserBanks(prev => [...prev, { ...created, bank: bMatch }]);
+      setNewBankId("");
+      setNewBankAcct("");
+      toast.success("Bank account added");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add bank");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSetBankActive = async (ub: UserBank) => {
+    if (!ub.id || !employee?.user_id) return;
+    try {
+      setSaving(true);
+      const others = userBanks.filter(b => b.id !== ub.id && (b.is_active === 1 || b.is_active === true));
+      for (const o of others) {
+        if (o.id) await employeeApi.updateUserBank(o.id, { is_active: 0 });
+      }
+      await employeeApi.updateUserBank(ub.id, { is_active: 1 });
+      
+      setUserBanks(prev => prev.map(b => ({
+        ...b,
+        is_active: b.id === ub.id ? 1 : 0
+      })));
+      toast.success("Active bank updated");
+    } catch (err: any) {
+      toast.error("Failed to update active bank");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteBank = async (id: number) => {
+    try {
+      setSaving(true);
+      await employeeApi.deleteUserBank(id);
+      setUserBanks(prev => prev.filter(b => b.id !== id));
+      toast.success("Bank account deleted");
+    } catch(err: any) {
+      toast.error("Failed to delete bank");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -198,7 +281,7 @@ export default function EmployeeFormModal({
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-4">
           <Tabs defaultValue="personal" className="w-full">
-            <TabsList className="grid grid-cols-4 mb-4">
+            <TabsList className="grid grid-cols-5 mb-4">
               <TabsTrigger value="personal" className="flex gap-2">
                 <User className="h-4 w-4" /> Personal
               </TabsTrigger>
@@ -210,6 +293,9 @@ export default function EmployeeFormModal({
               </TabsTrigger>
               <TabsTrigger value="ids" className="flex gap-2">
                 <BadgeCheck className="h-4 w-4" /> IDs & Extras
+              </TabsTrigger>
+              <TabsTrigger value="banks" className="flex gap-2">
+                <PiggyBank className="h-4 w-4" /> Banks
               </TabsTrigger>
             </TabsList>
 
@@ -398,6 +484,67 @@ export default function EmployeeFormModal({
                   <Input name="rf_id" value={formData.rf_id || ""} onChange={handleChange} />
                 </div>
               </div>
+            </TabsContent>
+
+            {/* Banks Tab */}
+            <TabsContent value="banks" className="space-y-4">
+              {!employee?.user_id ? (
+                <div className="text-center p-8 text-muted-foreground bg-muted/50 rounded-lg border border-dashed">
+                  Please save the employee first to add bank accounts.
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="bg-muted/50 p-4 rounded-lg border flex flex-col md:flex-row items-end gap-4">
+                    <div className="space-y-2 flex-1 w-full">
+                      <Label>Bank Name</Label>
+                      <select value={newBankId} onChange={e => setNewBankId(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                        <option value="">Select Bank</option>
+                        {bankNames.map(b => (
+                          <option key={b.id} value={b.id}>{b.bank_name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2 flex-1 w-full">
+                      <Label>Account Number</Label>
+                      <Input value={newBankAcct} onChange={e => setNewBankAcct(e.target.value)} placeholder="Enter account number..." />
+                    </div>
+                    <Button type="button" onClick={handleAddBank} disabled={!newBankId || !newBankAcct || saving} className="w-full md:w-auto">
+                      Add Bank
+                    </Button>
+                  </div>
+
+                  {loadingBanks ? (
+                    <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                  ) : userBanks.length === 0 ? (
+                    <div className="text-center p-8 text-muted-foreground border rounded-lg border-dashed">
+                      No bank accounts added yet.
+                    </div>
+                  ) : (
+                    <div className="border rounded-md divide-y">
+                      {userBanks.map(ub => (
+                        <div key={ub.id} className="flex items-center justify-between p-4 bg-card">
+                          <div>
+                            <p className="font-medium">{ub.bank?.bank_name || `Bank ID: ${ub.bank_id}`}</p>
+                            <p className="text-sm text-muted-foreground">{ub.account_number_hash}</p>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            {ub.is_active === 1 || ub.is_active === true ? (
+                              <span className="text-xs font-semibold bg-primary/10 text-primary px-2 py-1 rounded-full">Active</span>
+                            ) : (
+                              <Button type="button" variant="outline" size="sm" onClick={() => handleSetBankActive(ub)} disabled={saving}>
+                                Set Active
+                              </Button>
+                            )}
+                            <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => ub.id && handleDeleteBank(ub.id)} disabled={saving || ub.is_active === 1 || ub.is_active === true}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </TabsContent>
           </Tabs>
 

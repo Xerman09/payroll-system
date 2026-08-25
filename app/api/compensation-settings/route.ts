@@ -63,6 +63,7 @@ function getResourceInfo(resource: string | null) {
     case "location": return { table: "payroll_logistics_location", softDelete: true };
     case "staff": return { table: "payroll_logistics_staff", softDelete: true };
     case "vehicle_type": return { table: "vehicle_type", softDelete: false };
+    case "bank": return { table: "bank_names", softDelete: false };
     default: return null;
   }
 }

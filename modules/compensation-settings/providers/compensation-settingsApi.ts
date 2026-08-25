@@ -51,3 +51,9 @@ export const fetchVehicleTypes = () => apiFetch("vehicle_type");
 export const createVehicleType = (data: Partial<LogisticsVehicleType>) => apiMutate("POST", "vehicle_type", data);
 export const patchVehicleType = (id: number, data: Partial<LogisticsVehicleType>) => apiMutate("PATCH", "vehicle_type", { ...data, id });
 export const deleteVehicleType = (id: number) => apiMutate("DELETE", "vehicle_type", { id });
+
+// Bank API
+export const fetchBanks = () => apiFetch("bank");
+export const createBank = (data: { bank_name: string }) => apiMutate("POST", "bank", data);
+export const patchBank = (id: number, data: { bank_name: string }) => apiMutate("PATCH", "bank", { ...data, id });
+export const deleteBank = (id: number) => apiMutate("DELETE", "bank", { id });

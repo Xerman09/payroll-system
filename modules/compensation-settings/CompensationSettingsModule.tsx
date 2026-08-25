@@ -11,12 +11,13 @@ import AreaTab from './components/AreaTab';
 import LocationTab from './components/LocationTab';
 import StaffTab from './components/StaffTab';
 import VehicleTypeTab from './components/VehicleTypeTab';
+import BankTab from './components/BankTab';
 
 export default function CompensationSettingsModule() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => {
     const tabParam = searchParams?.get("tab");
-    const validTabs = ["area", "location", "vehicle", "staff"];
+    const validTabs = ["area", "location", "vehicle", "staff", "bank"];
     if (tabParam && validTabs.includes(tabParam)) {
       return tabParam;
     }
@@ -26,7 +27,7 @@ export default function CompensationSettingsModule() {
   // Synchronize activeTab with URL 'tab' parameter
   useEffect(() => {
     const tabParam = searchParams?.get("tab");
-    const validTabs = ["area", "location", "vehicle", "staff"];
+    const validTabs = ["area", "location", "vehicle", "staff", "bank"];
     if (tabParam && validTabs.includes(tabParam)) {
       if (tabParam !== activeTab) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -62,6 +63,9 @@ export default function CompensationSettingsModule() {
             <TabsTrigger value="staff" className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700">
               Staff
             </TabsTrigger>
+            <TabsTrigger value="bank" className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700">
+              Banks
+            </TabsTrigger>
           </TabsList>
 
           <Card className="border shadow-sm bg-white dark:bg-gray-900 w-full py-0">
@@ -80,6 +84,10 @@ export default function CompensationSettingsModule() {
 
               <TabsContent value="staff" className="mt-0">
                 <StaffTab />
+              </TabsContent>
+
+              <TabsContent value="bank" className="mt-0">
+                <BankTab />
               </TabsContent>
             </CardContent>
           </Card>

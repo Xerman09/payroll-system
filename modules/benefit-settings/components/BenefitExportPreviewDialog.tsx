@@ -141,7 +141,7 @@ export default function BenefitExportPreviewDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col flex-1 overflow-hidden p-6 gap-6 dark:bg-gray-950/20">
+        <div className="flex flex-col flex-1 overflow-hidden min-h-0 p-6 gap-6 dark:bg-gray-950/20">
           {/* Selections / Filters */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
             <div className="space-y-1.5">
@@ -199,7 +199,7 @@ export default function BenefitExportPreviewDialog({
                     const sortedRanges = Array.from(uniqueRanges.entries()).sort((a, b) => b[0].localeCompare(a[0]));
 
                     return sortedRanges.map(([key, label]) => (
-                      <SelectItem key={key} value={key}>
+                       <SelectItem key={key} value={key}>
                         {label}
                       </SelectItem>
                     ));
@@ -261,7 +261,7 @@ export default function BenefitExportPreviewDialog({
           <Separator />
 
           {/* Preview Table */}
-          <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-gray-900 border dark:border-gray-800 rounded-xl shadow-inner">
+          <div className="flex-1 flex flex-col overflow-hidden min-h-0 bg-white dark:bg-gray-900 border dark:border-gray-800 rounded-xl shadow-inner">
             <div className="bg-slate-50/80 dark:bg-gray-800/80 px-4 py-2 flex justify-between items-center border-b dark:border-gray-800">
               <span className="text-sm font-medium text-slate-600 dark:text-gray-400">
                 {filtered.length} entries matching selection

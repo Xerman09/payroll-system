@@ -35,7 +35,12 @@ export async function POST(req: Request) {
       "user_image",
     ].join(",");
 
-    const res = await fetch(`${API_BASE}/items/user/${userId}?fields=${fields}`, {
+    const qs = new URLSearchParams();
+    qs.append("limit", "1");
+    qs.append("filter[user_id][_eq]", String(userId));
+    qs.append("fields", fields);
+
+    const res = await fetch(`${API_BASE}/items/user?${qs.toString()}`, {
       cache: "no-store",
       // Use the company/service token — request specific fields only, never wildcard with a token.
       headers: buildForwardHeaders(req, config, { forceServiceToken: true }),
@@ -48,7 +53,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const { data: user } = await res.json();
+    const { data } = await res.json();
+    const user = data?.[0];
 
     if (!user) {
       return NextResponse.json(

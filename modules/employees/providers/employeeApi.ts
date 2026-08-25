@@ -1,4 +1,4 @@
-import type { Employee, Department, EmploymentStatus } from "../types";
+import type { Employee, Department, EmploymentStatus, BankName, UserBank } from "../types";
 
 const BASE_API = "/api/employees";
 const BATCH_SIZE = 100;
@@ -187,6 +187,41 @@ export async function updateEmployee(userId: number, payload: Partial<Employee>)
 
 export async function deleteEmployee(userId: number): Promise<void> {
   await apiFetch(`/items/user/${userId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function fetchBankNames(): Promise<BankName[]> {
+  return fetchAllInBatches<BankName>("/items/bank_names");
+}
+
+export async function fetchUserBanks(userId: number): Promise<UserBank[]> {
+  const params = new URLSearchParams({
+    "filter[user_id][_eq]": String(userId),
+    "fields": "id,user_id,bank_id,account_number_hash,is_active,bank.*"
+  });
+  const json = await apiFetch(`/items/user_bank?${params.toString()}`);
+  return (json.data || []) as UserBank[];
+}
+
+export async function createUserBank(payload: Partial<UserBank>): Promise<UserBank> {
+  const json = await apiFetch("/items/user_bank", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return json.data;
+}
+
+export async function updateUserBank(id: number, payload: Partial<UserBank>): Promise<UserBank> {
+  const json = await apiFetch(`/items/user_bank/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+  return json.data;
+}
+
+export async function deleteUserBank(id: number): Promise<void> {
+  await apiFetch(`/items/user_bank/${id}`, {
     method: "DELETE",
   });
 }
