@@ -43,6 +43,10 @@ import * as svc from "./providers/payrollRunService";
 import * as api from "./providers/payrollApi";
 import { formatCutoffLabel } from "./utils/payroll";
 
+const loggedUser = getLoggedUser();
+const isCheckerOrApprover =
+  loggedUser?.role === "CHECKER" || loggedUser?.role === "APPROVER";
+
 const DEFAULT_CONFIG: PayrollConfigState = {
   cutoffId: null,
   departmentId: null, // null = ALL
@@ -449,24 +453,26 @@ export default function PayrollRunModule({ showLaborLawModal = true }: { showLab
               </div>
 
               <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    // ✅ Trigger shadcn AlertDialog when user is in Adjust step.
-                    if (step === 2) {
-                      window.dispatchEvent(
-                        new CustomEvent("payroll-run:request-start-over"),
-                      );
-                      return;
-                    }
-                    startOver();
-                  }}
-                  disabled={busy}
-                  className="gap-2"
-                >
-                  <RefreshCcw className="h-4 w-4" />
-                  Start Over
-                </Button>
+                {!isCheckerOrApprover && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      // ✅ Trigger shadcn AlertDialog when user is in Adjust step.
+                      if (step === 2) {
+                        window.dispatchEvent(
+                          new CustomEvent("payroll-run:request-start-over"),
+                        );
+                        return;
+                      }
+                      startOver();
+                    }}
+                    disabled={busy}
+                    className="gap-2"
+                  >
+                    <RefreshCcw className="h-4 w-4" />
+                    Start Over
+                  </Button>
+                )}
 
                 {step === 4 ? (
                   <Button

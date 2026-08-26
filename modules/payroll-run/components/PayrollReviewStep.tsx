@@ -253,7 +253,11 @@ function dedupeRowsClient(rows: unknown[]) {
   return out;
 }
 
+import { getLoggedUser } from "@/lib/auth";
+
 export function PayrollReviewStep(props: PayrollReviewStepProps) {
+  const user = getLoggedUser();
+  const isCheckerOrApprover = user?.role === "CHECKER" || user?.role === "APPROVER";
   const lines = React.useMemo(() => resolveLines(props), [props]);
 
   const [isPosting, setIsPosting] = React.useState(false);
@@ -612,7 +616,7 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
               </Button>
             ) : null}
 
-            {props.onStartOver ? (
+            {props.onStartOver && !isCheckerOrApprover ? (
               <Button
                 variant="outline"
                 onClick={props.onStartOver}
@@ -668,6 +672,7 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                     <TableHead className="text-right">Net Pay</TableHead>
                     <TableHead className="text-right">Variance</TableHead>
                     <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-center">Action</TableHead>
                   </TableRow>
                 </TableHeader>
 
@@ -740,6 +745,46 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                             </span>
                           )}
                         </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="View Payslip"
+                            disabled={isPrinting || props.isBusy}
+                            onClick={async () => {
+                              try {
+                                setIsPrinting(true);
+                                let finalRows = [row];
+                                let companyName = "Vertex Technology Corporation";
+                                if (runId && !rowsHaveBreakdown([row])) {
+                                  const res = await fetchPayrollRunEmployeesForPrint(runId);
+                                  finalRows = res.rows.filter((r: any) => getRowId(r) === id);
+                                  if (res.companyName) companyName = res.companyName;
+                                }
+                                const doc = await buildPayslipsPdf({
+                                  rows: finalRows as PayrollComputedLine[],
+                                  payrollPeriodLabel,
+                                  pageSize: "LEGAL",
+                                  payrollRefNo: props?.run?.payroll_ref_no,
+                                  postedAt: props?.run?.posted_at ?? undefined,
+                                  companyName,
+                                });
+                                const blob = doc.output("blob");
+                                if (previewUrl) URL.revokeObjectURL(previewUrl);
+                                const url = URL.createObjectURL(blob);
+                                setPreviewUrl(url);
+                                setPreviewOpen(true);
+                                setIsPrinting(false);
+                              } catch (e: unknown) {
+                                const err = e as Error;
+                                toast.error(err?.message || "Failed to preview payslip");
+                                setIsPrinting(false);
+                              }
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -747,7 +792,7 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                   {displayLines.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={8}
                         className="py-8 text-center text-sm text-muted-foreground"
                       >
                         No computed payroll lines found for this run.
