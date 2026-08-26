@@ -188,7 +188,7 @@ export function BanksTab({ selectedEmployee }: Props) {
               <div>
                 <p className="font-medium text-sm flex items-center gap-2">
                   <PiggyBank className="h-4 w-4 text-slate-400" />
-                  {ub.bank?.bank_name || `Bank ID: ${ub.bank_id}`}
+                  {bankNames.find(b => b.id === ub.bank_id)?.bank_name || ub.bank?.bank_name || `Bank ID: ${ub.bank_id}`}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1 ml-6">{ub.account_number_hash}</p>
               </div>
