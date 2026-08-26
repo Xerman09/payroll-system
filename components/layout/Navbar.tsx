@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useSidebar } from "@/providers/SidebarProvider";
 import { getLoggedUser, type JWTPayload } from "@/lib/auth";
-import { getCompanyById } from "@/lib/companies";
+import { getCompanyById, COMPANIES } from "@/lib/companies";
 
 export default function Navbar() {
   const { theme, setTheme } = useTheme();
@@ -42,14 +42,13 @@ export default function Navbar() {
   };
 
   const [user, setUser] = useState<JWTPayload | null>(() => getLoggedUser());
-  const [companyName, setCompanyName] = useState("Vertex Technology Corps.");
+  const [companyName, setCompanyName] = useState(() => getCompanyById("dummy")?.name || COMPANIES[0]?.name || "Enterprise Resource Hub");
 
   useEffect(() => {
     // Listen for storage changes in other tabs
     const handleStorage = () => setUser(getLoggedUser());
     window.addEventListener("storage", handleStorage);
 
-    // Retrieve the active company from cookie
     const getCookie = (name: string) => {
       if (typeof document === 'undefined') return null;
       const value = `; ${document.cookie}`;
@@ -58,14 +57,28 @@ export default function Navbar() {
       return null;
     };
     
-    const compId = getCookie("selected_company_id");
-    if (compId) {
-      const comp = getCompanyById(compId);
-      if (comp) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setCompanyName(comp.name);
-      }
-    }
+    // Fetch entities from API since env vars aren't available on client
+    fetch("/api/entities")
+      .then(res => res.json())
+      .then(json => {
+        if (json.success && json.data) {
+          const compId = getCookie("selected_company_id");
+          let targetComp;
+          
+          if (compId) {
+            targetComp = json.data.find((c: any) => c.id === compId);
+          }
+          
+          if (!targetComp) {
+            targetComp = json.data.find((c: any) => c.id === "dummy") || json.data[0];
+          }
+
+          if (targetComp) {
+            setCompanyName(targetComp.name);
+          }
+        }
+      })
+      .catch(err => console.error("Failed to load company for navbar:", err));
 
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
