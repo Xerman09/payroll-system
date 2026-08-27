@@ -544,6 +544,24 @@ export function LoansTab({
                     className="h-10"
                   />
                 </div>
+                {loanDraft.loan_type === "CAR LOAN" && (
+                  <div className="flex flex-col">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      End Date
+                    </label>
+                    <Input
+                      type="date"
+                      value={loanDraft.end_date || ""}
+                      onChange={(e) =>
+                        setLoanDraft((p) => ({
+                          ...p,
+                          end_date: e.target.value,
+                        }))
+                      }
+                      className="h-10"
+                    />
+                  </div>
+                )}
                 <div className="flex flex-col">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                     Accumulated Amount
@@ -679,6 +697,9 @@ export function LoansTab({
                 Start
               </TableHead>
               <TableHead className="text-gray-600 font-semibold text-xs">
+                End
+              </TableHead>
+              <TableHead className="text-gray-600 font-semibold text-xs">
                 Status
               </TableHead>
               <TableHead className="text-gray-600 font-semibold text-xs text-right">
@@ -691,7 +712,7 @@ export function LoansTab({
             {loanLoading ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
+                  colSpan={10}
                   className="h-12 text-center text-gray-500 text-sm"
                 >
                   Loading loans...
@@ -700,7 +721,7 @@ export function LoansTab({
             ) : loans.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
+                  colSpan={10}
                   className="h-12 text-center text-gray-500 text-sm"
                 >
                   No loans found.
@@ -709,7 +730,7 @@ export function LoansTab({
             ) : totalFiltered === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
+                  colSpan={10}
                   className="h-12 text-center text-gray-500 text-sm"
                 >
                   No results{q ? ` for "${q}"` : ""}.
@@ -742,6 +763,7 @@ export function LoansTab({
                       ₱ {money(l.accumulated_amount || 0)}
                     </TableCell>
                     <TableCell className="text-sm">{safeFormatDate(l.start_date)}</TableCell>
+                    <TableCell className="text-sm">{safeFormatDate(l.end_date)}</TableCell>
 
                     <TableCell>
                       {(() => {
