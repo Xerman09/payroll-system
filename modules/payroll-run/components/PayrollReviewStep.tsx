@@ -18,7 +18,7 @@ import {
   rowsHaveBreakdown,
 } from "../providers/payslipPrintProvider";
 import { buildPayslipsPdf } from "../utils/payslipPdf";
-import { Eye, FileDown, Loader2, CheckCircle2, PauseCircle, PlayCircle } from "lucide-react";
+import { Eye, FileDown, Loader2, CheckCircle2, PauseCircle, PlayCircle, XCircle } from "lucide-react";
 import { toggleEmployeeHold } from "../providers/payrollApi";
 
 import { cn } from "@/lib/utils";
@@ -380,6 +380,12 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
       };
     });
   }, [lines, getDeptNameForLine]);
+
+  // Dynamic terminology based on whether it's the Maker or the Checker/Approver
+  const isReviewPhase = props.run?.status === "PENDING_CHECKER" || props.run?.status === "PENDING_APPROVER";
+  const actionNoun = isReviewPhase ? "Reject" : "Hold";
+  const actionVerb = isReviewPhase ? "Reject" : "Put on Hold";
+  const actionDesc = isReviewPhase ? "rejecting this employee line" : "putting this employee on hold";
 
   const summary = React.useMemo(() => {
     const s = props.summary ?? null;
@@ -822,11 +828,11 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                               <Eye className="h-4 w-4" />
                             </Button>
                             
-                            {isCheckerOrApprover && Boolean(rowTyped?.id || rowTyped?.payroll_run_employee_id) && (
+                            {props.allowHoldActions && Boolean(rowTyped?.id || rowTyped?.payroll_run_employee_id) && (
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                title={onHold ? "Remove Hold" : "Put on Hold"}
+                                title={onHold ? `Remove ${actionNoun}` : actionVerb}
                                 disabled={isPrinting || props.isBusy || togglingHoldFor === id}
                                 onClick={async () => {
                                   if (!onHold) {
@@ -863,7 +869,13 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                                 {togglingHoldFor === id ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : onHold ? (
-                                  <PlayCircle className="h-4 w-4 text-emerald-600" />
+                                  isReviewPhase ? (
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                  ) : (
+                                    <PlayCircle className="h-4 w-4 text-emerald-600" />
+                                  )
+                                ) : isReviewPhase ? (
+                                  <XCircle className="h-4 w-4 text-red-600" />
                                 ) : (
                                   <PauseCircle className="h-4 w-4 text-amber-600" />
                                 )}
@@ -999,16 +1011,16 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
       >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Put Employee on Hold</DialogTitle>
+            <DialogTitle>{actionVerb} Employee</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <p className="mb-2 text-sm text-muted-foreground">
-              Please provide a reason for putting this employee on hold:
+              Please provide a reason for {actionDesc}:
             </p>
             <Input
               value={holdReason}
               onChange={(e) => setHoldReason(e.target.value)}
-              placeholder="e.g. Needs manual verification"
+              placeholder={`e.g. ${isReviewPhase ? 'Incorrect OT pay' : 'Needs manual verification'}`}
               autoFocus
             />
           </div>
