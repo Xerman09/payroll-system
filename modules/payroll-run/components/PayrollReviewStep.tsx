@@ -18,7 +18,8 @@ import {
   rowsHaveBreakdown,
 } from "../providers/payslipPrintProvider";
 import { buildPayslipsPdf } from "../utils/payslipPdf";
-import { Eye, FileDown, Loader2, CheckCircle2 } from "lucide-react";
+import { Eye, FileDown, Loader2, CheckCircle2, PauseCircle, PlayCircle } from "lucide-react";
+import { toggleEmployeeHold } from "../providers/payrollApi";
 
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -125,8 +126,12 @@ function getNet(r: unknown): number {
   return n(row?.net_pay ?? row?.netPay ?? row?.net ?? row?.net_amount);
 }
 
-function getOnHold(r: unknown): boolean {
+function getOnHold(r: unknown, holdOverrides?: Record<string, boolean>): boolean {
   const row = r as Record<string, unknown>;
+  const rowId = getRowId(r);
+  if (holdOverrides && holdOverrides[rowId] !== undefined) {
+    return holdOverrides[rowId];
+  }
   return Boolean(row?.on_hold ?? row?.onHold);
 }
 
@@ -265,6 +270,9 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
 
+  const [holdOverrides, setHoldOverrides] = React.useState<Record<string, boolean>>({});
+  const [togglingHoldFor, setTogglingHoldFor] = React.useState<string | null>(null);
+
   React.useEffect(() => {
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -375,7 +383,7 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
         totalGross: round2(n(s.total_gross)),
         totalDeductions: round2(n(s.total_deductions)),
         totalNet: round2(n(s.total_net)),
-        onHoldCount: displayLines.reduce((c, r) => c + (getOnHold(r) ? 1 : 0), 0),
+        onHoldCount: displayLines.reduce((c, r) => c + (getOnHold(r, holdOverrides) ? 1 : 0), 0),
         varianceFlagCount: Number.isFinite(Number(s.variance_alerts))
           ? Number(s.variance_alerts)
           : displayLines.reduce(
@@ -396,7 +404,7 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
     );
 
     const onHoldCount = displayLines.reduce(
-      (c, r) => c + (getOnHold(r) ? 1 : 0),
+      (c, r) => c + (getOnHold(r, holdOverrides) ? 1 : 0),
       0,
     );
     const varianceFlagCount = displayLines.reduce(
@@ -689,7 +697,16 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                     const ded = getDeductions(row);
                     const net = getNet(row);
 
-                    const onHold = getOnHold(row);
+                    const onHold = getOnHold(row, holdOverrides);
+
+                    const heldByText = (() => {
+                      const breakdown = (rowTyped?.breakdown_json as Record<string, any>) || {};
+                      const flags = breakdown?.flags || {};
+                      if (flags?.hold_by_role && flags?.hold_by_user_name) {
+                         return `Held by ${flags.hold_by_user_name} (${flags.hold_by_role})`;
+                      }
+                      return "";
+                    })();
 
                     return (
                       <TableRow key={String(id)} className={rowTyped?.is_deleted === 1 ? "bg-red-50 dark:bg-red-500/10" : ""}>
@@ -732,9 +749,16 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                               Posted
                             </span>
                           ) : onHold ? (
-                            <span className="inline-flex rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-semibold text-yellow-900">
-                              On hold
-                            </span>
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <span className="inline-flex rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-semibold text-yellow-900">
+                                On hold
+                              </span>
+                              {heldByText && (
+                                <span className="text-[9px] text-yellow-700 text-center leading-tight max-w-[100px]">
+                                  {heldByText}
+                                </span>
+                              )}
+                            </div>
                           ) : rowTyped?.is_deleted === 1 ? (
                             <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-900">
                               Inactive
@@ -746,10 +770,11 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                           )}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="View Payslip"
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="View Payslip"
                             disabled={isPrinting || props.isBusy}
                             onClick={async () => {
                               try {
@@ -782,8 +807,50 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                               }
                             }}
                           >
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            
+                            {isCheckerOrApprover && rowTyped?.payroll_run_employee_id && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title={onHold ? "Remove Hold" : "Put on Hold"}
+                                disabled={isPrinting || props.isBusy || togglingHoldFor === id}
+                                onClick={async () => {
+                                  try {
+                                    setTogglingHoldFor(id);
+                                    const preId = Number(rowTyped.payroll_run_employee_id);
+                                    const bJson = rowTyped.breakdown_json || {};
+                                    await toggleEmployeeHold(
+                                      preId,
+                                      onHold,
+                                      user?.user_id || 0,
+                                      user?.user_fname ? `${user.user_fname} ${user.user_lname}` : "Unknown",
+                                      user?.role || "UNKNOWN",
+                                      bJson
+                                    );
+                                    
+                                    // Update local state to reflect change immediately
+                                    setHoldOverrides(prev => ({ ...prev, [id]: !onHold }));
+                                    toast.success(onHold ? "Hold removed" : "Employee put on hold");
+                                  } catch (e: unknown) {
+                                    const err = e as Error;
+                                    toast.error(err?.message || "Failed to toggle hold status");
+                                  } finally {
+                                    setTogglingHoldFor(null);
+                                  }
+                                }}
+                              >
+                                {togglingHoldFor === id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : onHold ? (
+                                  <PlayCircle className="h-4 w-4 text-emerald-600" />
+                                ) : (
+                                  <PauseCircle className="h-4 w-4 text-amber-600" />
+                                )}
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     );

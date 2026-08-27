@@ -159,3 +159,46 @@ export async function logPayrollRunAccess(
     });
   }
 }
+
+export async function toggleEmployeeHold(
+  payrollRunEmployeeId: number,
+  currentHoldStatus: boolean,
+  userId: number,
+  userName: string,
+  role: string,
+  breakdownJson: any
+) {
+  const newHoldStatus = !currentHoldStatus;
+  
+  // Update flags in breakdown JSON
+  const updatedBreakdown = { ...breakdownJson };
+  if (!updatedBreakdown.flags) {
+    updatedBreakdown.flags = {};
+  }
+  
+  if (newHoldStatus) {
+    updatedBreakdown.flags.hold_by_user_id = userId;
+    updatedBreakdown.flags.hold_by_user_name = userName;
+    updatedBreakdown.flags.hold_by_role = role;
+    updatedBreakdown.flags.hold_at = new Date().toISOString();
+  } else {
+    // If unholding, we might want to keep history, but for now just clear it or record unhold
+    updatedBreakdown.flags.unhold_by_user_id = userId;
+    updatedBreakdown.flags.unhold_by_user_name = userName;
+    updatedBreakdown.flags.unhold_by_role = role;
+    updatedBreakdown.flags.unhold_at = new Date().toISOString();
+    
+    // Clear the active hold flags
+    delete updatedBreakdown.flags.hold_by_user_id;
+    delete updatedBreakdown.flags.hold_by_user_name;
+    delete updatedBreakdown.flags.hold_by_role;
+    delete updatedBreakdown.flags.hold_at;
+  }
+
+  const payload = {
+    on_hold: newHoldStatus ? 1 : 0,
+    breakdown_json: updatedBreakdown,
+  };
+
+  return patchItem("payroll_run_employee", payrollRunEmployeeId, payload);
+}

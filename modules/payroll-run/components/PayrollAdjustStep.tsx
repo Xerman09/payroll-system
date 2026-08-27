@@ -429,16 +429,28 @@ export function PayrollAdjustStep({
 
   function openAddAdjustment() {
     if (!activeUserId) return;
+    if (run?.status === "PENDING_CHECKER" || run?.status === "PENDING_APPROVER") {
+      toast.error("Cannot add adjustments while payroll is pending checking/approval.");
+      return;
+    }
     setEditingEntry(null);
     setManualOpen(true);
   }
 
   function openEditAdjustment(entry: ManualEntry) {
+    if (run?.status === "PENDING_CHECKER" || run?.status === "PENDING_APPROVER") {
+      toast.error("Cannot edit adjustments while payroll is pending checking/approval.");
+      return;
+    }
     setEditingEntry(entry as ManualEntryExt);
     setManualOpen(true);
   }
 
   async function deleteAdjustment(entry: ManualEntry) {
+    if (run?.status === "PENDING_CHECKER" || run?.status === "PENDING_APPROVER") {
+      toast.error("Cannot delete adjustments while payroll is pending checking/approval.");
+      return;
+    }
     const ext = entry as ManualEntryExt;
     const id = Number(ext?.id);
     const src = ext?.__source;
@@ -665,11 +677,13 @@ export function PayrollAdjustStep({
             <Button
               variant="outline"
               onClick={onRecompute}
+              disabled={run?.status === "PENDING_CHECKER" || run?.status === "PENDING_APPROVER"}
               title="If recompute is wired to reload workspace, it will reflect new DB adjustments."
             >
               Recompute
             </Button>
             <Button
+              disabled={run?.status === "PENDING_CHECKER" || run?.status === "PENDING_APPROVER"}
               onClick={() => {
                 // leaving this step to process means we don't need guard anymore
                 setIsDirty(false);

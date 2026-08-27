@@ -501,7 +501,7 @@ export async function findExistingDraftRun(args: {
       : { "filter[department_id][_eq]": departmentId }),
 
     // ✅ matches table enum
-    "filter[status][_in]": "DRAFT,PROCESSED",
+    "filter[status][_in]": "DRAFT,PROCESSED,PENDING_CHECKER,PENDING_APPROVER,REJECTED",
     sort: "-payroll_run_id",
     limit: 1,
   });
