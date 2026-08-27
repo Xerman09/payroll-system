@@ -102,7 +102,7 @@ export function SettingsModule() {
   const fetchWorkflowData = async () => {
     try {
       setLoadingWorkflow(true);
-      const filterParams = { _and: [{ is_employee: { _eq: 1 } }, { _or: [{ is_deleted: { _null: true } }, { is_deleted: { _eq: 0 } }] }] };
+      const filterParams = { _or: [{ is_deleted: { _null: true } }, { is_deleted: { _eq: 0 } }] };
       const [empRes, setRes] = await Promise.all([
         fetch(`/api/employees?path=` + encodeURIComponent(`/items/user?limit=1000&filter=${JSON.stringify(filterParams)}`)),
         fetch("/api/payroll-settings")
