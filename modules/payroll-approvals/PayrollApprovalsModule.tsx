@@ -139,6 +139,7 @@ export default function PayrollApprovalsModule() {
       await svc.postRun({
         payrollRunId: selectedRun.payroll_run_id,
         postedBy: Number(loggedUser.user_id),
+        userName: [loggedUser.user_fname, loggedUser.user_lname].filter(Boolean).join(" "),
       });
       toast.success("Payroll run successfully posted!");
       setSelectedRun(null);
@@ -166,6 +167,7 @@ export default function PayrollApprovalsModule() {
         payrollRunId: selectedRun.payroll_run_id,
         rejectedBy: Number(loggedUser.user_id),
         remarks: rejectReason.trim(),
+        userName: [loggedUser.user_fname, loggedUser.user_lname].filter(Boolean).join(" "),
       });
       toast.success("Payroll run rejected back to Draft.");
       setRejectModalOpen(false);

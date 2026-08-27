@@ -166,7 +166,8 @@ export async function toggleEmployeeHold(
   userId: number,
   userName: string,
   role: string,
-  breakdownJson: any
+  breakdownJson: any,
+  reason?: string
 ) {
   const newHoldStatus = !currentHoldStatus;
   
@@ -181,6 +182,9 @@ export async function toggleEmployeeHold(
     updatedBreakdown.flags.hold_by_user_name = userName;
     updatedBreakdown.flags.hold_by_role = role;
     updatedBreakdown.flags.hold_at = new Date().toISOString();
+    if (reason) {
+      updatedBreakdown.flags.hold_reason = reason;
+    }
   } else {
     // If unholding, we might want to keep history, but for now just clear it or record unhold
     updatedBreakdown.flags.unhold_by_user_id = userId;
@@ -193,6 +197,7 @@ export async function toggleEmployeeHold(
     delete updatedBreakdown.flags.hold_by_user_name;
     delete updatedBreakdown.flags.hold_by_role;
     delete updatedBreakdown.flags.hold_at;
+    delete updatedBreakdown.flags.hold_reason;
   }
 
   const payload = {

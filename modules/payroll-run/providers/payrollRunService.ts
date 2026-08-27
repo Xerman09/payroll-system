@@ -2230,7 +2230,11 @@ export async function saveLines(args: {
   await runWithConcurrency(tasks, 6);
 }
 
-export async function postRun(args: { payrollRunId: number; postedBy: number }): Promise<void> {
+export async function postRun(args: {
+  payrollRunId: number;
+  postedBy: number;
+  userName?: string;
+}): Promise<void> {
   const pid = n(args.payrollRunId);
   if (!pid) return;
 
@@ -2296,40 +2300,62 @@ export async function postRun(args: { payrollRunId: number; postedBy: number }):
   }
 
   // Mark as POSTED
+  const who = args.userName ? `by ${args.userName}` : "";
+  const newRemarks = await appendRemarks(pid, `Posted ${who}`.trim());
+
   await api.patchItem(RES.payrollRun, pid, {
     status: "POSTED",
     posted_by: args.postedBy,
     posted_at: new Date().toISOString().slice(0, 19).replace("T", " "),
+    remarks: newRemarks,
   });
 }
 
-export async function submitToChecker(args: { payrollRunId: number; submittedBy: number }): Promise<void> {
+async function appendRemarks(pid: number, newRemark: string) {
+  try {
+    const run = await api.getItem<PayrollRunHeader>(RES.payrollRun, pid, {});
+    const existing = run?.remarks ? run.remarks + "\n" : "";
+    const date = new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString();
+    return `${existing}[${date}] ${newRemark}`;
+  } catch {
+    const date = new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString();
+    return `[${date}] ${newRemark}`;
+  }
+}
+
+export async function submitToChecker(args: { payrollRunId: number; submittedBy: number; userName?: string }): Promise<void> {
   const pid = n(args.payrollRunId);
   if (!pid) return;
 
+  const who = args.userName ? `by ${args.userName}` : "";
+  const newRemarks = await appendRemarks(pid, `Submitted to Checker ${who}`.trim());
   await api.patchItem(RES.payrollRun, pid, {
     status: "PENDING_CHECKER",
-    remarks: `Submitted to Checker by User ${args.submittedBy}`,
+    remarks: newRemarks,
   });
 }
 
-export async function verifyRun(args: { payrollRunId: number; verifiedBy: number }): Promise<void> {
+export async function verifyRun(args: { payrollRunId: number; verifiedBy: number; userName?: string }): Promise<void> {
   const pid = n(args.payrollRunId);
   if (!pid) return;
 
+  const who = args.userName ? `by ${args.userName}` : "";
+  const newRemarks = await appendRemarks(pid, `Verified ${who}`.trim());
   await api.patchItem(RES.payrollRun, pid, {
     status: "PENDING_APPROVER",
-    remarks: `Verified by Checker User ${args.verifiedBy}`,
+    remarks: newRemarks,
   });
 }
 
-export async function rejectRun(args: { payrollRunId: number; rejectedBy: number; remarks: string }): Promise<void> {
+export async function rejectRun(args: { payrollRunId: number; rejectedBy: number; remarks: string; userName?: string }): Promise<void> {
   const pid = n(args.payrollRunId);
   if (!pid) return;
 
+  const who = args.userName ? `by ${args.userName}` : "";
+  const newRemarks = await appendRemarks(pid, `Rejected ${who}. Reason: ${args.remarks}`.trim());
   await api.patchItem(RES.payrollRun, pid, {
     status: "REJECTED",
-    remarks: `Rejected by User ${args.rejectedBy}. Reason: ${args.remarks}`,
+    remarks: newRemarks,
   });
 }
 

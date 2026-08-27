@@ -30,7 +30,9 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -88,6 +90,7 @@ type PayrollReviewStepProps = {
   onStartOver?: () => void;
   onPost?: () => Promise<void>;
   postLabel?: string;
+  allowHoldActions?: boolean;
 };
 
 function getRowId(r: unknown): string {
@@ -262,8 +265,11 @@ import { getLoggedUser } from "@/lib/auth";
 
 export function PayrollReviewStep(props: PayrollReviewStepProps) {
   const user = getLoggedUser();
-  const isCheckerOrApprover = user?.role === "CHECKER" || user?.role === "APPROVER";
   const lines = React.useMemo(() => resolveLines(props), [props]);
+
+  // Determine if hold actions should be visible
+  // If explicitly passed, use it. Otherwise fallback to JWT role checking.
+  const isCheckerOrApprover = props.allowHoldActions ?? (user?.role === "CHECKER" || user?.role === "APPROVER");
 
   const [isPosting, setIsPosting] = React.useState(false);
   const [isPostSuccess, setIsPostSuccess] = React.useState(false);
@@ -272,6 +278,8 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
 
   const [holdOverrides, setHoldOverrides] = React.useState<Record<string, boolean>>({});
   const [togglingHoldFor, setTogglingHoldFor] = React.useState<string | null>(null);
+  const [holdDialogTarget, setHoldDialogTarget] = React.useState<string | null>(null);
+  const [holdReason, setHoldReason] = React.useState<string>("");
 
   React.useEffect(() => {
     return () => {
@@ -703,7 +711,11 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                       const breakdown = (rowTyped?.breakdown_json as Record<string, any>) || {};
                       const flags = breakdown?.flags || {};
                       if (flags?.hold_by_role && flags?.hold_by_user_name) {
-                         return `Held by ${flags.hold_by_user_name} (${flags.hold_by_role})`;
+                         let text = `Held by ${flags.hold_by_user_name} (${flags.hold_by_role})`;
+                         if (flags.hold_reason) {
+                           text += ` - Reason: ${flags.hold_reason}`;
+                         }
+                         return text;
                       }
                       return "";
                     })();
@@ -810,34 +822,41 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                               <Eye className="h-4 w-4" />
                             </Button>
                             
-                            {isCheckerOrApprover && rowTyped?.payroll_run_employee_id && (
+                            {isCheckerOrApprover && Boolean(rowTyped?.id || rowTyped?.payroll_run_employee_id) && (
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 title={onHold ? "Remove Hold" : "Put on Hold"}
                                 disabled={isPrinting || props.isBusy || togglingHoldFor === id}
                                 onClick={async () => {
-                                  try {
-                                    setTogglingHoldFor(id);
-                                    const preId = Number(rowTyped.payroll_run_employee_id);
-                                    const bJson = rowTyped.breakdown_json || {};
-                                    await toggleEmployeeHold(
-                                      preId,
-                                      onHold,
-                                      user?.user_id || 0,
-                                      user?.user_fname ? `${user.user_fname} ${user.user_lname}` : "Unknown",
-                                      user?.role || "UNKNOWN",
-                                      bJson
-                                    );
-                                    
-                                    // Update local state to reflect change immediately
-                                    setHoldOverrides(prev => ({ ...prev, [id]: !onHold }));
-                                    toast.success(onHold ? "Hold removed" : "Employee put on hold");
-                                  } catch (e: unknown) {
-                                    const err = e as Error;
-                                    toast.error(err?.message || "Failed to toggle hold status");
-                                  } finally {
-                                    setTogglingHoldFor(null);
+                                  if (!onHold) {
+                                    // Open dialog for reason
+                                    setHoldReason("");
+                                    setHoldDialogTarget(id);
+                                  } else {
+                                    // Remove hold immediately
+                                    try {
+                                      setTogglingHoldFor(id);
+                                      const preId = Number(rowTyped?.id || rowTyped?.payroll_run_employee_id);
+                                      const bJson = rowTyped.breakdown_json || {};
+                                      await toggleEmployeeHold(
+                                        preId,
+                                        onHold,
+                                        Number(user?.user_id) || 0,
+                                        user?.user_fname ? `${user.user_fname} ${user.user_lname}` : "Unknown",
+                                        user?.role || "UNKNOWN",
+                                        bJson
+                                      );
+                                      
+                                      // Update local state to reflect change immediately
+                                      setHoldOverrides(prev => ({ ...prev, [id]: !onHold }));
+                                      toast.success("Hold removed");
+                                    } catch (e: unknown) {
+                                      const err = e as Error;
+                                      toast.error(err?.message || "Failed to toggle hold status");
+                                    } finally {
+                                      setTogglingHoldFor(null);
+                                    }
                                   }
                                 }}
                               >
@@ -968,6 +987,90 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hold Reason Dialog */}
+      <Dialog
+        open={holdDialogTarget !== null}
+        onOpenChange={(v) => {
+          if (!v) setHoldDialogTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Put Employee on Hold</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="mb-2 text-sm text-muted-foreground">
+              Please provide a reason for putting this employee on hold:
+            </p>
+            <Input
+              value={holdReason}
+              onChange={(e) => setHoldReason(e.target.value)}
+              placeholder="e.g. Needs manual verification"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setHoldDialogTarget(null)}
+              disabled={togglingHoldFor !== null}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={!holdReason.trim() || togglingHoldFor !== null}
+              onClick={async () => {
+                if (!holdDialogTarget) return;
+                try {
+                  setTogglingHoldFor(holdDialogTarget);
+                  
+                  // Find the target row
+                  const targetRow = displayLines.find(r => getRowId(r) === holdDialogTarget) as Record<string, any>;
+                  if (!targetRow) throw new Error("Row not found");
+                  
+                  const preId = Number(targetRow?.id || targetRow?.payroll_run_employee_id);
+                  const bJson = targetRow.breakdown_json || {};
+                  
+                  await toggleEmployeeHold(
+                    preId,
+                    false, // Currently NOT on hold
+                    Number(user?.user_id) || 0,
+                    user?.user_fname ? `${user.user_fname} ${user.user_lname}` : "Unknown",
+                    user?.role || "UNKNOWN",
+                    bJson,
+                    holdReason.trim()
+                  );
+                  
+                  // Update local state
+                  setHoldOverrides(prev => ({ ...prev, [holdDialogTarget]: true }));
+                  
+                  // Optimistically update the breakdown_json to display the reason locally without reloading
+                  if (targetRow.breakdown_json) {
+                    if (!targetRow.breakdown_json.flags) targetRow.breakdown_json.flags = {};
+                    targetRow.breakdown_json.flags.hold_by_role = user?.role || "UNKNOWN";
+                    targetRow.breakdown_json.flags.hold_by_user_name = user?.user_fname ? `${user.user_fname} ${user.user_lname}` : "Unknown";
+                    targetRow.breakdown_json.flags.hold_reason = holdReason.trim();
+                  }
+                  
+                  toast.success("Employee put on hold");
+                  setHoldDialogTarget(null);
+                } catch (e: unknown) {
+                  const err = e as Error;
+                  toast.error(err?.message || "Failed to put on hold");
+                } finally {
+                  setTogglingHoldFor(null);
+                }
+              }}
+            >
+              {togglingHoldFor !== null ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Confirm Hold
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

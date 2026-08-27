@@ -418,6 +418,32 @@ export interface PayrollSummary {
   companyName?: string;
 }
 
+export interface PayrollReviewStepProps {
+  workspace?: PayrollWorkspace;
+  run?: PayrollRunHeader | null;
+
+  lines?: PayrollComputedLine[];
+  computedLines?: PayrollComputedLine[];
+  computed?: {
+    lines: PayrollComputedLine[];
+    summary: PayrollSummary;
+  };
+  results?: {
+    lines: PayrollComputedLine[];
+    summary: PayrollSummary;
+  };
+  rows?: PayrollComputedLine[];
+  summary?: PayrollSummary;
+  allowHoldActions?: boolean;
+
+  onPost?: () => Promise<void>;
+  onStartOver?: () => void;
+  onBackToAdjust?: () => void;
+  onFinalize?: () => void;
+
+  isBusy?: boolean;
+}
+
 export interface PayrollWorkspace {
   cutoff: CutoffSetting;
   department: Department | null;

@@ -303,12 +303,13 @@ export default function PayrollRunModule({ showLaborLawModal = true }: { showLab
   }
 
   async function submitForChecking() {
-    if (!run) return;
+    if (!run || !loggedUser) return;
 
     try {
       await svc.submitToChecker({
         payrollRunId: run.payroll_run_id,
-        submittedBy: 1, // TODO: auth
+        submittedBy: Number(loggedUser.user_id),
+        userName: [loggedUser.user_fname, loggedUser.user_lname].filter(Boolean).join(" "),
       });
 
       toast.success("Payroll Submitted to Checker.");
@@ -448,6 +449,13 @@ export default function PayrollRunModule({ showLaborLawModal = true }: { showLab
                         {selectedDepartment ? selectedDepartment.name : "None selected"}
                       </span>
                     </span>
+                  </div>
+                ) : null}
+
+                {run?.remarks ? (
+                  <div className="mt-2 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 px-3 py-2 text-sm text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800/50 whitespace-pre-wrap">
+                    <div className="font-semibold mb-1">History / Remarks:</div>
+                    {run.remarks}
                   </div>
                 ) : null}
               </div>

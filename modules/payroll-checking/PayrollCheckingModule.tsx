@@ -21,6 +21,12 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { FileSearch, CheckCircle2, XCircle, ArrowLeft } from "lucide-react";
@@ -44,7 +50,9 @@ function statusBadge(status: string) {
 
 export default function PayrollCheckingModule() {
   const [runs, setRuns] = useState<PayrollRunHeader[]>([]);
+  const [historyRuns, setHistoryRuns] = useState<PayrollRunHeader[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
 
   // Review mode
   const [selectedRun, setSelectedRun] = useState<PayrollRunHeader | null>(null);
@@ -92,15 +100,26 @@ export default function PayrollCheckingModule() {
 
       if (!checker) {
         setRuns([]);
+        setHistoryRuns([]);
         setLoading(false);
         return;
       }
 
-      const rows = await api.listItems<PayrollRunHeader>("payroll_run", {
-        "filter[status][_in]": allowedStatuses.join(","),
+      // Fetch pending runs
+      const pendingRows = await api.listItems<PayrollRunHeader>("payroll_run", {
+        "filter[status][_in]": "PENDING_CHECKER",
         sort: "-payroll_run_id",
       });
-      setRuns(rows || []);
+      setRuns(pendingRows || []);
+
+      // Fetch history runs (rejected by checker or passed to next stage)
+      const historyAllowedStatuses = ["REJECTED", "PENDING_APPROVER", "APPROVED", "POSTED"];
+      const historyRows = await api.listItems<PayrollRunHeader>("payroll_run", {
+        "filter[status][_in]": historyAllowedStatuses.join(","),
+        sort: "-payroll_run_id",
+        limit: 50,
+      });
+      setHistoryRuns(historyRows || []);
     } catch (e: any) {
       toast.error(e.message || "Failed to load approval queue.");
     } finally {
@@ -139,6 +158,7 @@ export default function PayrollCheckingModule() {
       await svc.verifyRun({
         payrollRunId: selectedRun.payroll_run_id,
         verifiedBy: Number(loggedUser.user_id),
+        userName: [loggedUser.user_fname, loggedUser.user_lname].filter(Boolean).join(" "),
       });
       toast.success("Payroll run verified and sent to Approver.");
       setSelectedRun(null);
@@ -166,6 +186,7 @@ export default function PayrollCheckingModule() {
         payrollRunId: selectedRun.payroll_run_id,
         rejectedBy: Number(loggedUser.user_id),
         remarks: rejectReason.trim(),
+        userName: [loggedUser.user_fname, loggedUser.user_lname].filter(Boolean).join(" "),
       });
       toast.success("Payroll run rejected back to Draft.");
       setRejectModalOpen(false);
@@ -201,15 +222,23 @@ export default function PayrollCheckingModule() {
             <div>
               <h2 className="text-xl font-bold">Review Payroll: {selectedRun.payroll_ref_no}</h2>
               <p className="text-sm text-muted-foreground">Cutoff: {selectedRun.cutoff_start} to {selectedRun.cutoff_end}</p>
+              {selectedRun.remarks && (
+                <div className="mt-2 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 px-3 py-2 text-sm text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800/50 max-w-2xl whitespace-pre-wrap">
+                  <div className="font-semibold mb-1">History / Remarks:</div>
+                  {selectedRun.remarks}
+                </div>
+              )}
             </div>
-            <div className="ml-auto flex gap-2">
-              <Button variant="destructive" onClick={handleReject}>
-                <XCircle className="mr-2 h-4 w-4" /> Reject
-              </Button>
-              <Button variant="default" onClick={handleVerify} className="bg-green-600 hover:bg-green-700">
-                <CheckCircle2 className="mr-2 h-4 w-4" /> Verify
-              </Button>
-            </div>
+            {selectedRun.status === "PENDING_CHECKER" && (
+              <div className="ml-auto flex gap-2 self-start">
+                <Button variant="destructive" onClick={handleReject}>
+                  <XCircle className="mr-2 h-4 w-4" /> Reject
+                </Button>
+                <Button variant="default" onClick={handleVerify} className="bg-green-600 hover:bg-green-700">
+                  <CheckCircle2 className="mr-2 h-4 w-4" /> Verify
+                </Button>
+              </div>
+            )}
           </div>
 
           <Card className="p-4 sm:p-6 shadow-sm border rounded-2xl">
@@ -225,6 +254,7 @@ export default function PayrollCheckingModule() {
                 summary={computedSummary}
                 onBackToAdjust={() => setSelectedRun(null)}
                 onStartOver={() => setSelectedRun(null)}
+                allowHoldActions={selectedRun.status === "PENDING_CHECKER"}
               />
             )}
           </Card>
@@ -276,10 +306,17 @@ export default function PayrollCheckingModule() {
             )}
         </div>
 
-        <Card className="shadow-sm border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
-          <Table>
-            <TableHeader className="bg-gray-50 dark:bg-gray-800/50">
-              <TableRow>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="pending">Pending Queue ({runs.length})</TabsTrigger>
+            <TabsTrigger value="history">History ({historyRuns.length})</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="pending">
+            <Card className="shadow-sm border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
+              <Table>
+                <TableHeader className="bg-gray-50 dark:bg-gray-800/50">
+                  <TableRow>
                 <TableHead>Ref No</TableHead>
                 <TableHead>Cutoff</TableHead>
                 <TableHead>Status</TableHead>
@@ -317,6 +354,52 @@ export default function PayrollCheckingModule() {
             </TableBody>
           </Table>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="history">
+            <Card className="shadow-sm border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
+              <Table>
+                <TableHeader className="bg-gray-50 dark:bg-gray-800/50">
+                  <TableRow>
+                    <TableHead>Ref No</TableHead>
+                    <TableHead>Cutoff</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Net Pay</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {historyRuns.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        No historical payroll runs found.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    historyRuns.map((r) => (
+                      <TableRow key={r.payroll_run_id}>
+                        <TableCell className="font-medium">{r.payroll_ref_no}</TableCell>
+                        <TableCell>
+                          {r.cutoff_start} to {r.cutoff_end}
+                        </TableCell>
+                        <TableCell>{statusBadge(r.status)}</TableCell>
+                        <TableCell className="text-right font-mono">
+                          {Number(r.total_net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" onClick={() => loadRunDetails(r)}>
+                            <FileSearch className="mr-2 h-4 w-4" />
+                            View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );
