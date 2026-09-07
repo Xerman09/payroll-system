@@ -207,3 +207,52 @@ export async function toggleEmployeeHold(
 
   return patchItem("payroll_run_employee", payrollRunEmployeeId, payload);
 }
+
+export async function toggleEmployeeReject(
+  payrollRunEmployeeId: number,
+  currentRejectStatus: boolean,
+  userId: number,
+  userName: string,
+  role: string,
+  breakdownJson: any,
+  reason?: string
+) {
+  const newRejectStatus = !currentRejectStatus;
+  
+  // Update flags in breakdown JSON
+  const updatedBreakdown = { ...breakdownJson };
+  if (!updatedBreakdown.flags) {
+    updatedBreakdown.flags = {};
+  }
+  
+  if (newRejectStatus) {
+    updatedBreakdown.flags.is_rejected = true;
+    updatedBreakdown.flags.rejected_by_user_id = userId;
+    updatedBreakdown.flags.rejected_by_user_name = userName;
+    updatedBreakdown.flags.rejected_by_role = role;
+    updatedBreakdown.flags.rejected_at = new Date().toISOString();
+    if (reason) {
+      updatedBreakdown.flags.reject_reason = reason;
+    }
+  } else {
+    // Keep history if needed, but for now clear
+    updatedBreakdown.flags.unrejected_by_user_id = userId;
+    updatedBreakdown.flags.unrejected_by_user_name = userName;
+    updatedBreakdown.flags.unrejected_by_role = role;
+    updatedBreakdown.flags.unrejected_at = new Date().toISOString();
+    
+    // Clear the active reject flags
+    delete updatedBreakdown.flags.is_rejected;
+    delete updatedBreakdown.flags.rejected_by_user_id;
+    delete updatedBreakdown.flags.rejected_by_user_name;
+    delete updatedBreakdown.flags.rejected_by_role;
+    delete updatedBreakdown.flags.rejected_at;
+    delete updatedBreakdown.flags.reject_reason;
+  }
+
+  const payload = {
+    breakdown_json: updatedBreakdown,
+  };
+
+  return patchItem("payroll_run_employee", payrollRunEmployeeId, payload);
+}

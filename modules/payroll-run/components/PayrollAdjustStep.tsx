@@ -21,6 +21,7 @@ import type {
 } from "../types";
 
 import { formatPHP } from "../utils/payroll";
+import { toggleEmployeeReject } from "../providers/payrollApi";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -732,16 +733,17 @@ export function PayrollAdjustStep({
             </Card>
           </div>
 
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col gap-2">
+            <CardTitle className="text-xl">Step 2: Adjustments & Verifications</CardTitle>
+            <div className="text-sm text-muted-foreground">
+              Review computed payroll lines and modify variables (OT, absences, manual entries). If a Checker rejected any employees, they will be marked as <span className="font-bold text-destructive">REJECTED</span> below. Click <span className="font-bold text-destructive border border-destructive px-1 rounded text-[10px]">Resolve</span> after fixing their data, then click Recompute. Use the switch to manually place employees On Hold.
+            </div>
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search employee..."
               className="max-w-sm"
             />
-            <div className="text-xs text-muted-foreground">
-              Hold = exclude from totals and posting
-            </div>
           </div>
 
           <div className="overflow-x-auto rounded-md border">
@@ -765,11 +767,15 @@ export function PayrollAdjustStep({
                 {filtered.map((l) => {
                   const isHold = Boolean(holdMap.get(l.user_id));
                   const isPosted = Boolean(postedMap.get(l.user_id));
+                  const isRejected = Boolean((l.breakdown_json as any)?.flags?.is_rejected);
+                  const isLockedByReject = run?.status === 'REJECTED' && !isRejected;
+                  const isLocked = isPosted || isLockedByReject;
+                  const rejectReason = (l.breakdown_json as any)?.flags?.reject_reason;
                   return (
                     <TableRow
                       key={l.user_id}
                       className={cn(
-                        isHold && "opacity-60",
+                        (isHold || isRejected) && "opacity-60",
                         l.is_deleted === 1 && "bg-red-50 dark:bg-red-500/10"
                       )}
                     >
@@ -777,9 +783,9 @@ export function PayrollAdjustStep({
                         <div className="flex items-center gap-3">
                           <Switch
                             checked={isHold}
-                            disabled={isPosted}
+                            disabled={isLocked}
                             onCheckedChange={() => {
-                              if (isPosted) return; // Prevent toggle for posted employees
+                              if (isLocked) return; // Prevent toggle for locked employees
                               setIsDirty(true);
                               onToggleHold(l.user_id);
                             }}
@@ -789,8 +795,48 @@ export function PayrollAdjustStep({
                               <span className="font-bold text-emerald-600">
                                 Posted
                               </span>
+                            ) : isLockedByReject ? (
+                              <span className="font-bold text-muted-foreground" title="Run is REJECTED. Only rejected employees can be edited.">
+                                Locked
+                              </span>
+                            ) : isRejected ? (
+                              <div className="flex flex-col">
+                                <span className="font-bold text-destructive">
+                                  REJECTED
+                                </span>
+                                {rejectReason && (
+                                  <span className="text-destructive mt-0.5 italic max-w-[120px] truncate" title={String(rejectReason)}>
+                                    {String(rejectReason)}
+                                  </span>
+                                )}
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-6 mt-1 text-[10px] px-2 py-0 border-destructive text-destructive hover:bg-destructive hover:text-white"
+                                  onClick={async () => {
+                                    try {
+                                      const preId = Number((l as any).id || (l as any).payroll_run_employee_id);
+                                      await toggleEmployeeReject(
+                                        preId,
+                                        true, // Currently rejected, so pass true to toggle it to false
+                                        1, // userId fallback
+                                        "Maker", 
+                                        "MAKER",
+                                        (l as any).breakdown_json || {}
+                                      );
+                                      toast.success("Rejection resolved. Please click Recompute to finalize.");
+                                      // Force reload
+                                      onRecompute();
+                                    } catch (e: any) {
+                                      toast.error(e.message || "Failed to resolve rejection");
+                                    }
+                                  }}
+                                >
+                                  Resolve
+                                </Button>
+                              </div>
                             ) : isHold ? (
-                              <span className="font-bold text-destructive">
+                              <span className="font-bold text-yellow-600">
                                 HOLD
                               </span>
                             ) : l.is_deleted === 1 ? (
@@ -895,7 +941,10 @@ export function PayrollAdjustStep({
             open={activeUserId != null}
             line={activeLine}
             manualEntries={manualEntries as ManualEntry[]}
-            isPosted={activeUserId != null ? Boolean(postedMap.get(activeUserId)) : false}
+            isPosted={activeUserId != null ? (
+              Boolean(postedMap.get(activeUserId)) || 
+              (run?.status === 'REJECTED' && !Boolean((filtered.find(l => l.user_id === activeUserId)?.breakdown_json as any)?.flags?.is_rejected))
+            ) : false}
             onOpenAdjust={() => openAddAdjustment()}
             onEditEntry={(e) => openEditAdjustment(e)}
             onDeleteEntry={(e) => deleteAdjustment(e)}

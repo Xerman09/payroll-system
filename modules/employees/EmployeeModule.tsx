@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Users, Plus, Search } from "lucide-react";
+import { Users, Plus, Search, Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
@@ -42,6 +42,7 @@ export function EmployeeModule() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage] = useState(10);
   const [showInactive, setShowInactive] = useState(false);
+  const [isReadOnly, setIsReadOnly] = useState(false);
 
   // Modals
   const [formModalOpen, setFormModalOpen] = useState(false);
@@ -54,12 +55,14 @@ export function EmployeeModule() {
   useEffect(() => {
     async function init() {
       try {
-        const [depts, statuses] = await Promise.all([
+        const [depts, statuses, readOnlySetting] = await Promise.all([
           employeeApi.fetchDepartments(),
           employeeApi.fetchEmploymentStatuses(),
+          employeeApi.fetchGeneralSetting("payroll_employee_management_read_only"),
         ]);
         setDepartments(depts);
         setEmploymentStatuses(statuses);
+        setIsReadOnly(readOnlySetting === "1" || readOnlySetting === "true");
       } catch (err: any) {
         toast.error("Failed to load departments or statuses");
       }
@@ -116,6 +119,10 @@ export function EmployeeModule() {
   };
 
   const openCreateModal = () => {
+    if (isReadOnly) {
+      toast.error("Employee management is in read-only mode. Adding employees is disabled.");
+      return;
+    }
     setSelectedEmployee(null);
     setFormModalOpen(true);
   };
@@ -126,11 +133,19 @@ export function EmployeeModule() {
   };
 
   const confirmDelete = (emp: Employee) => {
+    if (isReadOnly) {
+      toast.error("Employee management is in read-only mode. Deleting employees is disabled.");
+      return;
+    }
     setEmployeeToDelete(emp);
     setDeleteDialogOpen(true);
   };
 
   const handleDelete = async () => {
+    if (isReadOnly) {
+      toast.error("Employee management is in read-only mode. Deleting employees is disabled.");
+      return;
+    }
     if (!employeeToDelete?.user_id) return;
 
     try {
@@ -151,17 +166,28 @@ export function EmployeeModule() {
         {/* Header section */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 flex items-center gap-2">
-              <Users className="h-7 w-7 text-primary" />
-              Employee Management
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <Users className="h-7 w-7 text-primary" />
+                Employee Management
+              </h1>
+              {isReadOnly && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                  <Lock className="h-3 w-3" /> Read-Only
+                </span>
+              )}
+            </div>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Manage and organize employee records.
+              {isReadOnly
+                ? "Employee management is in read-only mode. Adding, editing, and deleting records are restricted."
+                : "Manage and organize employee records."}
             </p>
           </div>
-          <Button onClick={openCreateModal}>
-            <Plus className="mr-2 h-4 w-4" /> Add Employee
-          </Button>
+          {!isReadOnly && (
+            <Button onClick={openCreateModal}>
+              <Plus className="mr-2 h-4 w-4" /> Add Employee
+            </Button>
+          )}
         </div>
         
         <Separator className="bg-gray-200 dark:bg-gray-800" />
@@ -250,6 +276,7 @@ export function EmployeeModule() {
               }}
               onEdit={openEditModal}
               onDelete={confirmDelete}
+              isReadOnly={isReadOnly}
             />
           </CardContent>
         </Card>
@@ -264,6 +291,7 @@ export function EmployeeModule() {
         onSaved={() => {
           setRefreshKey((k) => k + 1);
         }}
+        isReadOnly={isReadOnly}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

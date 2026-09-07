@@ -170,6 +170,10 @@ export async function fetchEmployeeById(userId: number): Promise<Employee | null
 }
 
 export async function createEmployee(payload: Partial<Employee>): Promise<Employee> {
+  const readOnly = await fetchGeneralSetting("payroll_employee_management_read_only");
+  if (readOnly === "1" || readOnly === "true") {
+    throw new Error("Employee Management is read-only. Adding employees is disabled.");
+  }
   const json = await apiFetch("/items/user", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -178,6 +182,10 @@ export async function createEmployee(payload: Partial<Employee>): Promise<Employ
 }
 
 export async function updateEmployee(userId: number, payload: Partial<Employee>): Promise<Employee> {
+  const readOnly = await fetchGeneralSetting("payroll_employee_management_read_only");
+  if (readOnly === "1" || readOnly === "true") {
+    throw new Error("Employee Management is read-only. Editing employees is disabled.");
+  }
   const json = await apiFetch(`/items/user/${userId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
@@ -186,6 +194,10 @@ export async function updateEmployee(userId: number, payload: Partial<Employee>)
 }
 
 export async function deleteEmployee(userId: number): Promise<void> {
+  const readOnly = await fetchGeneralSetting("payroll_employee_management_read_only");
+  if (readOnly === "1" || readOnly === "true") {
+    throw new Error("Employee Management is read-only. Deleting employees is disabled.");
+  }
   await apiFetch(`/items/user/${userId}`, {
     method: "DELETE",
   });
@@ -205,6 +217,10 @@ export async function fetchUserBanks(userId: number): Promise<UserBank[]> {
 }
 
 export async function createUserBank(payload: Partial<UserBank>): Promise<UserBank> {
+  const readOnly = await fetchGeneralSetting("payroll_employee_management_read_only");
+  if (readOnly === "1" || readOnly === "true") {
+    throw new Error("Employee Management is read-only. Modifying bank accounts is disabled.");
+  }
   const json = await apiFetch("/items/user_bank", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -213,6 +229,10 @@ export async function createUserBank(payload: Partial<UserBank>): Promise<UserBa
 }
 
 export async function updateUserBank(id: number, payload: Partial<UserBank>): Promise<UserBank> {
+  const readOnly = await fetchGeneralSetting("payroll_employee_management_read_only");
+  if (readOnly === "1" || readOnly === "true") {
+    throw new Error("Employee Management is read-only. Modifying bank accounts is disabled.");
+  }
   const json = await apiFetch(`/items/user_bank/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
@@ -221,7 +241,28 @@ export async function updateUserBank(id: number, payload: Partial<UserBank>): Pr
 }
 
 export async function deleteUserBank(id: number): Promise<void> {
+  const readOnly = await fetchGeneralSetting("payroll_employee_management_read_only");
+  if (readOnly === "1" || readOnly === "true") {
+    throw new Error("Employee Management is read-only. Modifying bank accounts is disabled.");
+  }
   await apiFetch(`/items/user_bank/${id}`, {
     method: "DELETE",
   });
+}
+
+export async function fetchGeneralSetting(key: string): Promise<string | null> {
+  try {
+    const params = new URLSearchParams({
+      "filter[setting_key][_eq]": key,
+    });
+    const json = await apiFetch(`/items/general_setting?${params.toString()}`);
+    const data = json.data || [];
+    if (data.length > 0 && data[0].setting_value != null) {
+      return String(data[0].setting_value).trim();
+    }
+    return null;
+  } catch (error) {
+    console.error("Failed to fetch general setting:", error);
+    return null;
+  }
 }

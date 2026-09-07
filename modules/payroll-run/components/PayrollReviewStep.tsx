@@ -19,7 +19,7 @@ import {
 } from "../providers/payslipPrintProvider";
 import { buildPayslipsPdf } from "../utils/payslipPdf";
 import { Eye, FileDown, Loader2, CheckCircle2, PauseCircle, PlayCircle, XCircle } from "lucide-react";
-import { toggleEmployeeHold } from "../providers/payrollApi";
+import { toggleEmployeeHold, toggleEmployeeReject } from "../providers/payrollApi";
 
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -712,11 +712,19 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                     const net = getNet(row);
 
                     const onHold = getOnHold(row, holdOverrides);
+                    const isRejected = Boolean(holdOverrides[id] ?? Boolean((rowTyped?.breakdown_json as any)?.flags?.is_rejected));
 
                     const heldByText = (() => {
                       const breakdown = (rowTyped?.breakdown_json as Record<string, any>) || {};
                       const flags = breakdown?.flags || {};
-                      if (flags?.hold_by_role && flags?.hold_by_user_name) {
+                      
+                      if (isRejected && flags?.rejected_by_role && flags?.rejected_by_user_name) {
+                         let text = `Rejected by ${flags.rejected_by_user_name} (${flags.rejected_by_role})`;
+                         if (flags.reject_reason) {
+                           text += ` - Reason: ${flags.reject_reason}`;
+                         }
+                         return text;
+                      } else if (onHold && flags?.hold_by_role && flags?.hold_by_user_name) {
                          let text = `Held by ${flags.hold_by_user_name} (${flags.hold_by_role})`;
                          if (flags.hold_reason) {
                            text += ` - Reason: ${flags.hold_reason}`;
@@ -766,6 +774,17 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                             <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
                               Posted
                             </span>
+                          ) : isRejected ? (
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-900">
+                                Rejected
+                              </span>
+                              {heldByText && (
+                                <span className="text-[9px] text-red-700 text-center leading-tight max-w-[100px]">
+                                  {heldByText}
+                                </span>
+                              )}
+                            </div>
                           ) : onHold ? (
                             <div className="flex flex-col items-center justify-center gap-1">
                               <span className="inline-flex rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-semibold text-yellow-900">
@@ -832,34 +851,47 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                title={onHold ? `Remove ${actionNoun}` : actionVerb}
+                                title={isReviewPhase ? (isRejected ? "Undo Reject" : "Reject Employee") : (onHold ? "Remove Hold" : "Put on Hold")}
                                 disabled={isPrinting || props.isBusy || togglingHoldFor === id}
                                 onClick={async () => {
-                                  if (!onHold) {
+                                  const isActiveState = isReviewPhase ? isRejected : onHold;
+                                  if (!isActiveState) {
                                     // Open dialog for reason
                                     setHoldReason("");
                                     setHoldDialogTarget(id);
                                   } else {
-                                    // Remove hold immediately
+                                    // Remove state immediately
                                     try {
                                       setTogglingHoldFor(id);
                                       const preId = Number(rowTyped?.id || rowTyped?.payroll_run_employee_id);
                                       const bJson = rowTyped.breakdown_json || {};
-                                      await toggleEmployeeHold(
-                                        preId,
-                                        onHold,
-                                        Number(user?.user_id) || 0,
-                                        user?.user_fname ? `${user.user_fname} ${user.user_lname}` : "Unknown",
-                                        user?.role || "UNKNOWN",
-                                        bJson
-                                      );
+                                      
+                                      if (isReviewPhase) {
+                                        await toggleEmployeeReject(
+                                          preId,
+                                          isActiveState,
+                                          Number(user?.user_id) || 0,
+                                          user?.user_fname ? `${user.user_fname} ${user.user_lname}` : "Unknown",
+                                          user?.role || "UNKNOWN",
+                                          bJson
+                                        );
+                                      } else {
+                                        await toggleEmployeeHold(
+                                          preId,
+                                          isActiveState,
+                                          Number(user?.user_id) || 0,
+                                          user?.user_fname ? `${user.user_fname} ${user.user_lname}` : "Unknown",
+                                          user?.role || "UNKNOWN",
+                                          bJson
+                                        );
+                                      }
                                       
                                       // Update local state to reflect change immediately
-                                      setHoldOverrides(prev => ({ ...prev, [id]: !onHold }));
-                                      toast.success("Hold removed");
+                                      setHoldOverrides(prev => ({ ...prev, [id]: !isActiveState }));
+                                      toast.success(isReviewPhase ? "Rejection removed" : "Hold removed");
                                     } catch (e: unknown) {
                                       const err = e as Error;
-                                      toast.error(err?.message || "Failed to toggle hold status");
+                                      toast.error(err?.message || "Failed to toggle status");
                                     } finally {
                                       setTogglingHoldFor(null);
                                     }
@@ -868,14 +900,14 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                               >
                                 {togglingHoldFor === id ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : onHold ? (
-                                  isReviewPhase ? (
+                                ) : isReviewPhase ? (
+                                  isRejected ? (
                                     <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                                   ) : (
-                                    <PlayCircle className="h-4 w-4 text-emerald-600" />
+                                    <XCircle className="h-4 w-4 text-red-600" />
                                   )
-                                ) : isReviewPhase ? (
-                                  <XCircle className="h-4 w-4 text-red-600" />
+                                ) : onHold ? (
+                                  <PlayCircle className="h-4 w-4 text-emerald-600" />
                                 ) : (
                                   <PauseCircle className="h-4 w-4 text-amber-600" />
                                 )}
@@ -1046,15 +1078,27 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                   const preId = Number(targetRow?.id || targetRow?.payroll_run_employee_id);
                   const bJson = targetRow.breakdown_json || {};
                   
-                  await toggleEmployeeHold(
-                    preId,
-                    false, // Currently NOT on hold
-                    Number(user?.user_id) || 0,
-                    user?.user_fname ? `${user.user_fname} ${user.user_lname}` : "Unknown",
-                    user?.role || "UNKNOWN",
-                    bJson,
-                    holdReason.trim()
-                  );
+                  if (isReviewPhase) {
+                    await toggleEmployeeReject(
+                      preId,
+                      false,
+                      Number(user?.user_id) || 0,
+                      user?.user_fname ? `${user.user_fname} ${user.user_lname}` : "Unknown",
+                      user?.role || "UNKNOWN",
+                      bJson,
+                      holdReason.trim()
+                    );
+                  } else {
+                    await toggleEmployeeHold(
+                      preId,
+                      false, // Currently NOT on hold
+                      Number(user?.user_id) || 0,
+                      user?.user_fname ? `${user.user_fname} ${user.user_lname}` : "Unknown",
+                      user?.role || "UNKNOWN",
+                      bJson,
+                      holdReason.trim()
+                    );
+                  }
                   
                   // Update local state
                   setHoldOverrides(prev => ({ ...prev, [holdDialogTarget]: true }));

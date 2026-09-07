@@ -102,9 +102,10 @@ export default function PayrollRunModule({ showLaborLawModal = true }: { showLab
 
   // password dialog
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
-
-  // labor law modal
   const [showLaborLaw, setShowLaborLaw] = useState(false);
+
+  // Flags from the DB (e.g. is_rejected)
+  const [flagsMap, setFlagsMap] = useState<Map<number, any>>(new Map());
   useEffect(() => {
     if (showLaborLawModal) {
       setShowLaborLaw(true);
@@ -114,8 +115,20 @@ export default function PayrollRunModule({ showLaborLawModal = true }: { showLab
   // computed register
   const computed = useMemo(() => {
     if (!ws) return null;
-    return svc.computeRegister({ ws, holdMap });
-  }, [ws, holdMap]);
+    const result = svc.computeRegister({ ws, holdMap });
+    
+    // Inject flags (like is_rejected) into breakdown_json
+    result.lines.forEach(line => {
+      const flags = flagsMap.get(line.user_id);
+      if (flags) {
+        const currentJson = (line.breakdown_json as any) || {};
+        currentJson.flags = { ...(currentJson.flags || {}), ...flags };
+        line.breakdown_json = currentJson;
+      }
+    });
+    
+    return result;
+  }, [ws, holdMap, flagsMap]);
 
   const selectedCutoff = useMemo(
     () => cutoffs.find((c) => c.id === config.cutoffId) ?? null,
@@ -243,6 +256,9 @@ export default function PayrollRunModule({ showLaborLawModal = true }: { showLab
         const persistedHold = await svc.loadPersistedHoldMap(activeRun.payroll_run_id);
         setHoldMap(persistedHold);
 
+        const persistedFlags = await svc.loadPersistedFlags(activeRun.payroll_run_id);
+        setFlagsMap(persistedFlags);
+
         // If the run is POSTED, load posted employees (on_hold != 1) for read-only display
         if (String(activeRun.status).toUpperCase() === "POSTED") {
           const posted = await svc.loadPostedEmployeesMap(activeRun.payroll_run_id);
@@ -251,9 +267,10 @@ export default function PayrollRunModule({ showLaborLawModal = true }: { showLab
           setPostedMap(new Map());
         }
       } else {
-        // New run - reset both maps
+        // New run - reset maps
         setHoldMap(new Map());
         setPostedMap(new Map());
+        setFlagsMap(new Map());
       }
 
       setStep(2);
@@ -326,6 +343,7 @@ export default function PayrollRunModule({ showLaborLawModal = true }: { showLab
     setWs(null);
     setHoldMap(new Map());
     setPostedMap(new Map());
+    setFlagsMap(new Map());
     setStep(1);
   }, []);
 

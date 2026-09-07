@@ -1311,6 +1311,34 @@ export async function loadPostedEmployeesMap(payrollRunId: number): Promise<Map<
   return map;
 }
 
+export async function loadPersistedFlags(payrollRunId: number): Promise<Map<number, any>> {
+  const pid = n(payrollRunId);
+  const map = new Map<number, any>();
+  if (!pid) return map;
+
+  const rows = await safeList<Record<string, unknown>>(
+    RES.payrollLines,
+    {
+      "filter[payroll_run_id][_eq]": pid,
+      limit: 50000,
+      fields: "user_id,breakdown_json",
+    },
+    [],
+  );
+
+  for (const r of rows ?? []) {
+    const uid = n(r?.user_id);
+    if (!uid) continue;
+    
+    const bJson = typeof r.breakdown_json === "string" ? JSON.parse(r.breakdown_json) : (r.breakdown_json || {});
+    if (bJson?.flags) {
+      map.set(uid, bJson.flags);
+    }
+  }
+
+  return map;
+}
+
 export async function loadPersistedLines(payrollRunId: number): Promise<PayrollComputedLine[]> {
   const pid = n(payrollRunId);
   if (!pid) return [];
@@ -1369,6 +1397,17 @@ export async function enforceOnHoldEmployeesAndMaybeRerun(args: {
 
   const payslipLines = filterPayslipLines(computed.lines, desiredHold);
   const holdUserIds = userIds.filter((id) => Boolean(desiredHold.get(id)));
+
+  // Load persisted flags (e.g. is_rejected) so they survive recomputations
+  const persistedFlags = await loadPersistedFlags(payrollRunId);
+  computed.lines.forEach((line) => {
+    const flags = persistedFlags.get(line.user_id);
+    if (flags) {
+      const currentJson = (line.breakdown_json as any) || {};
+      currentJson.flags = { ...(currentJson.flags || {}), ...flags };
+      line.breakdown_json = currentJson;
+    }
+  });
 
   // Load persisted holds to determine whether a POSTED run is "unfinished"
   const persistedHold = await loadPersistedHoldMap(payrollRunId);
