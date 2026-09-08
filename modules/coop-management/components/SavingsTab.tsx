@@ -85,7 +85,7 @@ const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
         );
 
         let userList: User[] = [];
-        let aggSavingsMap: Record<number, { sum: number; count: number }> = {};
+        const aggSavingsMap: Record<number, { sum: number; count: number }> = {};
 
         if (userIds.length > 0) {
           const ur = await listItems<User>(

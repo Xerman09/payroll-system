@@ -1493,7 +1493,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     // Loop dates to count overlapping days and calculate rate per day
     const startParts = start.split("-").map(Number);
     const endParts = end.split("-").map(Number);
-    let curr = new Date(startParts[0], startParts[1] - 1, startParts[2], 12, 0, 0);
+    const curr = new Date(startParts[0], startParts[1] - 1, startParts[2], 12, 0, 0);
     const endD = new Date(endParts[0], endParts[1] - 1, endParts[2], 12, 0, 0);
     
     while (curr <= endD) {

@@ -21,6 +21,7 @@ interface DepartmentFormModalProps {
   allDepartments: Department[];
   allUsers: UserLookup[];
   onSaved: () => void;
+  isReadOnly?: boolean;
 }
 
 export default function DepartmentFormModal({
@@ -30,6 +31,7 @@ export default function DepartmentFormModal({
   allDepartments,
   allUsers,
   onSaved,
+  isReadOnly = false,
 }: DepartmentFormModalProps) {
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<Partial<Department>>({});
@@ -73,6 +75,7 @@ export default function DepartmentFormModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) return;
     setSaving(true);
     
     // ensure numeric types
@@ -108,78 +111,91 @@ export default function DepartmentFormModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>
-            {department ? `Edit Department: ${department.department_name}` : "Add New Department"}
+          <DialogTitle className="flex items-center gap-2">
+            <span>
+              {department
+                ? (isReadOnly ? `View Department: ${department.department_name}` : `Edit Department: ${department.department_name}`)
+                : "Add New Department"}
+            </span>
+            {isReadOnly && (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                Read-Only
+              </span>
+            )}
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <div className="space-y-2">
-            <Label>Department Name *</Label>
-            <Input name="department_name" value={formData.department_name || ""} onChange={handleChange} required />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Description</Label>
-            <Textarea 
-              name="department_description" 
-              value={formData.department_description || ""} 
-              onChange={handleChange} 
-              rows={3} 
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <fieldset disabled={isReadOnly} className="space-y-4 border-none p-0 m-0">
             <div className="space-y-2">
-              <Label>Parent Division</Label>
-              <select 
-                name="parent_division" 
-                value={formData.parent_division || 0} 
+              <Label>Department Name *</Label>
+              <Input name="department_name" value={formData.department_name || ""} onChange={handleChange} required />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea 
+                name="department_description" 
+                value={formData.department_description || ""} 
                 onChange={handleChange} 
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value={0}>None (Root level)</option>
-                {availableParents.map(d => (
-                  <option key={d.department_id} value={d.department_id}>{d.department_name}</option>
-                ))}
-              </select>
+                rows={3} 
+              />
             </div>
 
-            <div className="space-y-2">
-              <Label>Department Head</Label>
-              <select 
-                name="department_head_id" 
-                value={formData.department_head_id || ""} 
-                onChange={handleHeadChange} 
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Unassigned</option>
-                {allUsers.map(u => (
-                  <option key={u.user_id} value={u.user_id}>
-                    {u.user_lname}, {u.user_fname} {u.user_mname?.charAt(0) || ""}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Parent Division</Label>
+                <select 
+                  name="parent_division" 
+                  value={formData.parent_division || 0} 
+                  onChange={handleChange} 
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value={0}>None (Root level)</option>
+                  {availableParents.map(d => (
+                    <option key={d.department_id} value={d.department_id}>{d.department_name}</option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="space-y-2">
-              <Label>Tax ID</Label>
-              <Input type="number" name="tax_id" value={formData.tax_id || ""} onChange={handleChange} />
-            </div>
+              <div className="space-y-2">
+                <Label>Department Head</Label>
+                <select 
+                  name="department_head_id" 
+                  value={formData.department_head_id || ""} 
+                  onChange={handleHeadChange} 
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Unassigned</option>
+                  {allUsers.map(u => (
+                    <option key={u.user_id} value={u.user_id}>
+                      {u.user_lname}, {u.user_fname} {u.user_mname?.charAt(0) || ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="space-y-2">
-              <Label>Date Added</Label>
-              <Input type="date" name="date_added" value={formData.date_added?.substring(0, 10) || ""} onChange={handleChange} />
+              <div className="space-y-2">
+                <Label>Tax ID</Label>
+                <Input type="number" name="tax_id" value={formData.tax_id || ""} onChange={handleChange} />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Date Added</Label>
+                <Input type="date" name="date_added" value={formData.date_added?.substring(0, 10) || ""} onChange={handleChange} />
+              </div>
             </div>
-          </div>
+          </fieldset>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {isReadOnly ? "Close" : "Cancel"}
             </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Saving..." : "Save Department"}
-            </Button>
+            {!isReadOnly && (
+              <Button type="submit" disabled={saving}>
+                {saving ? "Saving..." : "Save Department"}
+              </Button>
+            )}
           </div>
         </form>
       </DialogContent>

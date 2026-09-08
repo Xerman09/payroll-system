@@ -115,7 +115,7 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
     body = raw?.payload ?? raw ?? null;
 
     if (resource === "user_wage_management" && body && typeof body === "object") {
-      let b = body as Record<string, any>;
+      const b = body as Record<string, any>;
       if (b.daily_wage !== undefined) {
         b.encrypted_daily_wage = encryptNumber(b.daily_wage);
         b.daily_wage = 0;

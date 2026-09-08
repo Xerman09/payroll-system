@@ -155,7 +155,28 @@ export async function fetchDepartmentById(id: number): Promise<Department | null
   return json.data || null;
 }
 
+export async function fetchGeneralSetting(key: string): Promise<string | null> {
+  try {
+    const params = new URLSearchParams({
+      "filter[setting_key][_eq]": key,
+    });
+    const json = await apiFetch(BASE_API, `/items/general_setting?${params.toString()}`);
+    const data = json.data || [];
+    if (data.length > 0 && data[0].setting_value != null) {
+      return String(data[0].setting_value).trim();
+    }
+    return null;
+  } catch (error) {
+    console.error("Failed to fetch general setting:", error);
+    return null;
+  }
+}
+
 export async function createDepartment(payload: Partial<Department>): Promise<Department> {
+  const readOnly = await fetchGeneralSetting("payroll_department_management_read_only");
+  if (readOnly === "1" || readOnly === "true") {
+    throw new Error("Department Management is read-only. Adding departments is disabled.");
+  }
   const json = await apiFetch(BASE_API, "/items/department", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -164,6 +185,10 @@ export async function createDepartment(payload: Partial<Department>): Promise<De
 }
 
 export async function updateDepartment(id: number, payload: Partial<Department>): Promise<Department> {
+  const readOnly = await fetchGeneralSetting("payroll_department_management_read_only");
+  if (readOnly === "1" || readOnly === "true") {
+    throw new Error("Department Management is read-only. Editing departments is disabled.");
+  }
   const json = await apiFetch(BASE_API, `/items/department/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
@@ -172,6 +197,10 @@ export async function updateDepartment(id: number, payload: Partial<Department>)
 }
 
 export async function deleteDepartment(id: number): Promise<void> {
+  const readOnly = await fetchGeneralSetting("payroll_department_management_read_only");
+  if (readOnly === "1" || readOnly === "true") {
+    throw new Error("Department Management is read-only. Deleting departments is disabled.");
+  }
   await apiFetch(BASE_API, `/items/department/${id}`, {
     method: "DELETE",
   });

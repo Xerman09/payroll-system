@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Building2, Plus, Search } from "lucide-react";
+import { Building2, Plus, Search, Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
@@ -40,6 +40,7 @@ export function DepartmentModule() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage] = useState(10);
+  const [isReadOnly, setIsReadOnly] = useState(false);
 
   // Modals
   const [formModalOpen, setFormModalOpen] = useState(false);
@@ -52,12 +53,14 @@ export function DepartmentModule() {
   useEffect(() => {
     async function init() {
       try {
-        const [depts, users] = await Promise.all([
+        const [depts, users, readOnlySetting] = await Promise.all([
           departmentApi.fetchAllDepartments(),
           departmentApi.fetchAllUsers(),
+          departmentApi.fetchGeneralSetting("payroll_department_management_read_only"),
         ]);
         setAllDepartments(depts);
         setAllUsers(users);
+        setIsReadOnly(readOnlySetting === "1" || readOnlySetting === "true");
       } catch (err: any) {
         toast.error("Failed to load department lookups");
       }
@@ -101,6 +104,10 @@ export function DepartmentModule() {
   };
 
   const openCreateModal = () => {
+    if (isReadOnly) {
+      toast.error("Department management is in read-only mode. Adding departments is disabled.");
+      return;
+    }
     setSelectedDept(null);
     setFormModalOpen(true);
   };
@@ -111,11 +118,19 @@ export function DepartmentModule() {
   };
 
   const confirmDelete = (dept: Department) => {
+    if (isReadOnly) {
+      toast.error("Department management is in read-only mode. Deleting departments is disabled.");
+      return;
+    }
     setDeptToDelete(dept);
     setDeleteDialogOpen(true);
   };
 
   const handleDelete = async () => {
+    if (isReadOnly) {
+      toast.error("Department management is in read-only mode. Deleting departments is disabled.");
+      return;
+    }
     if (!deptToDelete?.department_id) return;
     
     try {
@@ -136,17 +151,28 @@ export function DepartmentModule() {
         {/* Header section */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 flex items-center gap-2">
-              <Building2 className="h-7 w-7 text-primary" />
-              Department Management
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <Building2 className="h-7 w-7 text-primary" />
+                Department Management
+              </h1>
+              {isReadOnly && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                  <Lock className="h-3 w-3" /> Read-Only
+                </span>
+              )}
+            </div>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Manage and organize company departments and hierarchical divisions.
+              {isReadOnly
+                ? "Department management is in read-only mode. Adding, editing, and deleting records are restricted."
+                : "Manage and organize company departments and hierarchical divisions."}
             </p>
           </div>
-          <Button onClick={openCreateModal}>
-            <Plus className="mr-2 h-4 w-4" /> Add Department
-          </Button>
+          {!isReadOnly && (
+            <Button onClick={openCreateModal}>
+              <Plus className="mr-2 h-4 w-4" /> Add Department
+            </Button>
+          )}
         </div>
         
         <Separator className="bg-gray-200 dark:bg-gray-800" />
@@ -192,6 +218,7 @@ export function DepartmentModule() {
               }}
               onEdit={openEditModal}
               onDelete={confirmDelete}
+              isReadOnly={isReadOnly}
             />
           </CardContent>
         </Card>
@@ -206,6 +233,7 @@ export function DepartmentModule() {
         onSaved={() => {
           setRefreshKey((k) => k + 1);
         }}
+        isReadOnly={isReadOnly}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -213,7 +241,7 @@ export function DepartmentModule() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the department "{deptToDelete?.department_name}".
+              This will permanently delete the department &quot;{deptToDelete?.department_name}&quot;.
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

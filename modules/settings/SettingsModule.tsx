@@ -155,7 +155,7 @@ export function SettingsModule() {
     const tabParam = searchParams?.get("tab");
     if (tabParam && ["general", "shortcuts", "navigation", "payroll-workflow"].includes(tabParam)) {
       if (tabParam !== activeTab) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setActiveTab(tabParam);
       }
     }

@@ -39,6 +39,25 @@ interface EmployeeTableProps {
   isReadOnly?: boolean;
 }
 
+function SortIcon({
+  field,
+  sortField,
+  onSort,
+}: {
+  field: keyof Employee;
+  sortField: keyof Employee;
+  onSort: (field: keyof Employee) => void;
+}) {
+  return (
+    <ArrowUpDown
+      className={`ml-2 h-4 w-4 inline-block cursor-pointer ${
+        sortField === field ? "text-primary opacity-100" : "text-gray-400 opacity-50"
+      }`}
+      onClick={() => onSort(field)}
+    />
+  );
+}
+
 export default function EmployeeTable({
   loading,
   employees,
@@ -55,15 +74,6 @@ export default function EmployeeTable({
   isReadOnly = false,
 }: EmployeeTableProps) {
   const totalPages = Math.max(1, Math.ceil(totalEmployees / pageSize));
-
-  const SortIcon = ({ field }: { field: keyof Employee }) => (
-    <ArrowUpDown
-      className={`ml-2 h-4 w-4 inline-block cursor-pointer ${
-        sortField === field ? "text-primary opacity-100" : "text-gray-400 opacity-50"
-      }`}
-      onClick={() => onSort(field)}
-    />
-  );
 
   const renderPagination = () => {
     if (totalPages <= 1) return null;
@@ -108,7 +118,7 @@ export default function EmployeeTable({
             <TableRow>
               <TableHead className="w-16">#</TableHead>
               <TableHead>
-                Name <SortIcon field="user_fname" />
+                Name <SortIcon field="user_fname" sortField={sortField} onSort={onSort} />
               </TableHead>
               <TableHead>Department</TableHead>
               <TableHead>Contact Info</TableHead>

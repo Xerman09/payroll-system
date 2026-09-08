@@ -237,7 +237,7 @@ function Sidebar() {
     }
 
     return fullMenu;
-  }, [userId, isApprovalsVisible, isHR]);
+  }, [userId, isApprovalsVisible, isHR, isCheckerVisible]);
 
   const toggleDropdown = (title: string) => {
     setOpenDropdowns((prev) =>

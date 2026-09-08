@@ -35,6 +35,29 @@ export async function GET(req: NextRequest) {
   }
 }
 
+async function checkDepartmentReadOnly(req: NextRequest, config: any): Promise<boolean> {
+  try {
+    const BASE = config.apiBase;
+    const fetchUrl = joinUrl(BASE, "/items/general_setting?filter[setting_key][_eq]=payroll_department_management_read_only&limit=1");
+    const fwdHeaders = buildForwardHeaders(req, config);
+    const res = await fetch(fetchUrl, {
+      method: "GET",
+      headers: fwdHeaders,
+      cache: "no-store",
+    });
+    if (!res.ok) return false;
+    const json = await parseJsonSafe(res);
+    const rows = json?.data || [];
+    if (rows.length > 0 && rows[0]?.setting_value != null) {
+      const val = String(rows[0].setting_value).trim();
+      return val === "1" || val.toLowerCase() === "true";
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const config = await resolveApiConfig();
@@ -52,6 +75,16 @@ export async function POST(req: NextRequest) {
 
     if (!path) {
       return NextResponse.json({ error: "Missing body.path" }, { status: 400 });
+    }
+
+    if (path.startsWith("/items/department")) {
+      const isReadOnly = await checkDepartmentReadOnly(req, config);
+      if (isReadOnly) {
+        return NextResponse.json(
+          { error: "Department Management is currently in read-only mode. Adding departments is disabled." },
+          { status: 403 }
+        );
+      }
     }
 
     const res = await fetch(joinUrl(BASE, path), {
@@ -89,6 +122,16 @@ export async function PATCH(req: NextRequest) {
 
     if (!path) {
       return NextResponse.json({ error: "Missing body.path" }, { status: 400 });
+    }
+
+    if (path.startsWith("/items/department")) {
+      const isReadOnly = await checkDepartmentReadOnly(req, config);
+      if (isReadOnly) {
+        return NextResponse.json(
+          { error: "Department Management is currently in read-only mode. Editing departments is disabled." },
+          { status: 403 }
+        );
+      }
     }
 
     const res = await fetch(joinUrl(BASE, path), {
@@ -138,6 +181,16 @@ export async function DELETE(req: NextRequest) {
         { error: "Missing body.path or query ?path=" },
         { status: 400 }
       );
+    }
+
+    if (path.startsWith("/items/department")) {
+      const isReadOnly = await checkDepartmentReadOnly(req, config);
+      if (isReadOnly) {
+        return NextResponse.json(
+          { error: "Department Management is currently in read-only mode. Deleting departments is disabled." },
+          { status: 403 }
+        );
+      }
     }
 
     const res = await fetch(joinUrl(BASE, path), {

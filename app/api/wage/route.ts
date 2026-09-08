@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Intercept and encrypt user_wage_management data
-    let modifiedPayload = { ...payload };
+    const modifiedPayload = { ...payload };
     if (path.includes("user_wage_management") && modifiedPayload.daily_wage !== undefined) {
       modifiedPayload.encrypted_daily_wage = encryptNumber(modifiedPayload.daily_wage);
       modifiedPayload.daily_wage = 0; // Save as 0 to satisfy decimal constraint
@@ -116,7 +116,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Intercept and encrypt user_wage_management data
-    let modifiedPayload = { ...payload };
+    const modifiedPayload = { ...payload };
     if (path.includes("user_wage_management") && modifiedPayload.daily_wage !== undefined) {
       modifiedPayload.encrypted_daily_wage = encryptNumber(modifiedPayload.daily_wage);
       modifiedPayload.daily_wage = 0; // Save as 0 to satisfy decimal constraint

@@ -96,7 +96,7 @@ export function CoopSavingsDetailsModal({
           ) : details.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-50 dark:bg-gray-800/20 rounded-lg border border-dashed">
               <p className="text-gray-500 font-medium">No historical deductions found</p>
-              <p className="text-sm text-gray-400 mt-1">This user hasn't made any savings contributions yet.</p>
+              <p className="text-sm text-gray-400 mt-1">This user hasn&apos;t made any savings contributions yet.</p>
             </div>
           ) : (
             <div className="rounded-md border shadow-sm">

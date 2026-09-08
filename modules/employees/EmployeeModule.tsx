@@ -299,7 +299,7 @@ export function EmployeeModule() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete employee "{employeeToDelete?.user_fname} {employeeToDelete?.user_lname}".
+              This will permanently delete employee &quot;{employeeToDelete?.user_fname} {employeeToDelete?.user_lname}&quot;.
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

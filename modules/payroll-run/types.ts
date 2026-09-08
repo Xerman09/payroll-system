@@ -497,7 +497,11 @@ export type BreakdownItem = {
 
 export type PayrollBreakdownJson = {
   is_card?: number;
-  flags?: Record<string, unknown>;
+  flags?: {
+    is_rejected?: boolean;
+    reject_reason?: string;
+    [key: string]: unknown;
+  };
   rates?: {
     wage_profile?: {
       daily?: number;
@@ -576,6 +580,8 @@ export type PayrollBreakdownJson = {
 // Computed breakdown per employee
 // ------------------------------
 export interface PayrollComputedLine {
+  id?: number;
+  payroll_run_employee_id?: number;
   user_id: number;
 
   employee_name: string;

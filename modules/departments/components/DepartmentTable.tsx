@@ -15,7 +15,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowUpDown, Pencil, Trash2 } from "lucide-react";
+import { ArrowUpDown, Pencil, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import type { Department, UserLookup } from "../types";
@@ -34,6 +34,26 @@ interface DepartmentTableProps {
   onSort: (field: keyof Department) => void;
   onEdit: (dept: Department) => void;
   onDelete: (dept: Department) => void;
+  isReadOnly?: boolean;
+}
+
+function SortIcon({
+  field,
+  sortField,
+  onSort,
+}: {
+  field: keyof Department;
+  sortField: keyof Department;
+  onSort: (field: keyof Department) => void;
+}) {
+  return (
+    <ArrowUpDown
+      className={`ml-2 h-4 w-4 inline-block cursor-pointer ${
+        sortField === field ? "text-primary opacity-100" : "text-gray-400 opacity-50"
+      }`}
+      onClick={() => onSort(field)}
+    />
+  );
 }
 
 export default function DepartmentTable({
@@ -50,17 +70,9 @@ export default function DepartmentTable({
   onSort,
   onEdit,
   onDelete,
+  isReadOnly = false,
 }: DepartmentTableProps) {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-
-  const SortIcon = ({ field }: { field: keyof Department }) => (
-    <ArrowUpDown
-      className={`ml-2 h-4 w-4 inline-block cursor-pointer ${
-        sortField === field ? "text-primary opacity-100" : "text-gray-400 opacity-50"
-      }`}
-      onClick={() => onSort(field)}
-    />
-  );
 
   const renderPagination = () => {
     if (totalPages <= 1) return null;
@@ -105,7 +117,7 @@ export default function DepartmentTable({
             <TableRow>
               <TableHead className="w-16">#</TableHead>
               <TableHead>
-                Department Name <SortIcon field="department_name" />
+                Department Name <SortIcon field="department_name" sortField={sortField} onSort={onSort} />
               </TableHead>
               <TableHead>Parent Division</TableHead>
               <TableHead>Department Head</TableHead>
@@ -165,24 +177,37 @@ export default function DepartmentTable({
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      {isReadOnly ? (
                         <Button
                           variant="ghost"
-                          className="h-8 w-8 p-0 shrink-0 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                          size="sm"
+                          className="h-8 px-2.5 text-gray-600 hover:text-primary hover:bg-primary/10 transition-colors gap-1.5 ml-auto"
                           onClick={() => onEdit(dept)}
-                          title="Edit Department"
+                          title="View Department Details"
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Eye className="h-4 w-4 text-gray-500" />
+                          <span className="text-xs font-medium">View</span>
                         </Button>
-                        <Button
-                          variant="ghost"
-                          className="h-8 w-8 p-0 shrink-0 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
-                          onClick={() => onDelete(dept)}
-                          title="Delete Department"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      ) : (
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            className="h-8 w-8 p-0 shrink-0 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                            onClick={() => onEdit(dept)}
+                            title="Edit Department"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="h-8 w-8 p-0 shrink-0 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
+                            onClick={() => onDelete(dept)}
+                            title="Delete Department"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

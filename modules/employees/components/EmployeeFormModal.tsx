@@ -98,7 +98,7 @@ export default function EmployeeFormModal({
   }, [open, employee]);
 
   useEffect(() => {
-    let mounted = true;
+    const mounted = true;
     if (open) {
       setLoadingBanks(true);
       Promise.all([

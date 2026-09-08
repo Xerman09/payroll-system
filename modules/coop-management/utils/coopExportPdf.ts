@@ -148,7 +148,7 @@ export async function exportCoopPdf(args: {
 
   // --- FILTER BY CUTOFF ---
   let filteredData = rawData;
-  let cutoffDeductions: Record<number, number> = {};
+  const cutoffDeductions: Record<number, number> = {};
 
   if (cutoffId) {
     const selected = cutoffs?.find(c => c.id === cutoffId);

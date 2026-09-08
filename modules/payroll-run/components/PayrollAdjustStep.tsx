@@ -767,10 +767,10 @@ export function PayrollAdjustStep({
                 {filtered.map((l) => {
                   const isHold = Boolean(holdMap.get(l.user_id));
                   const isPosted = Boolean(postedMap.get(l.user_id));
-                  const isRejected = Boolean((l.breakdown_json as any)?.flags?.is_rejected);
+                  const isRejected = Boolean(l.breakdown_json?.flags?.is_rejected);
                   const isLockedByReject = run?.status === 'REJECTED' && !isRejected;
                   const isLocked = isPosted || isLockedByReject;
-                  const rejectReason = (l.breakdown_json as any)?.flags?.reject_reason;
+                  const rejectReason = l.breakdown_json?.flags?.reject_reason;
                   return (
                     <TableRow
                       key={l.user_id}
@@ -815,20 +815,21 @@ export function PayrollAdjustStep({
                                   className="h-6 mt-1 text-[10px] px-2 py-0 border-destructive text-destructive hover:bg-destructive hover:text-white"
                                   onClick={async () => {
                                     try {
-                                      const preId = Number((l as any).id || (l as any).payroll_run_employee_id);
+                                      const preId = Number(l.id || l.payroll_run_employee_id || 0);
                                       await toggleEmployeeReject(
                                         preId,
                                         true, // Currently rejected, so pass true to toggle it to false
                                         1, // userId fallback
                                         "Maker", 
                                         "MAKER",
-                                        (l as any).breakdown_json || {}
+                                        (l.breakdown_json as Record<string, unknown>) || {}
                                       );
                                       toast.success("Rejection resolved. Please click Recompute to finalize.");
                                       // Force reload
                                       onRecompute();
-                                    } catch (e: any) {
-                                      toast.error(e.message || "Failed to resolve rejection");
+                                    } catch (e: unknown) {
+                                      const err = e as Error;
+                                      toast.error(err?.message || "Failed to resolve rejection");
                                     }
                                   }}
                                 >
@@ -943,7 +944,7 @@ export function PayrollAdjustStep({
             manualEntries={manualEntries as ManualEntry[]}
             isPosted={activeUserId != null ? (
               Boolean(postedMap.get(activeUserId)) || 
-              (run?.status === 'REJECTED' && !Boolean((filtered.find(l => l.user_id === activeUserId)?.breakdown_json as any)?.flags?.is_rejected))
+              (run?.status === 'REJECTED' && !Boolean(filtered.find(l => l.user_id === activeUserId)?.breakdown_json?.flags?.is_rejected))
             ) : false}
             onOpenAdjust={() => openAddAdjustment()}
             onEditEntry={(e) => openEditAdjustment(e)}
