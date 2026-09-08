@@ -23,6 +23,23 @@ export async function fetchCompanyConfig(): Promise<{ companyName: string }> {
   }
 }
 
+export async function fetchGeneralSetting(key: string): Promise<string | null> {
+  try {
+    const params = new URLSearchParams({
+      "filter[setting_key][_eq]": key,
+    });
+    const json = await apiFetch(`/items/general_setting?${params.toString()}`);
+    const data = json?.data || [];
+    if (data.length > 0 && data[0].setting_value != null) {
+      return String(data[0].setting_value).trim();
+    }
+    return null;
+  } catch (error) {
+    console.error("Failed to fetch general setting:", error);
+    return null;
+  }
+}
+
 
 async function apiFetch(path: string, options?: RequestInit) {
   const res = await fetch(`${BASE_API}?path=${encodeURIComponent(path)}`, options);

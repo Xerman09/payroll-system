@@ -8,7 +8,14 @@ export const BENEFITS: { code: BenefitCode; name: string }[] = [
   { code: "PHILHEALTH", name: "Philhealth" },
 ];
 
-export { BenefitSettingsModule };
+import GovernmentBenefitSettingsModule from "./government/GovernmentBenefitSettingsModule";
+import PrivateBenefitSettingsModule from "./PrivateBenefitSettingsModule";
+
+export {
+  BenefitSettingsModule,
+  GovernmentBenefitSettingsModule,
+  PrivateBenefitSettingsModule,
+};
 
 // Alias (optional future rename without breaking imports)
 export { BenefitSettingsModule as ManageBenefitsModule };
