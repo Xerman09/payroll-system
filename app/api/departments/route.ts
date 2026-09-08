@@ -14,7 +14,12 @@ export async function GET(req: NextRequest) {
     }
     const BASE = config.apiBase;
 
-    const fetchUrl = buildProxyUrl(req.url, BASE);
+    const url = new URL(req.url);
+    if (!url.searchParams.get("path")) {
+      url.searchParams.set("path", "/items/department?limit=-1&sort=department_name");
+    }
+
+    const fetchUrl = buildProxyUrl(url.toString(), BASE);
     const fwdHeaders = buildForwardHeaders(req, config);
 
     const res = await fetch(fetchUrl, {

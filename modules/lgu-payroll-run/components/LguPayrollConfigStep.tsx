@@ -143,10 +143,10 @@ export default function LguPayrollConfigStep({
       <Card className="border-slate-200 dark:border-gray-800 shadow-sm bg-white dark:bg-gray-900">
         <CardHeader className="pb-4 border-b border-slate-100 dark:border-gray-800">
           <CardTitle className="text-base font-bold text-slate-900 dark:text-gray-100">
-            Pumili ng Cutoff at Tanggapan (Office)
+            Pumili ng Cutoff at Departamento (Department)
           </CardTitle>
           <CardDescription className="text-xs">
-            Itakda ang panahon ng payroll at kung aling tanggapan o departamento ang ipoproseso.
+            Itakda ang panahon ng payroll at kung aling departamento ang ipoproseso.
           </CardDescription>
         </CardHeader>
 
@@ -184,21 +184,21 @@ export default function LguPayrollConfigStep({
               )}
             </div>
 
-            {/* Department / Office */}
+            {/* Department */}
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-slate-700 dark:text-gray-300 flex items-center gap-1.5">
                 <Building2 className="h-4 w-4 text-blue-600" />
-                <span>Tanggapan / Departamento (Office)</span>
+                <span>Departamento (Department)</span>
               </Label>
               <Select
                 value={config.departmentId ? String(config.departmentId) : "ALL"}
                 onValueChange={handleDeptChange}
               >
                 <SelectTrigger className="w-full h-10 text-xs">
-                  <SelectValue placeholder="Lahat ng Tanggapan (All Offices)" />
+                  <SelectValue placeholder="Lahat ng Departamento (All Departments)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">Lahat ng Tanggapan (All LGU Offices)</SelectItem>
+                  <SelectItem value="ALL">Lahat ng Departamento (All Departments)</SelectItem>
                   {departments.map((d) => (
                     <SelectItem key={d.department_id} value={String(d.department_id)}>
                       {d.department_name}
@@ -207,7 +207,7 @@ export default function LguPayrollConfigStep({
                 </SelectContent>
               </Select>
               <p className="text-[11px] text-slate-400">
-                Piliin ang partikular na tanggapan (hal. Treasury, Mayor&apos;s Office) o Lahat para sa consolidated roll.
+                Piliin ang partikular na departamento o Lahat para sa consolidated roll.
               </p>
             </div>
           </div>

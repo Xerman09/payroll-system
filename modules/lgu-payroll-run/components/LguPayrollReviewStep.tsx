@@ -284,7 +284,7 @@ export default function LguPayrollReviewStep({
               <Table>
                 <TableHeader className="bg-slate-50 dark:bg-gray-800 text-[11px]">
                   <TableRow>
-                    <TableHead>Tanggapan / Departamento</TableHead>
+                    <TableHead>Departamento</TableHead>
                     <TableHead className="text-center">Kawani</TableHead>
                     <TableHead className="text-right">Basic Pay</TableHead>
                     <TableHead className="text-right">PERA</TableHead>

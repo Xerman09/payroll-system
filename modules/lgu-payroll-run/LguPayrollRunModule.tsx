@@ -11,6 +11,7 @@ import LguPayrollAdjustStep from "./components/LguPayrollAdjustStep";
 import LguPayrollProcessStep from "./components/LguPayrollProcessStep";
 import LguPayrollReviewStep from "./components/LguPayrollReviewStep";
 import { computeLguLine, computeLguSummary } from "./utils/lguCompute";
+import * as departmentApi from "@/modules/departments/providers/departmentApi";
 import type {
   LguPayrollStep,
   CutoffSetting,
@@ -66,13 +67,17 @@ export default function LguPayrollRunModule() {
   const loadMasterData = useCallback(async () => {
     setLoadingMaster(true);
     try {
-      const [cutoffRes, deptRes] = await Promise.all([
-        fetch("/api/cutoff-settings").then((r) => (r.ok ? r.json() : { data: [] })),
-        fetch("/api/departments").then((r) => (r.ok ? r.json() : { data: [] })),
+      const [cutoffRes, depts] = await Promise.all([
+        fetch("/api/cutoff-settings").then((r) => (r.ok ? r.json() : { data: [] })).catch(() => ({ data: [] })),
+        departmentApi.fetchAllDepartments().catch(async () => {
+          const res = await fetch("/api/departments");
+          const j = await res.json().catch(() => null);
+          return Array.isArray(j?.data) ? j.data : [];
+        }),
       ]);
 
       const cutoffList = Array.isArray(cutoffRes.data) ? cutoffRes.data : [];
-      const deptList = Array.isArray(deptRes.data) ? deptRes.data : [];
+      const deptList = Array.isArray(depts) ? depts : [];
 
       setCutoffs(cutoffList);
       setDepartments(deptList);
@@ -101,19 +106,17 @@ export default function LguPayrollRunModule() {
   const handleProceedToCompute = useCallback(async () => {
     try {
       // Fetch active employees
-      const empRes = await fetch("/api/employees").then((r) => (r.ok ? r.json() : { data: [] }));
-      const empList: Array<{
-        user_id: number;
-        user_fname: string;
-        user_lname: string;
-        user_department?: number | null;
-        user_position?: string | null;
-        is_deleted?: number | boolean;
-      }> = Array.isArray(empRes.data) ? empRes.data : [];
+      const empList = await departmentApi.fetchAllUsers().catch(async () => {
+        const res = await fetch("/api/employees");
+        const j = await res.json().catch(() => null);
+        return Array.isArray(j?.data) ? j.data : [];
+      });
 
       // Filter active employees (and by department if selected)
-      const filtered = empList.filter((u) => {
-        if (u.is_deleted === 1 || u.is_deleted === true) return false;
+      const filtered = empList.filter((u: any) => {
+        const isDel = (u.is_deleted as any)?.data?.[0] === 1 || u.is_deleted === 1 || u.is_deleted === true;
+        if (isDel) return false;
+        if (u.is_employee === 0 || u.is_employee === false) return false;
         if (config.departmentId != null && u.user_department !== config.departmentId) return false;
         return true;
       });
@@ -128,7 +131,7 @@ export default function LguPayrollRunModule() {
       }
 
       // Generate initial LGU payroll lines with standard salary brackets
-      const initialLines: LguPayrollLine[] = filtered.map((u, idx) => {
+      const initialLines: LguPayrollLine[] = filtered.map((u: any, idx: number) => {
         const deptName = u.user_department
           ? deptMap.get(u.user_department) || "LGU Department"
           : "General Administration";

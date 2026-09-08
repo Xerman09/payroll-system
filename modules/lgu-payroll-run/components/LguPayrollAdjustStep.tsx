@@ -152,7 +152,7 @@ export default function LguPayrollAdjustStep({
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
           <Input
-            placeholder="Hanapin ang kawani, posisyon, o opisina..."
+            placeholder="Hanapin ang kawani, posisyon, o departamento..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8 h-9 text-xs bg-slate-50 dark:bg-gray-800"
@@ -165,7 +165,7 @@ export default function LguPayrollAdjustStep({
               <SelectValue placeholder="All Departments" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">Lahat ng Opisina (All Offices)</SelectItem>
+              <SelectItem value="ALL">Lahat ng Departamento (All Departments)</SelectItem>
               {departments.map((d) => (
                 <SelectItem key={d.department_id} value={String(d.department_id)}>
                   {d.department_name}
@@ -195,7 +195,7 @@ export default function LguPayrollAdjustStep({
               <TableRow>
                 <TableHead className="w-10 text-center">#</TableHead>
                 <TableHead>Kawani / Posisyon</TableHead>
-                <TableHead>Tanggapan</TableHead>
+                <TableHead>Departamento</TableHead>
                 <TableHead className="text-right">Basic Pay</TableHead>
                 <TableHead className="text-right">PERA</TableHead>
                 <TableHead className="text-right font-semibold text-blue-700 dark:text-blue-400">

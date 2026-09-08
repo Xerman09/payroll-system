@@ -12,7 +12,7 @@ interface LguPayrollStepperProps {
 }
 
 const STEPS: { step: LguPayrollStep; title: string; subtitle: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { step: 1, title: "1. Kompigurasyon", subtitle: "Cutoff & Office Selection", icon: Settings },
+  { step: 1, title: "1. Kompigurasyon", subtitle: "Cutoff & Department Selection", icon: Settings },
   { step: 2, title: "2. Kalkulasyon", subtitle: "Cost-Sharing & Deductions", icon: Calculator },
   { step: 3, title: "3. Pagproseso", subtitle: "Batch Draft Validation", icon: Cpu },
   { step: 4, title: "4. Pagsusuri & Top Sheet", subtitle: "Review, DV & Post", icon: FileSpreadsheet },
