@@ -30,6 +30,7 @@ import {
   CheckCircle2,
   FileText,
   FileSearch,
+  Landmark,
 } from "lucide-react";
 import { getLoggedUser } from "@/lib/auth";
 
@@ -165,6 +166,11 @@ function Sidebar() {
             title: "Payroll Run",
             href: `/payroll-run/${userId}`,
             icon: <Calculator size={18} />,
+          },
+          {
+            title: "LGU Payroll Run",
+            href: `/lgu-payroll-run/${userId}`,
+            icon: <Landmark size={18} />,
           },
           {
             title: "Logistics Payroll Run",
