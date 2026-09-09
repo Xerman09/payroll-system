@@ -42,6 +42,7 @@ import { getLoggedUser } from "@/lib/auth";
 import * as svc from "./providers/payrollRunService";
 import * as api from "./providers/payrollApi";
 import { formatCutoffLabel } from "./utils/payroll";
+import LguPayrollRunModule from "@/modules/lgu-payroll-run/LguPayrollRunModule";
 
 const loggedUser = getLoggedUser();
 const isCheckerOrApprover =
@@ -75,7 +76,7 @@ function statusClasses(status?: string | null) {
   return "border-border bg-muted/40 text-muted-foreground";
 }
 
-export default function PayrollRunModule({ showLaborLawModal = true }: { showLaborLawModal?: boolean }) {
+function PrivatePayrollRunContent({ showLaborLawModal = true }: { showLaborLawModal?: boolean }) {
   const [step, setStep] = useState<PayrollStep>(1);
 
   // master data
@@ -741,4 +742,71 @@ export default function PayrollRunModule({ showLaborLawModal = true }: { showLab
       </div>
     </DashboardLayout>
   );
+}
+
+export default function PayrollRunModule({ showLaborLawModal = true }: { showLaborLawModal?: boolean }) {
+  const [industryLoading, setIndustryLoading] = useState(true);
+  const [isGovernment, setIsGovernment] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    async function checkIndustry() {
+      try {
+        const res = await fetch(
+          "/api/departments?path=" +
+            encodeURIComponent("/items/general_setting?filter[setting_key][_eq]=payroll_industry")
+        );
+        if (res.ok) {
+          const json = await res.json();
+          const rows = json?.data || [];
+          if (active && rows.length > 0 && rows[0]?.setting_value) {
+            const val = String(rows[0].setting_value).trim().toLowerCase();
+            if (val === "government" || val === "lgu") {
+              setIsGovernment(true);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to check payroll industry:", err);
+      } finally {
+        if (active) {
+          setIndustryLoading(false);
+        }
+      }
+    }
+    checkIndustry();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (industryLoading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-4 p-4">
+          <div className="rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm space-y-4">
+            <div className="flex justify-between items-center">
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-4 w-96" />
+              </div>
+              <Skeleton className="h-9 w-28" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4">
+              <Skeleton className="h-24 w-full rounded-xl" />
+              <Skeleton className="h-24 w-full rounded-xl" />
+              <Skeleton className="h-24 w-full rounded-xl" />
+              <Skeleton className="h-24 w-full rounded-xl" />
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (isGovernment) {
+    return <LguPayrollRunModule />;
+  }
+
+  return <PrivatePayrollRunContent showLaborLawModal={showLaborLawModal} />;
 }

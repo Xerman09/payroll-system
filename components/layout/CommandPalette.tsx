@@ -18,7 +18,8 @@ import {
   Folders,
   HandCoins,
   Calendars,
-  Anchor
+  Anchor,
+  Landmark,
 } from "lucide-react";
 
 import {
@@ -51,8 +52,37 @@ export function CommandPalette({ open, setOpen }: CommandPaletteProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [employees, setEmployees] = useState<EmployeeSearch[]>([]);
+  const [isGovernment, setIsGovernment] = useState(false);
   const loggedUser = getLoggedUser();
   const userId = loggedUser?.user_id || "me";
+
+  useEffect(() => {
+    let active = true;
+    async function checkIndustry() {
+      try {
+        const res = await fetch(
+          "/api/departments?path=" +
+            encodeURIComponent("/items/general_setting?filter[setting_key][_eq]=payroll_industry")
+        );
+        if (res.ok) {
+          const json = await res.json();
+          const rows = json?.data || [];
+          if (active && rows.length > 0 && rows[0]?.setting_value) {
+            const val = String(rows[0].setting_value).trim().toLowerCase();
+            if (val === "government" || val === "lgu") {
+              setIsGovernment(true);
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    checkIndustry();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -145,10 +175,22 @@ export function CommandPalette({ open, setOpen }: CommandPaletteProps) {
             <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-widest">Records &gt; Sheets</span>
           </CommandItem>
 
-          <CommandItem onSelect={() => runCommand(() => router.push(`/payroll-run/${userId}`))}>
-            <Calculator className="mr-2 h-4 w-4 text-orange-500" />
-            <span>Payroll Run</span>
-            <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-widest">Processing &gt; Run</span>
+          <CommandItem
+            onSelect={() =>
+              runCommand(() =>
+                router.push(isGovernment ? `/lgu-payroll-run/${userId}` : `/payroll-run/${userId}`)
+              )
+            }
+          >
+            {isGovernment ? (
+              <Landmark className="mr-2 h-4 w-4 text-blue-500" />
+            ) : (
+              <Calculator className="mr-2 h-4 w-4 text-orange-500" />
+            )}
+            <span>{isGovernment ? "LGU Payroll Run" : "Payroll Run"}</span>
+            <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-widest">
+              Processing &gt; Run
+            </span>
           </CommandItem>
         </CommandGroup>
 

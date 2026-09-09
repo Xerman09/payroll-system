@@ -50,6 +50,32 @@ function Sidebar() {
   const [isCheckerVisible, setIsCheckerVisible] = React.useState(false);
   const [isApprovalsVisible, setIsApprovalsVisible] = React.useState(false);
   const [isHR, setIsHR] = React.useState(true);
+  const [isGovernment, setIsGovernment] = React.useState(false);
+
+  React.useEffect(() => {
+    let active = true;
+    async function checkIndustry() {
+      try {
+        const res = await fetch(
+          "/api/departments?path=" +
+            encodeURIComponent("/items/general_setting?filter[setting_key][_eq]=payroll_industry")
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        const rows = json?.data || [];
+        if (active && rows.length > 0 && rows[0]?.setting_value) {
+          const val = String(rows[0].setting_value).trim().toLowerCase();
+          setIsGovernment(val === "government" || val === "lgu");
+        }
+      } catch (err) {
+        console.error("Failed to check payroll industry for sidebar", err);
+      }
+    }
+    checkIndustry();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     const user = getLoggedUser() as any;
@@ -162,16 +188,18 @@ function Sidebar() {
             href: `/payroll-approvals/${userId}`,
             icon: <CheckCircle2 size={18} />,
           }] : []),
-          {
-            title: "Payroll Run",
-            href: `/payroll-run/${userId}`,
-            icon: <Calculator size={18} />,
-          },
-          {
-            title: "LGU Payroll Run",
-            href: `/lgu-payroll-run/${userId}`,
-            icon: <Landmark size={18} />,
-          },
+          ...(isGovernment
+            ? [{
+                title: "LGU Payroll Run",
+                href: `/lgu-payroll-run/${userId}`,
+                icon: <Landmark size={18} />,
+              }]
+            : [{
+                title: "Payroll Run",
+                href: `/payroll-run/${userId}`,
+                icon: <Calculator size={18} />,
+              }]
+          ),
           {
             title: "Logistics Payroll Run",
             href: `/logistics-payroll-run/${userId}`,
@@ -243,7 +271,7 @@ function Sidebar() {
     }
 
     return fullMenu;
-  }, [userId, isApprovalsVisible, isHR, isCheckerVisible]);
+  }, [userId, isApprovalsVisible, isHR, isCheckerVisible, isGovernment]);
 
   const toggleDropdown = (title: string) => {
     setOpenDropdowns((prev) =>
