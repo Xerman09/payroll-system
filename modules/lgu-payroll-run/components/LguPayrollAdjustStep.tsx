@@ -18,7 +18,10 @@ import {
   Coins,
   Lock,
   Unlock,
+  Download,
 } from "lucide-react";
+import { toast } from "sonner";
+import { downloadLguPayslipsPdf } from "../utils/lguPayslipPdf";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,6 +77,21 @@ export default function LguPayrollAdjustStep({
 
   // Detail Modal
   const [detailLine, setDetailLine] = useState<LguPayrollLine | null>(null);
+
+  const handleDownloadDetailPayslip = async () => {
+    if (!detailLine) return;
+    try {
+      await downloadLguPayslipsPdf({
+        lines: [detailLine],
+        cutoff: null,
+        payrollRefNo: "LGU-DRAFT-PR",
+        singleEmployeeId: detailLine.userId,
+      });
+      toast.success("Na-download ang payslip para sa kawani.");
+    } catch (err: any) {
+      toast.error(err?.message || "Nabigong i-download ang payslip.");
+    }
+  };
 
   const filteredLines = useMemo(() => {
     return lines.filter((l) => {
@@ -446,7 +464,16 @@ export default function LguPayrollAdjustStep({
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadDetailPayslip}
+              className="text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200 flex items-center gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>I-Download ang Payslip (PDF)</span>
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setDetailLine(null)} className="text-xs">
               Isara (Close)
             </Button>

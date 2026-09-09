@@ -15,7 +15,11 @@ import {
   HeartPulse,
   Landmark,
   FileCheck,
+  Download,
+  FileText,
 } from "lucide-react";
+import { toast } from "sonner";
+import { downloadLguPayslipsPdf } from "../utils/lguPayslipPdf";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +76,39 @@ export default function LguPayrollReviewStep({
 }: LguPayrollReviewStepProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadAllPayslips = async () => {
+    setDownloading(true);
+    try {
+      await downloadLguPayslipsPdf({
+        lines,
+        cutoff,
+        payrollRefNo,
+      });
+      toast.success("Matagumpay na na-download ang mga payslip.");
+    } catch (err: any) {
+      console.error("Failed to download payslips:", err);
+      toast.error(err?.message || "Nabigong i-download ang mga payslip.");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleDownloadSinglePayslip = async (userId: number) => {
+    try {
+      await downloadLguPayslipsPdf({
+        lines,
+        cutoff,
+        payrollRefNo,
+        singleEmployeeId: userId,
+      });
+      toast.success("Na-download ang payslip para sa kawani.");
+    } catch (err: any) {
+      console.error("Failed to download employee payslip:", err);
+      toast.error(err?.message || "Nabigong i-download ang payslip.");
+    }
+  };
 
   const handleConfirmPost = async () => {
     setPosting(true);
@@ -113,7 +150,18 @@ export default function LguPayrollReviewStep({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownloadAllPayslips}
+            disabled={downloading || lines.length === 0}
+            className="text-xs h-9 flex items-center gap-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:border-blue-900"
+          >
+            <Download className="h-4 w-4" />
+            <span>{downloading ? "I-dinadownload..." : "I-Download ang Lahat ng Payslip (PDF)"}</span>
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -309,6 +357,58 @@ export default function LguPayrollReviewStep({
                       <TableCell className="text-right font-mono font-bold text-emerald-700">{formatPhp(dept.totalNetPay)}</TableCell>
                       <TableCell className="text-right font-mono font-medium text-indigo-700">{formatPhp(dept.totalLguCounterpart)}</TableCell>
                       <TableCell className="text-right font-mono font-bold text-slate-900">{formatPhp(dept.totalAppropriation)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {/* Individual Employee Payslip Table */}
+          <div className="space-y-2 pt-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-800 dark:text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+                <FileText className="h-4 w-4 text-blue-600" />
+                <span>Indibidwal na Payslips ng mga Kawani ({lines.length})</span>
+              </h3>
+              <span className="text-[11px] text-slate-500">I-click ang Download sa bawat kawani para sa solong kopya ng payslip</span>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-gray-800 overflow-hidden max-h-96 overflow-y-auto">
+              <Table>
+                <TableHeader className="bg-slate-50 dark:bg-gray-800 text-[11px] sticky top-0 z-10">
+                  <TableRow>
+                    <TableHead>Kawani (Employee)</TableHead>
+                    <TableHead>Departamento</TableHead>
+                    <TableHead className="text-right">Buwanang Sahod</TableHead>
+                    <TableHead className="text-right">Gross Pay</TableHead>
+                    <TableHead className="text-right">Bawas (Deductions)</TableHead>
+                    <TableHead className="text-right font-bold text-emerald-700">Net Pay</TableHead>
+                    <TableHead className="text-right">Aksyon</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="text-xs">
+                  {lines.map((line) => (
+                    <TableRow key={line.userId} className="hover:bg-slate-50/50">
+                      <TableCell>
+                        <div className="font-semibold text-slate-900 dark:text-gray-100">{line.employeeName}</div>
+                        <div className="text-[11px] text-slate-500">{line.position}</div>
+                      </TableCell>
+                      <TableCell className="text-slate-600 dark:text-gray-300">{line.departmentName}</TableCell>
+                      <TableCell className="text-right font-mono">{formatPhp(line.monthlySalary)}</TableCell>
+                      <TableCell className="text-right font-mono font-medium">{formatPhp(line.totalGrossPay)}</TableCell>
+                      <TableCell className="text-right font-mono text-red-600">{formatPhp(line.totalPersonalDeductions)}</TableCell>
+                      <TableCell className="text-right font-mono font-bold text-emerald-700">{formatPhp(line.netPay)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownloadSinglePayslip(line.userId)}
+                          className="text-[11px] h-7 px-2.5 flex items-center gap-1 ml-auto text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          <span>Payslip PDF</span>
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
