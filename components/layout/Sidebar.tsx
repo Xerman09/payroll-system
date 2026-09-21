@@ -31,6 +31,7 @@ import {
   FileText,
   FileSearch,
   Landmark,
+  Layers,
 } from "lucide-react";
 import { getLoggedUser } from "@/lib/auth";
 
@@ -246,6 +247,16 @@ function Sidebar() {
               }
             ]
           }
+        ],
+      },
+      {
+        panel: "Unified",
+        items: [
+          {
+            title: "Benefits Logs",
+            href: `/unified/benefits-logs/${userId}`,
+            icon: <Layers size={18} />,
+          },
         ],
       },
     ];
