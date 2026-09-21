@@ -37,7 +37,7 @@ async function fetchCompanyBenefitLogs(
       forceServiceToken: true,
     });
 
-    const pathUsers = `/items/user?limit=5000&fields=user_id,user_fname,user_lname`;
+    const pathUsers = `/items/user?limit=5000&fields=user_id,user_fname,user_lname,user_sss,user_philhealth,user_pagibig`;
 
     const fieldsSystem = [
       "id",
@@ -112,13 +112,28 @@ async function fetchCompanyBenefitLogs(
     const rowsSystem: any[] = jsonSystem?.data || [];
     const rowsManual: any[] = jsonManual?.data || [];
 
-    // Build user lookup map for employee name resolution
-    const userMap = new Map<number, { name: string; department?: string; account?: string }>();
+    // Build user lookup map for employee name and statutory account numbers resolution
+    const userMap = new Map<
+      number,
+      {
+        name: string;
+        department?: string;
+        sss?: string | null;
+        philhealth?: string | null;
+        pagibig?: string | null;
+      }
+    >();
+
     for (const u of rowsUsers) {
       const name = fullnameFromUser(u);
       const uId = Number(u.user_id || u.id);
       if (uId && name) {
-        userMap.set(uId, { name });
+        userMap.set(uId, {
+          name,
+          sss: u.user_sss ? String(u.user_sss).trim() : null,
+          philhealth: u.user_philhealth ? String(u.user_philhealth).trim() : null,
+          pagibig: u.user_pagibig ? String(u.user_pagibig).trim() : null,
+        });
       }
     }
 
@@ -130,9 +145,21 @@ async function fetchCompanyBenefitLogs(
         userMap.set(uId, {
           name: String(r.employee_name).trim(),
           department: r.department_name || existing?.department,
+          sss: existing?.sss || null,
+          philhealth: existing?.philhealth || null,
+          pagibig: existing?.pagibig || null,
         });
       }
     }
+
+    const getAccountNo = (benefitCode: string, uId: number): string | null => {
+      const u = userMap.get(uId);
+      if (!u) return null;
+      if (benefitCode === "SSS") return u.sss || null;
+      if (benefitCode === "PHILHEALTH") return u.philhealth || null;
+      if (benefitCode === "PAGIBIG") return u.pagibig || null;
+      return null;
+    };
 
     const logMap = new Map<string, UnifiedBenefitLogRow>();
 
@@ -169,13 +196,6 @@ async function fetchCompanyBenefitLogs(
         userFromMap?.department ||
         (typeof user.user_department === "object" ? user.user_department?.department_name : null);
 
-      const accountNo =
-        r.account_no ||
-        userFromMap?.account ||
-        user.user_account_number ||
-        user.account_number ||
-        null;
-
       const common = {
         company_id: company.id,
         company_name: company.name,
@@ -186,7 +206,6 @@ async function fetchCompanyBenefitLogs(
         cutoff_type: r.cutoff_type || null,
         user_id: uId,
         employee_name: employeeName,
-        account_no: accountNo,
         department_name: departmentName,
         payroll_run_id: r.payroll_run_id?.payroll_run_id || r.payroll_run_id || null,
         payroll_ref_no: pr.payroll_ref_no || `RUN-${r.payroll_run_id?.payroll_run_id || r.cutoff_id || "SYS"}`,
@@ -208,6 +227,7 @@ async function fetchCompanyBenefitLogs(
           benefit_log_id: `${company.id}-CONTRI-SSS-${r.id}`,
           benefit_code: "SSS",
           benefit_name: "SSS",
+          account_no: getAccountNo("SSS", uId),
           log_type: "CONTRIBUTION",
           loan_id: null,
           deducted_amount: toNum(r.benefit_sss),
@@ -219,6 +239,7 @@ async function fetchCompanyBenefitLogs(
           benefit_log_id: `${company.id}-CONTRI-PH-${r.id}`,
           benefit_code: "PHILHEALTH",
           benefit_name: "PhilHealth",
+          account_no: getAccountNo("PHILHEALTH", uId),
           log_type: "CONTRIBUTION",
           loan_id: null,
           deducted_amount: toNum(r.benefit_philhealth),
@@ -230,6 +251,7 @@ async function fetchCompanyBenefitLogs(
           benefit_log_id: `${company.id}-CONTRI-HDMF-${r.id}`,
           benefit_code: "PAGIBIG",
           benefit_name: "Pag-IBIG",
+          account_no: getAccountNo("PAGIBIG", uId),
           log_type: "CONTRIBUTION",
           loan_id: null,
           deducted_amount: toNum(r.benefit_pagibig),
@@ -246,6 +268,7 @@ async function fetchCompanyBenefitLogs(
           benefit_log_id: `${company.id}-LOAN-SSS-${r.id}`,
           benefit_code: "SSS",
           benefit_name: "SSS Loan",
+          account_no: getAccountNo("SSS", uId),
           log_type: "LOAN",
           loan_id: null,
           deducted_amount: toNum(r.benefit_loan_sss),
@@ -261,6 +284,7 @@ async function fetchCompanyBenefitLogs(
           benefit_log_id: `${company.id}-LOAN-HDMF-${r.id}`,
           benefit_code: "PAGIBIG",
           benefit_name: "Pag-IBIG Loan",
+          account_no: getAccountNo("PAGIBIG", uId),
           log_type: "LOAN",
           loan_id: null,
           deducted_amount: toNum(r.benefit_loan_pagibig),
@@ -282,12 +306,6 @@ async function fetchCompanyBenefitLogs(
       const departmentName =
         userFromMap?.department ||
         (typeof user.user_department === "object" ? user.user_department?.department_name : null);
-
-      const accountNo =
-        userFromMap?.account ||
-        user.user_account_number ||
-        user.account_number ||
-        null;
 
       let refNo = "Manual Adjustment";
       if (r.payroll_detail_id) {
@@ -320,7 +338,7 @@ async function fetchCompanyBenefitLogs(
           (typeof r.payroll_run_id === "object" ? r.payroll_run_id?.cutoff_type : null),
         user_id: uId,
         employee_name: employeeName,
-        account_no: accountNo,
+        account_no: getAccountNo(r.benefit_code, uId),
         department_name: departmentName,
 
         log_type: r.log_type,
