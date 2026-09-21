@@ -3,9 +3,24 @@
 
 import * as React from "react";
 import { format, parseISO } from "date-fns";
-import { RefreshCcw, FileDown, Sigma, Search, Filter, Building2, Download } from "lucide-react";
+import {
+  RefreshCcw,
+  FileDown,
+  Sigma,
+  Search,
+  Building2,
+  Download,
+  ChevronDown,
+  Check,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -30,8 +45,8 @@ interface UnifiedLogsFiltersProps {
   search: string;
   onSearchChange: (v: string) => void;
 
-  companyId: string;
-  onCompanyChange: (v: string) => void;
+  selectedCompanyIds: string[];
+  onSelectedCompaniesChange: (ids: string[]) => void;
 
   cutoffRange: string;
   onCutoffChange: (v: string) => void;
@@ -56,8 +71,8 @@ interface UnifiedLogsFiltersProps {
 export default function UnifiedLogsFilters({
   search,
   onSearchChange,
-  companyId,
-  onCompanyChange,
+  selectedCompanyIds,
+  onSelectedCompaniesChange,
   cutoffRange,
   onCutoffChange,
   benefit,
@@ -73,6 +88,9 @@ export default function UnifiedLogsFilters({
   onOpenExport,
   onExportCsv,
 }: UnifiedLogsFiltersProps) {
+  const [companySearch, setCompanySearch] = React.useState("");
+  const [companyPopoverOpen, setCompanyPopoverOpen] = React.useState(false);
+
   // Extract unique cutoff ranges from current rows
   const cutoffRanges = React.useMemo(() => {
     const uniqueMap = new Map<string, string>();
@@ -87,6 +105,49 @@ export default function UnifiedLogsFilters({
     }
     return Array.from(uniqueMap.entries()).sort((a, b) => b[0].localeCompare(a[0]));
   }, [rows]);
+
+  // Filtered companies inside popover
+  const filteredCompanies = React.useMemo(() => {
+    if (!companySearch.trim()) return companies;
+    const q = companySearch.trim().toLowerCase();
+    return companies.filter((c) => c.name.toLowerCase().includes(q));
+  }, [companies, companySearch]);
+
+  const allSelected =
+    companies.length > 0 && selectedCompanyIds.length === companies.length;
+
+  const toggleCompany = (id: string) => {
+    if (selectedCompanyIds.includes(id)) {
+      onSelectedCompaniesChange(selectedCompanyIds.filter((x) => x !== id));
+    } else {
+      onSelectedCompaniesChange([...selectedCompanyIds, id]);
+    }
+  };
+
+  const selectAll = () => {
+    onSelectedCompaniesChange(companies.map((c) => c.id));
+  };
+
+  const clearAll = () => {
+    onSelectedCompaniesChange([]);
+  };
+
+  const selectOnly = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelectedCompaniesChange([id]);
+  };
+
+  // Label for trigger button
+  const triggerLabel = React.useMemo(() => {
+    if (companies.length === 0) return "Loading companies...";
+    if (allSelected) return `All Companies (${companies.length})`;
+    if (selectedCompanyIds.length === 0) return "None Selected (0)";
+    if (selectedCompanyIds.length === 1) {
+      const found = companies.find((c) => c.id === selectedCompanyIds[0]);
+      return found ? found.name : "1 Company";
+    }
+    return `${selectedCompanyIds.length} of ${companies.length} Companies`;
+  }, [allSelected, selectedCompanyIds, companies]);
 
   return (
     <div className="rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm space-y-4">
@@ -109,34 +170,132 @@ export default function UnifiedLogsFilters({
             </div>
           </div>
 
-          {/* Company Filter */}
+          {/* Included Companies Dropdown (Multi-Select) */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-gray-300 flex items-center gap-1.5">
-              <Building2 className="h-3.5 w-3.5 text-primary" />
-              Company Entity
+            <label className="text-xs font-semibold text-slate-700 dark:text-gray-300 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Building2 className="h-3.5 w-3.5 text-primary" />
+                Included Companies
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">
+                {selectedCompanyIds.length}/{companies.length}
+              </span>
             </label>
-            <Select value={companyId} onValueChange={onCompanyChange}>
-              <SelectTrigger className="h-9 dark:bg-gray-800 dark:border-gray-700">
-                <SelectValue placeholder="All Companies" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Companies ({companies.length})</SelectItem>
-                {companies.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="inline-block h-2 w-2 rounded-full"
-                        style={{ backgroundColor: c.color }}
-                      />
-                      <span>{c.name}</span>
-                      {c.logCount > 0 && (
-                        <span className="text-xs text-slate-400 font-mono">({c.logCount})</span>
-                      )}
+
+            <Popover open={companyPopoverOpen} onOpenChange={setCompanyPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="h-9 w-full justify-between px-3 text-xs font-normal border-slate-200 dark:border-gray-700 dark:bg-gray-800"
+                >
+                  <span className="truncate text-left font-medium text-slate-800 dark:text-gray-200">
+                    {triggerLabel}
+                  </span>
+                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+
+              <PopoverContent className="w-80 p-3" align="start">
+                <div className="space-y-2.5">
+                  {/* Header Actions */}
+                  <div className="flex items-center justify-between border-b pb-2 border-slate-200 dark:border-gray-800">
+                    <span className="text-xs font-bold text-slate-900 dark:text-gray-100">
+                      Select Companies
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[11px] text-primary"
+                        onClick={selectAll}
+                      >
+                        Select All
+                      </Button>
+                      <span className="text-slate-300 dark:text-gray-700">|</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[11px] text-slate-500"
+                        onClick={clearAll}
+                      >
+                        Clear
+                      </Button>
                     </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  </div>
+
+                  {/* Search inside Dropdown */}
+                  {companies.length > 5 && (
+                    <div className="relative">
+                      <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-400" />
+                      <Input
+                        value={companySearch}
+                        onChange={(e) => setCompanySearch(e.target.value)}
+                        placeholder="Search companies..."
+                        className="h-7 pl-7 text-xs"
+                      />
+                    </div>
+                  )}
+
+                  {/* Scrollable Company Checklist */}
+                  <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
+                    {filteredCompanies.map((c) => {
+                      const isChecked = selectedCompanyIds.includes(c.id);
+                      return (
+                        <div
+                          key={c.id}
+                          onClick={() => toggleCompany(c.id)}
+                          className="group flex items-center justify-between p-1.5 rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors text-xs"
+                        >
+                          <div className="flex items-center gap-2 min-w-0 pr-1">
+                            <Checkbox
+                              checked={isChecked}
+                              onCheckedChange={() => toggleCompany(c.id)}
+                              className="data-[state=checked]:bg-primary"
+                            />
+                            <span
+                              className="h-2 w-2 rounded-full shrink-0"
+                              style={{ backgroundColor: c.color }}
+                            />
+                            <span
+                              className={`truncate ${
+                                isChecked
+                                  ? "font-semibold text-slate-900 dark:text-gray-100"
+                                  : "text-slate-600 dark:text-gray-400"
+                              }`}
+                            >
+                              {c.name}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {c.logCount > 0 && (
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                {c.logCount}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => selectOnly(c.id, e)}
+                              className="opacity-0 group-hover:opacity-100 text-[10px] text-primary hover:underline px-1 py-0.5 rounded transition-opacity"
+                            >
+                              Only
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {filteredCompanies.length === 0 && (
+                      <div className="text-center py-4 text-xs text-slate-400">
+                        No companies found.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Cutoff Filter */}

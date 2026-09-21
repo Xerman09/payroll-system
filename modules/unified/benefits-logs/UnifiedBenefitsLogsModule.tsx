@@ -4,7 +4,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
-import { Layers, AlertTriangle, CheckCircle2, RefreshCcw, Building2 } from "lucide-react";
+import { Layers, AlertTriangle, RefreshCcw, Building2 } from "lucide-react";
 
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import UnifiedLogsStats from "./components/UnifiedLogsStats";
@@ -12,7 +12,6 @@ import UnifiedLogsFilters from "./components/UnifiedLogsFilters";
 import UnifiedLogsTable from "./components/UnifiedLogsTable";
 import UnifiedSummaryDialog from "./components/UnifiedSummaryDialog";
 import UnifiedExportPreviewDialog from "./components/UnifiedExportPreviewDialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 import type {
@@ -46,7 +45,7 @@ export default function UnifiedBenefitsLogsModule() {
 
   // Filter States
   const [search, setSearch] = React.useState("");
-  const [companyId, setCompanyId] = React.useState("ALL");
+  const [selectedCompanyIds, setSelectedCompanyIds] = React.useState<string[]>([]);
   const [cutoffRange, setCutoffRange] = React.useState("ALL");
   const [benefit, setBenefit] = React.useState<BenefitCode | "ALL">("ALL");
   const [type, setType] = React.useState<BenefitLogType | "ALL">("ALL");
@@ -71,9 +70,17 @@ export default function UnifiedBenefitsLogsModule() {
         throw new Error("Failed to load compiled benefits logs");
       }
 
+      const fetchedCompanies = json.companies || [];
       setAllRows(json.data || []);
-      setCompanies(json.companies || []);
+      setCompanies(fetchedCompanies);
       setFailedCompanies(json.failedCompanies || []);
+
+      setSelectedCompanyIds((prev) => {
+        if (prev.length === 0) {
+          return fetchedCompanies.map((c) => c.id);
+        }
+        return prev;
+      });
 
       if (isRefresh) {
         toast.success("Compiled benefits logs refreshed.");
@@ -96,8 +103,11 @@ export default function UnifiedBenefitsLogsModule() {
     const query = search.trim().toLowerCase();
 
     return allRows.filter((r) => {
-      // Company filter
-      if (companyId !== "ALL" && r.company_id !== companyId) {
+      // Company multi-selection filter
+      if (
+        selectedCompanyIds.length > 0 &&
+        !selectedCompanyIds.includes(r.company_id)
+      ) {
         return false;
       }
 
@@ -135,7 +145,7 @@ export default function UnifiedBenefitsLogsModule() {
         String(r.user_id).includes(query)
       );
     });
-  }, [allRows, search, companyId, cutoffRange, benefit, type]);
+  }, [allRows, search, selectedCompanyIds, cutoffRange, benefit, type]);
 
   // Export CSV Handler
   const handleExportCsv = () => {
@@ -188,8 +198,21 @@ export default function UnifiedBenefitsLogsModule() {
     toast.success("CSV file downloaded successfully.");
   };
 
-  const selectedCompanyObj = companies.find((c) => c.id === companyId);
-  const companyLabel = selectedCompanyObj ? selectedCompanyObj.name : "All Companies";
+  const companyLabel = React.useMemo(() => {
+    if (companies.length === 0) return "All Companies";
+    if (selectedCompanyIds.length === companies.length) return "All Companies";
+    if (selectedCompanyIds.length === 0) return "No Companies Selected";
+    if (selectedCompanyIds.length === 1) {
+      const found = companies.find((c) => c.id === selectedCompanyIds[0]);
+      return found ? found.name : "1 Company";
+    }
+    return `${selectedCompanyIds.length} Companies Selected`;
+  }, [selectedCompanyIds, companies]);
+
+  // Selected companies summaries for stats and breakdown
+  const activeCompaniesSummaries = React.useMemo(() => {
+    return companies.filter((c) => selectedCompanyIds.includes(c.id));
+  }, [companies, selectedCompanyIds]);
 
   return (
     <DashboardLayout>
@@ -206,7 +229,7 @@ export default function UnifiedBenefitsLogsModule() {
               </h1>
             </div>
             <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
-              Compiled statutory benefits records (SSS, PhilHealth, Pag-IBIG contributions & loans) across all enterprise companies configured in .env.local.
+              Compiled statutory benefits records (SSS, PhilHealth, Pag-IBIG contributions & loans) across enterprise companies configured in .env.local.
             </p>
           </div>
 
@@ -240,12 +263,12 @@ export default function UnifiedBenefitsLogsModule() {
         {companies.length > 0 && (
           <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
             <span className="text-slate-500 dark:text-gray-400 font-medium shrink-0 flex items-center gap-1">
-              <Building2 className="h-3.5 w-3.5" /> Filter Company:
+              <Building2 className="h-3.5 w-3.5" /> Included Companies:
             </span>
             <button
-              onClick={() => setCompanyId("ALL")}
+              onClick={() => setSelectedCompanyIds(companies.map((c) => c.id))}
               className={`px-3 py-1.5 rounded-full font-medium transition-all shrink-0 ${
-                companyId === "ALL"
+                selectedCompanyIds.length === companies.length
                   ? "bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/20"
                   : "bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700"
               }`}
@@ -253,16 +276,24 @@ export default function UnifiedBenefitsLogsModule() {
               All Companies ({allRows.length})
             </button>
             {companies.map((c) => {
-              const isSelected = companyId === c.id;
+              const isSelected = selectedCompanyIds.includes(c.id);
               return (
                 <button
                   key={c.id}
-                  onClick={() => setCompanyId(c.id)}
+                  onClick={() => {
+                    // Click isolates or resets
+                    if (selectedCompanyIds.length === 1 && selectedCompanyIds[0] === c.id) {
+                      setSelectedCompanyIds(companies.map((x) => x.id));
+                    } else {
+                      setSelectedCompanyIds([c.id]);
+                    }
+                  }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-medium transition-all shrink-0 ${
                     isSelected
                       ? "bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/20"
-                      : "bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700"
+                      : "bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700 opacity-70"
                   }`}
+                  title={isSelected ? "Click to reset to all companies" : `Click to isolate ${c.name}`}
                 >
                   <span
                     className="h-2 w-2 rounded-full"
@@ -281,16 +312,16 @@ export default function UnifiedBenefitsLogsModule() {
         {/* Aggregate KPI Stats Cards */}
         <UnifiedLogsStats
           rows={filteredRows}
-          companies={companies}
+          companies={activeCompaniesSummaries}
           loading={loading}
         />
 
-        {/* Filter Controls Bar */}
+        {/* Filter Controls Bar with Multi-Company Dropdown */}
         <UnifiedLogsFilters
           search={search}
           onSearchChange={setSearch}
-          companyId={companyId}
-          onCompanyChange={setCompanyId}
+          selectedCompanyIds={selectedCompanyIds}
+          onSelectedCompaniesChange={setSelectedCompanyIds}
           cutoffRange={cutoffRange}
           onCutoffChange={setCutoffRange}
           benefit={benefit}
@@ -315,7 +346,7 @@ export default function UnifiedBenefitsLogsModule() {
           open={summaryOpen}
           onOpenChange={setSummaryOpen}
           rows={filteredRows}
-          companies={companies}
+          companies={activeCompaniesSummaries}
         />
 
         <UnifiedExportPreviewDialog

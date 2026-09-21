@@ -61,7 +61,7 @@ export interface UnifiedApiResponse {
 
 export interface UnifiedFilterState {
   search: string;
-  companyId: string; // "ALL" or company_id
+  selectedCompanyIds: string[]; // List of company IDs included
   cutoffRange: string; // "ALL" or "YYYY-MM-DD_YYYY-MM-DD"
   benefitCode: BenefitCode | "ALL";
   logType: BenefitLogType | "ALL";
