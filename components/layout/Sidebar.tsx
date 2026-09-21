@@ -246,17 +246,18 @@ function Sidebar() {
                 href: `/reports/payslip-dispatch/${userId}`,
               }
             ]
-          }
-        ],
-      },
-      {
-        panel: "Unified",
-        items: [
-          {
-            title: "Benefits Logs",
-            href: `/unified/benefits-logs/${userId}`,
-            icon: <Layers size={18} />,
           },
+          {
+            title: "Unified Report",
+            href: "#",
+            icon: <Layers size={18} />,
+            subItems: [
+              {
+                title: "Benefit Logs",
+                href: `/unified/benefits-logs/${userId}`,
+              }
+            ]
+          }
         ],
       },
     ];
