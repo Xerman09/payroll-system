@@ -25,6 +25,9 @@ export type WageDataState = {
 
   workingDaysPerMonth: number;
 
+  monthlyWage: number;
+  monthlyWageInput: string;
+
   dailyWageInput: string;
   dailyWage: number;
   vacationLeave: number;
@@ -46,6 +49,7 @@ export type WageRecord = {
   user_id: number;
 
   daily_wage: string | number;
+  monthly_rate?: string | number | null;
   vacation_leave_per_year: string | number;
   sick_leave_per_year: string | number;
 
@@ -73,6 +77,7 @@ export type WagePayload = {
   user_id: number;
 
   daily_wage: number;
+  monthly_rate?: number;
   vacation_leave_per_year: number;
   sick_leave_per_year: number;
 

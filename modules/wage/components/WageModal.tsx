@@ -1169,6 +1169,7 @@ export default function WageModal({
     };
 
     const daily = num(wageData.dailyWage || wageData.dailyWageInput || 0);
+    const monthly = num(wageData.monthlyWage || wageData.monthlyWageInput || 0);
 
     const sss = num(wageData.sss);
     const pagibig = num(wageData.pagibig);
@@ -1189,6 +1190,7 @@ export default function WageModal({
 
     return {
       daily,
+      monthly,
       contribTotal,
       activeLoans,
       pendingRetro,
@@ -1232,6 +1234,13 @@ export default function WageModal({
                   </div>
 
                   <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant="secondary"
+                      className="bg-slate-100 text-slate-800 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-800"
+                    >
+                      Monthly: ₱ {money(summary.monthly)}
+                    </Badge>
+
                     <Badge
                       variant="secondary"
                       className="bg-slate-100 text-slate-800 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-800"

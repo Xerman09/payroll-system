@@ -61,14 +61,13 @@ export function WageTab({
     Number.isFinite(dailyWageValue) ? dailyWageValue : 0
   ).toFixed(2);
 
-  const estMonthly = React.useMemo(() => {
-    // simple, friendly estimate
-    const base = (Number(wageData.dailyWage) || 0) * (wageData.workingDaysPerMonth || 26);
-    return base.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  }, [wageData.dailyWage, wageData.workingDaysPerMonth]);
+  const monthlyWageValue = Number(wageData.monthlyWage) || 0;
+  const monthlyWageDisplay = (
+    Number.isFinite(monthlyWageValue) ? monthlyWageValue : 0
+  ).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
   // ------------------------------------------------------------------
   // Salary Grade helpers
@@ -134,10 +133,13 @@ export function WageTab({
       }
 
       const monthlyRate = Number(schedule.monthly_rate) || 0;
-      const computedDaily = round2(monthlyRate / (wageData.workingDaysPerMonth || 26));
+      const days = Number(wageData.workingDaysPerMonth) || 26;
+      const computedDaily = round2(monthlyRate / days);
 
       setWageData({
         schedule_id: scheduleId,
+        monthlyWage: monthlyRate,
+        monthlyWageInput: monthlyRate.toFixed(2),
         dailyWage: computedDaily,
         dailyWageInput: computedDaily.toFixed(2),
       });
@@ -359,13 +361,13 @@ export function WageTab({
                 />
               </div>
 
-              {/* Daily Wage */}
+              {/* Monthly Wage */}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                  Daily Wage
+                  Monthly Wage
                   {linkedSchedule && (
                     <span className="ml-1.5 text-persian-blue-600 dark:text-persian-blue-400">
-                      (from grade — editable)
+                      (from grade)
                     </span>
                   )}
                 </label>
@@ -375,40 +377,37 @@ export function WageTab({
                   </span>
                   <Input
                     type="text"
-                    value={wageData.dailyWageInput}
+                    value={wageData.monthlyWageInput}
                     onChange={(e) => {
                       const value = e.target.value;
                       if (/^\d*\.?\d*$/.test(value)) {
+                        const monthly = Number(value) || 0;
+                        const days = Number(wageData.workingDaysPerMonth) || 26;
+                        const computedDaily = days > 0 ? round2(monthly / days) : 0;
                         setWageData({
-                          dailyWageInput: value,
-                          dailyWage: Number(value) || 0,
+                          monthlyWageInput: value,
+                          monthlyWage: monthly,
+                          dailyWage: computedDaily,
+                          dailyWageInput: computedDaily.toFixed(2),
                         });
                       }
                     }}
                     onBlur={() => {
                       setWageData({
-                        dailyWageInput: (
-                          Number(wageData.dailyWage) || 0
+                        monthlyWageInput: (
+                          Number(wageData.monthlyWage) || 0
                         ).toFixed(2),
                       });
                     }}
-                    className="h-10 pl-8"
+                    className="h-10 pl-8 font-medium"
                     placeholder="0.00"
                   />
                 </div>
-
-                {/* subtle helper */}
                 <div className="flex items-center justify-between text-[11px] text-slate-500">
                   <span>
-                    Current:{" "}
+                    Current Monthly:{" "}
                     <span className="font-medium text-slate-700 dark:text-slate-200">
-                      ₱ {dailyWageDisplay}
-                    </span>
-                  </span>
-                  <span className="hidden sm:inline">
-                    Est. monthly ({wageData.workingDaysPerMonth || 26}d):{" "}
-                    <span className="font-medium text-slate-700 dark:text-slate-200">
-                      ₱ {estMonthly}
+                      ₱ {monthlyWageDisplay}
                     </span>
                   </span>
                 </div>
@@ -429,18 +428,97 @@ export function WageTab({
                       if (applyGrade && linkedSchedule) {
                         const monthlyRate = Number(linkedSchedule.monthly_rate) || 0;
                         const computedDaily = round2(monthlyRate / days);
+                        updates.monthlyWage = monthlyRate;
+                        updates.monthlyWageInput = monthlyRate.toFixed(2);
                         updates.dailyWage = computedDaily;
                         updates.dailyWageInput = computedDaily.toFixed(2);
+                      } else {
+                        const monthly = Number(wageData.monthlyWage) || 0;
+                        if (monthly > 0) {
+                          const computedDaily = round2(monthly / days);
+                          updates.dailyWage = computedDaily;
+                          updates.dailyWageInput = computedDaily.toFixed(2);
+                        } else if (Number(wageData.dailyWage) > 0) {
+                          const computedMonthly = round2(Number(wageData.dailyWage) * days);
+                          updates.monthlyWage = computedMonthly;
+                          updates.monthlyWageInput = computedMonthly.toFixed(2);
+                        }
                       }
                       setWageData(updates);
                     } else if (e.target.value === "") {
-                       // Allow temporary empty state
-                       setWageData({ workingDaysPerMonth: "" as any });
+                      // Allow temporary empty state
+                      setWageData({ workingDaysPerMonth: "" as any });
                     }
                   }}
                   className="h-10 bg-white dark:bg-slate-900/30 dark:border-slate-700"
                   min={1}
                 />
+                <div className="text-[11px] text-slate-500">
+                  Divisor used to calculate daily wage
+                </div>
+              </div>
+
+              {/* Daily Wage */}
+              <div className="sm:col-span-2 space-y-1.5">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  Daily Wage
+                  <span className="ml-1.5 text-slate-400 font-normal">
+                    (Monthly Wage ÷ Working Days)
+                  </span>
+                  {linkedSchedule && (
+                    <span className="ml-1.5 text-persian-blue-600 dark:text-persian-blue-400 font-normal">
+                      • from grade
+                    </span>
+                  )}
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">
+                    ₱
+                  </span>
+                  <Input
+                    type="text"
+                    value={wageData.dailyWageInput}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (/^\d*\.?\d*$/.test(value)) {
+                        const daily = Number(value) || 0;
+                        const days = Number(wageData.workingDaysPerMonth) || 26;
+                        const computedMonthly = round2(daily * days);
+                        setWageData({
+                          dailyWageInput: value,
+                          dailyWage: daily,
+                          monthlyWage: computedMonthly,
+                          monthlyWageInput: computedMonthly.toFixed(2),
+                        });
+                      }
+                    }}
+                    onBlur={() => {
+                      setWageData({
+                        dailyWageInput: (
+                          Number(wageData.dailyWage) || 0
+                        ).toFixed(2),
+                      });
+                    }}
+                    className="h-10 pl-8 font-semibold text-slate-800 dark:text-slate-100"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                {/* subtle helper */}
+                <div className="flex items-center justify-between text-[11px] text-slate-500">
+                  <span>
+                    Current Daily:{" "}
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">
+                      ₱ {dailyWageDisplay}
+                    </span>
+                  </span>
+                  <span className="hidden sm:inline">
+                    ₱ {monthlyWageDisplay} ÷ {wageData.workingDaysPerMonth || 26} days ={" "}
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">
+                      ₱ {dailyWageDisplay} / day
+                    </span>
+                  </span>
+                </div>
               </div>
 
               {/* Flags */}

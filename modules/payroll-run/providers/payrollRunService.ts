@@ -274,7 +274,7 @@ function normalizeWage(row: unknown): WageProfile {
   const daily = n(r.daily_wage);
   const hourly = r.hourly_wage != null ? n(r.hourly_wage) : daily > 0 ? daily / 8 : 0;
   const monthly =
-    r.monthly_wage != null ? n(r.monthly_wage) : daily > 0 ? daily * 26 : 0;
+    r.monthly_rate != null ? n(r.monthly_rate) : (r.monthly_wage != null ? n(r.monthly_wage) : daily > 0 ? daily * 26 : 0);
 
   return {
     id: n(r.id),

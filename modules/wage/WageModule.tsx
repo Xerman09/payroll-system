@@ -77,6 +77,8 @@ export function WageModule() {
     id: null,
     schedule_id: null,
     workingDaysPerMonth: 26,
+    monthlyWage: 0,
+    monthlyWageInput: "0.00",
     dailyWage: 0,
     dailyWageInput: "0.00",
     vacationLeave: 0,
@@ -242,7 +244,18 @@ export function WageModule() {
         ""
       ).substring(0, 10);
 
-      const dailyWageNum = Number(record.daily_wage) || 0;
+      const workingDays = record.working_days_per_month ? Number(record.working_days_per_month) : 26;
+      let dailyWageNum = Number(record.daily_wage) || 0;
+      let monthlyWageNum = Number(record.monthly_rate) || 0;
+
+      // If monthly_rate was not set but daily_wage exists, derive monthly_rate
+      if (monthlyWageNum === 0 && dailyWageNum > 0) {
+        monthlyWageNum = Math.round(dailyWageNum * workingDays * 100) / 100;
+      } else if (monthlyWageNum > 0 && dailyWageNum === 0) {
+        // If monthly_rate exists but daily_wage was 0
+        dailyWageNum = Math.round((monthlyWageNum / workingDays) * 100) / 100;
+      }
+
       setPreviousDailyWage(dailyWageNum);
 
       const scheduleId =
@@ -253,7 +266,9 @@ export function WageModule() {
       setWageData({
         id: record.id ?? null,
         schedule_id: scheduleId,
-        workingDaysPerMonth: record.working_days_per_month ? Number(record.working_days_per_month) : 26,
+        workingDaysPerMonth: workingDays,
+        monthlyWage: monthlyWageNum,
+        monthlyWageInput: monthlyWageNum.toFixed(2),
         dailyWage: dailyWageNum,
         dailyWageInput: dailyWageNum.toFixed(2),
         vacationLeave: Number(record.vacation_leave_per_year) || 0,
@@ -333,6 +348,7 @@ export function WageModule() {
         : 0;
 
     const nextWageNum = Number(wageData.dailyWage) || 0;
+    const nextMonthlyRateNum = Number(wageData.monthlyWage) || 0;
 
     const prevWageFixed = prevWageNum.toFixed(2);
     const nextWageFixed = nextWageNum.toFixed(2);
@@ -343,6 +359,7 @@ export function WageModule() {
     const payload: WagePayload = {
       user_id: selectedEmployee.user_id,
       daily_wage: nextWageNum,
+      monthly_rate: nextMonthlyRateNum,
       vacation_leave_per_year: Number(wageData.vacationLeave) || 0,
       sick_leave_per_year: Number(wageData.sickLeave) || 0,
       paid_holiday: wageData.isPaidHoliday ? 1 : 0,
