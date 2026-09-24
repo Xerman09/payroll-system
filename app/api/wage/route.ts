@@ -28,15 +28,21 @@ export async function GET(req: NextRequest) {
     
     // Intercept and decrypt user_wage_management data
     if (fetchUrl.includes("user_wage_management") && data?.data) {
+      const resolveDaily = (row: any) => {
+        if (row?.encrypted_daily_wage) {
+          const dec = decryptNumber(row.encrypted_daily_wage);
+          if (dec > 0) return dec;
+        }
+        return Number(row?.daily_wage || 0);
+      };
+
       if (Array.isArray(data.data)) {
         data.data = data.data.map((row: any) => ({
           ...row,
-          daily_wage: row.encrypted_daily_wage ? decryptNumber(row.encrypted_daily_wage) : Number(row.daily_wage || 0)
+          daily_wage: resolveDaily(row),
         }));
       } else if (typeof data.data === "object") {
-        data.data.daily_wage = data.data.encrypted_daily_wage 
-          ? decryptNumber(data.data.encrypted_daily_wage) 
-          : Number(data.data.daily_wage || 0);
+        data.data.daily_wage = resolveDaily(data.data);
       }
     }
 
@@ -74,7 +80,7 @@ export async function POST(req: NextRequest) {
     const modifiedPayload = { ...payload };
     if (path.includes("user_wage_management") && modifiedPayload.daily_wage !== undefined) {
       modifiedPayload.encrypted_daily_wage = encryptNumber(modifiedPayload.daily_wage);
-      modifiedPayload.daily_wage = 0; // Save as 0 to satisfy decimal constraint
+      modifiedPayload.daily_wage = Number(modifiedPayload.daily_wage) || 0;
     }
 
     console.log("[wage POST payload to Directus]:", JSON.stringify(modifiedPayload));
@@ -119,7 +125,7 @@ export async function PATCH(req: NextRequest) {
     const modifiedPayload = { ...payload };
     if (path.includes("user_wage_management") && modifiedPayload.daily_wage !== undefined) {
       modifiedPayload.encrypted_daily_wage = encryptNumber(modifiedPayload.daily_wage);
-      modifiedPayload.daily_wage = 0; // Save as 0 to satisfy decimal constraint
+      modifiedPayload.daily_wage = Number(modifiedPayload.daily_wage) || 0;
     }
 
     const res = await fetch(joinUrl(BASE, path), {

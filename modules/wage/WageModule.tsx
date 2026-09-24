@@ -248,12 +248,12 @@ export function WageModule() {
       let dailyWageNum = Number(record.daily_wage) || 0;
       let monthlyWageNum = Number(record.monthly_rate) || 0;
 
-      // If monthly_rate was not set but daily_wage exists, derive monthly_rate
+      // Automatically compute monthly wage if monthly_rate is 0 but daily wage has a value
       if (monthlyWageNum === 0 && dailyWageNum > 0) {
         monthlyWageNum = Math.round(dailyWageNum * workingDays * 100) / 100;
       } else if (monthlyWageNum > 0 && dailyWageNum === 0) {
-        // If monthly_rate exists but daily_wage was 0
-        dailyWageNum = Math.round((monthlyWageNum / workingDays) * 100) / 100;
+        // If monthly_rate exists but daily_wage was 0, compute daily wage
+        dailyWageNum = workingDays > 0 ? Math.round((monthlyWageNum / workingDays) * 100) / 100 : 0;
       }
 
       setPreviousDailyWage(dailyWageNum);

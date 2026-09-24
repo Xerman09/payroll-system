@@ -118,7 +118,7 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
       const b = body as Record<string, any>;
       if (b.daily_wage !== undefined) {
         b.encrypted_daily_wage = encryptNumber(b.daily_wage);
-        b.daily_wage = 0;
+        b.daily_wage = Number(b.daily_wage) || 0;
       }
     }
   }
@@ -142,16 +142,22 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
     
     // Intercept and decrypt user_wage_management data
     if (resource === "user_wage_management" && data && typeof data === "object") {
+      const resolveDaily = (row: any) => {
+        if (row?.encrypted_daily_wage) {
+          const dec = decryptNumber(row.encrypted_daily_wage);
+          if (dec > 0) return dec;
+        }
+        return Number(row?.daily_wage || 0);
+      };
+
       const d = data as any;
       if (Array.isArray(d.data)) {
         d.data = d.data.map((row: any) => ({
           ...row,
-          daily_wage: row.encrypted_daily_wage ? decryptNumber(row.encrypted_daily_wage) : Number(row.daily_wage || 0)
+          daily_wage: resolveDaily(row),
         }));
       } else if (typeof d.data === "object" && d.data) {
-        d.data.daily_wage = d.data.encrypted_daily_wage 
-          ? decryptNumber(d.data.encrypted_daily_wage) 
-          : Number(d.data.daily_wage || 0);
+        d.data.daily_wage = resolveDaily(d.data);
       }
     }
   } catch {

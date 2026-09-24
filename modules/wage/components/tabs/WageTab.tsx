@@ -383,13 +383,21 @@ export function WageTab({
                       if (/^\d*\.?\d*$/.test(value)) {
                         const monthly = Number(value) || 0;
                         const days = Number(wageData.workingDaysPerMonth) || 26;
-                        const computedDaily = days > 0 ? round2(monthly / days) : 0;
-                        setWageData({
-                          monthlyWageInput: value,
-                          monthlyWage: monthly,
-                          dailyWage: computedDaily,
-                          dailyWageInput: computedDaily.toFixed(2),
-                        });
+                        if (monthly > 0) {
+                          const computedDaily = days > 0 ? round2(monthly / days) : 0;
+                          setWageData({
+                            monthlyWageInput: value,
+                            monthlyWage: monthly,
+                            dailyWage: computedDaily,
+                            dailyWageInput: computedDaily.toFixed(2),
+                          });
+                        } else {
+                          // Monthly is 0: if daily has a value, follow daily
+                          setWageData({
+                            monthlyWageInput: value,
+                            monthlyWage: 0,
+                          });
+                        }
                       }
                     }}
                     onBlur={() => {
@@ -409,6 +417,9 @@ export function WageTab({
                     <span className="font-medium text-slate-700 dark:text-slate-200">
                       ₱ {monthlyWageDisplay}
                     </span>
+                  </span>
+                  <span className="hidden sm:inline">
+                    ₱ {dailyWageDisplay} × {wageData.workingDaysPerMonth || 26} days = ₱ {monthlyWageDisplay}
                   </span>
                 </div>
               </div>
@@ -439,9 +450,13 @@ export function WageTab({
                           updates.dailyWage = computedDaily;
                           updates.dailyWageInput = computedDaily.toFixed(2);
                         } else if (Number(wageData.dailyWage) > 0) {
-                          const computedMonthly = round2(Number(wageData.dailyWage) * days);
-                          updates.monthlyWage = computedMonthly;
-                          updates.monthlyWageInput = computedMonthly.toFixed(2);
+                          // If monthly was not set, derive monthly first and then adjust daily wage
+                          const baseMonthly = round2(Number(wageData.dailyWage) * 26);
+                          const computedDaily = round2(baseMonthly / days);
+                          updates.monthlyWage = baseMonthly;
+                          updates.monthlyWageInput = baseMonthly.toFixed(2);
+                          updates.dailyWage = computedDaily;
+                          updates.dailyWageInput = computedDaily.toFixed(2);
                         }
                       }
                       setWageData(updates);
