@@ -32,6 +32,7 @@ import {
   FileSearch,
   Landmark,
   Layers,
+  GraduationCap,
 } from "lucide-react";
 import { getLoggedUser } from "@/lib/auth";
 
@@ -133,6 +134,11 @@ function Sidebar() {
             title: "Compensation Management",
             href: `/wage/${userId}`,
             icon: <PhilippinePeso size={18} />,
+          },
+          {
+            title: "Salary Grade Registration",
+            href: `/salary-grade-registration/${userId}`,
+            icon: <GraduationCap size={18} />,
           },
           {
             title: "COOP",

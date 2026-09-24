@@ -708,3 +708,21 @@ export type SalarySchedulePayload = {
   step: number;
   monthly_rate: number;
 };
+
+// =======================================================
+// SALARY GRADE (salary_grade)
+// =======================================================
+
+export type SalaryGrade = {
+  id: number;
+  name: string;
+  created_by?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  creator_name?: string;
+};
+
+export type SalaryGradePayload = {
+  name: string;
+  created_by?: number | null;
+};

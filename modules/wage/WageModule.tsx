@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Wallet, TrendingUp } from "lucide-react";
+import { Wallet, TrendingUp, GraduationCap } from "lucide-react";
 
 import type { Department, Employee, WagePayload, WageDataState, SalarySchedule } from "./types";
 import * as wageApi from "./providers/wageApi"; // ✅ correct path
@@ -18,13 +18,19 @@ import PasswordDialog from "./components/PasswordDialog";
 import ConfirmDialog from "./components/ConfirmDialog";
 import WageModal from "./components/WageModal";
 import { SalaryGradeManagement } from "./components/SalaryGradeManagement";
+import { SalaryGradeRegistration } from "./components/SalaryGradeRegistration";
 import { getLoggedUser } from "@/lib/auth";
 
-export function WageModule() {
+export function WageModule({ initialTab }: { initialTab?: string } = {}) {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => {
-    const tabParam = searchParams?.get("tab");
-    if (tabParam && (tabParam === "wage" || tabParam === "salary-grade")) {
+    const tabParam = searchParams?.get("tab") || initialTab;
+    if (
+      tabParam &&
+      (tabParam === "wage" ||
+        tabParam === "salary-grade" ||
+        tabParam === "salary-grade-registration")
+    ) {
       return tabParam;
     }
     return "wage";
@@ -105,7 +111,12 @@ export function WageModule() {
   // Synchronize activeTab with URL 'tab' parameter
   useEffect(() => {
     const tabParam = searchParams?.get("tab");
-    if (tabParam && (tabParam === "wage" || tabParam === "salary-grade")) {
+    if (
+      tabParam &&
+      (tabParam === "wage" ||
+        tabParam === "salary-grade" ||
+        tabParam === "salary-grade-registration")
+    ) {
       if (tabParam !== activeTab) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setActiveTab(tabParam);
@@ -453,11 +464,15 @@ export function WageModule() {
               <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
                 {activeTab === "wage"
                   ? "Wage Management"
+                  : activeTab === "salary-grade-registration"
+                  ? "Salary Grade Registration"
                   : "Salary Grade Management"}
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {activeTab === "wage"
                   ? "Manage individual employee wage configurations and records."
+                  : activeTab === "salary-grade-registration"
+                  ? "Register and maintain official salary grades with standard and custom designations."
                   : "Manage standardized salary schedules and grade steps."}
               </p>
             </div>
@@ -477,11 +492,18 @@ export function WageModule() {
                   Wage Management
                 </TabsTrigger>
                 <TabsTrigger 
+                  value="salary-grade-registration" 
+                  className="relative flex-none w-auto flex-row items-center gap-2 rounded-t-lg rounded-b-none border border-border border-b-0 px-4 py-2 text-sm font-semibold transition-all data-[state=active]:bg-card data-[state=active]:text-primary data-[state=inactive]:bg-muted/50 data-[state=inactive]:border-transparent data-[state=inactive]:text-muted-foreground hover:data-[state=inactive]:bg-muted data-[state=active]:z-20 data-[state=active]:after:content-[''] data-[state=active]:after:absolute data-[state=active]:after:-bottom-[1px] data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:h-[2px] data-[state=active]:after:bg-card shadow-none data-[state=active]:shadow-none"
+                >
+                  <GraduationCap className="w-4 h-4 -ml-0.5" />
+                  Salary Grade Registration
+                </TabsTrigger>
+                <TabsTrigger 
                   value="salary-grade" 
                   className="relative flex-none w-auto flex-row items-center gap-2 rounded-t-lg rounded-b-none border border-border border-b-0 px-4 py-2 text-sm font-semibold transition-all data-[state=active]:bg-card data-[state=active]:text-primary data-[state=inactive]:bg-muted/50 data-[state=inactive]:border-transparent data-[state=inactive]:text-muted-foreground hover:data-[state=inactive]:bg-muted data-[state=active]:z-20 data-[state=active]:after:content-[''] data-[state=active]:after:absolute data-[state=active]:after:-bottom-[1px] data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:h-[2px] data-[state=active]:after:bg-card shadow-none data-[state=active]:shadow-none"
                 >
                   <TrendingUp className="w-4 h-4 -ml-0.5" />
-                  Salary Grade
+                  Salary Grade Steps
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -523,6 +545,28 @@ export function WageModule() {
                       onRefresh={handleRefresh}
                       onReset={handleReset}
                     />
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="salary-grade-registration" className="mt-0 outline-none relative z-0">
+              <Card className="border shadow-sm bg-white dark:bg-gray-900 py-0 rounded-tl-none">
+                <CardContent className="p-6">
+                  {isTabLoading ? (
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <Skeleton className="h-10 w-[200px]" />
+                        <Skeleton className="h-10 w-[150px]" />
+                      </div>
+                      <div className="space-y-2 mt-4">
+                        <Skeleton className="h-12 w-full" />
+                        <Skeleton className="h-12 w-full" />
+                        <Skeleton className="h-12 w-full" />
+                      </div>
+                    </div>
+                  ) : (
+                    <SalaryGradeRegistration />
                   )}
                 </CardContent>
               </Card>

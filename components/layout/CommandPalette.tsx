@@ -20,6 +20,7 @@ import {
   Calendars,
   Anchor,
   Landmark,
+  GraduationCap,
 } from "lucide-react";
 
 import {
@@ -143,6 +144,12 @@ export function CommandPalette({ open, setOpen }: CommandPaletteProps) {
             <PhilippinePeso className="mr-2 h-4 w-4 text-emerald-500" />
             <span>Compensation Management</span>
             <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-widest">Payroll &gt; Wage</span>
+          </CommandItem>
+
+          <CommandItem onSelect={() => runCommand(() => router.push(`/wage/${userId}?tab=salary-grade-registration`))}>
+            <GraduationCap className="mr-2 h-4 w-4 text-emerald-400" />
+            <span className="pl-4">Salary Grade Registration</span>
+            <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-widest">Wage &gt; Register</span>
           </CommandItem>
 
           <CommandItem onSelect={() => runCommand(() => router.push(`/wage/${userId}?tab=salary-grade`))}>

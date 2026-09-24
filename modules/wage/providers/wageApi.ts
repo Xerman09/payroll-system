@@ -35,6 +35,8 @@ import type {
   BenefitLogPatchPayload,
   SalarySchedule,
   SalarySchedulePayload,
+  SalaryGrade,
+  SalaryGradePayload,
 } from "../types";
 
 const BASE_API = "/api/wage";
@@ -804,6 +806,47 @@ export async function deleteSalarySchedule(id: number) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       path: `/items/salary_schedules/${id}`,
+    }),
+  });
+}
+
+// ----------------------------------------------------------------------
+// SALARY GRADE (salary_grade)
+// ----------------------------------------------------------------------
+
+export async function fetchSalaryGrades(): Promise<SalaryGrade[]> {
+  const json = await apiFetch("/items/salary_grade?sort=id&limit=-1");
+  return json.data || [];
+}
+
+export async function createSalaryGrade(payload: SalaryGradePayload) {
+  return apiFetch("/items/salary_grade", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: "/items/salary_grade",
+      payload,
+    }),
+  });
+}
+
+export async function patchSalaryGrade(id: number, payload: Partial<SalaryGradePayload>) {
+  return apiFetch(`/items/salary_grade/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: `/items/salary_grade/${id}`,
+      payload,
+    }),
+  });
+}
+
+export async function deleteSalaryGrade(id: number) {
+  return apiFetch(`/items/salary_grade/${id}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: `/items/salary_grade/${id}`,
     }),
   });
 }
