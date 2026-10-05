@@ -129,9 +129,29 @@ export async function exportEmployeeBenefitsPdf(args: {
     doc.setFont("helvetica", "normal");
     setText([71, 85, 105]);
 
+    const getStatusLabel = (s: CoverageStatusFilter) => {
+      switch (s) {
+        case "ACTIVE_ONLY": return "Active Employees Only";
+        case "INACTIVE_ONLY": return "Inactive Employees Only";
+        case "HAS_SSS": return `Has ${sssLabel} (> ₱0)`;
+        case "NO_SSS": return `No ${sssLabel} (₱0)`;
+        case "HAS_PHILHEALTH": return "Has PhilHealth (> ₱0)";
+        case "NO_PHILHEALTH": return "No PhilHealth (₱0)";
+        case "HAS_PAGIBIG": return "Has Pag-IBIG (> ₱0)";
+        case "NO_PAGIBIG": return "No Pag-IBIG (₱0)";
+        case "FULL_COVERAGE": return "Complete Coverage (All 3)";
+        case "WITH_BENEFIT": return "With Benefit Amount (> ₱0)";
+        case "WITHOUT_BENEFIT": return "Without Benefit Amount (₱0)";
+        case "WITH_LOAN": return "With Active Loans";
+        case "HAS_SSS_ID": return `Has ${sssLabel} Account No.`;
+        case "MISSING_SSS_ID": return `Missing ${sssLabel} Account No.`;
+        default: return "All Employees";
+      }
+    };
+
     const filterTexts = [
       `Benefit: ${filterBenefit === "ALL" ? "All Benefits" : filterBenefit === "SSS" ? sssLabel : filterBenefit}`,
-      `Status: ${filterStatus === "ALL" ? "All Employees" : filterStatus === "WITH_BENEFIT" ? "Enrolled (> ₱0.00)" : filterStatus === "WITHOUT_BENEFIT" ? "Not Enrolled (₱0.00)" : "With Active Loans"}`,
+      `Status: ${getStatusLabel(filterStatus)}`,
       `Dept: ${departmentLabel}`,
       searchQuery ? `Search: "${searchQuery}"` : null,
       `Headcount: ${coverages.length} employee${coverages.length === 1 ? "" : "s"}`,

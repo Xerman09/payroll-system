@@ -164,7 +164,7 @@ export async function fetchBenefitSettings(): Promise<BenefitSetting[]> {
 
 export async function fetchUsers(): Promise<UserData[]> {
   const json = await apiFetch(
-    "/items/user?limit=2000&fields=user_id,user_fname,user_lname,user_department,user_position,user_sss,user_philhealth,user_pagibig,user_tin,is_deleted,is_employee"
+    "/items/user?limit=2000&fields=user_id,user_fname,user_lname,user_department,user_position,user_sss,user_philhealth,user_pagibig,user_tin,is_deleted,is_employee&filter[is_employee][_eq]=1"
   );
   return json.data || [];
 }
@@ -584,6 +584,17 @@ export function isUserDeleted(u: UserData): boolean {
   return false;
 }
 
+export function isUserActiveEmployee(u: UserData): boolean {
+  if (isUserDeleted(u)) return false;
+  // If is_employee is explicitly 0, false, or "0", they are not an active employee
+  if (u.is_employee === 0 || u.is_employee === false) return false;
+  if (typeof u.is_employee === "object" && u.is_employee !== null) {
+    const data = (u.is_employee as { data?: number[] })?.data;
+    if (Array.isArray(data) && data[0] === 0) return false;
+  }
+  return true;
+}
+
 export function round2(x: number): number {
   const n0 = Number(x ?? 0);
   if (!Number.isFinite(n0)) return 0;
@@ -603,8 +614,9 @@ export function buildEmployeeBenefitCoverages(args: {
   departments: Department[];
   loans: BenefitLoan[];
   isGovernment?: boolean;
+  includeInactive?: boolean;
 }): EmployeeBenefitCoverage[] {
-  const { users, wages, departments, loans, isGovernment = false } = args;
+  const { users, wages, departments, loans, isGovernment = false, includeInactive = false } = args;
 
   const deptMap = new Map<number, string>();
   for (const d of departments) {
@@ -635,12 +647,12 @@ export function buildEmployeeBenefitCoverages(args: {
     loansByUser.set(l.user_id, cur);
   }
 
-  // Filter out deleted employees
-  const activeEmployees = users.filter((u) => !isUserDeleted(u));
+  // Filter out inactive or deleted employees by default
+  const targetUsers = includeInactive ? users : users.filter((u) => isUserActiveEmployee(u));
 
   const results: EmployeeBenefitCoverage[] = [];
 
-  for (const u of activeEmployees) {
+  for (const u of targetUsers) {
     const w = wageMap.get(u.user_id);
     const dailyWage = toNum(w?.daily_wage);
     const workingDays = toNum(w?.working_days_per_month) || 26;
@@ -757,12 +769,19 @@ export function buildEmployeeBenefitCoverages(args: {
     const totalCounterpart = round2(sssCounterpart + phCounterpart + hdmfCounterpart);
     const grandTotal = round2(totalPersonal + totalCounterpart);
 
-    const hasSss = sssDetail.personal_share > 0 || Boolean(u.user_sss);
-    const hasPh = phDetail.personal_share > 0 || Boolean(u.user_philhealth);
-    const hasPagibig = hdmfDetail.personal_share > 0 || Boolean(u.user_pagibig);
+    const hasSssAmount = sssDetail.personal_share > 0;
+    const hasPhAmount = phDetail.personal_share > 0;
+    const hasPagibigAmount = hdmfDetail.personal_share > 0;
+    const hasSssId = Boolean(u.user_sss);
+    const hasPhId = Boolean(u.user_philhealth);
+    const hasPagibigId = Boolean(u.user_pagibig);
+
+    const hasSss = hasSssAmount || hasSssId;
+    const hasPh = hasPhAmount || hasPhId;
+    const hasPagibig = hasPagibigAmount || hasPagibigId;
     const hasLoans = userLoans.length > 0;
     const hasAny = hasSss || hasPh || hasPagibig || hasLoans;
-    const hasAll = hasSss && hasPh && hasPagibig;
+    const hasAll = hasSssAmount && hasPhAmount && hasPagibigAmount;
 
     const deptName = u.user_department ? deptMap.get(u.user_department) || "Unassigned" : "Unassigned";
 
@@ -793,6 +812,16 @@ export function buildEmployeeBenefitCoverages(args: {
       has_pagibig: hasPagibig,
       has_loans: hasLoans,
 
+      has_sss_amount: hasSssAmount,
+      has_philhealth_amount: hasPhAmount,
+      has_pagibig_amount: hasPagibigAmount,
+      has_sss_id: hasSssId,
+      has_philhealth_id: hasPhId,
+      has_pagibig_id: hasPagibigId,
+
+      is_active: isUserActiveEmployee(u),
+      is_deleted: isUserDeleted(u),
+
       coverage_summary: hasAll ? "FULL" : hasAny ? "PARTIAL" : "NONE",
     });
   }
@@ -805,6 +834,7 @@ export function buildEmployeeBenefitCoverages(args: {
 
 export async function fetchEmployeeBenefitCoverages(options?: {
   isGovernment?: boolean;
+  includeInactive?: boolean;
 }): Promise<EmployeeBenefitCoverage[]> {
   const [users, wages, departments, loans] = await Promise.all([
     fetchUsers(),
@@ -819,6 +849,7 @@ export async function fetchEmployeeBenefitCoverages(options?: {
     departments,
     loans,
     isGovernment: options?.isGovernment ?? false,
+    includeInactive: options?.includeInactive ?? false,
   });
 }
 

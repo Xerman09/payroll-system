@@ -95,11 +95,37 @@ export interface EmployeeBenefitCoverage {
   has_pagibig: boolean;
   has_loans: boolean;
 
+  has_sss_amount: boolean;
+  has_philhealth_amount: boolean;
+  has_pagibig_amount: boolean;
+  has_sss_id: boolean;
+  has_philhealth_id: boolean;
+  has_pagibig_id: boolean;
+
+  is_active: boolean;
+  is_deleted: boolean;
+
   coverage_summary: "FULL" | "PARTIAL" | "NONE";
 }
 
 export type BenefitReportFilter = "ALL" | "SSS" | "PHILHEALTH" | "PAGIBIG" | "LOANS";
-export type CoverageStatusFilter = "ALL" | "WITH_BENEFIT" | "WITHOUT_BENEFIT" | "WITH_LOAN";
+export type CoverageStatusFilter =
+  | "ALL"
+  | "ACTIVE_ONLY"
+  | "INACTIVE_ONLY"
+  | "HAS_SSS"
+  | "NO_SSS"
+  | "HAS_PHILHEALTH"
+  | "NO_PHILHEALTH"
+  | "HAS_PAGIBIG"
+  | "NO_PAGIBIG"
+  | "FULL_COVERAGE"
+  | "WITH_BENEFIT"
+  | "WITHOUT_BENEFIT"
+  | "WITH_LOAN"
+  | "HAS_SSS_ID"
+  | "MISSING_SSS_ID";
+
 
 
 export interface Department {

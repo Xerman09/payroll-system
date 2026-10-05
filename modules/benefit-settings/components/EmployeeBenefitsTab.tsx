@@ -61,6 +61,7 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 
 interface EmployeeBenefitsTabProps {
   coverages: EmployeeBenefitCoverage[];
@@ -87,6 +88,8 @@ export default function EmployeeBenefitsTab({
   const [benefitFilter, setBenefitFilter] = React.useState<BenefitReportFilter>(defaultBenefitFilter);
   const [statusFilter, setStatusFilter] = React.useState<CoverageStatusFilter>("ALL");
   const [deptFilter, setDeptFilter] = React.useState<string>("ALL");
+  const [activeOnly, setActiveOnly] = React.useState(true);
+  const [viewMode, setViewMode] = React.useState<"FOCUSED" | "ALL_COLUMNS">("FOCUSED");
 
   const [currentPage, setCurrentPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(15);
@@ -115,7 +118,8 @@ export default function EmployeeBenefitsTab({
 
   // Overall KPI statistics
   const stats = React.useMemo(() => {
-    const total = coverages.length;
+    const baseList = activeOnly ? coverages.filter((c) => c.is_active) : coverages;
+    const total = baseList.length;
     let sssCount = 0;
     let sssPersonal = 0;
     let sssCounterpart = 0;
@@ -135,7 +139,7 @@ export default function EmployeeBenefitsTab({
     let grandCounterpart = 0;
     let fullyCovered = 0;
 
-    for (const c of coverages) {
+    for (const c of baseList) {
       if (c.sss.personal_share > 0) {
         sssCount++;
         sssPersonal += c.sss.personal_share;
@@ -190,11 +194,16 @@ export default function EmployeeBenefitsTab({
       grandCounterpart,
       grandTotalRemittance: grandPersonal + grandCounterpart,
     };
-  }, [coverages]);
+  }, [coverages, activeOnly]);
 
   // Filtered rows
   const filtered = React.useMemo(() => {
     return coverages.filter((c) => {
+      // 0. Active employee filter
+      if (activeOnly && !c.is_active) return false;
+      if (statusFilter === "ACTIVE_ONLY" && !c.is_active) return false;
+      if (statusFilter === "INACTIVE_ONLY" && c.is_active) return false;
+
       // 1. Search filter
       if (search.trim()) {
         const q = search.toLowerCase().trim();
@@ -222,6 +231,20 @@ export default function EmployeeBenefitsTab({
       if (benefitFilter === "LOANS" && !c.has_loans) return false;
 
       // 4. Coverage status filter
+      if (statusFilter === "HAS_SSS" && !c.has_sss_amount) return false;
+      if (statusFilter === "NO_SSS" && c.has_sss_amount) return false;
+
+      if (statusFilter === "HAS_PHILHEALTH" && !c.has_philhealth_amount) return false;
+      if (statusFilter === "NO_PHILHEALTH" && c.has_philhealth_amount) return false;
+
+      if (statusFilter === "HAS_PAGIBIG" && !c.has_pagibig_amount) return false;
+      if (statusFilter === "NO_PAGIBIG" && c.has_pagibig_amount) return false;
+
+      if (statusFilter === "FULL_COVERAGE" && !c.has_all_benefits) return false;
+
+      if (statusFilter === "HAS_SSS_ID" && !c.has_sss_id) return false;
+      if (statusFilter === "MISSING_SSS_ID" && c.has_sss_id) return false;
+
       if (statusFilter === "WITH_BENEFIT") {
         if (benefitFilter === "SSS" && c.sss.personal_share <= 0) return false;
         if (benefitFilter === "PHILHEALTH" && c.philhealth.personal_share <= 0) return false;
@@ -242,7 +265,7 @@ export default function EmployeeBenefitsTab({
 
       return true;
     });
-  }, [coverages, search, deptFilter, benefitFilter, statusFilter]);
+  }, [coverages, activeOnly, search, deptFilter, benefitFilter, statusFilter]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -253,58 +276,153 @@ export default function EmployeeBenefitsTab({
 
   // Export to CSV
   const handleExportCsv = () => {
-    const headers = [
-      "Employee ID",
-      "Employee Name",
-      "Department",
-      "Position",
-      "Monthly Rate",
-      `${sssLabel} Account No`,
-      `${sssLabel} EE (Deduction)`,
-      `${sssLabel} ER (${isGovernment ? "LGU" : "Employer"})`,
-      "PhilHealth Account No",
-      "PhilHealth EE",
-      `PhilHealth ER (${isGovernment ? "LGU" : "Employer"})`,
-      "Pag-IBIG MID No",
-      "Pag-IBIG EE",
-      `Pag-IBIG ER (${isGovernment ? "LGU" : "Employer"})`,
-      "Active Loans Count",
-      "Monthly Loan Amortization",
-      "Total Employee Deduction",
-      `Total Counterpart (${isGovernment ? "LGU" : "Employer"})`,
-      "Grand Total Monthly Remittance",
-      "Coverage Summary",
-    ];
+    let headers: string[] = [];
+    let rows: (string | number)[][] = [];
 
-    const rows = filtered.map((c) => [
-      c.user_id,
-      `"${c.employee_name}"`,
-      `"${c.department_name}"`,
-      `"${c.position || ""}"`,
-      c.monthly_rate.toFixed(2),
-      `"${c.sss.account_no || ""}"`,
-      c.sss.personal_share.toFixed(2),
-      c.sss.counterpart_share.toFixed(2),
-      `"${c.philhealth.account_no || ""}"`,
-      c.philhealth.personal_share.toFixed(2),
-      c.philhealth.counterpart_share.toFixed(2),
-      `"${c.pagibig.account_no || ""}"`,
-      c.pagibig.personal_share.toFixed(2),
-      c.pagibig.counterpart_share.toFixed(2),
-      c.loans.length,
-      c.total_loan_amortization.toFixed(2),
-      c.total_personal_share.toFixed(2),
-      c.total_counterpart_share.toFixed(2),
-      c.grand_total_monthly.toFixed(2),
-      c.coverage_summary,
-    ]);
+    if (benefitFilter === "SSS" && viewMode === "FOCUSED") {
+      headers = [
+        "Employee ID",
+        "Employee Name",
+        "Department",
+        "Position",
+        "Monthly Rate",
+        `${sssLabel} Account No`,
+        `${sssLabel} EE (Deduction)`,
+        `${sssLabel} ER (${isGovernment ? "LGU" : "Employer"})`,
+        `${sssLabel} Total Contribution`,
+        `${sssLabel} Active Loan Amortization`,
+        "Coverage Status",
+      ];
+      rows = filtered.map((c) => {
+        const sLoans = c.loans.filter((l) => l.benefit_code === "SSS");
+        const amort = sLoans.reduce((sum, l) => sum + l.amortization_amount, 0);
+        return [
+          c.user_id,
+          `"${c.employee_name}"`,
+          `"${c.department_name}"`,
+          `"${c.position || ""}"`,
+          c.monthly_rate.toFixed(2),
+          `"${c.sss.account_no || ""}"`,
+          c.sss.personal_share.toFixed(2),
+          c.sss.counterpart_share.toFixed(2),
+          c.sss.total_contribution.toFixed(2),
+          amort.toFixed(2),
+          c.sss.personal_share > 0 ? "Active" : c.sss.account_no ? "Registered (₱0)" : "No Benefit",
+        ];
+      });
+    } else if (benefitFilter === "PHILHEALTH" && viewMode === "FOCUSED") {
+      headers = [
+        "Employee ID",
+        "Employee Name",
+        "Department",
+        "Position",
+        "Monthly Rate",
+        "PhilHealth PIN",
+        "PhilHealth EE (2.5%)",
+        `PhilHealth ER (${isGovernment ? "LGU" : "Employer"} 2.5%)`,
+        "PhilHealth Total (5%)",
+        "Coverage Status",
+      ];
+      rows = filtered.map((c) => [
+        c.user_id,
+        `"${c.employee_name}"`,
+        `"${c.department_name}"`,
+        `"${c.position || ""}"`,
+        c.monthly_rate.toFixed(2),
+        `"${c.philhealth.account_no || ""}"`,
+        c.philhealth.personal_share.toFixed(2),
+        c.philhealth.counterpart_share.toFixed(2),
+        c.philhealth.total_contribution.toFixed(2),
+        c.philhealth.personal_share > 0 ? "Active" : c.philhealth.account_no ? "Registered (₱0)" : "No Benefit",
+      ]);
+    } else if (benefitFilter === "PAGIBIG" && viewMode === "FOCUSED") {
+      headers = [
+        "Employee ID",
+        "Employee Name",
+        "Department",
+        "Position",
+        "Monthly Rate",
+        "Pag-IBIG MID No",
+        "Pag-IBIG EE",
+        `Pag-IBIG ER (${isGovernment ? "LGU" : "Employer"})`,
+        "Pag-IBIG Total",
+        "Pag-IBIG Active Loan Amortization",
+        "Coverage Status",
+      ];
+      rows = filtered.map((c) => {
+        const pLoans = c.loans.filter((l) => l.benefit_code === "PAGIBIG");
+        const amort = pLoans.reduce((sum, l) => sum + l.amortization_amount, 0);
+        return [
+          c.user_id,
+          `"${c.employee_name}"`,
+          `"${c.department_name}"`,
+          `"${c.position || ""}"`,
+          c.monthly_rate.toFixed(2),
+          `"${c.pagibig.account_no || ""}"`,
+          c.pagibig.personal_share.toFixed(2),
+          c.pagibig.counterpart_share.toFixed(2),
+          c.pagibig.total_contribution.toFixed(2),
+          amort.toFixed(2),
+          c.pagibig.personal_share > 0 ? "Active" : c.pagibig.account_no ? "Registered (₱0)" : "No Benefit",
+        ];
+      });
+    } else {
+      headers = [
+        "Employee ID",
+        "Employee Name",
+        "Department",
+        "Position",
+        "Monthly Rate",
+        `${sssLabel} Account No`,
+        `${sssLabel} EE (Deduction)`,
+        `${sssLabel} ER (${isGovernment ? "LGU" : "Employer"})`,
+        "PhilHealth Account No",
+        "PhilHealth EE",
+        `PhilHealth ER (${isGovernment ? "LGU" : "Employer"})`,
+        "Pag-IBIG MID No",
+        "Pag-IBIG EE",
+        `Pag-IBIG ER (${isGovernment ? "LGU" : "Employer"})`,
+        "Active Loans Count",
+        "Monthly Loan Amortization",
+        "Total Employee Deduction",
+        `Total Counterpart (${isGovernment ? "LGU" : "Employer"})`,
+        "Grand Total Monthly Remittance",
+        "Coverage Summary",
+      ];
+
+      rows = filtered.map((c) => [
+        c.user_id,
+        `"${c.employee_name}"`,
+        `"${c.department_name}"`,
+        `"${c.position || ""}"`,
+        c.monthly_rate.toFixed(2),
+        `"${c.sss.account_no || ""}"`,
+        c.sss.personal_share.toFixed(2),
+        c.sss.counterpart_share.toFixed(2),
+        `"${c.philhealth.account_no || ""}"`,
+        c.philhealth.personal_share.toFixed(2),
+        c.philhealth.counterpart_share.toFixed(2),
+        `"${c.pagibig.account_no || ""}"`,
+        c.pagibig.personal_share.toFixed(2),
+        c.pagibig.counterpart_share.toFixed(2),
+        c.loans.length,
+        c.total_loan_amortization.toFixed(2),
+        c.total_personal_share.toFixed(2),
+        c.total_counterpart_share.toFixed(2),
+        c.grand_total_monthly.toFixed(2),
+        c.coverage_summary,
+      ]);
+    }
 
     const csvContent =
       "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Employee_Benefits_Coverage_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute(
+      "download",
+      `${benefitFilter !== "ALL" ? benefitFilter + "_" : ""}Employee_Benefits_Coverage_Report_${new Date().toISOString().slice(0, 10)}.csv`
+    );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -370,8 +488,22 @@ export default function EmployeeBenefitsTab({
               <Shield className="h-3.5 w-3.5 text-blue-600" />
               {sssLabel}
             </span>
-            <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
-              {stats.sssCount} Enrolled
+            <Badge
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                setBenefitFilter("SSS");
+                setStatusFilter(statusFilter === "HAS_SSS" ? "ALL" : "HAS_SSS");
+                setCurrentPage(1);
+              }}
+              title={`Click to filter only employees with ${sssLabel} (> ₱0.00)`}
+              className={`text-[10px] cursor-pointer transition-colors ${
+                statusFilter === "HAS_SSS"
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/40 dark:text-blue-200"
+              }`}
+            >
+              {stats.sssCount} Enrolled {statusFilter === "HAS_SSS" ? "✓" : ""}
             </Badge>
           </div>
           <div className="text-base font-bold text-slate-900 dark:text-gray-100">
@@ -400,8 +532,22 @@ export default function EmployeeBenefitsTab({
               <HeartPulse className="h-3.5 w-3.5 text-emerald-600" />
               PhilHealth
             </span>
-            <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
-              {stats.phCount} Enrolled
+            <Badge
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                setBenefitFilter("PHILHEALTH");
+                setStatusFilter(statusFilter === "HAS_PHILHEALTH" ? "ALL" : "HAS_PHILHEALTH");
+                setCurrentPage(1);
+              }}
+              title="Click to filter only employees with PhilHealth (> ₱0.00)"
+              className={`text-[10px] cursor-pointer transition-colors ${
+                statusFilter === "HAS_PHILHEALTH"
+                  ? "bg-emerald-600 text-white border-emerald-600"
+                  : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-200"
+              }`}
+            >
+              {stats.phCount} Enrolled {statusFilter === "HAS_PHILHEALTH" ? "✓" : ""}
             </Badge>
           </div>
           <div className="text-base font-bold text-slate-900 dark:text-gray-100">
@@ -430,8 +576,22 @@ export default function EmployeeBenefitsTab({
               <Landmark className="h-3.5 w-3.5 text-amber-600" />
               Pag-IBIG
             </span>
-            <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
-              {stats.pagibigCount} Enrolled
+            <Badge
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                setBenefitFilter("PAGIBIG");
+                setStatusFilter(statusFilter === "HAS_PAGIBIG" ? "ALL" : "HAS_PAGIBIG");
+                setCurrentPage(1);
+              }}
+              title="Click to filter only employees with Pag-IBIG (> ₱0.00)"
+              className={`text-[10px] cursor-pointer transition-colors ${
+                statusFilter === "HAS_PAGIBIG"
+                  ? "bg-amber-600 text-white border-amber-600"
+                  : "bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-200"
+              }`}
+            >
+              {stats.pagibigCount} Enrolled {statusFilter === "HAS_PAGIBIG" ? "✓" : ""}
             </Badge>
           </div>
           <div className="text-base font-bold text-slate-900 dark:text-gray-100">
@@ -565,6 +725,45 @@ export default function EmployeeBenefitsTab({
               </button>
             </div>
 
+            {/* Active Employees Only Toggle */}
+            <Button
+              type="button"
+              variant={activeOnly ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setActiveOnly(!activeOnly);
+                setCurrentPage(1);
+              }}
+              className={`h-9 text-xs gap-1.5 transition-all ${
+                activeOnly
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-2xs"
+                  : "text-slate-600 dark:text-slate-300 border-slate-200 dark:border-gray-700 hover:bg-slate-50 dark:hover:bg-gray-800"
+              }`}
+              title={activeOnly ? "Currently showing Active Employees Only. Click to include inactive accounts." : "Currently showing all. Click to filter only active employees."}
+            >
+              <Users className="h-3.5 w-3.5" />
+              {activeOnly ? "Active Only" : "All Statuses"}
+            </Button>
+
+            {/* Quick SSS Filter Button */}
+            <Button
+              type="button"
+              variant={statusFilter === "HAS_SSS" ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setStatusFilter(statusFilter === "HAS_SSS" ? "ALL" : "HAS_SSS");
+                setCurrentPage(1);
+              }}
+              className={`h-9 text-xs gap-1.5 transition-all ${
+                statusFilter === "HAS_SSS"
+                  ? "bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-2xs"
+                  : "text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950/50"
+              }`}
+            >
+              <Shield className="h-3.5 w-3.5" />
+              Has {sssLabel} Only (&gt; ₱0)
+            </Button>
+
             {/* Coverage Status Dropdown */}
             <Select
               value={statusFilter}
@@ -573,14 +772,37 @@ export default function EmployeeBenefitsTab({
                 setCurrentPage(1);
               }}
             >
-              <SelectTrigger className="w-[180px] h-9 text-xs bg-slate-50 dark:bg-gray-800">
+              <SelectTrigger className="w-[195px] h-9 text-xs bg-slate-50 dark:bg-gray-800">
                 <SelectValue placeholder="Coverage Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">All Coverage Status</SelectItem>
-                <SelectItem value="WITH_BENEFIT">With Amount (&gt; ₱0.00)</SelectItem>
-                <SelectItem value="WITHOUT_BENEFIT">Without Amount (₱0.00)</SelectItem>
+                <SelectItem value="ACTIVE_ONLY" className="text-emerald-600 dark:text-emerald-400 font-medium">
+                  Active Employees Only
+                </SelectItem>
+                <SelectItem value="INACTIVE_ONLY" className="text-rose-600 dark:text-rose-400">
+                  Inactive / Terminated Only
+                </SelectItem>
+                <SelectItem value="HAS_SSS" className="text-blue-600 dark:text-blue-400 font-medium">
+                  Has {sssLabel} Only (&gt; ₱0.00)
+                </SelectItem>
+                <SelectItem value="NO_SSS">No {sssLabel} (₱0.00)</SelectItem>
+                <SelectItem value="HAS_PHILHEALTH" className="text-emerald-600 dark:text-emerald-400 font-medium">
+                  Has PhilHealth Only (&gt; ₱0.00)
+                </SelectItem>
+                <SelectItem value="NO_PHILHEALTH">No PhilHealth (₱0.00)</SelectItem>
+                <SelectItem value="HAS_PAGIBIG" className="text-amber-600 dark:text-amber-400 font-medium">
+                  Has Pag-IBIG Only (&gt; ₱0.00)
+                </SelectItem>
+                <SelectItem value="NO_PAGIBIG">No Pag-IBIG (₱0.00)</SelectItem>
+                <SelectItem value="FULL_COVERAGE" className="text-purple-600 dark:text-purple-400 font-medium">
+                  Complete Coverage (All 3)
+                </SelectItem>
                 <SelectItem value="WITH_LOAN">With Active Loans</SelectItem>
+                <SelectItem value="WITH_BENEFIT">With Any Benefit (&gt; ₱0.00)</SelectItem>
+                <SelectItem value="WITHOUT_BENEFIT">Zero Benefits (₱0.00)</SelectItem>
+                <SelectItem value="HAS_SSS_ID">With {sssLabel} ID Registered</SelectItem>
+                <SelectItem value="MISSING_SSS_ID">Missing {sssLabel} ID</SelectItem>
               </SelectContent>
             </Select>
 
@@ -644,6 +866,197 @@ export default function EmployeeBenefitsTab({
           </div>
         </div>
 
+        {/* Benefit-specific interactive banner with quick toggle */}
+        {benefitFilter === "SSS" && (
+          <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 text-xs text-blue-900 dark:text-blue-200">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-blue-600 shrink-0" />
+              <span>
+                Filtering by <strong>{sssLabel}</strong> statutory benefit.
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Column View Mode Switcher */}
+              <div className="inline-flex rounded-md border border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-800 p-0.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("FOCUSED")}
+                  className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                    viewMode === "FOCUSED"
+                      ? "bg-blue-600 text-white shadow-2xs"
+                      : "text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-white"
+                  }`}
+                >
+                  {sssLabel} Only Columns
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("ALL_COLUMNS")}
+                  className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                    viewMode === "ALL_COLUMNS"
+                      ? "bg-blue-600 text-white shadow-2xs"
+                      : "text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-white"
+                  }`}
+                >
+                  All Benefit Columns
+                </button>
+              </div>
+
+              {/* Only with SSS contribution switch */}
+              <div className="flex items-center gap-2">
+                <label htmlFor="filter-has-sss-only" className="cursor-pointer font-medium select-none text-blue-800 dark:text-blue-300">
+                  Only with {sssLabel} deduction (&gt; ₱0.00):
+                </label>
+                <Switch
+                  id="filter-has-sss-only"
+                  checked={statusFilter === "HAS_SSS"}
+                  onCheckedChange={(checked) => {
+                    setStatusFilter(checked ? "HAS_SSS" : "ALL");
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {benefitFilter === "PHILHEALTH" && (
+          <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-xs text-emerald-900 dark:text-emerald-200">
+            <div className="flex items-center gap-2">
+              <HeartPulse className="h-4 w-4 text-emerald-600 shrink-0" />
+              <span>
+                Filtering by <strong>PhilHealth</strong> statutory benefit.
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="inline-flex rounded-md border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-gray-800 p-0.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("FOCUSED")}
+                  className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                    viewMode === "FOCUSED"
+                      ? "bg-emerald-600 text-white shadow-2xs"
+                      : "text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-white"
+                  }`}
+                >
+                  PhilHealth Only Columns
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("ALL_COLUMNS")}
+                  className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                    viewMode === "ALL_COLUMNS"
+                      ? "bg-emerald-600 text-white shadow-2xs"
+                      : "text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-white"
+                  }`}
+                >
+                  All Benefit Columns
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label htmlFor="filter-has-ph-only" className="cursor-pointer font-medium select-none text-emerald-800 dark:text-emerald-300">
+                  Only with PhilHealth deduction (&gt; ₱0.00):
+                </label>
+                <Switch
+                  id="filter-has-ph-only"
+                  checked={statusFilter === "HAS_PHILHEALTH"}
+                  onCheckedChange={(checked) => {
+                    setStatusFilter(checked ? "HAS_PHILHEALTH" : "ALL");
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {benefitFilter === "PAGIBIG" && (
+          <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-900 dark:text-amber-200">
+            <div className="flex items-center gap-2">
+              <Landmark className="h-4 w-4 text-amber-600 shrink-0" />
+              <span>
+                Filtering by <strong>Pag-IBIG</strong> statutory benefit.
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="inline-flex rounded-md border border-amber-200 dark:border-amber-800 bg-white dark:bg-gray-800 p-0.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("FOCUSED")}
+                  className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                    viewMode === "FOCUSED"
+                      ? "bg-amber-600 text-white shadow-2xs"
+                      : "text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-white"
+                  }`}
+                >
+                  Pag-IBIG Only Columns
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("ALL_COLUMNS")}
+                  className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                    viewMode === "ALL_COLUMNS"
+                      ? "bg-amber-600 text-white shadow-2xs"
+                      : "text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-white"
+                  }`}
+                >
+                  All Benefit Columns
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label htmlFor="filter-has-pagibig-only" className="cursor-pointer font-medium select-none text-amber-800 dark:text-amber-300">
+                  Only with Pag-IBIG deduction (&gt; ₱0.00):
+                </label>
+                <Switch
+                  id="filter-has-pagibig-only"
+                  checked={statusFilter === "HAS_PAGIBIG"}
+                  onCheckedChange={(checked) => {
+                    setStatusFilter(checked ? "HAS_PAGIBIG" : "ALL");
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {benefitFilter === "LOANS" && (
+          <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900/60 text-xs text-purple-900 dark:text-purple-200">
+            <div className="flex items-center gap-2">
+              <Coins className="h-4 w-4 text-purple-600 shrink-0" />
+              <span>
+                Filtering by <strong>Benefit Loans</strong> masterlist.
+              </span>
+            </div>
+            <div className="inline-flex rounded-md border border-purple-200 dark:border-purple-800 bg-white dark:bg-gray-800 p-0.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setViewMode("FOCUSED")}
+                className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                  viewMode === "FOCUSED"
+                    ? "bg-purple-600 text-white shadow-2xs"
+                    : "text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-white"
+                }`}
+              >
+                Loans Only Columns
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("ALL_COLUMNS")}
+                className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                  viewMode === "ALL_COLUMNS"
+                    ? "bg-purple-600 text-white shadow-2xs"
+                    : "text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-white"
+                }`}
+              >
+                All Benefit Columns
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Active Filters Summary Bar */}
         {(search || deptFilter !== "ALL" || benefitFilter !== "ALL" || statusFilter !== "ALL") && (
           <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-slate-500">
@@ -655,8 +1068,36 @@ export default function EmployeeBenefitsTab({
               </Badge>
             )}
             {statusFilter !== "ALL" && (
-              <Badge variant="secondary" className="gap-1 text-[11px]">
-                Status: {statusFilter === "WITH_BENEFIT" ? "With Amount" : statusFilter === "WITHOUT_BENEFIT" ? "Without Amount" : "With Loans"}
+              <Badge variant="secondary" className="gap-1 text-[11px] bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950 dark:text-blue-200">
+                Status: {
+                  statusFilter === "ACTIVE_ONLY"
+                    ? "Active Employees Only"
+                    : statusFilter === "INACTIVE_ONLY"
+                    ? "Inactive / Terminated"
+                    : statusFilter === "HAS_SSS"
+                    ? `Has ${sssLabel} (> ₱0.00)`
+                    : statusFilter === "NO_SSS"
+                    ? `No ${sssLabel} (₱0.00)`
+                    : statusFilter === "HAS_PHILHEALTH"
+                    ? "Has PhilHealth (> ₱0.00)"
+                    : statusFilter === "NO_PHILHEALTH"
+                    ? "No PhilHealth (₱0.00)"
+                    : statusFilter === "HAS_PAGIBIG"
+                    ? "Has Pag-IBIG (> ₱0.00)"
+                    : statusFilter === "NO_PAGIBIG"
+                    ? "No Pag-IBIG (₱0.00)"
+                    : statusFilter === "FULL_COVERAGE"
+                    ? "Full Coverage (All 3)"
+                    : statusFilter === "WITH_BENEFIT"
+                    ? "With Amount (> ₱0.00)"
+                    : statusFilter === "WITHOUT_BENEFIT"
+                    ? "Zero Amount (₱0.00)"
+                    : statusFilter === "HAS_SSS_ID"
+                    ? `With ${sssLabel} ID`
+                    : statusFilter === "MISSING_SSS_ID"
+                    ? `Missing ${sssLabel} ID`
+                    : "With Loans"
+                }
                 <X className="h-3 w-3 cursor-pointer" onClick={() => setStatusFilter("ALL")} />
               </Badge>
             )}
@@ -693,55 +1134,241 @@ export default function EmployeeBenefitsTab({
         <div className="overflow-x-auto">
           <Table>
             <TableHeader className="bg-slate-50 dark:bg-gray-800/80">
-              <TableRow>
-                <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[200px]">
-                  Employee
-                </TableHead>
-                <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[130px]">
-                  Department
-                </TableHead>
+              {benefitFilter === "SSS" && viewMode === "FOCUSED" ? (
+                /* Focused SSS Table Header - Completely hides PhilHealth & Pag-IBIG */
+                <TableRow>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[200px]">
+                    Employee
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[130px]">
+                    Department
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-blue-900 dark:text-blue-300 min-w-[140px]">
+                    {sssLabel} Account No
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[110px] text-right">
+                    Monthly Rate
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-blue-900 dark:text-blue-300 min-w-[130px] text-right">
+                    EE Deduction
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-blue-900 dark:text-blue-300 min-w-[130px] text-right">
+                    ER Share ({isGovernment ? "LGU" : "Employer"})
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-blue-900 dark:text-blue-300 min-w-[140px] text-right">
+                    Total SSS Remittance
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-purple-900 dark:text-purple-300 min-w-[110px]">
+                    SSS Loan
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 text-center min-w-[90px]">
+                    Status
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 text-center w-[70px]">
+                    Details
+                  </TableHead>
+                </TableRow>
+              ) : benefitFilter === "PHILHEALTH" && viewMode === "FOCUSED" ? (
+                /* Focused PhilHealth Table Header - Completely hides SSS & Pag-IBIG */
+                <TableRow>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[200px]">
+                    Employee
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[130px]">
+                    Department
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-emerald-900 dark:text-emerald-300 min-w-[140px]">
+                    PhilHealth PIN
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[110px] text-right">
+                    Monthly Rate
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-emerald-900 dark:text-emerald-300 min-w-[130px] text-right">
+                    EE Share (2.5%)
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-emerald-900 dark:text-emerald-300 min-w-[130px] text-right">
+                    ER Share (2.5%)
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-emerald-900 dark:text-emerald-300 min-w-[140px] text-right">
+                    Total PhilHealth (5%)
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 text-center min-w-[90px]">
+                    Status
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 text-center w-[70px]">
+                    Details
+                  </TableHead>
+                </TableRow>
+              ) : benefitFilter === "PAGIBIG" && viewMode === "FOCUSED" ? (
+                /* Focused Pag-IBIG Table Header - Completely hides SSS & PhilHealth */
+                <TableRow>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[200px]">
+                    Employee
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[130px]">
+                    Department
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-amber-900 dark:text-amber-300 min-w-[140px]">
+                    Pag-IBIG MID No
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[110px] text-right">
+                    Monthly Rate
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-amber-900 dark:text-amber-300 min-w-[130px] text-right">
+                    EE Share
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-amber-900 dark:text-amber-300 min-w-[130px] text-right">
+                    ER Share ({isGovernment ? "LGU" : "Employer"})
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-amber-900 dark:text-amber-300 min-w-[140px] text-right">
+                    Total Pag-IBIG Remittance
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-purple-900 dark:text-purple-300 min-w-[110px]">
+                    Pag-IBIG Loan
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 text-center min-w-[90px]">
+                    Status
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 text-center w-[70px]">
+                    Details
+                  </TableHead>
+                </TableRow>
+              ) : benefitFilter === "LOANS" && viewMode === "FOCUSED" ? (
+                /* Focused Loans Table Header */
+                <TableRow>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[200px]">
+                    Employee
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[130px]">
+                    Department
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-purple-900 dark:text-purple-300 min-w-[110px]">
+                    Active Loans
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[220px]">
+                    Benefit Loans Breakdown
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-900 dark:text-gray-100 min-w-[140px] text-right">
+                    Monthly Amortization
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 text-center w-[70px]">
+                    Details
+                  </TableHead>
+                </TableRow>
+              ) : (
+                /* All Statutory Benefits Overview Header */
+                <TableRow>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[200px]">
+                    Employee
+                  </TableHead>
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 min-w-[130px]">
+                    Department
+                  </TableHead>
 
-                {/* SSS / GSIS */}
-                <TableHead className="text-xs font-bold text-blue-900 dark:text-blue-300 min-w-[140px] text-right">
-                  {sssLabel} (EE / {isGovernment ? "LGU" : "ER"})
-                </TableHead>
+                  {/* SSS / GSIS */}
+                  <TableHead className="text-xs font-bold text-blue-900 dark:text-blue-300 min-w-[155px] text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span>{sssLabel} (EE / {isGovernment ? "LGU" : "ER"})</span>
+                      <button
+                        type="button"
+                        title={statusFilter === "HAS_SSS" ? "Clear SSS filter" : `Filter only employees that have ${sssLabel} (> ₱0)`}
+                        onClick={() => {
+                          setStatusFilter(statusFilter === "HAS_SSS" ? "ALL" : "HAS_SSS");
+                          setCurrentPage(1);
+                        }}
+                        className={`p-1 rounded transition-colors ${
+                          statusFilter === "HAS_SSS"
+                            ? "bg-blue-600 text-white shadow-2xs"
+                            : "text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                        }`}
+                      >
+                        <Filter className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </TableHead>
 
-                {/* PhilHealth */}
-                <TableHead className="text-xs font-bold text-emerald-900 dark:text-emerald-300 min-w-[140px] text-right">
-                  PhilHealth (EE / {isGovernment ? "LGU" : "ER"})
-                </TableHead>
+                  {/* PhilHealth */}
+                  <TableHead className="text-xs font-bold text-emerald-900 dark:text-emerald-300 min-w-[155px] text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span>PhilHealth (EE / {isGovernment ? "LGU" : "ER"})</span>
+                      <button
+                        type="button"
+                        title={statusFilter === "HAS_PHILHEALTH" ? "Clear PhilHealth filter" : "Filter only employees that have PhilHealth (> ₱0)"}
+                        onClick={() => {
+                          setStatusFilter(statusFilter === "HAS_PHILHEALTH" ? "ALL" : "HAS_PHILHEALTH");
+                          setCurrentPage(1);
+                        }}
+                        className={`p-1 rounded transition-colors ${
+                          statusFilter === "HAS_PHILHEALTH"
+                            ? "bg-emerald-600 text-white shadow-2xs"
+                            : "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+                        }`}
+                      >
+                        <Filter className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </TableHead>
 
-                {/* Pag-IBIG */}
-                <TableHead className="text-xs font-bold text-amber-900 dark:text-amber-300 min-w-[140px] text-right">
-                  Pag-IBIG (EE / {isGovernment ? "LGU" : "ER"})
-                </TableHead>
+                  {/* Pag-IBIG */}
+                  <TableHead className="text-xs font-bold text-amber-900 dark:text-amber-300 min-w-[155px] text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span>Pag-IBIG (EE / {isGovernment ? "LGU" : "ER"})</span>
+                      <button
+                        type="button"
+                        title={statusFilter === "HAS_PAGIBIG" ? "Clear Pag-IBIG filter" : "Filter only employees that have Pag-IBIG (> ₱0)"}
+                        onClick={() => {
+                          setStatusFilter(statusFilter === "HAS_PAGIBIG" ? "ALL" : "HAS_PAGIBIG");
+                          setCurrentPage(1);
+                        }}
+                        className={`p-1 rounded transition-colors ${
+                          statusFilter === "HAS_PAGIBIG"
+                            ? "bg-amber-600 text-white shadow-2xs"
+                            : "text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                        }`}
+                      >
+                        <Filter className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </TableHead>
 
-                {/* Benefit Loans */}
-                <TableHead className="text-xs font-bold text-purple-900 dark:text-purple-300 min-w-[120px]">
-                  Active Loans
-                </TableHead>
+                  {/* Benefit Loans */}
+                  <TableHead className="text-xs font-bold text-purple-900 dark:text-purple-300 min-w-[120px]">
+                    Active Loans
+                  </TableHead>
 
-                {/* Total Monthly */}
-                <TableHead className="text-xs font-bold text-slate-900 dark:text-gray-100 min-w-[140px] text-right">
-                  Total Monthly
-                </TableHead>
+                  {/* Total Monthly */}
+                  <TableHead className="text-xs font-bold text-slate-900 dark:text-gray-100 min-w-[140px] text-right">
+                    Total Monthly
+                  </TableHead>
 
-                {/* Coverage Status */}
-                <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 text-center min-w-[100px]">
-                  Coverage
-                </TableHead>
+                  {/* Coverage Status */}
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 text-center min-w-[100px]">
+                    Coverage
+                  </TableHead>
 
-                {/* Action */}
-                <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 text-center w-[70px]">
-                  Details
-                </TableHead>
-              </TableRow>
+                  {/* Action */}
+                  <TableHead className="text-xs font-bold text-slate-700 dark:text-gray-200 text-center w-[70px]">
+                    Details
+                  </TableHead>
+                </TableRow>
+              )}
             </TableHeader>
 
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-44 text-center text-slate-500">
+                  <TableCell
+                    colSpan={
+                      benefitFilter === "ALL" || viewMode === "ALL_COLUMNS"
+                        ? 9
+                        : benefitFilter === "SSS" || benefitFilter === "PAGIBIG"
+                        ? 10
+                        : benefitFilter === "PHILHEALTH"
+                        ? 9
+                        : 6
+                    }
+                    className="h-44 text-center text-slate-500"
+                  >
                     <div className="flex flex-col items-center justify-center gap-2">
                       <RefreshCcw className="h-6 w-6 animate-spin text-blue-600" />
                       <span className="text-sm font-medium">Loading employee benefits data...</span>
@@ -750,7 +1377,18 @@ export default function EmployeeBenefitsTab({
                 </TableRow>
               ) : paginated.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-44 text-center text-slate-500">
+                  <TableCell
+                    colSpan={
+                      benefitFilter === "ALL" || viewMode === "ALL_COLUMNS"
+                        ? 9
+                        : benefitFilter === "SSS" || benefitFilter === "PAGIBIG"
+                        ? 10
+                        : benefitFilter === "PHILHEALTH"
+                        ? 9
+                        : 6
+                    }
+                    className="h-44 text-center text-slate-500"
+                  >
                     <div className="flex flex-col items-center justify-center gap-1.5">
                       <Users className="h-9 w-9 text-slate-300 dark:text-gray-600" />
                       <span className="text-sm font-medium">No employees found.</span>
@@ -766,10 +1404,17 @@ export default function EmployeeBenefitsTab({
                     key={emp.user_id}
                     className="hover:bg-slate-50/60 dark:hover:bg-gray-800/40 text-xs transition-colors"
                   >
-                    {/* Employee Name & ID */}
+                    {/* Common: Employee Name & ID */}
                     <TableCell className="py-2.5">
-                      <div className="font-semibold text-slate-900 dark:text-gray-100">
-                        {emp.employee_name}
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-900 dark:text-gray-100">
+                          {emp.employee_name}
+                        </span>
+                        {!emp.is_active && (
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 text-rose-600 border-rose-300 bg-rose-50 dark:bg-rose-950/40">
+                            Inactive
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
                         <span>ID #{emp.user_id}</span>
@@ -777,139 +1422,351 @@ export default function EmployeeBenefitsTab({
                       </div>
                     </TableCell>
 
-                    {/* Department */}
+                    {/* Common: Department */}
                     <TableCell className="py-2.5 text-slate-600 dark:text-gray-300">
                       {emp.department_name}
                     </TableCell>
 
-                    {/* SSS / GSIS */}
-                    <TableCell className="py-2.5 text-right">
-                      {emp.sss.personal_share > 0 ? (
-                        <div>
-                          <div className="font-semibold text-blue-700 dark:text-blue-400">
-                            ₱{formatMoney(emp.sss.personal_share)}
-                          </div>
-                          <div className="text-[10px] text-slate-400">
-                            {isGovernment ? "LGU" : "ER"}: ₱{formatMoney(emp.sss.counterpart_share)}
-                          </div>
-                        </div>
-                      ) : emp.sss.account_no ? (
-                        <div>
-                          <span className="text-slate-400 text-[11px]">₱0.00</span>
-                          <div className="text-[10px] text-slate-400 font-mono truncate max-w-[110px]">
-                            {emp.sss.account_no}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-slate-300 dark:text-gray-600">—</span>
-                      )}
-                    </TableCell>
+                    {/* CASE 1: SSS FOCUSED VIEW - NO PhilHealth, NO Pag-IBIG */}
+                    {benefitFilter === "SSS" && viewMode === "FOCUSED" ? (
+                      <>
+                        {/* SSS Account No */}
+                        <TableCell className="py-2.5">
+                          {emp.sss.account_no ? (
+                            <span className="font-mono text-xs font-medium text-slate-800 dark:text-gray-200">
+                              {emp.sss.account_no}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 dark:text-gray-600">—</span>
+                          )}
+                        </TableCell>
 
-                    {/* PhilHealth */}
-                    <TableCell className="py-2.5 text-right">
-                      {emp.philhealth.personal_share > 0 ? (
-                        <div>
-                          <div className="font-semibold text-emerald-700 dark:text-emerald-400">
-                            ₱{formatMoney(emp.philhealth.personal_share)}
-                          </div>
-                          <div className="text-[10px] text-slate-400">
-                            {isGovernment ? "LGU" : "ER"}: ₱{formatMoney(emp.philhealth.counterpart_share)}
-                          </div>
-                        </div>
-                      ) : emp.philhealth.account_no ? (
-                        <div>
-                          <span className="text-slate-400 text-[11px]">₱0.00</span>
-                          <div className="text-[10px] text-slate-400 font-mono truncate max-w-[110px]">
-                            {emp.philhealth.account_no}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-slate-300 dark:text-gray-600">—</span>
-                      )}
-                    </TableCell>
+                        {/* Monthly Rate */}
+                        <TableCell className="py-2.5 text-right font-medium text-slate-700 dark:text-gray-300">
+                          ₱{formatMoney(emp.monthly_rate)}
+                        </TableCell>
 
-                    {/* Pag-IBIG */}
-                    <TableCell className="py-2.5 text-right">
-                      {emp.pagibig.personal_share > 0 ? (
-                        <div>
-                          <div className="font-semibold text-amber-700 dark:text-amber-400">
-                            ₱{formatMoney(emp.pagibig.personal_share)}
-                          </div>
-                          <div className="text-[10px] text-slate-400">
-                            {isGovernment ? "LGU" : "ER"}: ₱{formatMoney(emp.pagibig.counterpart_share)}
-                          </div>
-                        </div>
-                      ) : emp.pagibig.account_no ? (
-                        <div>
-                          <span className="text-slate-400 text-[11px]">₱0.00</span>
-                          <div className="text-[10px] text-slate-400 font-mono truncate max-w-[110px]">
-                            {emp.pagibig.account_no}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-slate-300 dark:text-gray-600">—</span>
-                      )}
-                    </TableCell>
+                        {/* EE Deduction */}
+                        <TableCell className="py-2.5 text-right font-semibold text-blue-700 dark:text-blue-400">
+                          ₱{formatMoney(emp.sss.personal_share)}
+                        </TableCell>
 
-                    {/* Active Loans */}
-                    <TableCell className="py-2.5">
-                      {emp.loans.length > 0 ? (
-                        <div>
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] bg-purple-50 text-purple-800 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300"
-                          >
-                            ₱{formatMoney(emp.total_loan_amortization)}/mo ({emp.loans.length})
+                        {/* ER Share */}
+                        <TableCell className="py-2.5 text-right text-slate-600 dark:text-gray-300">
+                          ₱{formatMoney(emp.sss.counterpart_share)}
+                        </TableCell>
+
+                        {/* Total Contribution */}
+                        <TableCell className="py-2.5 text-right font-bold text-blue-900 dark:text-blue-200">
+                          ₱{formatMoney(emp.sss.total_contribution)}
+                        </TableCell>
+
+                        {/* SSS Loan */}
+                        <TableCell className="py-2.5">
+                          {(() => {
+                            const sLoans = emp.loans.filter((l) => l.benefit_code === "SSS");
+                            if (sLoans.length === 0) return <span className="text-slate-300 dark:text-gray-600">—</span>;
+                            const amort = sLoans.reduce((acc, l) => acc + l.amortization_amount, 0);
+                            return (
+                              <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300">
+                                ₱{formatMoney(amort)}/mo
+                              </Badge>
+                            );
+                          })()}
+                        </TableCell>
+
+                        {/* SSS Status */}
+                        <TableCell className="py-2.5 text-center">
+                          {emp.sss.personal_share > 0 ? (
+                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 text-[10px] font-semibold">
+                              Active
+                            </Badge>
+                          ) : emp.sss.account_no ? (
+                            <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 text-[10px]">
+                              Registered (₱0)
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-slate-400 border-slate-300 dark:border-gray-700 text-[10px]">
+                              No Benefit
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </>
+                    ) : benefitFilter === "PHILHEALTH" && viewMode === "FOCUSED" ? (
+                      /* CASE 2: PHILHEALTH FOCUSED VIEW - NO SSS, NO Pag-IBIG */
+                      <>
+                        {/* PhilHealth PIN */}
+                        <TableCell className="py-2.5">
+                          {emp.philhealth.account_no ? (
+                            <span className="font-mono text-xs font-medium text-slate-800 dark:text-gray-200">
+                              {emp.philhealth.account_no}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 dark:text-gray-600">—</span>
+                          )}
+                        </TableCell>
+
+                        {/* Monthly Rate */}
+                        <TableCell className="py-2.5 text-right font-medium text-slate-700 dark:text-gray-300">
+                          ₱{formatMoney(emp.monthly_rate)}
+                        </TableCell>
+
+                        {/* EE Share (2.5%) */}
+                        <TableCell className="py-2.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">
+                          ₱{formatMoney(emp.philhealth.personal_share)}
+                        </TableCell>
+
+                        {/* ER Share (2.5%) */}
+                        <TableCell className="py-2.5 text-right text-slate-600 dark:text-gray-300">
+                          ₱{formatMoney(emp.philhealth.counterpart_share)}
+                        </TableCell>
+
+                        {/* Total Contribution (5%) */}
+                        <TableCell className="py-2.5 text-right font-bold text-emerald-900 dark:text-emerald-200">
+                          ₱{formatMoney(emp.philhealth.total_contribution)}
+                        </TableCell>
+
+                        {/* PhilHealth Status */}
+                        <TableCell className="py-2.5 text-center">
+                          {emp.philhealth.personal_share > 0 ? (
+                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 text-[10px] font-semibold">
+                              Active
+                            </Badge>
+                          ) : emp.philhealth.account_no ? (
+                            <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 text-[10px]">
+                              Registered (₱0)
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-slate-400 border-slate-300 dark:border-gray-700 text-[10px]">
+                              No Benefit
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </>
+                    ) : benefitFilter === "PAGIBIG" && viewMode === "FOCUSED" ? (
+                      /* CASE 3: PAG-IBIG FOCUSED VIEW - NO SSS, NO PhilHealth */
+                      <>
+                        {/* Pag-IBIG MID No */}
+                        <TableCell className="py-2.5">
+                          {emp.pagibig.account_no ? (
+                            <span className="font-mono text-xs font-medium text-slate-800 dark:text-gray-200">
+                              {emp.pagibig.account_no}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 dark:text-gray-600">—</span>
+                          )}
+                        </TableCell>
+
+                        {/* Monthly Rate */}
+                        <TableCell className="py-2.5 text-right font-medium text-slate-700 dark:text-gray-300">
+                          ₱{formatMoney(emp.monthly_rate)}
+                        </TableCell>
+
+                        {/* EE Share */}
+                        <TableCell className="py-2.5 text-right font-semibold text-amber-700 dark:text-amber-400">
+                          ₱{formatMoney(emp.pagibig.personal_share)}
+                        </TableCell>
+
+                        {/* ER Share */}
+                        <TableCell className="py-2.5 text-right text-slate-600 dark:text-gray-300">
+                          ₱{formatMoney(emp.pagibig.counterpart_share)}
+                        </TableCell>
+
+                        {/* Total Contribution */}
+                        <TableCell className="py-2.5 text-right font-bold text-amber-900 dark:text-amber-200">
+                          ₱{formatMoney(emp.pagibig.total_contribution)}
+                        </TableCell>
+
+                        {/* Pag-IBIG Loan */}
+                        <TableCell className="py-2.5">
+                          {(() => {
+                            const pLoans = emp.loans.filter((l) => l.benefit_code === "PAGIBIG");
+                            if (pLoans.length === 0) return <span className="text-slate-300 dark:text-gray-600">—</span>;
+                            const amort = pLoans.reduce((acc, l) => acc + l.amortization_amount, 0);
+                            return (
+                              <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300">
+                                ₱{formatMoney(amort)}/mo
+                              </Badge>
+                            );
+                          })()}
+                        </TableCell>
+
+                        {/* Pag-IBIG Status */}
+                        <TableCell className="py-2.5 text-center">
+                          {emp.pagibig.personal_share > 0 ? (
+                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 text-[10px] font-semibold">
+                              Active
+                            </Badge>
+                          ) : emp.pagibig.account_no ? (
+                            <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 text-[10px]">
+                              Registered (₱0)
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-slate-400 border-slate-300 dark:border-gray-700 text-[10px]">
+                              No Benefit
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </>
+                    ) : benefitFilter === "LOANS" && viewMode === "FOCUSED" ? (
+                      /* CASE 4: LOANS FOCUSED VIEW */
+                      <>
+                        <TableCell className="py-2.5">
+                          <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-800 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300 font-semibold">
+                            {emp.loans.length} Active {emp.loans.length === 1 ? "Loan" : "Loans"}
                           </Badge>
-                          <div className="text-[10px] text-slate-400 truncate max-w-[120px]">
-                            {emp.loans.map((l) => l.benefit_code).join(", ")}
+                        </TableCell>
+                        <TableCell className="py-2.5">
+                          <div className="flex flex-wrap gap-1">
+                            {emp.loans.map((l) => (
+                              <Badge
+                                key={l.loan_id}
+                                variant="secondary"
+                                className="text-[10px]"
+                              >
+                                {l.benefit_code}: ₱{formatMoney(l.amortization_amount)}/mo
+                              </Badge>
+                            ))}
                           </div>
-                        </div>
-                      ) : (
-                        <span className="text-slate-300 dark:text-gray-600">—</span>
-                      )}
-                    </TableCell>
+                        </TableCell>
+                        <TableCell className="py-2.5 text-right font-bold text-purple-900 dark:text-purple-200">
+                          ₱{formatMoney(emp.total_loan_amortization)}
+                        </TableCell>
+                      </>
+                    ) : (
+                      /* CASE 5: ALL STATUTORY BENEFITS OVERVIEW (All Columns) */
+                      <>
+                        {/* SSS / GSIS */}
+                        <TableCell className="py-2.5 text-right">
+                          {emp.sss.personal_share > 0 ? (
+                            <div>
+                              <div className="font-semibold text-blue-700 dark:text-blue-400">
+                                ₱{formatMoney(emp.sss.personal_share)}
+                              </div>
+                              <div className="text-[10px] text-slate-400">
+                                {isGovernment ? "LGU" : "ER"}: ₱{formatMoney(emp.sss.counterpart_share)}
+                              </div>
+                            </div>
+                          ) : emp.sss.account_no ? (
+                            <div>
+                              <span className="text-slate-400 text-[11px]">₱0.00</span>
+                              <div className="text-[10px] text-slate-400 font-mono truncate max-w-[110px]">
+                                {emp.sss.account_no}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 dark:text-gray-600">—</span>
+                          )}
+                        </TableCell>
 
-                    {/* Total Monthly */}
-                    <TableCell className="py-2.5 text-right">
-                      <div className="font-bold text-slate-900 dark:text-gray-100">
-                        ₱{formatMoney(emp.total_personal_share)}
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        Remit: ₱{formatMoney(emp.grand_total_monthly)}
-                      </div>
-                    </TableCell>
+                        {/* PhilHealth */}
+                        <TableCell className="py-2.5 text-right">
+                          {emp.philhealth.personal_share > 0 ? (
+                            <div>
+                              <div className="font-semibold text-emerald-700 dark:text-emerald-400">
+                                ₱{formatMoney(emp.philhealth.personal_share)}
+                              </div>
+                              <div className="text-[10px] text-slate-400">
+                                {isGovernment ? "LGU" : "ER"}: ₱{formatMoney(emp.philhealth.counterpart_share)}
+                              </div>
+                            </div>
+                          ) : emp.philhealth.account_no ? (
+                            <div>
+                              <span className="text-slate-400 text-[11px]">₱0.00</span>
+                              <div className="text-[10px] text-slate-400 font-mono truncate max-w-[110px]">
+                                {emp.philhealth.account_no}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 dark:text-gray-600">—</span>
+                          )}
+                        </TableCell>
 
-                    {/* Coverage Status */}
-                    <TableCell className="py-2.5 text-center">
-                      {emp.coverage_summary === "FULL" ? (
-                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300 text-[10px] font-semibold">
-                          Complete (3/3)
-                        </Badge>
-                      ) : emp.coverage_summary === "PARTIAL" ? (
-                        <Badge
-                          variant="outline"
-                          className="bg-sky-50 text-sky-800 border-sky-300 dark:bg-sky-950/40 dark:text-sky-300 text-[10px]"
-                        >
-                          Partial
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="text-slate-500 border-slate-300 dark:border-gray-700 text-[10px]"
-                        >
-                          No Benefit (₱0)
-                        </Badge>
-                      )}
-                    </TableCell>
+                        {/* Pag-IBIG */}
+                        <TableCell className="py-2.5 text-right">
+                          {emp.pagibig.personal_share > 0 ? (
+                            <div>
+                              <div className="font-semibold text-amber-700 dark:text-amber-400">
+                                ₱{formatMoney(emp.pagibig.personal_share)}
+                              </div>
+                              <div className="text-[10px] text-slate-400">
+                                {isGovernment ? "LGU" : "ER"}: ₱{formatMoney(emp.pagibig.counterpart_share)}
+                              </div>
+                            </div>
+                          ) : emp.pagibig.account_no ? (
+                            <div>
+                              <span className="text-slate-400 text-[11px]">₱0.00</span>
+                              <div className="text-[10px] text-slate-400 font-mono truncate max-w-[110px]">
+                                {emp.pagibig.account_no}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 dark:text-gray-600">—</span>
+                          )}
+                        </TableCell>
 
-                    {/* Actions: View Details */}
+                        {/* Active Loans */}
+                        <TableCell className="py-2.5">
+                          {emp.loans.length > 0 ? (
+                            <div>
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] bg-purple-50 text-purple-800 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300"
+                              >
+                                ₱{formatMoney(emp.total_loan_amortization)}/mo ({emp.loans.length})
+                              </Badge>
+                              <div className="text-[10px] text-slate-400 truncate max-w-[120px]">
+                                {emp.loans.map((l) => l.benefit_code).join(", ")}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 dark:text-gray-600">—</span>
+                          )}
+                        </TableCell>
+
+                        {/* Total Monthly */}
+                        <TableCell className="py-2.5 text-right">
+                          <div className="font-bold text-slate-900 dark:text-gray-100">
+                            ₱{formatMoney(emp.total_personal_share)}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            Remit: ₱{formatMoney(emp.grand_total_monthly)}
+                          </div>
+                        </TableCell>
+
+                        {/* Coverage Status */}
+                        <TableCell className="py-2.5 text-center">
+                          {emp.coverage_summary === "FULL" ? (
+                            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300 text-[10px] font-semibold">
+                              Complete (3/3)
+                            </Badge>
+                          ) : emp.coverage_summary === "PARTIAL" ? (
+                            <Badge
+                              variant="outline"
+                              className="bg-sky-50 text-sky-800 border-sky-300 dark:bg-sky-950/40 dark:text-sky-300 text-[10px]"
+                            >
+                              Partial
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="text-slate-500 border-slate-300 dark:border-gray-700 text-[10px]"
+                            >
+                              No Benefit (₱0)
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </>
+                    )}
+
+                    {/* Common: Actions: View Details */}
                     <TableCell className="py-2.5 text-center">
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-slate-500 hover:text-slate-900 dark:hover:text-gray-100"
                         onClick={() => setSelectedEmp(emp)}
+                        title="View details"
                       >
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
