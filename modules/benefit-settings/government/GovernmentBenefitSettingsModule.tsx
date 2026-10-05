@@ -91,12 +91,24 @@ export default function GovernmentBenefitSettingsModule() {
     setCoveragesLoading(true);
     try {
       const [u, s, c, d, cov, cfg] = await Promise.all([
-        fetchUsers(),
-        fetchBenefitSettings(),
-        fetchCutoffSettings(),
-        fetchDepartments(),
+        fetchUsers().catch((err) => {
+          console.warn("Failed to load users:", err);
+          return [] as UserData[];
+        }),
+        fetchBenefitSettings().catch((err) => {
+          console.warn("Failed to load benefit settings:", err);
+          return [] as BenefitSetting[];
+        }),
+        fetchCutoffSettings().catch((err) => {
+          console.warn("Failed to load cutoff settings:", err);
+          return [] as CutoffSetting[];
+        }),
+        fetchDepartments().catch((err) => {
+          console.warn("Failed to load departments:", err);
+          return [] as Department[];
+        }),
         fetchEmployeeBenefitCoverages({ isGovernment: true }).catch((err) => {
-          console.error("Failed to load government employee coverages:", err);
+          console.warn("Failed to load government employee coverages:", err);
           return [] as EmployeeBenefitCoverage[];
         }),
         fetchCompanyConfig().catch(() => ({ companyName: "LGU - Local Government Unit" })),

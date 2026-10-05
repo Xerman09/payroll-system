@@ -157,21 +157,72 @@ export function isLoanDueOnCutoff(args: {
 // --------------------
 // Benefit settings (existing)
 // --------------------
+let inFlightBenefitSettings: Promise<BenefitSetting[]> | null = null;
 export async function fetchBenefitSettings(): Promise<BenefitSetting[]> {
-  const json = await apiFetch("/items/benefit_cutoff_settings?limit=200");
-  return json.data || [];
+  if (inFlightBenefitSettings) return inFlightBenefitSettings;
+  inFlightBenefitSettings = (async () => {
+    try {
+      const json = await apiFetch("/items/benefit_cutoff_settings?limit=200");
+      return (json?.data || []) as BenefitSetting[];
+    } catch (err) {
+      console.warn("fetchBenefitSettings failed, falling back to empty list:", err);
+      return [] as BenefitSetting[];
+    } finally {
+      setTimeout(() => {
+        inFlightBenefitSettings = null;
+      }, 1000);
+    }
+  })();
+  return inFlightBenefitSettings;
 }
 
 export async function fetchUsers(): Promise<UserData[]> {
-  const json = await apiFetch(
-    "/items/user?limit=2000&fields=user_id,user_fname,user_lname,user_department,user_position,user_sss,user_philhealth,user_pagibig,user_tin,is_deleted,is_employee&filter[is_employee][_eq]=1"
-  );
-  return json.data || [];
+  try {
+    const json = await apiFetch(
+      "/items/user?limit=2000&fields=user_id,user_fname,user_lname,user_department,user_position,user_sss,user_philhealth,user_pagibig,user_tin,is_deleted,is_employee&filter[is_employee][_eq]=1"
+    );
+    if (json?.data && Array.isArray(json.data)) return json.data;
+  } catch (err) {
+    console.warn("fetchUsers with filter[is_employee] failed, trying fallback without filter:", err);
+  }
+
+  // Fallback 1: Query without filter[is_employee]
+  try {
+    const json = await apiFetch(
+      "/items/user?limit=2000&fields=user_id,user_fname,user_lname,user_department,user_position,user_sss,user_philhealth,user_pagibig,user_tin,is_deleted"
+    );
+    if (json?.data && Array.isArray(json.data)) return json.data;
+  } catch (err2) {
+    console.warn("fetchUsers fallback 1 failed, trying fallback 2 with minimal fields:", err2);
+  }
+
+  // Fallback 2: Query with basic fields
+  try {
+    const json = await apiFetch("/items/user?limit=2000&fields=user_id,user_fname,user_lname,user_department,is_deleted");
+    return (json?.data || []) as UserData[];
+  } catch (err3) {
+    console.warn("fetchUsers all fallbacks failed, falling back to empty list:", err3);
+    return [];
+  }
 }
 
+let inFlightDepartments: Promise<Department[]> | null = null;
 export async function fetchDepartments(): Promise<Department[]> {
-  const json = await apiFetch("/items/department?limit=200&fields=department_id,department_name&sort=department_name");
-  return json.data || [];
+  if (inFlightDepartments) return inFlightDepartments;
+  inFlightDepartments = (async () => {
+    try {
+      const json = await apiFetch("/items/department?limit=200&fields=department_id,department_name&sort=department_name");
+      return (json?.data || []) as Department[];
+    } catch (err) {
+      console.warn("fetchDepartments failed, falling back to empty list:", err);
+      return [] as Department[];
+    } finally {
+      setTimeout(() => {
+        inFlightDepartments = null;
+      }, 1000);
+    }
+  })();
+  return inFlightDepartments;
 }
 
 export async function saveBenefitSetting(setting: BenefitSetting) {
@@ -200,30 +251,49 @@ export async function saveBenefitSetting(setting: BenefitSetting) {
 // --------------------
 // Cutoff settings (for loan schedule display)
 // --------------------
+let inFlightCutoffs: Promise<CutoffSetting[]> | null = null;
 export async function fetchCutoffSettings(): Promise<CutoffSetting[]> {
-  const json = await apiFetch(
-    "/items/cutoff_settings?limit=500&sort=start_date&fields=id,cutoff_type,start_date,end_date,period_status"
-  );
-  return json.data || [];
+  if (inFlightCutoffs) return inFlightCutoffs;
+  inFlightCutoffs = (async () => {
+    try {
+      const json = await apiFetch(
+        "/items/cutoff_settings?limit=500&sort=start_date&fields=id,cutoff_type,start_date,end_date,period_status"
+      );
+      return (json?.data || []) as CutoffSetting[];
+    } catch (err) {
+      console.warn("fetchCutoffSettings failed, falling back to empty list:", err);
+      return [] as CutoffSetting[];
+    } finally {
+      setTimeout(() => {
+        inFlightCutoffs = null;
+      }, 1000);
+    }
+  })();
+  return inFlightCutoffs;
 }
 
 // --------------------
 // Benefit Loans (NEW) - SSS & PAGIBIG only
 // --------------------
 export async function fetchBenefitLoans(): Promise<BenefitLoan[]> {
-  const json = await apiFetch("/items/benefit_loans?limit=2000&sort=-created_date");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = (json.data || []) as any[];
-  return rows.map((r) => ({
-    ...r,
-    principal_amount: toNum(r.principal_amount),
-    interest_amount: toNum(r.interest_amount),
-    total_payable: toNum(r.total_payable),
-    amortization_amount: toNum(r.amortization_amount),
-    terms_installments: toNum(r.terms_installments),
-    paid_installments: toNum(r.paid_installments),
-    remaining_balance: toNum(r.remaining_balance),
-  })) as BenefitLoan[];
+  try {
+    const json = await apiFetch("/items/benefit_loans?limit=2000&sort=-created_date");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = (json?.data || []) as any[];
+    return rows.map((r) => ({
+      ...r,
+      principal_amount: toNum(r.principal_amount),
+      interest_amount: toNum(r.interest_amount),
+      total_payable: toNum(r.total_payable),
+      amortization_amount: toNum(r.amortization_amount),
+      terms_installments: toNum(r.terms_installments),
+      paid_installments: toNum(r.paid_installments),
+      remaining_balance: toNum(r.remaining_balance),
+    })) as BenefitLoan[];
+  } catch (err) {
+    console.warn("fetchBenefitLoans failed, falling back to empty list:", err);
+    return [];
+  }
 }
 
 export function buildLoanPayload(input: Partial<BenefitLoan>) {
@@ -333,8 +403,8 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
   const pathManual = `/items/benefit_logs?limit=5000&sort=-created_date&fields=${fieldsManual}`;
 
   const [jsonSystem, jsonManual] = await Promise.all([
-    apiFetch(pathSystem),
-    apiFetch(pathManual),
+    apiFetch(pathSystem).catch(() => ({ data: [] })),
+    apiFetch(pathManual).catch(() => ({ data: [] })),
   ]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -606,20 +676,41 @@ export interface SimpleSalarySchedule {
   monthly_rate: number | string;
 }
 
+let inFlightSalarySchedules: Promise<SimpleSalarySchedule[]> | null = null;
 export async function fetchSalarySchedules(): Promise<SimpleSalarySchedule[]> {
-  try {
-    const json = await apiFetch("/items/salary_schedules?limit=2000&fields=schedule_id,monthly_rate");
-    return (json?.data || []) as SimpleSalarySchedule[];
-  } catch {
-    return [];
-  }
+  if (inFlightSalarySchedules) return inFlightSalarySchedules;
+  inFlightSalarySchedules = (async () => {
+    try {
+      const json = await apiFetch("/items/salary_schedules?limit=2000&fields=schedule_id,monthly_rate");
+      return (json?.data || []) as SimpleSalarySchedule[];
+    } catch {
+      return [];
+    } finally {
+      setTimeout(() => {
+        inFlightSalarySchedules = null;
+      }, 1000);
+    }
+  })();
+  return inFlightSalarySchedules;
 }
 
 export async function fetchUserWages(): Promise<UserWageRecord[]> {
-  const json = await apiFetch(
-    "/items/user_wage_management?limit=5000&fields=id,user_id,daily_wage,encrypted_daily_wage,monthly_rate,sss_contribution_monthly,philhealth_contribution_monthly,pagibig_contribution_monthly,working_days_per_month,schedule_id,cutoff_wage_date_update,updated_by,updated_date&sort=-id"
-  );
-  return (json?.data || []) as UserWageRecord[];
+  try {
+    const json = await apiFetch(
+      "/items/user_wage_management?limit=5000&fields=id,user_id,daily_wage,encrypted_daily_wage,monthly_rate,sss_contribution_monthly,philhealth_contribution_monthly,pagibig_contribution_monthly,working_days_per_month,schedule_id,cutoff_wage_date_update,updated_by,updated_date&sort=-id"
+    );
+    return (json?.data || []) as UserWageRecord[];
+  } catch (err) {
+    console.warn("fetchUserWages full query failed, trying fallback:", err);
+    try {
+      const json = await apiFetch(
+        "/items/user_wage_management?limit=5000&fields=id,user_id,daily_wage,monthly_rate,sss_contribution_monthly,philhealth_contribution_monthly,pagibig_contribution_monthly&sort=-id"
+      );
+      return (json?.data || []) as UserWageRecord[];
+    } catch {
+      return [];
+    }
+  }
 }
 
 export function buildEmployeeBenefitCoverages(args: {
@@ -910,11 +1001,11 @@ export async function fetchEmployeeBenefitCoverages(options?: {
   includeInactive?: boolean;
 }): Promise<EmployeeBenefitCoverage[]> {
   const [users, wages, departments, loans, salarySchedules] = await Promise.all([
-    fetchUsers(),
-    fetchUserWages(),
-    fetchDepartments(),
-    fetchBenefitLoans(),
-    fetchSalarySchedules(),
+    fetchUsers().catch(() => [] as UserData[]),
+    fetchUserWages().catch(() => [] as UserWageRecord[]),
+    fetchDepartments().catch(() => [] as Department[]),
+    fetchBenefitLoans().catch(() => [] as BenefitLoan[]),
+    fetchSalarySchedules().catch(() => [] as SimpleSalarySchedule[]),
   ]);
 
   return buildEmployeeBenefitCoverages({
