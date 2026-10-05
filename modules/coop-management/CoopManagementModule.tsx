@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
-import { Plus, Printer, RefreshCw, RotateCcw, Search } from "lucide-react";
+import { Plus, Printer, RefreshCw, RotateCcw, Search, History } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -38,6 +38,7 @@ export function CoopManagementModule() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isOnboardModalOpen, setIsOnboardModalOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [printData, setPrintData] = useState<Record<string, unknown>[]>([]);
 
@@ -92,13 +93,26 @@ export function CoopManagementModule() {
             </p>
           </div>
 
-          <Button
-            onClick={() => setIsAddModalOpen(true)}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            {activeTab === "savings" ? "Add Employee" : "Add Loan"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {activeTab === "loans" && (
+              <Button
+                variant="outline"
+                onClick={() => setIsOnboardModalOpen(true)}
+                className="border-emerald-600/30 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40 shadow-sm"
+              >
+                <History className="h-4 w-4 mr-2 text-emerald-600 dark:text-emerald-400" />
+                Onboard Previous Payment
+              </Button>
+            )}
+
+            <Button
+              onClick={() => setIsAddModalOpen(true)}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              {activeTab === "savings" ? "Add Employee" : "Add Loan"}
+            </Button>
+          </div>
         </div>
 
         <Separator />
@@ -202,6 +216,8 @@ export function CoopManagementModule() {
                   refreshTrigger={refreshTrigger}
                   isAddModalOpen={isAddModalOpen && activeTab === "loans"}
                   onCloseAddModal={() => setIsAddModalOpen(false)}
+                  isOnboardPaymentOpen={isOnboardModalOpen}
+                  onCloseOnboardPayment={() => setIsOnboardModalOpen(false)}
                 />
               </TabsContent>
             </Tabs>

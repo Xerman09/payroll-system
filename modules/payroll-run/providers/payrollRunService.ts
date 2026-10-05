@@ -51,6 +51,7 @@ export const RES = {
 
   benefitSettings: "benefit_cutoff_settings",
   employeeLoans: "employee_loan",
+  employeeLoanPayments: "employee_loan_payment",
   benefitLoans: "benefit_loans",
 
   allowances: "employee_allowance",
@@ -335,11 +336,22 @@ function normalizeBenefitSetting(row: unknown): BenefitCutoffSetting {
 
 function normalizeEmployeeLoan(row: unknown): EmployeeLoan {
   const r = (row ?? {}) as Record<string, unknown>;
+  const loan_amount = n(r.loan_amount);
+  const interest_amount = n(r.interest_amount);
+  const total_payable = round2(loan_amount + interest_amount);
+  const accumulated_amount = n(r.accumulated_amount);
+  const remaining_balance = r.remaining_balance !== undefined
+    ? n(r.remaining_balance)
+    : Math.max(0, (total_payable > 0 ? total_payable : loan_amount) - accumulated_amount);
+
   return {
     loan_id: n(r.loan_id ?? r.id),
     user_id: n(r.user_id),
     loan_type: s(r.loan_type),
     monthly_payment: n(r.monthly_payment),
+    loan_amount,
+    accumulated_amount,
+    remaining_balance,
     start_date: s(r.start_date),
     end_date: r.end_date ? s(r.end_date) : null,
     status: s(r.status),
@@ -985,9 +997,57 @@ export async function loadWorkspace(args: {
     })
     : [];
 
+  // Query employee_loan_payment to account for manual/onboarded payments
+  const loanIds = (rawLoans ?? []).map((r) => n(r.loan_id ?? r.id)).filter(Boolean);
+  const manualPaymentsMap = new Map<number, number>();
+  if (loanIds.length > 0) {
+    try {
+      const payments = await safeList<Record<string, unknown>>(RES.employeeLoanPayments, {
+        "filter[loan_id][_in]": loanIds.join(","),
+        limit: 5000,
+      });
+      for (const p of payments ?? []) {
+        const lid = n(p.loan_id);
+        const amt = n((p as Record<string, unknown>).amount_paid ?? p.amount ?? 0);
+        if (lid && amt > 0) {
+          manualPaymentsMap.set(lid, (manualPaymentsMap.get(lid) || 0) + amt);
+        }
+      }
+    } catch (e) {
+      console.warn("[payrollRunService] Failed to query employee_loan_payment:", e);
+    }
+  }
+
   const employeeLoans = new Map<number, EmployeeLoan[]>();
   for (const r of rawLoans ?? []) {
     const loan = normalizeEmployeeLoan(r);
+
+    // Calculate effective accumulated amount including manual/onboarded payments
+    const manualPaid = manualPaymentsMap.get(loan.loan_id) || 0;
+    const effectiveAccumulated = Math.max(
+      n(loan.accumulated_amount),
+      n(loan.accumulated_amount) + manualPaid,
+      manualPaid
+    );
+    const loanAmount = n(loan.loan_amount);
+    const interestAmount = n((r as Record<string, unknown>).interest_amount);
+    const totalPayable = round2(loanAmount + interestAmount) > 0 ? round2(loanAmount + interestAmount) : loanAmount;
+    const remainingBalance = Math.max(0, totalPayable - effectiveAccumulated);
+
+    // If loan is already fully paid (or balance is 0), do NOT deduct in payroll!
+    if (totalPayable > 0 && remainingBalance <= 0) {
+      if (loan.status === "ACTIVE") {
+        api.patchItem(RES.employeeLoans, loan.loan_id, {
+          status: "PAID",
+          accumulated_amount: totalPayable,
+        }).catch((e) => console.warn(`Failed to auto-close paid loan ${loan.loan_id}:`, e));
+      }
+      continue;
+    }
+
+    loan.remaining_balance = remainingBalance;
+    loan.accumulated_amount = effectiveAccumulated;
+
     const ok = overlapsRange({
       from: loan.start_date,
       to: loan.end_date,

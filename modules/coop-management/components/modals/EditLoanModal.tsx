@@ -21,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { Plus } from "lucide-react";
+
 import type { EmployeeLoan } from "../../types";
 import { updateItem } from "../../providers/coopApi";
 import { getLoggedUserIdFallback1 } from "../../helpers";
@@ -31,12 +33,14 @@ export function EditLoanModal({
   totalPaid,
   onClose,
   onUpdated,
+  onOpenOnboardPayment,
 }: {
   isOpen: boolean;
   loan: EmployeeLoan | null;
   totalPaid?: number;
   onClose: () => void;
   onUpdated: (updated: EmployeeLoan) => void;
+  onOpenOnboardPayment?: (loan: EmployeeLoan) => void;
 }) {
   const [status, setStatus] = useState<EmployeeLoan["status"]>("ACTIVE");
   const [monthlyPay, setMonthlyPay] = useState<number>(0);
@@ -115,7 +119,24 @@ export function EditLoanModal({
           <div className="grid gap-2">
             <div className="flex items-center justify-between">
               <Label>Total Paid (Accumulated)</Label>
-              <span className="text-xs text-muted-foreground font-normal">(Read-only)</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground font-normal">(Read-only)</span>
+                {onOpenOnboardPayment && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      onClose();
+                      onOpenOnboardPayment(loan);
+                    }}
+                    className="h-6 px-2 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/50"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Onboard Payment
+                  </Button>
+                )}
+              </div>
             </div>
             <Input
               type="number"

@@ -17,6 +17,7 @@ type ResourceKey =
   | "payroll_other_deductions"
   | "benefit_cutoff_settings"
   | "employee_loan"
+  | "employee_loan_payment"
   | "benefit_loans"
   | "employee_allowance"
   | "dr_payment"
@@ -43,6 +44,7 @@ const ALLOWED: Record<ResourceKey, true> = {
   payroll_other_deductions: true,
   benefit_cutoff_settings: true,
   employee_loan: true,
+  employee_loan_payment: true,
   benefit_loans: true,
   employee_allowance: true,
   dr_payment: true,

@@ -54,10 +54,18 @@ export interface EmployeeLoan {
 }
 
 export interface LoanPayment {
+  payment_id?: number;
   id?: number;
   loan_id?: number;
+  user_id?: number;
+  amount_paid?: string | number;
   amount?: string | number;
   payment_date?: string;
+  period_month?: string;
+  reference_no?: string;
+  remarks?: string;
+  posted_by?: number | null;
+  posted_at?: string;
 }
 
 export type LoanRowData = {
@@ -93,4 +101,6 @@ export interface TabContentProps {
   refreshTrigger: number;
   isAddModalOpen: boolean;
   onCloseAddModal: () => void;
+  isOnboardPaymentOpen?: boolean;
+  onCloseOnboardPayment?: () => void;
 }

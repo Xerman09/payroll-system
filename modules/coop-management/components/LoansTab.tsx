@@ -11,7 +11,7 @@ import {
   TableRow,
   TableHead,
 } from "@/components/ui/table";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, HandCoins } from "lucide-react";
 
 import {
   AlertDialog,
@@ -33,10 +33,11 @@ import type {
   User,
 } from "../types";
 import { formatPeso } from "../helpers";
-import { listItems, deleteItem } from "../providers/coopApi";
+import { listItems, deleteItem, updateItem } from "../providers/coopApi";
 import { SortableHeader } from "./SortableHeader";
 import { AddLoanModal } from "./modals/AddLoanModal";
 import { EditLoanModal } from "./modals/EditLoanModal";
+import { OnboardPaymentModal } from "./modals/OnboardPaymentModal";
 import { CoopTableSkeleton } from "./CoopTableSkeleton";
 
 const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
@@ -47,6 +48,8 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
       refreshTrigger,
       isAddModalOpen,
       onCloseAddModal,
+      isOnboardPaymentOpen,
+      onCloseOnboardPayment,
     },
     ref
   ) {
@@ -56,8 +59,16 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingLoan, setEditingLoan] = useState<EmployeeLoan | null>(null);
+  const [onboardingLoan, setOnboardingLoan] = useState<EmployeeLoan | null>(null);
+  const [isOnboardModalOpen, setIsOnboardModalOpen] = useState(false);
   const [loanToDelete, setLoanToDelete] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (isOnboardPaymentOpen) {
+      setIsOnboardModalOpen(true);
+    }
+  }, [isOnboardPaymentOpen]);
 
   const rowsPerPage = 10;
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -144,7 +155,7 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
 
             for (const p of pr.data) {
               const lid = Number(p.loan_id);
-              const amt = Number(p.amount || 0);
+              const amt = Number(p.amount_paid ?? p.amount ?? 0);
               if (!lid) continue;
               map[lid] = (map[lid] || 0) + amt;
             }
@@ -283,6 +294,14 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
       const mappedPaid = paymentsMap[Number(ln.loan_id)] ?? 0;
       const totalPaid = Math.max(accumulated, mappedPaid);
       const balance = Math.max(0, loanAmount - totalPaid);
+      const isFullyPaid = balance <= 0 && loanAmount > 0;
+      if (isFullyPaid && ln.status === "ACTIVE") {
+        updateItem("employee_loan", ln.loan_id, {
+          status: "PAID",
+          accumulated_amount: totalPaid,
+        }).catch(() => {});
+        ln.status = "PAID";
+      }
       const name = getUserName(ln.user_id);
       return { loan: ln, name, loanAmount, totalPaid, balance };
     });
@@ -418,19 +437,32 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
                   <TableCell className="text-center">
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        row.loan.status === "ACTIVE"
-                          ? "bg-green-100 text-green-800"
-                          : row.loan.status === "PAID"
+                        row.balance <= 0 || row.loan.status === "PAID"
                           ? "bg-primary/10 text-primary"
+                          : row.loan.status === "ACTIVE"
+                          ? "bg-green-100 text-green-800"
                           : "bg-gray-100 text-gray-800"
                       }`}
                     >
-                      {row.loan.status}
+                      {row.balance <= 0 ? "PAID" : row.loan.status}
                     </span>
                   </TableCell>
 
                   <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setOnboardingLoan(row.loan);
+                          setIsOnboardModalOpen(true);
+                        }}
+                        title="Onboard Previous Payment"
+                        className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
+                      >
+                        <HandCoins size={14} />
+                      </Button>
+
                       <Button
                         variant="ghost"
                         size="icon"
@@ -519,6 +551,11 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
             : 0
         }
         onClose={() => setEditingLoan(null)}
+        onOpenOnboardPayment={(loan) => {
+          setEditingLoan(null);
+          setOnboardingLoan(loan);
+          setIsOnboardModalOpen(true);
+        }}
         onUpdated={(updated) => {
           // Optional guard: if edited away from COOP, remove from list
           if (
@@ -537,6 +574,22 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
             prev.map((l) => (l.loan_id === updated.loan_id ? updated : l))
           );
           setEditingLoan(null);
+        }}
+      />
+
+      <OnboardPaymentModal
+        isOpen={isOnboardModalOpen}
+        selectedLoan={onboardingLoan}
+        loans={loans}
+        users={users}
+        paymentsMap={paymentsMap}
+        onClose={() => {
+          setIsOnboardModalOpen(false);
+          setOnboardingLoan(null);
+          onCloseOnboardPayment?.();
+        }}
+        onSuccess={() => {
+          loadData();
         }}
       />
 

@@ -219,6 +219,9 @@ export interface EmployeeLoan {
 
   loan_type: string; // VALE | CAR LOAN | COOP | etc (your system)
   monthly_payment: number;
+  loan_amount?: number;
+  accumulated_amount?: number;
+  remaining_balance?: number;
 
   start_date: string; // YYYY-MM-DD
   end_date: string | null;

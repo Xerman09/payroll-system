@@ -811,15 +811,27 @@ export function buildManualItemizationsForBreakdown(manualEntries: ManualEntry[]
 
 export function buildEmployeeLoanItemsForBreakdown(employeeLoans: EmployeeLoan[]): BreakdownItem[] {
   const rows = Array.isArray(employeeLoans) ? employeeLoans : [];
+  const items: BreakdownItem[] = [];
 
-  // rule: 50/50 per cutoff
-  return rows.map((L, idx) => {
+  for (let idx = 0; idx < rows.length; idx++) {
+    const L = rows[idx];
     const loanId = n(L.loan_id);
     const loanType = String(L.loan_type ?? "").toUpperCase();
     const monthly = round2(n(L.monthly_payment));
-    const amt = round2(monthly / 2);
+    const remainingBalance = L.remaining_balance !== undefined ? n(L.remaining_balance) : Infinity;
 
-    return {
+    // If loan is marked PAID or remaining balance is 0, do NOT deduct
+    if (remainingBalance <= 0 || String(L.status).toUpperCase() === "PAID") {
+      continue;
+    }
+
+    // rule: 50/50 per cutoff, capped at remaining balance
+    const normalCutoffAmort = round2(monthly / 2);
+    const amt = round2(Math.min(normalCutoffAmort, remainingBalance));
+
+    if (amt <= 0) continue;
+
+    items.push({
       item_key: loanId ? `EL:${loanId}` : `EL:X:${idx}`,
       type: "DEDUCTION",
       category: "EMPLOYEE_LOAN",
@@ -832,10 +844,13 @@ export function buildEmployeeLoanItemsForBreakdown(employeeLoans: EmployeeLoan[]
         loan_id: loanId || null,
         loan_type: loanType || null,
         monthly_payment: monthly,
-        rule: "50/50 per cutoff",
+        remaining_balance: remainingBalance,
+        rule: "50/50 per cutoff (capped at balance)",
       },
-    };
-  });
+    });
+  }
+
+  return items;
 }
 
 /**
