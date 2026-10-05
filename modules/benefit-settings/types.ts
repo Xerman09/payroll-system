@@ -113,6 +113,8 @@ export type CoverageStatusFilter =
   | "ALL"
   | "ACTIVE_ONLY"
   | "INACTIVE_ONLY"
+  | "HIDE_ZERO_RATE"
+  | "ZERO_RATE_ONLY"
   | "HAS_SSS"
   | "NO_SSS"
   | "HAS_PHILHEALTH"

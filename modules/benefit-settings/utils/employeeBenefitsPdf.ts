@@ -133,6 +133,8 @@ export async function exportEmployeeBenefitsPdf(args: {
       switch (s) {
         case "ACTIVE_ONLY": return "Active Employees Only";
         case "INACTIVE_ONLY": return "Inactive Employees Only";
+        case "HIDE_ZERO_RATE": return "Hide ₱0 Rate (> ₱0.00)";
+        case "ZERO_RATE_ONLY": return "₱0.00 Monthly Rate Only";
         case "HAS_SSS": return `Has ${sssLabel} (> ₱0)`;
         case "NO_SSS": return `No ${sssLabel} (₱0)`;
         case "HAS_PHILHEALTH": return "Has PhilHealth (> ₱0)";

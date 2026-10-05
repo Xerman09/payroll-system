@@ -89,6 +89,7 @@ export default function EmployeeBenefitsTab({
   const [statusFilter, setStatusFilter] = React.useState<CoverageStatusFilter>("ALL");
   const [deptFilter, setDeptFilter] = React.useState<string>("ALL");
   const [activeOnly, setActiveOnly] = React.useState(true);
+  const [hideZeroRate, setHideZeroRate] = React.useState(false);
   const [viewMode, setViewMode] = React.useState<"FOCUSED" | "ALL_COLUMNS">("FOCUSED");
 
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -118,7 +119,10 @@ export default function EmployeeBenefitsTab({
 
   // Overall KPI statistics
   const stats = React.useMemo(() => {
-    const baseList = activeOnly ? coverages.filter((c) => c.is_active) : coverages;
+    let baseList = activeOnly ? coverages.filter((c) => c.is_active) : coverages;
+    if (hideZeroRate) {
+      baseList = baseList.filter((c) => c.monthly_rate > 0);
+    }
     const total = baseList.length;
     let sssCount = 0;
     let sssPersonal = 0;
@@ -194,7 +198,7 @@ export default function EmployeeBenefitsTab({
       grandCounterpart,
       grandTotalRemittance: grandPersonal + grandCounterpart,
     };
-  }, [coverages, activeOnly]);
+  }, [coverages, activeOnly, hideZeroRate]);
 
   // Filtered rows
   const filtered = React.useMemo(() => {
@@ -203,6 +207,11 @@ export default function EmployeeBenefitsTab({
       if (activeOnly && !c.is_active) return false;
       if (statusFilter === "ACTIVE_ONLY" && !c.is_active) return false;
       if (statusFilter === "INACTIVE_ONLY" && c.is_active) return false;
+
+      // 0b. Zero monthly rate filter
+      if (hideZeroRate && c.monthly_rate <= 0) return false;
+      if (statusFilter === "HIDE_ZERO_RATE" && c.monthly_rate <= 0) return false;
+      if (statusFilter === "ZERO_RATE_ONLY" && c.monthly_rate > 0) return false;
 
       // 1. Search filter
       if (search.trim()) {
@@ -265,7 +274,7 @@ export default function EmployeeBenefitsTab({
 
       return true;
     });
-  }, [coverages, activeOnly, search, deptFilter, benefitFilter, statusFilter]);
+  }, [coverages, activeOnly, hideZeroRate, search, deptFilter, benefitFilter, statusFilter]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -745,6 +754,26 @@ export default function EmployeeBenefitsTab({
               {activeOnly ? "Active Only" : "All Statuses"}
             </Button>
 
+            {/* Hide Zero Monthly Rate Toggle */}
+            <Button
+              type="button"
+              variant={hideZeroRate ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setHideZeroRate((prev) => !prev);
+                setCurrentPage(1);
+              }}
+              className={`h-9 text-xs gap-1.5 transition-all ${
+                hideZeroRate
+                  ? "bg-slate-900 hover:bg-slate-800 text-white font-semibold dark:bg-slate-100 dark:text-slate-900 shadow-2xs"
+                  : "text-slate-600 dark:text-slate-300 border-slate-200 dark:border-gray-700 hover:bg-slate-50 dark:hover:bg-gray-800"
+              }`}
+              title={hideZeroRate ? "Employees with ₱0.00 monthly rate are hidden. Click to show." : "Click to hide employees with ₱0.00 monthly rate."}
+            >
+              <Wallet className="h-3.5 w-3.5" />
+              {hideZeroRate ? "Hide ₱0 Rate (ON)" : "Hide ₱0 Rate"}
+            </Button>
+
             {/* Quick SSS Filter Button */}
             <Button
               type="button"
@@ -779,6 +808,12 @@ export default function EmployeeBenefitsTab({
                 <SelectItem value="ALL">All Coverage Status</SelectItem>
                 <SelectItem value="ACTIVE_ONLY" className="text-emerald-600 dark:text-emerald-400 font-medium">
                   Active Employees Only
+                </SelectItem>
+                <SelectItem value="HIDE_ZERO_RATE" className="text-indigo-600 dark:text-indigo-400 font-medium">
+                  Hide ₱0 Monthly Rate (&gt; ₱0.00)
+                </SelectItem>
+                <SelectItem value="ZERO_RATE_ONLY" className="text-amber-600 dark:text-amber-400 font-medium">
+                  ₱0.00 Monthly Rate Only
                 </SelectItem>
                 <SelectItem value="INACTIVE_ONLY" className="text-rose-600 dark:text-rose-400">
                   Inactive / Terminated Only
@@ -1058,7 +1093,7 @@ export default function EmployeeBenefitsTab({
         )}
 
         {/* Active Filters Summary Bar */}
-        {(search || deptFilter !== "ALL" || benefitFilter !== "ALL" || statusFilter !== "ALL") && (
+        {(search || deptFilter !== "ALL" || benefitFilter !== "ALL" || statusFilter !== "ALL" || hideZeroRate) && (
           <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-slate-500">
             <span>Filtered by:</span>
             {benefitFilter !== "ALL" && (
@@ -1067,11 +1102,21 @@ export default function EmployeeBenefitsTab({
                 <X className="h-3 w-3 cursor-pointer" onClick={() => setBenefitFilter("ALL")} />
               </Badge>
             )}
+            {hideZeroRate && (
+              <Badge variant="secondary" className="gap-1 text-[11px] bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200">
+                Hide ₱0 Rate: Active
+                <X className="h-3 w-3 cursor-pointer" onClick={() => setHideZeroRate(false)} />
+              </Badge>
+            )}
             {statusFilter !== "ALL" && (
               <Badge variant="secondary" className="gap-1 text-[11px] bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950 dark:text-blue-200">
                 Status: {
                   statusFilter === "ACTIVE_ONLY"
                     ? "Active Employees Only"
+                    : statusFilter === "HIDE_ZERO_RATE"
+                    ? "Hide ₱0 Monthly Rate"
+                    : statusFilter === "ZERO_RATE_ONLY"
+                    ? "₱0.00 Monthly Rate Only"
                     : statusFilter === "INACTIVE_ONLY"
                     ? "Inactive / Terminated"
                     : statusFilter === "HAS_SSS"
@@ -1119,6 +1164,7 @@ export default function EmployeeBenefitsTab({
                 setBenefitFilter("ALL");
                 setStatusFilter("ALL");
                 setDeptFilter("ALL");
+                setHideZeroRate(false);
                 setCurrentPage(1);
               }}
               className="text-xs text-blue-600 hover:underline ml-2"
