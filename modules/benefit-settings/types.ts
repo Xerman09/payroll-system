@@ -20,7 +20,87 @@ export interface UserData {
   user_fname: string;
   user_lname: string;
   user_department?: number | null;
+  user_position?: string | null;
+  user_sss?: string | null;
+  user_philhealth?: string | null;
+  user_pagibig?: string | null;
+  user_tin?: string | null;
+  is_deleted?: boolean | number | { data?: number[] } | null;
+  is_employee?: boolean | number | null;
 }
+
+export interface UserWageRecord {
+  id: number;
+  user_id: number;
+  daily_wage?: number | string | null;
+  monthly_rate?: number | string | null;
+  sss_contribution_monthly?: number | string | null;
+  philhealth_contribution_monthly?: number | string | null;
+  pagibig_contribution_monthly?: number | string | null;
+  working_days_per_month?: number | string | null;
+  schedule_id?: number | null;
+  cutoff_wage_date_update?: string | null;
+  updated_by?: number | null;
+  updated_date?: string | null;
+}
+
+export interface EmployeeBenefitDetail {
+  enrolled: boolean;
+  account_no: string | null;
+  personal_share: number;
+  counterpart_share: number; // Employer or LGU share
+  total_contribution: number;
+}
+
+export interface EmployeeActiveLoanSummary {
+  loan_id: number;
+  benefit_code: LoanBenefitCode;
+  loan_name: string | null;
+  reference_no: string | null;
+  principal_amount: number;
+  amortization_amount: number;
+  remaining_balance: number;
+  deduct_on: DeductOn;
+  status: BenefitLoanStatus;
+}
+
+export interface EmployeeBenefitCoverage {
+  user_id: number;
+  employee_name: string;
+  department_id: number | null;
+  department_name: string;
+  position: string | null;
+  daily_wage: number;
+  monthly_rate: number;
+
+  // Statutory coverage
+  sss: EmployeeBenefitDetail;
+  philhealth: EmployeeBenefitDetail;
+  pagibig: EmployeeBenefitDetail;
+
+  // Loans
+  loans: EmployeeActiveLoanSummary[];
+  total_loan_amortization: number;
+
+  // Aggregate monthly amounts
+  total_personal_share: number;
+  total_counterpart_share: number;
+  grand_total_monthly: number;
+
+  // Coverage flags
+  has_any_benefit: boolean;
+  has_all_benefits: boolean;
+  has_sss: boolean;
+  has_philhealth: boolean;
+  has_pagibig: boolean;
+  has_loans: boolean;
+
+  coverage_summary: "FULL" | "PARTIAL" | "NONE";
+}
+
+export type BenefitReportFilter = "ALL" | "SSS" | "PHILHEALTH" | "PAGIBIG" | "LOANS";
+export type CoverageStatusFilter = "ALL" | "WITH_BENEFIT" | "WITHOUT_BENEFIT" | "WITH_LOAN";
+
 
 export interface Department {
   department_id: number;

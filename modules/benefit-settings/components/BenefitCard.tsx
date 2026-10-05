@@ -13,18 +13,40 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { User } from "lucide-react";
 
+import { format, parseISO } from "date-fns";
+import { formatMoney } from "../providers/benefitApi";
+import { Button } from "@/components/ui/button";
+import { Users } from "lucide-react";
+
+function formatDateSafe(dateStr?: string | null): string {
+  if (!dateStr) return "";
+  try {
+    const d = typeof dateStr === "string" && dateStr.includes("T") ? parseISO(dateStr) : new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    return format(d, "MMM dd, yyyy");
+  } catch {
+    return String(dateStr);
+  }
+}
+
 export default function BenefitCard({
   name,
   code,
   setting,
   getUserName,
   onCutoff,
+  enrolledCount,
+  totalMonthlyAmount,
+  onViewEmployees,
 }: {
   name: string;
   code: BenefitCode;
   setting: BenefitSetting | null;
   getUserName: (id: number | null) => string;
   onCutoff: (c: BenefitCode, newValue: BenefitSetting["cutoff"]) => void;
+  enrolledCount?: number;
+  totalMonthlyAmount?: number;
+  onViewEmployees?: (c: BenefitCode) => void;
 }) {
   const s = setting;
 
@@ -44,7 +66,32 @@ export default function BenefitCard({
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 space-y-6 py-5">
+      <CardContent className="flex-1 space-y-5 py-4">
+        {/* Enrolled Employee Quick Bar */}
+        {onViewEmployees && (
+          <div className="rounded-lg bg-slate-50 dark:bg-gray-800/60 p-2.5 border border-slate-200/80 dark:border-gray-700/80 flex items-center justify-between gap-2">
+            <div className="space-y-0.5">
+              <div className="text-[11px] font-semibold text-slate-700 dark:text-gray-300 flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                <span>{enrolledCount ?? 0} Enrolled</span>
+              </div>
+              <div className="text-[10px] text-slate-500 dark:text-gray-400">
+                ₱{formatMoney(totalMonthlyAmount ?? 0)} / mo
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-[11px] px-2.5 font-medium dark:border-gray-700 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
+              onClick={() => onViewEmployees(code)}
+            >
+              View List
+            </Button>
+          </div>
+        )}
+
         <BenefitCutoff
           code={code}
           current={s?.cutoff || null}
@@ -70,9 +117,7 @@ export default function BenefitCard({
               </span>
             </span>
             <span className="ml-auto opacity-70">
-              {s.updated_date
-                ? new Date(s.updated_date).toLocaleDateString()
-                : ""}
+              {formatDateSafe(s.updated_date)}
             </span>
           </div>
         ) : (
@@ -84,3 +129,4 @@ export default function BenefitCard({
     </Card>
   );
 }
+

@@ -10,9 +10,19 @@ import type {
   CutoffSetting,
   LoanBenefitCode,
   DeductOn,
+  UserWageRecord,
+  EmployeeBenefitCoverage,
+  EmployeeBenefitDetail,
+  EmployeeActiveLoanSummary,
 } from "../types";
+import {
+  computeGsis,
+  computePhilHealth,
+  computePagibig,
+} from "../utils/governmentContributions";
 
 const BASE_API = "/api/benefit";
+
 
 export async function fetchCompanyConfig(): Promise<{ companyName: string }> {
   try {
@@ -153,7 +163,9 @@ export async function fetchBenefitSettings(): Promise<BenefitSetting[]> {
 }
 
 export async function fetchUsers(): Promise<UserData[]> {
-  const json = await apiFetch("/items/user?limit=2000&fields=user_id,user_fname,user_lname,user_department");
+  const json = await apiFetch(
+    "/items/user?limit=2000&fields=user_id,user_fname,user_lname,user_department,user_position,user_sss,user_philhealth,user_pagibig,user_tin,is_deleted,is_employee"
+  );
   return json.data || [];
 }
 
@@ -558,3 +570,255 @@ export async function fetchBenefitLogs(): Promise<BenefitLogRow[]> {
 
   return logs;
 }
+
+// --------------------
+// Employee Benefits Coverage & Report
+// --------------------
+
+export function isUserDeleted(u: UserData): boolean {
+  if (u.is_deleted === true || u.is_deleted === 1) return true;
+  if (typeof u.is_deleted === "object" && u.is_deleted !== null) {
+    const data = (u.is_deleted as { data?: number[] })?.data;
+    if (Array.isArray(data) && data[0] === 1) return true;
+  }
+  return false;
+}
+
+export function round2(x: number): number {
+  const n0 = Number(x ?? 0);
+  if (!Number.isFinite(n0)) return 0;
+  return Math.round(n0 * 100) / 100;
+}
+
+export async function fetchUserWages(): Promise<UserWageRecord[]> {
+  const json = await apiFetch(
+    "/items/user_wage_management?limit=5000&fields=id,user_id,daily_wage,monthly_rate,sss_contribution_monthly,philhealth_contribution_monthly,pagibig_contribution_monthly,working_days_per_month,schedule_id,cutoff_wage_date_update,updated_by,updated_date"
+  );
+  return (json?.data || []) as UserWageRecord[];
+}
+
+export function buildEmployeeBenefitCoverages(args: {
+  users: UserData[];
+  wages: UserWageRecord[];
+  departments: Department[];
+  loans: BenefitLoan[];
+  isGovernment?: boolean;
+}): EmployeeBenefitCoverage[] {
+  const { users, wages, departments, loans, isGovernment = false } = args;
+
+  const deptMap = new Map<number, string>();
+  for (const d of departments) {
+    deptMap.set(d.department_id, d.department_name);
+  }
+
+  const wageMap = new Map<number, UserWageRecord>();
+  for (const w of wages) {
+    wageMap.set(w.user_id, w);
+  }
+
+  // Active loans map by user_id
+  const loansByUser = new Map<number, EmployeeActiveLoanSummary[]>();
+  for (const l of loans) {
+    if (l.status !== "ACTIVE") continue;
+    const cur = loansByUser.get(l.user_id) || [];
+    cur.push({
+      loan_id: l.loan_id,
+      benefit_code: l.benefit_code,
+      loan_name: l.loan_name,
+      reference_no: l.reference_no,
+      principal_amount: toNum(l.principal_amount),
+      amortization_amount: toNum(l.amortization_amount),
+      remaining_balance: toNum(l.remaining_balance),
+      deduct_on: l.deduct_on,
+      status: l.status,
+    });
+    loansByUser.set(l.user_id, cur);
+  }
+
+  // Filter out deleted employees
+  const activeEmployees = users.filter((u) => !isUserDeleted(u));
+
+  const results: EmployeeBenefitCoverage[] = [];
+
+  for (const u of activeEmployees) {
+    const w = wageMap.get(u.user_id);
+    const dailyWage = toNum(w?.daily_wage);
+    const workingDays = toNum(w?.working_days_per_month) || 26;
+    const monthlyRate = toNum(w?.monthly_rate) || (dailyWage > 0 ? dailyWage * workingDays : 0);
+
+    const rawSss = toNum(w?.sss_contribution_monthly);
+    const rawPh = toNum(w?.philhealth_contribution_monthly);
+    const rawPagibig = toNum(w?.pagibig_contribution_monthly);
+
+    // Compute SSS / GSIS
+    let sssPersonal = 0;
+    let sssCounterpart = 0;
+    let sssTotal = 0;
+
+    if (isGovernment) {
+      if (rawSss > 0) {
+        sssPersonal = rawSss;
+        sssCounterpart = round2((rawSss / 0.09) * 0.12);
+        sssTotal = round2(sssPersonal + sssCounterpart);
+      } else if (monthlyRate > 0) {
+        const gsis = computeGsis(monthlyRate);
+        sssPersonal = gsis.employeeShare;
+        sssCounterpart = gsis.governmentShare;
+        sssTotal = gsis.totalContribution;
+      }
+    } else {
+      if (rawSss > 0) {
+        sssPersonal = rawSss;
+        // In PH private sector employer share is approx 2.11x employee share (9.5% ER vs 4.5% EE)
+        sssCounterpart = round2(rawSss * (9.5 / 4.5));
+        sssTotal = round2(sssPersonal + sssCounterpart);
+      }
+    }
+
+    const sssDetail: EmployeeBenefitDetail = {
+      enrolled: sssPersonal > 0 || Boolean(u.user_sss),
+      account_no: u.user_sss || null,
+      personal_share: sssPersonal,
+      counterpart_share: sssCounterpart,
+      total_contribution: sssTotal,
+    };
+
+    // Compute PhilHealth
+    let phPersonal = 0;
+    let phCounterpart = 0;
+    let phTotal = 0;
+
+    if (isGovernment) {
+      if (rawPh > 0) {
+        phPersonal = rawPh;
+        phCounterpart = rawPh;
+        phTotal = round2(rawPh * 2);
+      } else if (monthlyRate > 0) {
+        const ph = computePhilHealth(monthlyRate);
+        phPersonal = ph.employeeShare;
+        phCounterpart = ph.governmentShare;
+        phTotal = ph.totalContribution;
+      }
+    } else {
+      if (rawPh > 0) {
+        phPersonal = rawPh;
+        phCounterpart = rawPh;
+        phTotal = round2(rawPh * 2);
+      }
+    }
+
+    const phDetail: EmployeeBenefitDetail = {
+      enrolled: phPersonal > 0 || Boolean(u.user_philhealth),
+      account_no: u.user_philhealth || null,
+      personal_share: phPersonal,
+      counterpart_share: phCounterpart,
+      total_contribution: phTotal,
+    };
+
+    // Compute Pag-IBIG
+    let hdmfPersonal = 0;
+    let hdmfCounterpart = 0;
+    let hdmfTotal = 0;
+
+    if (isGovernment) {
+      if (rawPagibig > 0) {
+        hdmfPersonal = rawPagibig;
+        hdmfCounterpart = rawPagibig;
+        hdmfTotal = round2(rawPagibig * 2);
+      } else if (monthlyRate > 0) {
+        const hdmf = computePagibig(monthlyRate);
+        hdmfPersonal = hdmf.employeeShare;
+        hdmfCounterpart = hdmf.governmentShare;
+        hdmfTotal = hdmf.totalContribution;
+      }
+    } else {
+      if (rawPagibig > 0) {
+        hdmfPersonal = rawPagibig;
+        hdmfCounterpart = rawPagibig;
+        hdmfTotal = round2(rawPagibig * 2);
+      }
+    }
+
+    const hdmfDetail: EmployeeBenefitDetail = {
+      enrolled: hdmfPersonal > 0 || Boolean(u.user_pagibig),
+      account_no: u.user_pagibig || null,
+      personal_share: hdmfPersonal,
+      counterpart_share: hdmfCounterpart,
+      total_contribution: hdmfTotal,
+    };
+
+    // Active loans
+    const userLoans = loansByUser.get(u.user_id) || [];
+    const totalLoanAmortization = round2(
+      userLoans.reduce((sum, x) => sum + x.amortization_amount, 0)
+    );
+
+    const totalPersonal = round2(sssPersonal + phPersonal + hdmfPersonal);
+    const totalCounterpart = round2(sssCounterpart + phCounterpart + hdmfCounterpart);
+    const grandTotal = round2(totalPersonal + totalCounterpart);
+
+    const hasSss = sssDetail.personal_share > 0 || Boolean(u.user_sss);
+    const hasPh = phDetail.personal_share > 0 || Boolean(u.user_philhealth);
+    const hasPagibig = hdmfDetail.personal_share > 0 || Boolean(u.user_pagibig);
+    const hasLoans = userLoans.length > 0;
+    const hasAny = hasSss || hasPh || hasPagibig || hasLoans;
+    const hasAll = hasSss && hasPh && hasPagibig;
+
+    const deptName = u.user_department ? deptMap.get(u.user_department) || "Unassigned" : "Unassigned";
+
+    results.push({
+      user_id: u.user_id,
+      employee_name: `${u.user_fname} ${u.user_lname}`.trim(),
+      department_id: u.user_department ?? null,
+      department_name: deptName,
+      position: u.user_position || null,
+      daily_wage: dailyWage,
+      monthly_rate: monthlyRate,
+
+      sss: sssDetail,
+      philhealth: phDetail,
+      pagibig: hdmfDetail,
+
+      loans: userLoans,
+      total_loan_amortization: totalLoanAmortization,
+
+      total_personal_share: totalPersonal,
+      total_counterpart_share: totalCounterpart,
+      grand_total_monthly: grandTotal,
+
+      has_any_benefit: hasAny,
+      has_all_benefits: hasAll,
+      has_sss: hasSss,
+      has_philhealth: hasPh,
+      has_pagibig: hasPagibig,
+      has_loans: hasLoans,
+
+      coverage_summary: hasAll ? "FULL" : hasAny ? "PARTIAL" : "NONE",
+    });
+  }
+
+  // Sort alphabetically by employee name
+  results.sort((a, b) => a.employee_name.localeCompare(b.employee_name));
+
+  return results;
+}
+
+export async function fetchEmployeeBenefitCoverages(options?: {
+  isGovernment?: boolean;
+}): Promise<EmployeeBenefitCoverage[]> {
+  const [users, wages, departments, loans] = await Promise.all([
+    fetchUsers(),
+    fetchUserWages(),
+    fetchDepartments(),
+    fetchBenefitLoans(),
+  ]);
+
+  return buildEmployeeBenefitCoverages({
+    users,
+    wages,
+    departments,
+    loans,
+    isGovernment: options?.isGovernment ?? false,
+  });
+}
+

@@ -5,7 +5,15 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { BENEFITS } from "./index";
-import type { BenefitCode, BenefitSetting, UserData, CutoffSetting, Department } from "./types";
+import type {
+  BenefitCode,
+  BenefitSetting,
+  UserData,
+  CutoffSetting,
+  Department,
+  EmployeeBenefitCoverage,
+  BenefitReportFilter,
+} from "./types";
 
 import BenefitCard from "./components/BenefitCard";
 import SaveButton from "./components/SaveButton";
@@ -18,10 +26,14 @@ import {
   saveBenefitSetting,
   fetchCutoffSettings,
   fetchDepartments,
+  fetchEmployeeBenefitCoverages,
+  fetchCompanyConfig,
 } from "./providers/benefitApi";
 
 import BenefitLoansTab from "./components/BenefitLoansTab";
 import BenefitLogsTab from "./components/BenefitLogsTab";
+import EmployeeBenefitsTab from "./components/EmployeeBenefitsTab";
+import BenefitEmployeesDialog from "./components/BenefitEmployeesDialog";
 import { BenefitCardSkeleton } from "./components/BenefitSettingsSkeleton";
 
 function makeDefaultSetting(code: BenefitCode, name: string): BenefitSetting {
@@ -40,9 +52,20 @@ function makeDefaultSetting(code: BenefitCode, name: string): BenefitSetting {
 
 export default function PrivateBenefitSettingsModule() {
   const [loading, setLoading] = React.useState(true);
+  const [coveragesLoading, setCoveragesLoading] = React.useState(true);
 
   const [users, setUsers] = React.useState<UserData[]>([]);
   const [departments, setDepartments] = React.useState<Department[]>([]);
+  const [coverages, setCoverages] = React.useState<EmployeeBenefitCoverage[]>([]);
+  const [companyName, setCompanyName] = React.useState("MEN2 MARKETING CORPORATION");
+
+  const [activeTab, setActiveTab] = React.useState<string>("employees");
+  const [selectedReportBenefit, setSelectedReportBenefit] = React.useState<BenefitReportFilter>("ALL");
+
+  // Dialog state for quick employee list per card
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [dialogBenefit, setDialogBenefit] = React.useState<BenefitCode>("SSS");
+
   const userMap = React.useMemo(() => {
     const m = new Map<number, string>();
     for (const u of users)
@@ -67,16 +90,24 @@ export default function PrivateBenefitSettingsModule() {
 
   const load = React.useCallback(async () => {
     setLoading(true);
+    setCoveragesLoading(true);
     try {
-      const [u, s, c, d] = await Promise.all([
+      const [u, s, c, d, cov, cfg] = await Promise.all([
         fetchUsers(),
         fetchBenefitSettings(),
         fetchCutoffSettings(),
         fetchDepartments(),
+        fetchEmployeeBenefitCoverages({ isGovernment: false }).catch((err) => {
+          console.error("Failed to load employee coverages:", err);
+          return [] as EmployeeBenefitCoverage[];
+        }),
+        fetchCompanyConfig().catch(() => ({ companyName: "MEN2 MARKETING CORPORATION" })),
       ]);
       setUsers(u);
       setCutoffs(c);
       setDepartments(d);
+      setCoverages(cov);
+      if (cfg?.companyName) setCompanyName(cfg.companyName);
 
       const byCode: Record<BenefitCode, BenefitSetting> = {
         SSS: makeDefaultSetting("SSS", "SSS"),
@@ -106,12 +137,37 @@ export default function PrivateBenefitSettingsModule() {
       toast.error(msg);
     } finally {
       setLoading(false);
+      setCoveragesLoading(false);
     }
   }, []);
 
   React.useEffect(() => {
     load();
   }, [load]);
+
+  // Aggregate stats per benefit card
+  const benefitStats = React.useMemo(() => {
+    const res: Record<BenefitCode, { count: number; totalAmount: number }> = {
+      SSS: { count: 0, totalAmount: 0 },
+      PAGIBIG: { count: 0, totalAmount: 0 },
+      PHILHEALTH: { count: 0, totalAmount: 0 },
+    };
+    for (const c of coverages) {
+      if (c.sss.personal_share > 0) {
+        res.SSS.count++;
+        res.SSS.totalAmount += c.sss.personal_share;
+      }
+      if (c.pagibig.personal_share > 0) {
+        res.PAGIBIG.count++;
+        res.PAGIBIG.totalAmount += c.pagibig.personal_share;
+      }
+      if (c.philhealth.personal_share > 0) {
+        res.PHILHEALTH.count++;
+        res.PHILHEALTH.totalAmount += c.philhealth.personal_share;
+      }
+    }
+    return res;
+  }, [coverages]);
 
   const getUserName = React.useCallback(
     (id: number | null) => {
@@ -151,7 +207,6 @@ export default function PrivateBenefitSettingsModule() {
     setSaving(true);
     setStatus("idle");
     try {
-      // You can replace this with session user later
       const updatedBy = 176;
 
       for (const b of BENEFITS) {
@@ -190,8 +245,7 @@ export default function PrivateBenefitSettingsModule() {
                 Manage Benefits
               </div>
               <div className="text-xs text-slate-500 dark:text-gray-400">
-                Configure which cutoff deducts each contribution, then manage
-                benefit loans and review posted logs.
+                Configure which cutoff deducts each contribution, review employee enrollment and amounts, and monitor benefit loans and logs.
               </div>
             </div>
 
@@ -212,37 +266,67 @@ export default function PrivateBenefitSettingsModule() {
                   setting={settings[b.code]}
                   getUserName={getUserName}
                   onCutoff={onCutoff}
+                  enrolledCount={benefitStats[b.code]?.count ?? 0}
+                  totalMonthlyAmount={benefitStats[b.code]?.totalAmount ?? 0}
+                  onViewEmployees={(code) => {
+                    setDialogBenefit(code);
+                    setDialogOpen(true);
+                  }}
                 />
               ))
             )}
           </div>
         </div>
 
-        {/* Bottom: Tabs (Loans + Logs) */}
+        {/* Bottom: Tabs (Employee Benefits Report + Loans + Logs) */}
         <div className="rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm">
-          <Tabs defaultValue="loans" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="flex flex-col gap-3">
               <div>
                 <div className="text-sm font-semibold text-slate-900 dark:text-gray-100">
-                  Benefits Operations
+                  Benefits Operations &amp; Reports
                 </div>
                 <div className="text-xs text-slate-500 dark:text-gray-400">
-                  Loans are for SSS &amp; Pagibig only. Logs are view-only and
-                  appear after payroll run posting.
+                  Review employee benefit coverage and amounts, track statutory loans, and view posted deduction logs.
                 </div>
               </div>
 
-              <TabsList className="w-full justify-start rounded-lg bg-slate-100 dark:bg-gray-800 p-1">
-                <TabsTrigger value="loans" className="rounded-md dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100">
+              <TabsList className="w-full justify-start rounded-lg bg-slate-100 dark:bg-gray-800 p-1 flex-wrap h-auto">
+                <TabsTrigger
+                  value="employees"
+                  className="rounded-md dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100 font-semibold text-xs"
+                >
+                  Employee Benefits Report ({coverages.length})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="loans"
+                  className="rounded-md dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100 text-xs"
+                >
                   Benefit Loans
                 </TabsTrigger>
-                <TabsTrigger value="logs" className="rounded-md dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100">
+                <TabsTrigger
+                  value="logs"
+                  className="rounded-md dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100 text-xs"
+                >
                   Benefit Logs
                 </TabsTrigger>
               </TabsList>
             </div>
 
             <div className="mt-4">
+              <TabsContent value="employees" className="m-0">
+                <EmployeeBenefitsTab
+                  coverages={coverages}
+                  departments={departments}
+                  settings={settings}
+                  isGovernment={false}
+                  companyName={companyName}
+                  loading={coveragesLoading}
+                  onRefresh={load}
+                  defaultBenefitFilter={selectedReportBenefit}
+                />
+              </TabsContent>
+
               <TabsContent value="loans" className="m-0">
                 <BenefitLoansTab users={users} />
               </TabsContent>
@@ -254,6 +338,21 @@ export default function PrivateBenefitSettingsModule() {
           </Tabs>
         </div>
       </div>
+
+      {/* Quick Focused Dialog per Benefit Card */}
+      <BenefitEmployeesDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        benefitCode={dialogBenefit}
+        coverages={coverages}
+        isGovernment={false}
+        companyName={companyName}
+        onSwitchToFullReport={() => {
+          setActiveTab("employees");
+          setSelectedReportBenefit(dialogBenefit);
+        }}
+      />
     </DashboardLayout>
   );
 }
+

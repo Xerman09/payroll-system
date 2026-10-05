@@ -3,11 +3,13 @@
 
 import * as React from "react";
 import { format, parseISO } from "date-fns";
-import { Shield, HeartPulse, Landmark, User, Clock, CheckCircle2, Info } from "lucide-react";
+import { Shield, HeartPulse, Landmark, User, Clock, CheckCircle2, Info, Users } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { formatMoney } from "../../providers/benefitApi";
 import {
   Select,
   SelectContent,
@@ -33,6 +35,8 @@ interface GovernmentBenefitCardsProps {
   getUserName: (id: number | null) => string;
   onCutoff: (code: BenefitCode, val: BenefitSetting["cutoff"]) => void;
   isReadOnly?: boolean;
+  stats?: Record<BenefitCode, { count: number; personal: number; government: number }>;
+  onViewEmployees?: (code: BenefitCode) => void;
 }
 
 export default function GovernmentBenefitCards({
@@ -40,10 +44,13 @@ export default function GovernmentBenefitCards({
   getUserName,
   onCutoff,
   isReadOnly = false,
+  stats,
+  onViewEmployees,
 }: GovernmentBenefitCardsProps) {
   const gsisSetting = settings.SSS; // GSIS maps to SSS slot in database
   const philhealthSetting = settings.PHILHEALTH;
   const pagibigSetting = settings.PAGIBIG;
+
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -71,6 +78,30 @@ export default function GovernmentBenefitCards({
         </CardHeader>
 
         <CardContent className="flex-1 space-y-4 pt-4 text-sm">
+          {/* Quick Enrolled Banner */}
+          {onViewEmployees && (
+            <div className="rounded-lg bg-blue-50/70 dark:bg-blue-950/30 p-2.5 border border-blue-200/80 dark:border-blue-900/50 flex items-center justify-between gap-2 shadow-2xs">
+              <div className="space-y-0.5">
+                <div className="text-[11px] font-semibold text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-blue-600" />
+                  <span>{stats?.SSS?.count ?? 0} Empleyado May Hulog</span>
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-gray-400">
+                  Personal: ₱{formatMoney(stats?.SSS?.personal ?? 0)} | LGU: ₱{formatMoney(stats?.SSS?.government ?? 0)}
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-[11px] px-2.5 font-medium border-blue-300 dark:border-blue-800 hover:bg-blue-100/60 text-blue-700 dark:text-blue-300"
+                onClick={() => onViewEmployees("SSS")}
+              >
+                Talaan
+              </Button>
+            </div>
+          )}
+
           {/* Contribution Rate Overview */}
           <div className="rounded-lg bg-blue-50/80 dark:bg-blue-950/40 p-3 border border-blue-200/60 dark:border-blue-900/40 space-y-2">
             <div className="flex justify-between items-center text-xs font-semibold text-blue-950 dark:text-blue-200 pb-1 border-b border-blue-200/50 dark:border-blue-900/40">
@@ -187,6 +218,30 @@ export default function GovernmentBenefitCards({
         </CardHeader>
 
         <CardContent className="flex-1 space-y-4 pt-4 text-sm">
+          {/* Quick Enrolled Banner */}
+          {onViewEmployees && (
+            <div className="rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 p-2.5 border border-emerald-200/80 dark:border-emerald-900/50 flex items-center justify-between gap-2 shadow-2xs">
+              <div className="space-y-0.5">
+                <div className="text-[11px] font-semibold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>{stats?.PHILHEALTH?.count ?? 0} Empleyado May Hulog</span>
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-gray-400">
+                  Personal: ₱{formatMoney(stats?.PHILHEALTH?.personal ?? 0)} | LGU: ₱{formatMoney(stats?.PHILHEALTH?.government ?? 0)}
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-[11px] px-2.5 font-medium border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100/60 text-emerald-700 dark:text-emerald-300"
+                onClick={() => onViewEmployees("PHILHEALTH")}
+              >
+                Talaan
+              </Button>
+            </div>
+          )}
+
           {/* Contribution Rate Overview */}
           <div className="rounded-lg bg-emerald-50/80 dark:bg-emerald-950/40 p-3 border border-emerald-200/60 dark:border-emerald-900/40 space-y-2">
             <div className="flex justify-between items-center text-xs font-semibold text-emerald-950 dark:text-emerald-200 pb-1 border-b border-emerald-200/50 dark:border-emerald-900/40">
@@ -306,6 +361,30 @@ export default function GovernmentBenefitCards({
         </CardHeader>
 
         <CardContent className="flex-1 space-y-4 pt-4 text-sm">
+          {/* Quick Enrolled Banner */}
+          {onViewEmployees && (
+            <div className="rounded-lg bg-amber-50/70 dark:bg-amber-950/30 p-2.5 border border-amber-200/80 dark:border-amber-900/50 flex items-center justify-between gap-2 shadow-2xs">
+              <div className="space-y-0.5">
+                <div className="text-[11px] font-semibold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-amber-600" />
+                  <span>{stats?.PAGIBIG?.count ?? 0} Empleyado May Hulog</span>
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-gray-400">
+                  Personal: ₱{formatMoney(stats?.PAGIBIG?.personal ?? 0)} | LGU: ₱{formatMoney(stats?.PAGIBIG?.government ?? 0)}
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-[11px] px-2.5 font-medium border-amber-300 dark:border-amber-800 hover:bg-amber-100/60 text-amber-700 dark:text-amber-300"
+                onClick={() => onViewEmployees("PAGIBIG")}
+              >
+                Talaan
+              </Button>
+            </div>
+          )}
+
           {/* Contribution Rate Overview */}
           <div className="rounded-lg bg-amber-50/80 dark:bg-amber-950/40 p-3 border border-amber-200/60 dark:border-amber-900/40 space-y-2">
             <div className="flex justify-between items-center text-xs font-semibold text-amber-950 dark:text-amber-200 pb-1 border-b border-amber-200/50 dark:border-amber-900/40">

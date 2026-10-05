@@ -10,11 +10,15 @@ export const BENEFITS: { code: BenefitCode; name: string }[] = [
 
 import GovernmentBenefitSettingsModule from "./government/GovernmentBenefitSettingsModule";
 import PrivateBenefitSettingsModule from "./PrivateBenefitSettingsModule";
+import EmployeeBenefitsTab from "./components/EmployeeBenefitsTab";
+import BenefitEmployeesDialog from "./components/BenefitEmployeesDialog";
 
 export {
   BenefitSettingsModule,
   GovernmentBenefitSettingsModule,
   PrivateBenefitSettingsModule,
+  EmployeeBenefitsTab,
+  BenefitEmployeesDialog,
 };
 
 // Alias (optional future rename without breaking imports)

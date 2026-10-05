@@ -6,12 +6,22 @@ import { toast } from "sonner";
 import { Landmark, Building, Shield, HeartPulse, HandCoins, Info, CheckCircle2 } from "lucide-react";
 
 import { BENEFITS } from "../index";
-import type { BenefitCode, BenefitSetting, UserData, CutoffSetting, Department } from "../types";
+import type {
+  BenefitCode,
+  BenefitSetting,
+  UserData,
+  CutoffSetting,
+  Department,
+  EmployeeBenefitCoverage,
+  BenefitReportFilter,
+} from "../types";
 
 import GovernmentBenefitCards from "../components/government/GovernmentBenefitCards";
 import GovernmentCalculatorCard from "../components/government/GovernmentCalculatorCard";
 import GovernmentLoansTab from "../components/government/GovernmentLoansTab";
 import GovernmentLogsTab from "../components/government/GovernmentLogsTab";
+import EmployeeBenefitsTab from "../components/EmployeeBenefitsTab";
+import BenefitEmployeesDialog from "../components/BenefitEmployeesDialog";
 import SaveButton from "../components/SaveButton";
 import { BenefitCardSkeleton } from "../components/BenefitSettingsSkeleton";
 import { Separator } from "@/components/ui/separator";
@@ -24,6 +34,8 @@ import {
   saveBenefitSetting,
   fetchCutoffSettings,
   fetchDepartments,
+  fetchEmployeeBenefitCoverages,
+  fetchCompanyConfig,
 } from "../providers/benefitApi";
 
 function makeDefaultSetting(code: BenefitCode, name: string): BenefitSetting {
@@ -42,9 +54,20 @@ function makeDefaultSetting(code: BenefitCode, name: string): BenefitSetting {
 
 export default function GovernmentBenefitSettingsModule() {
   const [loading, setLoading] = React.useState(true);
+  const [coveragesLoading, setCoveragesLoading] = React.useState(true);
 
   const [users, setUsers] = React.useState<UserData[]>([]);
   const [departments, setDepartments] = React.useState<Department[]>([]);
+  const [coverages, setCoverages] = React.useState<EmployeeBenefitCoverage[]>([]);
+  const [companyName, setCompanyName] = React.useState("LGU - Local Government Unit");
+
+  const [activeTab, setActiveTab] = React.useState<string>("employees");
+  const [selectedReportBenefit, setSelectedReportBenefit] = React.useState<BenefitReportFilter>("ALL");
+
+  // Dialog state for card clicks
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [dialogBenefit, setDialogBenefit] = React.useState<BenefitCode>("SSS");
+
   const userMap = React.useMemo(() => {
     const m = new Map<number, string>();
     for (const u of users)
@@ -65,16 +88,24 @@ export default function GovernmentBenefitSettingsModule() {
 
   const load = React.useCallback(async () => {
     setLoading(true);
+    setCoveragesLoading(true);
     try {
-      const [u, s, c, d] = await Promise.all([
+      const [u, s, c, d, cov, cfg] = await Promise.all([
         fetchUsers(),
         fetchBenefitSettings(),
         fetchCutoffSettings(),
         fetchDepartments(),
+        fetchEmployeeBenefitCoverages({ isGovernment: true }).catch((err) => {
+          console.error("Failed to load government employee coverages:", err);
+          return [] as EmployeeBenefitCoverage[];
+        }),
+        fetchCompanyConfig().catch(() => ({ companyName: "LGU - Local Government Unit" })),
       ]);
       setUsers(u);
       setCutoffs(c);
       setDepartments(d);
+      setCoverages(cov);
+      if (cfg?.companyName) setCompanyName(cfg.companyName);
 
       const byCode: Record<BenefitCode, BenefitSetting> = {
         SSS: makeDefaultSetting("SSS", "GSIS"),
@@ -104,12 +135,40 @@ export default function GovernmentBenefitSettingsModule() {
       toast.error(msg);
     } finally {
       setLoading(false);
+      setCoveragesLoading(false);
     }
   }, []);
 
   React.useEffect(() => {
     load();
   }, [load]);
+
+  // Aggregate stats per card
+  const govStats = React.useMemo(() => {
+    const res: Record<BenefitCode, { count: number; personal: number; government: number }> = {
+      SSS: { count: 0, personal: 0, government: 0 },
+      PAGIBIG: { count: 0, personal: 0, government: 0 },
+      PHILHEALTH: { count: 0, personal: 0, government: 0 },
+    };
+    for (const c of coverages) {
+      if (c.sss.personal_share > 0) {
+        res.SSS.count++;
+        res.SSS.personal += c.sss.personal_share;
+        res.SSS.government += c.sss.counterpart_share;
+      }
+      if (c.pagibig.personal_share > 0) {
+        res.PAGIBIG.count++;
+        res.PAGIBIG.personal += c.pagibig.personal_share;
+        res.PAGIBIG.government += c.pagibig.counterpart_share;
+      }
+      if (c.philhealth.personal_share > 0) {
+        res.PHILHEALTH.count++;
+        res.PHILHEALTH.personal += c.philhealth.personal_share;
+        res.PHILHEALTH.government += c.philhealth.counterpart_share;
+      }
+    }
+    return res;
+  }, [coverages]);
 
   const getUserName = React.useCallback(
     (id: number | null) => {
@@ -274,6 +333,11 @@ export default function GovernmentBenefitSettingsModule() {
               settings={settings}
               getUserName={getUserName}
               onCutoff={onCutoff}
+              stats={govStats}
+              onViewEmployees={(code) => {
+                setDialogBenefit(code);
+                setDialogOpen(true);
+              }}
             />
           )}
         </div>
@@ -284,20 +348,26 @@ export default function GovernmentBenefitSettingsModule() {
           settings={settings}
         />
 
-        {/* Operations Tabs (Loans & Remittance Logs) */}
+        {/* Operations Tabs (Employee Benefits Report + Loans + Remittance Logs) */}
         <div className="rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 shadow-sm">
-          <Tabs defaultValue="loans" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="flex flex-col gap-3">
               <div>
                 <div className="text-sm font-bold text-slate-900 dark:text-gray-100">
-                  Government Benefits Operations
+                  Government Benefits Operations &amp; Reports
                 </div>
                 <div className="text-xs text-slate-500 dark:text-gray-400">
-                  Pampamahalaang pautang (GSIS &amp; Pag-IBIG) at pagsusuri ng mga nai-post na logs kasama ang LGU cost-sharing.
+                  Ulat sa saklaw ng mga empleyado, pampamahalaang pautang (GSIS &amp; Pag-IBIG), at pagsusuri ng mga nai-post na logs kasama ang LGU cost-sharing.
                 </div>
               </div>
 
-              <TabsList className="w-full justify-start rounded-lg bg-slate-100 dark:bg-gray-800 p-1">
+              <TabsList className="w-full justify-start rounded-lg bg-slate-100 dark:bg-gray-800 p-1 flex-wrap h-auto">
+                <TabsTrigger
+                  value="employees"
+                  className="rounded-md dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100 text-xs font-semibold"
+                >
+                  Employee Benefits Report ({coverages.length})
+                </TabsTrigger>
                 <TabsTrigger
                   value="loans"
                   className="rounded-md dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-gray-100 text-xs font-semibold"
@@ -314,6 +384,19 @@ export default function GovernmentBenefitSettingsModule() {
             </div>
 
             <div className="mt-4">
+              <TabsContent value="employees" className="m-0">
+                <EmployeeBenefitsTab
+                  coverages={coverages}
+                  departments={departments}
+                  settings={settings}
+                  isGovernment={true}
+                  companyName={companyName}
+                  loading={coveragesLoading}
+                  onRefresh={load}
+                  defaultBenefitFilter={selectedReportBenefit}
+                />
+              </TabsContent>
+
               <TabsContent value="loans" className="m-0">
                 <GovernmentLoansTab users={users} />
               </TabsContent>
@@ -325,6 +408,21 @@ export default function GovernmentBenefitSettingsModule() {
           </Tabs>
         </div>
       </div>
+
+      {/* Focused Dialog per Benefit Card */}
+      <BenefitEmployeesDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        benefitCode={dialogBenefit}
+        coverages={coverages}
+        isGovernment={true}
+        companyName={companyName}
+        onSwitchToFullReport={() => {
+          setActiveTab("employees");
+          setSelectedReportBenefit(dialogBenefit);
+        }}
+      />
     </DashboardLayout>
   );
 }
+
