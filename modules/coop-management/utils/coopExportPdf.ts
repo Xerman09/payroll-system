@@ -179,7 +179,7 @@ export async function exportCoopPdf(args: {
           for (const row of records) {
              const uid = Number(row.user_id);
              if (!uid) continue;
-             cutoffDeductions[uid] = Number(type === "savings" ? row.coop_savings : row.coop_loan) || 0;
+             cutoffDeductions[uid] = Number(type === "savings" ? row.coop_savings : (row.loan_coop ?? row.coop_loan)) || 0;
           }
         }
       } catch (err) {

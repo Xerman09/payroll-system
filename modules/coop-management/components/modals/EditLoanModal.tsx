@@ -38,6 +38,7 @@ export function EditLoanModal({
 }) {
   const [status, setStatus] = useState<EmployeeLoan["status"]>("ACTIVE");
   const [monthlyPay, setMonthlyPay] = useState<number>(0);
+  const [accumulatedAmount, setAccumulatedAmount] = useState<number>(0);
   const [endDate, setEndDate] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -45,6 +46,7 @@ export function EditLoanModal({
     if (loan && isOpen) {
       setStatus(loan.status);
       setMonthlyPay(Number(loan.monthly_payment || 0));
+      setAccumulatedAmount(Number(loan.accumulated_amount || 0));
       setEndDate(loan.end_date || "");
     }
   }, [loan, isOpen]);
@@ -55,6 +57,7 @@ export function EditLoanModal({
     const payload: Partial<EmployeeLoan> = {
       status,
       monthly_payment: monthlyPay,
+      accumulated_amount: accumulatedAmount,
       end_date: endDate || null,
       updated_by: Number(getLoggedUserIdFallback1()),
     };
@@ -104,6 +107,16 @@ export function EditLoanModal({
               step="0.01"
               value={monthlyPay}
               onChange={(e) => setMonthlyPay(Number(e.target.value) || 0)}
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Total Paid (Accumulated)</Label>
+            <Input
+              type="number"
+              step="0.01"
+              value={accumulatedAmount}
+              onChange={(e) => setAccumulatedAmount(Number(e.target.value) || 0)}
             />
           </div>
 

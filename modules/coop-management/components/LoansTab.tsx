@@ -13,6 +13,17 @@ import {
 } from "@/components/ui/table";
 import { Edit, Trash2 } from "lucide-react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 import type {
   EmployeeLoan,
   LoanPayment,
@@ -45,6 +56,8 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingLoan, setEditingLoan] = useState<EmployeeLoan | null>(null);
+  const [loanToDelete, setLoanToDelete] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const rowsPerPage = 10;
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -107,33 +120,49 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
         if (signal?.aborted) return;
         setUsers(userList);
 
+        // 1. Initialize payments map with each loan's persisted accumulated_amount
         const map: Record<number, number> = {};
-        if (loanIds.length > 0) {
-          const pr = await listItems<LoanPayment>(
-            "employee_loan_payment",
-            {
-              limit: "-1",
-              ["filter[loan_id][_in]"]: loanIds.join(","),
-            },
-            signal
-          );
-
-          for (const p of pr.data) {
-            const lid = Number(p.loan_id);
-            const amt = Number(p.amount || 0);
-            if (!lid) continue;
-            map[lid] = (map[lid] || 0) + amt;
+        for (const ln of loanList) {
+          const lid = Number(ln.loan_id);
+          const acc = Number(ln.accumulated_amount || 0);
+          if (lid) {
+            map[lid] = acc;
           }
         }
 
-        // Add dynamic payroll run deductions
+        // 2. Add manual payments from employee_loan_payment table if any
+        if (loanIds.length > 0) {
+          try {
+            const pr = await listItems<LoanPayment>(
+              "employee_loan_payment",
+              {
+                limit: "-1",
+                ["filter[loan_id][_in]"]: loanIds.join(","),
+              },
+              signal
+            );
+
+            for (const p of pr.data) {
+              const lid = Number(p.loan_id);
+              const amt = Number(p.amount || 0);
+              if (!lid) continue;
+              map[lid] = (map[lid] || 0) + amt;
+            }
+          } catch (e: unknown) {
+            const err = e as Error;
+            if (err?.name !== "AbortError") console.warn("Could not query employee_loan_payment", err);
+          }
+        }
+
+        // 3. Query dynamic payroll run deductions from payroll_run_employee (primary DB column: loan_coop)
         if (userIds.length > 0) {
           try {
             const query = new URLSearchParams();
-            query.set("aggregate[sum]", "coop_loan");
+            query.set("aggregate[sum]", "loan_coop");
             query.set("groupBy[]", "user_id");
             query.set("filter[user_id][_in]", userIds.join(","));
-            query.set("filter[coop_loan][_gt]", "0");
+            query.set("filter[loan_coop][_gt]", "0");
+            query.set("filter[on_hold][_neq]", "1");
 
             const aggRes = await fetch(`/api/coop?collection=payroll_run_employee&${query.toString()}`, { signal });
             if (aggRes.ok) {
@@ -141,19 +170,50 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
               if (Array.isArray(aggJson.data)) {
                 for (const row of aggJson.data) {
                   const uid = Number(row.user_id);
-                  const sumLoan = Number(row.sum?.coop_loan) || 0;
-                  
-                  const activeLoan = loanList.find(ln => Number(ln.user_id) === uid);
-                  if (activeLoan) {
-                    const lid = Number(activeLoan.loan_id);
-                    map[lid] = (map[lid] || 0) + sumLoan;
+                  const sumLoan = Number(row.sum?.loan_coop) || 0;
+                  if (sumLoan > 0) {
+                    const activeLoan = loanList.find((ln) => Number(ln.user_id) === uid);
+                    if (activeLoan) {
+                      const lid = Number(activeLoan.loan_id);
+                      map[lid] = Math.max(map[lid] || 0, sumLoan);
+                    }
                   }
                 }
               }
             }
           } catch (e: unknown) {
-             const err = e as Error;
-             if (err?.name !== "AbortError") console.error("Failed to aggregate loans", err);
+            const err = e as Error;
+            if (err?.name !== "AbortError") console.error("Failed to aggregate loans by loan_coop", err);
+          }
+
+          // Fallback check for coop_loan column
+          try {
+            const queryCoop = new URLSearchParams();
+            queryCoop.set("aggregate[sum]", "coop_loan");
+            queryCoop.set("groupBy[]", "user_id");
+            queryCoop.set("filter[user_id][_in]", userIds.join(","));
+            queryCoop.set("filter[coop_loan][_gt]", "0");
+            queryCoop.set("filter[on_hold][_neq]", "1");
+
+            const aggResCoop = await fetch(`/api/coop?collection=payroll_run_employee&${queryCoop.toString()}`, { signal });
+            if (aggResCoop.ok) {
+              const aggJsonCoop = await aggResCoop.json();
+              if (Array.isArray(aggJsonCoop.data)) {
+                for (const row of aggJsonCoop.data) {
+                  const uid = Number(row.user_id);
+                  const sumLoan = Number(row.sum?.coop_loan) || 0;
+                  if (sumLoan > 0) {
+                    const activeLoan = loanList.find((ln) => Number(ln.user_id) === uid);
+                    if (activeLoan) {
+                      const lid = Number(activeLoan.loan_id);
+                      map[lid] = Math.max(map[lid] || 0, sumLoan);
+                    }
+                  }
+                }
+              }
+            }
+          } catch {
+            // Ignore
           }
         }
 
@@ -197,16 +257,20 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
     setSortConfig({ key, direction });
   };
 
-  const handleDeleteLoan = async (loanId: number) => {
-    if (!confirm("Are you sure you want to delete this loan?")) return;
+  const handleConfirmDelete = async () => {
+    if (!loanToDelete) return;
+    setDeleting(true);
     try {
-      await deleteItem("employee_loan", loanId);
-      setLoans((prev) => prev.filter((l) => l.loan_id !== loanId));
-      setTotalLoans((prev) => Math.max(0, prev - 1)); // keep paging label consistent
+      await deleteItem("employee_loan", loanToDelete);
+      setLoans((prev) => prev.filter((l) => l.loan_id !== loanToDelete));
+      setTotalLoans((prev) => Math.max(0, prev - 1));
       toast.success("Deleted successfully.");
+      setLoanToDelete(null);
     } catch (err) {
       console.error(err);
       toast.error("Failed to delete loan.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -215,7 +279,9 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
       .filter((ln) => users.some((u) => Number(u.user_id) === Number(ln.user_id)))
       .map((ln) => {
       const loanAmount = Number(ln.loan_amount || 0);
-      const totalPaid = paymentsMap[Number(ln.loan_id)] ?? 0;
+      const accumulated = Number(ln.accumulated_amount || 0);
+      const mappedPaid = paymentsMap[Number(ln.loan_id)] ?? 0;
+      const totalPaid = Math.max(accumulated, mappedPaid);
       const balance = Math.max(0, loanAmount - totalPaid);
       const name = getUserName(ln.user_id);
       return { loan: ln, name, loanAmount, totalPaid, balance };
@@ -377,7 +443,7 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDeleteLoan(row.loan.loan_id)}
+                        onClick={() => setLoanToDelete(row.loan.loan_id)}
                         className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
                         <Trash2 size={14} />
@@ -465,6 +531,30 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
           setEditingLoan(null);
         }}
       />
+
+      <AlertDialog open={loanToDelete !== null} onOpenChange={(open) => !open && setLoanToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Loan</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this loan? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleConfirmDelete();
+              }}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 });

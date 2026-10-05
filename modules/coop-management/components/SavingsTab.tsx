@@ -13,6 +13,16 @@ import {
   TableHead,
 } from "@/components/ui/table";
 import { Edit, Trash2, Eye } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import type { Membership, SortConfig, TabContentProps, User } from "../types";
 import { formatPeso } from "../helpers";
@@ -45,6 +55,8 @@ const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
   
   const [detailsUserId, setDetailsUserId] = useState<number | null>(null);
   const [detailsUserName, setDetailsUserName] = useState<string>("");
+  const [memberToDelete, setMemberToDelete] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const rowsPerPage = 10;
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -106,6 +118,7 @@ const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
             query.set("groupBy[]", "user_id");
             query.set("filter[user_id][_in]", userIds.join(","));
             query.set("filter[coop_savings][_gt]", "0");
+            query.set("filter[on_hold][_neq]", "1");
 
             const aggRes = await fetch(`/api/coop?collection=payroll_run_employee&${query.toString()}`, { signal });
             if (aggRes.ok) {
@@ -224,16 +237,20 @@ const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
     return data;
   }, [memberships, users, searchTerm, statusFilter, sortConfig]);
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this membership?")) return;
+  const handleConfirmDelete = async () => {
+    if (!memberToDelete) return;
+    setDeleting(true);
     try {
-      await deleteItem("coop_savings_membership", id);
-      setMemberships((prev) => prev.filter((m) => m.id !== id));
+      await deleteItem("coop_savings_membership", memberToDelete);
+      setMemberships((prev) => prev.filter((m) => m.id !== memberToDelete));
       setTotalMemberships((prev) => Math.max(0, prev - 1));
       toast.success("Deleted successfully.");
+      setMemberToDelete(null);
     } catch (err) {
       console.error(err);
       toast.error("Failed to delete membership.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -399,7 +416,7 @@ const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(r.id)}
+                        onClick={() => setMemberToDelete(r.id)}
                         className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
                         <Trash2 size={14} />
@@ -479,6 +496,30 @@ const SavingsTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
         userId={detailsUserId!}
         userName={detailsUserName}
       />
+
+      <AlertDialog open={memberToDelete !== null} onOpenChange={(open) => !open && setMemberToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Membership</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this membership? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleConfirmDelete();
+              }}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 });

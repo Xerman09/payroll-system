@@ -41,6 +41,7 @@ export interface EmployeeLoan {
   interest_rate: number;
   interest_amount: number;
   net_amount_released: number;
+  accumulated_amount?: number | string | null;
   months_to_pay: number;
   monthly_payment: number;
   start_date: string;
