@@ -28,25 +28,28 @@ import { getLoggedUserIdFallback1 } from "../../helpers";
 export function EditLoanModal({
   isOpen,
   loan,
+  totalPaid,
   onClose,
   onUpdated,
 }: {
   isOpen: boolean;
   loan: EmployeeLoan | null;
+  totalPaid?: number;
   onClose: () => void;
   onUpdated: (updated: EmployeeLoan) => void;
 }) {
   const [status, setStatus] = useState<EmployeeLoan["status"]>("ACTIVE");
   const [monthlyPay, setMonthlyPay] = useState<number>(0);
-  const [accumulatedAmount, setAccumulatedAmount] = useState<number>(0);
   const [endDate, setEndDate] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+
+  const accumulatedAmount =
+    totalPaid !== undefined ? totalPaid : Number(loan?.accumulated_amount || 0);
 
   useEffect(() => {
     if (loan && isOpen) {
       setStatus(loan.status);
       setMonthlyPay(Number(loan.monthly_payment || 0));
-      setAccumulatedAmount(Number(loan.accumulated_amount || 0));
       setEndDate(loan.end_date || "");
     }
   }, [loan, isOpen]);
@@ -57,7 +60,6 @@ export function EditLoanModal({
     const payload: Partial<EmployeeLoan> = {
       status,
       monthly_payment: monthlyPay,
-      accumulated_amount: accumulatedAmount,
       end_date: endDate || null,
       updated_by: Number(getLoggedUserIdFallback1()),
     };
@@ -111,12 +113,17 @@ export function EditLoanModal({
           </div>
 
           <div className="grid gap-2">
-            <Label>Total Paid (Accumulated)</Label>
+            <div className="flex items-center justify-between">
+              <Label>Total Paid (Accumulated)</Label>
+              <span className="text-xs text-muted-foreground font-normal">(Read-only)</span>
+            </div>
             <Input
               type="number"
               step="0.01"
               value={accumulatedAmount}
-              onChange={(e) => setAccumulatedAmount(Number(e.target.value) || 0)}
+              disabled
+              readOnly
+              className="bg-muted text-muted-foreground cursor-not-allowed select-none"
             />
           </div>
 

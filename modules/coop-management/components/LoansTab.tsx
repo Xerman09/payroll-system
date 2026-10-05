@@ -510,6 +510,14 @@ const LoansTab = forwardRef<{ getData: () => unknown[] }, TabContentProps>(
       <EditLoanModal
         isOpen={!!editingLoan}
         loan={editingLoan}
+        totalPaid={
+          editingLoan
+            ? Math.max(
+                Number(editingLoan.accumulated_amount || 0),
+                paymentsMap[Number(editingLoan.loan_id)] ?? 0
+              )
+            : 0
+        }
         onClose={() => setEditingLoan(null)}
         onUpdated={(updated) => {
           // Optional guard: if edited away from COOP, remove from list
