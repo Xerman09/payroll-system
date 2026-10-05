@@ -51,10 +51,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import * as wageApi from "../providers/wageApi";
-import type { SalarySchedule, SalarySchedulePayload } from "../types";
+import type { SalarySchedule, SalarySchedulePayload, SalaryGrade } from "../types";
 
 export function SalaryGradeManagement() {
   const [schedules, setSchedules] = useState<SalarySchedule[]>([]);
+  const [registeredGrades, setRegisteredGrades] = useState<SalaryGrade[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -101,7 +102,17 @@ export function SalaryGradeManagement() {
 
   useEffect(() => {
     loadSchedules();
+    loadRegisteredGrades();
   }, [refreshKey]);
+
+  const loadRegisteredGrades = async () => {
+    try {
+      const data = await wageApi.fetchSalaryGrades();
+      setRegisteredGrades(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load registered salary grades:", err);
+    }
+  };
 
   const loadSchedules = async () => {
     setLoading(true);
@@ -115,6 +126,47 @@ export function SalaryGradeManagement() {
       setLoading(false);
     }
   };
+
+  // Grade options populated directly from database salary_grade table
+  const gradeOptions = useMemo(() => {
+    if (registeredGrades.length > 0) {
+      const list = registeredGrades
+        .filter((g) => g && g.name)
+        .map((g) => {
+          const match = (g.name || "").match(/\d+/);
+          const val = match ? parseInt(match[0], 10) : g.id;
+          return {
+            key: `db-${g.id}`,
+            value: val,
+            label: g.name,
+          };
+        });
+
+      // Sort by numeric value ascending
+      list.sort((a, b) => a.value - b.value);
+
+      // If currently editing and the selected salary_grade is not in the list, keep it visible
+      if (
+        formData.salary_grade &&
+        !list.some((opt) => opt.value === formData.salary_grade)
+      ) {
+        list.unshift({
+          key: `existing-${formData.salary_grade}`,
+          value: formData.salary_grade,
+          label: `SG ${formData.salary_grade}`,
+        });
+      }
+
+      return list;
+    }
+
+    // Graceful fallback to 1-33 if no grades registered yet in database
+    return Array.from({ length: 33 }, (_, i) => ({
+      key: `std-${i + 1}`,
+      value: i + 1,
+      label: `SG ${i + 1}`,
+    }));
+  }, [registeredGrades, formData.salary_grade]);
 
   const handleRefresh = () => setRefreshKey((prev) => prev + 1);
 
@@ -142,9 +194,10 @@ export function SalaryGradeManagement() {
 
   const handleOpenAdd = () => {
     setEditingId(null);
+    const initialGrade = gradeOptions.length > 0 ? gradeOptions[0].value : 1;
     setFormData({
       effectivity_date: new Date().toISOString().split("T")[0],
-      salary_grade: 1,
+      salary_grade: initialGrade,
       step: 1,
       monthly_rate: 0,
     });
@@ -401,7 +454,14 @@ export function SalaryGradeManagement() {
                     </TableCell>
                     <TableCell className="px-4 py-3 text-center">
                       <span className="inline-flex items-center px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md text-xs font-semibold border border-gray-200 dark:border-gray-700/50 shadow-sm">
-                        SG {sch.salary_grade}
+                        {(() => {
+                          const match = registeredGrades.find((g) => {
+                            const m = (g.name || "").match(/\d+/);
+                            const v = m ? parseInt(m[0], 10) : g.id;
+                            return v === sch.salary_grade || g.id === sch.salary_grade;
+                          });
+                          return match ? match.name : `SG ${sch.salary_grade}`;
+                        })()}
                       </span>
                     </TableCell>
                     <TableCell className="px-4 py-3 text-center text-gray-600 dark:text-gray-300 text-sm">Step {sch.step}</TableCell>
@@ -563,9 +623,9 @@ export function SalaryGradeManagement() {
                     }
                     className="w-full h-10 px-3 bg-gray-50/50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-800 rounded-xl focus:ring-4 focus:ring-primary/5 font-semibold transition-all appearance-none text-sm text-gray-900 dark:text-gray-100"
                   >
-                    {Array.from({ length: 33 }, (_, i) => i + 1).map((g) => (
-                      <option key={g} value={g} className="font-bold text-xs py-2.5">
-                        SG {g}
+                    {gradeOptions.map((opt) => (
+                      <option key={opt.key} value={opt.value} className="font-bold text-xs py-2.5">
+                        {opt.label}
                       </option>
                     ))}
                   </select>

@@ -291,7 +291,9 @@ export function WageModule({ initialTab }: { initialTab?: string } = {}) {
         philhealth: String(record.philhealth_contribution_monthly ?? "0.00"),
         lastUpdatedBy: fullName || "",
         lastUpdateDate: lastDate,
-        effectivityDate: currentYmd,
+        effectivityDate: record.cutoff_wage_date_update
+          ? record.cutoff_wage_date_update.substring(0, 10)
+          : currentYmd,
       });
     } catch (e) {
       console.error(e);
@@ -382,14 +384,13 @@ export function WageModule({ initialTab }: { initialTab?: string } = {}) {
       working_days_per_month: Number(wageData.workingDaysPerMonth) || 26,
       // Persist the salary grade link (null clears it)
       schedule_id: wageData.schedule_id ?? null,
-      ...(wageChanged ? { cutoff_wage_date_update: effectivityDate } : {}),
+      cutoff_wage_date_update: effectivityDate,
     };
 
     try {
       if (existingId) {
         await wageApi.patchWage(existingId, payload);
       } else {
-        payload.cutoff_wage_date_update = effectivityDate;
         await wageApi.createWage(payload);
       }
 
