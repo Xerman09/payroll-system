@@ -31,9 +31,12 @@ export interface UserData {
 
 export interface UserWageRecord {
   id: number;
-  user_id: number;
+  user_id: number | { user_id?: number; id?: number } | string;
   daily_wage?: number | string | null;
+  daily_rate?: number | string | null;
+  encrypted_daily_wage?: string | null;
   monthly_rate?: number | string | null;
+  monthly_wage?: number | string | null;
   sss_contribution_monthly?: number | string | null;
   philhealth_contribution_monthly?: number | string | null;
   pagibig_contribution_monthly?: number | string | null;

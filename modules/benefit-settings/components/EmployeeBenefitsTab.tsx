@@ -310,7 +310,7 @@ export default function EmployeeBenefitsTab({
           `"${c.employee_name}"`,
           `"${c.department_name}"`,
           `"${c.position || ""}"`,
-          c.monthly_rate.toFixed(2),
+          (c.monthly_rate > 0 ? c.monthly_rate : c.daily_wage * 26).toFixed(2),
           `"${c.sss.account_no || ""}"`,
           c.sss.personal_share.toFixed(2),
           c.sss.counterpart_share.toFixed(2),
@@ -337,7 +337,7 @@ export default function EmployeeBenefitsTab({
         `"${c.employee_name}"`,
         `"${c.department_name}"`,
         `"${c.position || ""}"`,
-        c.monthly_rate.toFixed(2),
+        (c.monthly_rate > 0 ? c.monthly_rate : c.daily_wage * 26).toFixed(2),
         `"${c.philhealth.account_no || ""}"`,
         c.philhealth.personal_share.toFixed(2),
         c.philhealth.counterpart_share.toFixed(2),
@@ -366,7 +366,7 @@ export default function EmployeeBenefitsTab({
           `"${c.employee_name}"`,
           `"${c.department_name}"`,
           `"${c.position || ""}"`,
-          c.monthly_rate.toFixed(2),
+          (c.monthly_rate > 0 ? c.monthly_rate : c.daily_wage * 26).toFixed(2),
           `"${c.pagibig.account_no || ""}"`,
           c.pagibig.personal_share.toFixed(2),
           c.pagibig.counterpart_share.toFixed(2),
@@ -404,7 +404,7 @@ export default function EmployeeBenefitsTab({
         `"${c.employee_name}"`,
         `"${c.department_name}"`,
         `"${c.position || ""}"`,
-        c.monthly_rate.toFixed(2),
+        (c.monthly_rate > 0 ? c.monthly_rate : c.daily_wage * 26).toFixed(2),
         `"${c.sss.account_no || ""}"`,
         c.sss.personal_share.toFixed(2),
         c.sss.counterpart_share.toFixed(2),
@@ -1489,7 +1489,14 @@ export default function EmployeeBenefitsTab({
 
                         {/* Monthly Rate */}
                         <TableCell className="py-2.5 text-right font-medium text-slate-700 dark:text-gray-300">
-                          ₱{formatMoney(emp.monthly_rate)}
+                          <div>
+                            ₱{formatMoney(emp.monthly_rate > 0 ? emp.monthly_rate : emp.daily_wage * 26)}
+                          </div>
+                          {emp.daily_wage > 0 && (
+                            <div className="text-[10px] text-slate-400">
+                              (₱{formatMoney(emp.daily_wage)}/day)
+                            </div>
+                          )}
                         </TableCell>
 
                         {/* EE Deduction */}
@@ -1554,7 +1561,14 @@ export default function EmployeeBenefitsTab({
 
                         {/* Monthly Rate */}
                         <TableCell className="py-2.5 text-right font-medium text-slate-700 dark:text-gray-300">
-                          ₱{formatMoney(emp.monthly_rate)}
+                          <div>
+                            ₱{formatMoney(emp.monthly_rate > 0 ? emp.monthly_rate : emp.daily_wage * 26)}
+                          </div>
+                          {emp.daily_wage > 0 && (
+                            <div className="text-[10px] text-slate-400">
+                              (₱{formatMoney(emp.daily_wage)}/day)
+                            </div>
+                          )}
                         </TableCell>
 
                         {/* EE Share (2.5%) */}
@@ -1605,7 +1619,14 @@ export default function EmployeeBenefitsTab({
 
                         {/* Monthly Rate */}
                         <TableCell className="py-2.5 text-right font-medium text-slate-700 dark:text-gray-300">
-                          ₱{formatMoney(emp.monthly_rate)}
+                          <div>
+                            ₱{formatMoney(emp.monthly_rate > 0 ? emp.monthly_rate : emp.daily_wage * 26)}
+                          </div>
+                          {emp.daily_wage > 0 && (
+                            <div className="text-[10px] text-slate-400">
+                              (₱{formatMoney(emp.daily_wage)}/day)
+                            </div>
+                          )}
                         </TableCell>
 
                         {/* EE Share */}
@@ -1919,13 +1940,13 @@ export default function EmployeeBenefitsTab({
                 <div>
                   <span className="text-[10px] text-slate-400 uppercase font-semibold">Daily Wage</span>
                   <div className="font-bold text-slate-900 dark:text-gray-100">
-                    ₱{formatMoney(selectedEmp.daily_wage)}
+                    ₱{formatMoney(selectedEmp.daily_wage > 0 ? selectedEmp.daily_wage : selectedEmp.monthly_rate > 0 ? selectedEmp.monthly_rate / 26 : 0)}
                   </div>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 uppercase font-semibold">Monthly Basic Rate</span>
                   <div className="font-bold text-slate-900 dark:text-gray-100">
-                    ₱{formatMoney(selectedEmp.monthly_rate)}
+                    ₱{formatMoney(selectedEmp.monthly_rate > 0 ? selectedEmp.monthly_rate : selectedEmp.daily_wage * 26)}
                   </div>
                 </div>
               </div>

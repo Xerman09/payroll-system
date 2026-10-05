@@ -1,6 +1,6 @@
-// app/api/benefit/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { resolveApiConfig, buildForwardHeaders, buildProxyUrl } from "@/lib/api-helper";
+import { decryptNumber } from "@/lib/encryption";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,7 +80,31 @@ async function forward(req: NextRequest) {
 
   // Try JSON; fallback to raw
   try {
-    return NextResponse.json(JSON.parse(text));
+    const json = JSON.parse(text);
+
+    // Intercept and decrypt user_wage_management data
+    if (path && path.includes("user_wage_management") && json?.data) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const resolveDaily = (row: any) => {
+        if (row?.encrypted_daily_wage) {
+          const dec = decryptNumber(row.encrypted_daily_wage);
+          if (dec > 0) return dec;
+        }
+        return Number(row?.daily_wage || 0);
+      };
+
+      if (Array.isArray(json.data)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        json.data = json.data.map((row: any) => ({
+          ...row,
+          daily_wage: resolveDaily(row),
+        }));
+      } else if (typeof json.data === "object" && json.data !== null) {
+        json.data.daily_wage = resolveDaily(json.data);
+      }
+    }
+
+    return NextResponse.json(json);
   } catch {
     return NextResponse.json({ ok: true, raw: text });
   }

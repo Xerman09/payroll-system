@@ -601,9 +601,23 @@ export function round2(x: number): number {
   return Math.round(n0 * 100) / 100;
 }
 
+export interface SimpleSalarySchedule {
+  schedule_id: number;
+  monthly_rate: number | string;
+}
+
+export async function fetchSalarySchedules(): Promise<SimpleSalarySchedule[]> {
+  try {
+    const json = await apiFetch("/items/salary_schedules?limit=2000&fields=schedule_id,monthly_rate");
+    return (json?.data || []) as SimpleSalarySchedule[];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchUserWages(): Promise<UserWageRecord[]> {
   const json = await apiFetch(
-    "/items/user_wage_management?limit=5000&fields=id,user_id,daily_wage,monthly_rate,sss_contribution_monthly,philhealth_contribution_monthly,pagibig_contribution_monthly,working_days_per_month,schedule_id,cutoff_wage_date_update,updated_by,updated_date"
+    "/items/user_wage_management?limit=5000&fields=id,user_id,daily_wage,encrypted_daily_wage,monthly_rate,sss_contribution_monthly,philhealth_contribution_monthly,pagibig_contribution_monthly,working_days_per_month,schedule_id,cutoff_wage_date_update,updated_by,updated_date&sort=-id"
   );
   return (json?.data || []) as UserWageRecord[];
 }
@@ -613,19 +627,60 @@ export function buildEmployeeBenefitCoverages(args: {
   wages: UserWageRecord[];
   departments: Department[];
   loans: BenefitLoan[];
+  salarySchedules?: SimpleSalarySchedule[];
   isGovernment?: boolean;
   includeInactive?: boolean;
 }): EmployeeBenefitCoverage[] {
-  const { users, wages, departments, loans, isGovernment = false, includeInactive = false } = args;
+  const { users, wages, departments, loans, salarySchedules = [], isGovernment = false, includeInactive = false } = args;
 
   const deptMap = new Map<number, string>();
   for (const d of departments) {
     deptMap.set(d.department_id, d.department_name);
   }
 
+  // Salary schedule map (schedule_id -> monthly_rate)
+  const schedMap = new Map<number, number>();
+  for (const s of salarySchedules) {
+    const sid = toNum(s.schedule_id);
+    const m = toNum(s.monthly_rate);
+    if (sid > 0 && m > 0) {
+      schedMap.set(sid, m);
+    }
+  }
+
+  // Wage records mapped safely by normalized user_id
   const wageMap = new Map<number, UserWageRecord>();
   for (const w of wages) {
-    wageMap.set(w.user_id, w);
+    const rawUid =
+      typeof w.user_id === "object" && w.user_id !== null
+        ? (w.user_id as { user_id?: unknown; id?: unknown }).user_id ?? (w.user_id as { user_id?: unknown; id?: unknown }).id
+        : w.user_id;
+    const uid = toNum(rawUid);
+    if (uid > 0) {
+      const existing = wageMap.get(uid);
+      if (!existing) {
+        wageMap.set(uid, w);
+      } else {
+        const existingHasRate =
+          toNum(existing.monthly_rate) > 0 ||
+          toNum(existing.monthly_wage) > 0 ||
+          toNum(existing.daily_wage) > 0 ||
+          toNum(existing.daily_rate) > 0 ||
+          Boolean(existing.schedule_id);
+        const currentHasRate =
+          toNum(w.monthly_rate) > 0 ||
+          toNum(w.monthly_wage) > 0 ||
+          toNum(w.daily_wage) > 0 ||
+          toNum(w.daily_rate) > 0 ||
+          Boolean(w.schedule_id);
+
+        if (!existingHasRate && currentHasRate) {
+          wageMap.set(uid, w);
+        } else if (toNum(w.id) > toNum(existing.id)) {
+          wageMap.set(uid, w);
+        }
+      }
+    }
   }
 
   // Active loans map by user_id
@@ -653,10 +708,28 @@ export function buildEmployeeBenefitCoverages(args: {
   const results: EmployeeBenefitCoverage[] = [];
 
   for (const u of targetUsers) {
-    const w = wageMap.get(u.user_id);
-    const dailyWage = toNum(w?.daily_wage);
+    const uid = toNum(u.user_id);
+    const w = wageMap.get(uid);
+
+    let dailyWage = toNum(w?.daily_wage) || toNum(w?.daily_rate);
     const workingDays = toNum(w?.working_days_per_month) || 26;
-    const monthlyRate = toNum(w?.monthly_rate) || (dailyWage > 0 ? dailyWage * workingDays : 0);
+    let monthlyRate = toNum(w?.monthly_rate) || toNum(w?.monthly_wage);
+
+    // If linked to salary schedule, resolve the monthly rate from schedule
+    if (w?.schedule_id) {
+      const schedRate = schedMap.get(toNum(w.schedule_id));
+      if (schedRate && schedRate > 0) {
+        if (monthlyRate === 0) monthlyRate = schedRate;
+        if (dailyWage === 0 && workingDays > 0) dailyWage = round2(schedRate / workingDays);
+      }
+    }
+
+    // AUTOMATIC SYNC: Ensure monthlyRate is ALWAYS computed if dailyWage has a value (> 0)
+    if (monthlyRate === 0 && dailyWage > 0) {
+      monthlyRate = round2(dailyWage * workingDays);
+    } else if (monthlyRate > 0 && dailyWage === 0 && workingDays > 0) {
+      dailyWage = round2(monthlyRate / workingDays);
+    }
 
     const rawSss = toNum(w?.sss_contribution_monthly);
     const rawPh = toNum(w?.philhealth_contribution_monthly);
@@ -836,11 +909,12 @@ export async function fetchEmployeeBenefitCoverages(options?: {
   isGovernment?: boolean;
   includeInactive?: boolean;
 }): Promise<EmployeeBenefitCoverage[]> {
-  const [users, wages, departments, loans] = await Promise.all([
+  const [users, wages, departments, loans, salarySchedules] = await Promise.all([
     fetchUsers(),
     fetchUserWages(),
     fetchDepartments(),
     fetchBenefitLoans(),
+    fetchSalarySchedules(),
   ]);
 
   return buildEmployeeBenefitCoverages({
@@ -848,6 +922,7 @@ export async function fetchEmployeeBenefitCoverages(options?: {
     wages,
     departments,
     loans,
+    salarySchedules,
     isGovernment: options?.isGovernment ?? false,
     includeInactive: options?.includeInactive ?? false,
   });
