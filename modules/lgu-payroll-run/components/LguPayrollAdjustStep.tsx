@@ -4,28 +4,19 @@
 import React, { useState, useMemo } from "react";
 import {
   Search,
-  Filter,
-  Shield,
-  HeartPulse,
-  Landmark,
   Eye,
-  CheckCircle2,
-  AlertCircle,
   ArrowRight,
   ArrowLeft,
-  Building2,
-  Wallet,
-  Coins,
-  Lock,
-  Unlock,
   Download,
+  RefreshCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { downloadLguPayslipsPdf } from "../utils/lguPayslipPdf";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -35,14 +26,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -50,13 +33,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatPhp } from "../utils/lguCompute";
-import type { LguPayrollLine, LguPayrollSummary, Department } from "../types";
+import LguEmployeeDetailsSheet from "./LguEmployeeDetailsSheet";
+import type {
+  LguPayrollLine,
+  LguPayrollSummary,
+  Department,
+  CutoffSetting,
+  LguManualAdjustment,
+} from "../types";
 
 interface LguPayrollAdjustStepProps {
   lines: LguPayrollLine[];
   summary: LguPayrollSummary;
   departments: Department[];
+  cutoff: CutoffSetting | null;
+  payrollRefNo: string;
   onToggleHold: (userId: number) => void;
+  onAddAdjustment?: (userId: number, adjustment: Omit<LguManualAdjustment, "id">) => void;
+  onEditAdjustment?: (userId: number, adjustment: LguManualAdjustment) => void;
+  onDeleteAdjustment?: (userId: number, adjustmentId: string | number) => void;
+  onRecompute?: () => void;
   onProceed: () => void;
   onBack: () => void;
   isProcessing?: boolean;
@@ -66,7 +62,13 @@ export default function LguPayrollAdjustStep({
   lines,
   summary,
   departments,
+  cutoff,
+  payrollRefNo,
   onToggleHold,
+  onAddAdjustment,
+  onEditAdjustment,
+  onDeleteAdjustment,
+  onRecompute,
   onProceed,
   onBack,
   isProcessing = false,
@@ -75,21 +77,27 @@ export default function LguPayrollAdjustStep({
   const [deptFilter, setDeptFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "HOLD">("ALL");
 
-  // Detail Modal
-  const [detailLine, setDetailLine] = useState<LguPayrollLine | null>(null);
+  // Detail Sheet State
+  const [activeUserId, setActiveUserId] = useState<number | null>(null);
 
-  const handleDownloadDetailPayslip = async () => {
-    if (!detailLine) return;
+  const activeLine = useMemo(() => {
+    if (activeUserId == null) return null;
+    return lines.find((l) => l.userId === activeUserId) || null;
+  }, [lines, activeUserId]);
+
+  const handleDownloadSinglePayslip = async (userId: number) => {
+    const target = lines.find((l) => l.userId === userId);
+    if (!target) return;
     try {
       await downloadLguPayslipsPdf({
-        lines: [detailLine],
-        cutoff: null,
-        payrollRefNo: "LGU-DRAFT-PR",
-        singleEmployeeId: detailLine.userId,
+        lines: [target],
+        cutoff,
+        payrollRefNo,
+        singleEmployeeId: userId,
       });
-      toast.success("Na-download ang payslip para sa kawani.");
+      toast.success("Payslip downloaded successfully.");
     } catch (err: any) {
-      toast.error(err?.message || "Nabigong i-download ang payslip.");
+      toast.error(err?.message || "Failed to download payslip.");
     }
   };
 
@@ -105,7 +113,9 @@ export default function LguPayrollAdjustStep({
         const matchName = l.employeeName.toLowerCase().includes(q);
         const matchPos = l.position.toLowerCase().includes(q);
         const matchDept = l.departmentName.toLowerCase().includes(q);
-        if (!matchName && !matchPos && !matchDept) return false;
+        const matchNo = (l.employeeNo || "").toLowerCase().includes(q);
+        const matchSg = (l.salaryGrade || "").toLowerCase().includes(q);
+        if (!matchName && !matchPos && !matchDept && !matchNo && !matchSg) return false;
       }
 
       return true;
@@ -116,238 +126,328 @@ export default function LguPayrollAdjustStep({
     <div className="space-y-5">
       {/* Top Aggregation Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        <div className="p-3 rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
-          <div className="text-[11px] font-medium text-slate-500 dark:text-gray-400">Aktibong Kawani</div>
+        <div className="p-3.5 rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm space-y-1">
+          <div className="text-[11px] font-semibold text-slate-500 dark:text-gray-400 uppercase">
+            Headcount
+          </div>
           <div className="text-lg font-bold text-slate-900 dark:text-gray-100">
             {summary.activeHeadcount} <span className="text-xs font-normal text-slate-400">/ {summary.totalHeadcount}</span>
           </div>
-          <div className="text-[10px] text-amber-600 font-medium">{summary.onHoldHeadcount} on-hold</div>
+          <div className="text-[10px] text-amber-600 font-semibold">{summary.onHoldHeadcount} On-Hold</div>
         </div>
 
-        <div className="p-3 rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
-          <div className="text-[11px] font-medium text-slate-500 dark:text-gray-400">Gross (Basic + PERA)</div>
-          <div className="text-lg font-bold text-slate-900 dark:text-gray-100">
+        <div className="p-3.5 rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm space-y-1">
+          <div className="text-[11px] font-semibold text-slate-500 dark:text-gray-400 uppercase">
+            Gross Compensation
+          </div>
+          <div className="text-lg font-bold font-mono text-slate-900 dark:text-gray-100">
             {formatPhp(summary.totalGrossPay)}
           </div>
           <div className="text-[10px] text-slate-400">PERA: {formatPhp(summary.totalPeraAllowance)}</div>
         </div>
 
-        <div className="p-3 rounded-xl border border-blue-200/80 dark:border-blue-900/50 bg-blue-50/40 dark:bg-blue-950/20 shadow-sm">
-          <div className="text-[11px] font-medium text-blue-700 dark:text-blue-300">Bawas sa Sahod</div>
-          <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
+        <div className="p-3.5 rounded-xl border border-red-200 dark:border-red-950/60 bg-red-50/40 dark:bg-red-950/20 shadow-sm space-y-1">
+          <div className="text-[11px] font-semibold text-red-700 dark:text-red-400 uppercase">
+            Personal Deductions
+          </div>
+          <div className="text-lg font-bold font-mono text-red-600 dark:text-red-400">
             {formatPhp(summary.totalPersonalDeductions)}
           </div>
-          <div className="text-[10px] text-blue-600/80 dark:text-blue-400">GSIS, PhilHealth, HDMF</div>
+          <div className="text-[10px] text-red-600/80">Statutory, Loans &amp; Tax</div>
         </div>
 
-        <div className="p-3 rounded-xl border border-emerald-200/80 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-sm">
-          <div className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300">Net Take-Home Pay</div>
-          <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
+        <div className="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-950/60 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-sm space-y-1">
+          <div className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 uppercase">
+            Net Take-Home Pay
+          </div>
+          <div className="text-lg font-bold font-mono text-emerald-700 dark:text-emerald-400">
             {formatPhp(summary.totalNetPay)}
           </div>
-          <div className="text-[10px] text-emerald-600/80 dark:text-emerald-400">Netong Sahod ng Kawani</div>
+          <div className="text-[10px] text-emerald-600/80">Net payroll disbursement</div>
         </div>
 
-        <div className="p-3 rounded-xl border border-indigo-200/80 dark:border-indigo-900/50 bg-indigo-50/40 dark:bg-indigo-950/20 shadow-sm">
-          <div className="text-[11px] font-medium text-indigo-700 dark:text-indigo-300">Sagot ng LGU</div>
-          <div className="text-lg font-bold text-indigo-700 dark:text-indigo-300">
+        <div className="p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-950/60 bg-indigo-50/40 dark:bg-indigo-950/20 shadow-sm space-y-1">
+          <div className="text-[11px] font-semibold text-indigo-800 dark:text-indigo-300 uppercase">
+            LGU Counterpart
+          </div>
+          <div className="text-lg font-bold font-mono text-indigo-700 dark:text-indigo-400">
             {formatPhp(summary.totalLguCounterpart)}
           </div>
-          <div className="text-[10px] text-indigo-600/80 dark:text-indigo-400">GSIS 12% + PH 2.5% + HDMF</div>
+          <div className="text-[10px] text-indigo-600/80">GSIS (12%), PH (2.5%), HDMF</div>
         </div>
 
-        <div className="p-3 rounded-xl border border-purple-200/80 dark:border-purple-900/50 bg-purple-50/40 dark:bg-purple-950/20 shadow-sm">
-          <div className="text-[11px] font-medium text-purple-700 dark:text-purple-300">Kabuuang Gastos LGU</div>
-          <div className="text-lg font-bold text-purple-700 dark:text-purple-300">
+        <div className="p-3.5 rounded-xl border border-slate-900 bg-slate-900 text-white shadow-sm space-y-1">
+          <div className="text-[11px] font-semibold text-indigo-200 uppercase">
+            Total LGU Appropriation
+          </div>
+          <div className="text-lg font-extrabold font-mono text-emerald-400">
             {formatPhp(summary.grandTotalAppropriation)}
           </div>
-          <div className="text-[10px] text-purple-600/80 dark:text-purple-400">Appropriation / Fund</div>
+          <div className="text-[10px] text-slate-300">Public funds required</div>
         </div>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between bg-white dark:bg-gray-900 p-3 rounded-xl border border-slate-200 dark:border-gray-800 shadow-sm">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-          <Input
-            placeholder="Hanapin ang kawani, posisyon, o departamento..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-9 text-xs bg-slate-50 dark:bg-gray-800"
-          />
-        </div>
+      {/* Main Table Card */}
+      <Card className="border-slate-200 dark:border-gray-800 shadow-sm bg-white dark:bg-gray-900">
+        <CardHeader className="pb-3 border-b border-slate-100 dark:border-gray-800">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900 dark:text-gray-100 flex items-center gap-2">
+                <span>Step 2: Preview, Adjustments &amp; Verification</span>
+                {summary.varianceAlerts > 0 && (
+                  <Badge variant="outline" className="border-amber-400 text-amber-600 text-xs">
+                    {summary.varianceAlerts} Variance Alerts
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Review civil service payroll computations, customize allowances &amp; deductions, or place employees on hold.
+              </CardDescription>
+            </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={deptFilter} onValueChange={setDeptFilter}>
-            <SelectTrigger className="h-9 w-[180px] text-xs">
-              <SelectValue placeholder="All Departments" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Lahat ng Departamento (All Departments)</SelectItem>
-              {departments.map((d) => (
-                <SelectItem key={d.department_id} value={String(d.department_id)}>
-                  {d.department_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val as typeof statusFilter)}>
-            <SelectTrigger className="h-9 w-[130px] text-xs">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All Status</SelectItem>
-              <SelectItem value="ACTIVE">Active Lang</SelectItem>
-              <SelectItem value="HOLD">On-Hold Lang</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Main Cost-Sharing Payroll Register Table */}
-      <div className="rounded-xl border border-slate-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader className="bg-slate-50/90 dark:bg-gray-800/80 text-[11px]">
-              <TableRow>
-                <TableHead className="w-10 text-center">#</TableHead>
-                <TableHead>Kawani / Posisyon</TableHead>
-                <TableHead>Departamento</TableHead>
-                <TableHead className="text-right">Basic Pay</TableHead>
-                <TableHead className="text-right">PERA</TableHead>
-                <TableHead className="text-right font-semibold text-blue-700 dark:text-blue-400">
-                  GSIS (9%)
-                </TableHead>
-                <TableHead className="text-right font-semibold text-emerald-700 dark:text-emerald-400">
-                  PhilHealth (2.5%)
-                </TableHead>
-                <TableHead className="text-right font-semibold text-amber-700 dark:text-amber-400">
-                  Pag-IBIG
-                </TableHead>
-                <TableHead className="text-right font-bold text-red-600 dark:text-red-400">
-                  Total Bawas
-                </TableHead>
-                <TableHead className="text-right font-bold text-emerald-700 dark:text-emerald-400">
-                  Net Take-Home
-                </TableHead>
-                <TableHead className="text-right font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50/30 dark:bg-indigo-950/20">
-                  Sagot ng LGU
-                </TableHead>
-                <TableHead className="w-24 text-center">Status</TableHead>
-                <TableHead className="w-16 text-center">Aksyon</TableHead>
-              </TableRow>
-            </TableHeader>
-
-            <TableBody className="text-xs">
-              {filteredLines.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={13} className="py-12 text-center text-slate-500">
-                    Walang kawani na tumugma sa filter.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredLines.map((l, idx) => {
-                  return (
-                    <TableRow
-                      key={l.userId}
-                      className={`hover:bg-slate-50/70 dark:hover:bg-gray-800/40 border-b dark:border-gray-800 transition-colors ${
-                        l.isOnHold ? "opacity-60 bg-amber-50/30 dark:bg-amber-950/10" : ""
-                      }`}
-                    >
-                      <TableCell className="text-center font-mono text-[10px] text-slate-400">
-                        {idx + 1}
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="font-semibold text-slate-900 dark:text-gray-100">
-                          {l.employeeName}
-                        </div>
-                        <div className="text-[11px] text-slate-500 dark:text-gray-400">
-                          {l.position}
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="text-slate-600 dark:text-gray-300">
-                        {l.departmentName}
-                      </TableCell>
-
-                      <TableCell className="text-right font-mono tabular-nums">
-                        {formatPhp(l.basicPay)}
-                      </TableCell>
-
-                      <TableCell className="text-right font-mono tabular-nums text-slate-600 dark:text-gray-300">
-                        {formatPhp(l.peraAllowance)}
-                      </TableCell>
-
-                      <TableCell className="text-right font-mono tabular-nums font-medium text-blue-700 dark:text-blue-400">
-                        {formatPhp(l.statutory.gsisEmployee)}
-                      </TableCell>
-
-                      <TableCell className="text-right font-mono tabular-nums font-medium text-emerald-700 dark:text-emerald-400">
-                        {formatPhp(l.statutory.philhealthEmployee)}
-                      </TableCell>
-
-                      <TableCell className="text-right font-mono tabular-nums font-medium text-amber-700 dark:text-amber-400">
-                        {formatPhp(l.statutory.pagibigEmployee)}
-                      </TableCell>
-
-                      <TableCell className="text-right font-mono tabular-nums font-bold text-red-600 dark:text-red-400">
-                        {formatPhp(l.totalPersonalDeductions)}
-                      </TableCell>
-
-                      <TableCell className="text-right font-mono tabular-nums font-bold text-emerald-700 dark:text-emerald-400">
-                        {formatPhp(l.netPay)}
-                      </TableCell>
-
-                      <TableCell className="text-right font-mono tabular-nums font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50/30 dark:bg-indigo-950/20">
-                        {formatPhp(l.totalLguCounterpart)}
-                      </TableCell>
-
-                      <TableCell className="text-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onToggleHold(l.userId)}
-                          className={`h-7 px-2 text-[10px] font-semibold flex items-center gap-1 ${
-                            l.isOnHold
-                              ? "bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300"
-                              : "text-slate-600 hover:bg-slate-100"
-                          }`}
-                        >
-                          {l.isOnHold ? (
-                            <>
-                              <Lock className="h-3 w-3" />
-                              On-Hold
-                            </>
-                          ) : (
-                            <>
-                              <Unlock className="h-3 w-3 text-slate-400" />
-                              Active
-                            </>
-                          )}
-                        </Button>
-                      </TableCell>
-
-                      <TableCell className="text-center">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDetailLine(l)}
-                          className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          title="Tingnan ang Detalyadong Breakdown"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
+            <div className="flex items-center gap-2 flex-wrap">
+              {onRecompute && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onRecompute}
+                  className="text-xs h-9 flex items-center gap-1.5"
+                >
+                  <RefreshCcw className="h-3.5 w-3.5" />
+                  <span>Recompute</span>
+                </Button>
               )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+              <Button
+                onClick={onProceed}
+                disabled={isProcessing || summary.activeHeadcount === 0}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-9 flex items-center gap-1.5 px-4"
+              >
+                <span>Proceed to Process &amp; Review</span>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Filters Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Search name, position, salary grade, ID..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 text-xs h-9"
+              />
+            </div>
+
+            <Select value={deptFilter} onValueChange={setDeptFilter}>
+              <SelectTrigger className="text-xs h-9">
+                <SelectValue placeholder="All Departments" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Departments</SelectItem>
+                {departments.map((d) => (
+                  <SelectItem key={d.department_id} value={String(d.department_id)}>
+                    {d.department_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
+              <SelectTrigger className="text-xs h-9">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Status ({lines.length})</SelectItem>
+                <SelectItem value="ACTIVE">Active Only ({summary.activeHeadcount})</SelectItem>
+                <SelectItem value="HOLD">On-Hold Only ({summary.onHoldHeadcount})</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-slate-50 dark:bg-gray-800 text-[11px]">
+                <TableRow>
+                  <TableHead className="w-[85px] text-center">Status</TableHead>
+                  <TableHead className="min-w-[200px]">Personnel / Position</TableHead>
+                  <TableHead className="min-w-[130px]">Department</TableHead>
+                  <TableHead className="text-right">Monthly MBS</TableHead>
+                  <TableHead className="text-center">Days / Late</TableHead>
+                  <TableHead className="text-right">Cutoff Basic</TableHead>
+                  <TableHead className="text-right">PERA</TableHead>
+                  <TableHead className="text-right">Overtime / RATA</TableHead>
+                  <TableHead className="text-right">Gross Pay</TableHead>
+                  <TableHead className="text-right text-red-600">Deductions</TableHead>
+                  <TableHead className="text-right font-bold text-emerald-700">Net Pay</TableHead>
+                  <TableHead className="text-right font-bold text-indigo-700">LGU Share</TableHead>
+                  <TableHead className="text-center">Variance</TableHead>
+                  <TableHead className="w-[100px] text-center">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody className="text-xs">
+                {filteredLines.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={14} className="py-10 text-center text-slate-400">
+                      No personnel matching your search or filter.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredLines.map((l) => {
+                    return (
+                      <TableRow
+                        key={l.userId}
+                        className={`hover:bg-slate-50/70 dark:hover:bg-gray-800/40 border-b dark:border-gray-800 transition-colors ${
+                          l.isOnHold ? "opacity-60 bg-amber-50/30 dark:bg-amber-950/10" : ""
+                        }`}
+                      >
+                        {/* Status Switch */}
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Switch
+                              checked={!l.isOnHold}
+                              onCheckedChange={() => onToggleHold(l.userId)}
+                              title={l.isOnHold ? "Click to set Active" : "Click to place On-Hold"}
+                            />
+                            <span className="text-[10px] font-bold">
+                              {l.isOnHold ? (
+                                <span className="text-amber-600">HOLD</span>
+                              ) : (
+                                <span className="text-emerald-600">ACTIVE</span>
+                              )}
+                            </span>
+                          </div>
+                        </TableCell>
+
+                        {/* Personnel Name, Position & SG */}
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div>
+                              <div className="font-semibold text-slate-900 dark:text-gray-100 flex items-center gap-1.5">
+                                <span>{l.employeeName}</span>
+                                {l.salaryGrade && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 font-mono font-normal">
+                                    {l.salaryGrade}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-500 dark:text-gray-400 flex items-center gap-1">
+                                <span>{l.position}</span>
+                                <span className="text-slate-300">•</span>
+                                <span className="font-mono text-[10px]">{l.employeeNo}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        {/* Department */}
+                        <TableCell className="text-slate-600 dark:text-gray-300">
+                          {l.departmentName}
+                        </TableCell>
+
+                        {/* Monthly MBS */}
+                        <TableCell className="text-right font-mono tabular-nums text-slate-600 dark:text-gray-300">
+                          {formatPhp(l.monthlySalary)}
+                        </TableCell>
+
+                        {/* Days / Late */}
+                        <TableCell className="text-center font-mono tabular-nums">
+                          <div>{l.daysWorked} d</div>
+                          {l.lateMinutes > 0 && (
+                            <div className="text-[10px] text-red-500">+{l.lateMinutes}m</div>
+                          )}
+                        </TableCell>
+
+                        {/* Cutoff Basic Pay */}
+                        <TableCell className="text-right font-mono tabular-nums">
+                          {formatPhp(l.basicPay)}
+                        </TableCell>
+
+                        {/* PERA */}
+                        <TableCell className="text-right font-mono tabular-nums text-blue-700 dark:text-blue-400 font-medium">
+                          {formatPhp(l.peraAllowance)}
+                        </TableCell>
+
+                        {/* Overtime & RATA */}
+                        <TableCell className="text-right font-mono tabular-nums text-slate-600 dark:text-gray-300">
+                          {formatPhp(l.overtimePay + l.nightDiffPay + l.rataAllowance + l.hazardPay)}
+                        </TableCell>
+
+                        {/* Gross Pay */}
+                        <TableCell className="text-right font-mono tabular-nums font-semibold text-slate-900 dark:text-gray-100">
+                          {formatPhp(l.totalGrossPay)}
+                        </TableCell>
+
+                        {/* Deductions */}
+                        <TableCell className="text-right font-mono tabular-nums font-semibold text-red-600 dark:text-red-400">
+                          ({formatPhp(l.totalPersonalDeductions)})
+                        </TableCell>
+
+                        {/* Net Pay */}
+                        <TableCell className="text-right font-mono tabular-nums font-bold text-emerald-700 dark:text-emerald-400">
+                          {formatPhp(l.netPay)}
+                        </TableCell>
+
+                        {/* LGU Share */}
+                        <TableCell className="text-right font-mono tabular-nums font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50/20 dark:bg-indigo-950/10">
+                          {formatPhp(l.totalLguCounterpart)}
+                        </TableCell>
+
+                        {/* Variance */}
+                        <TableCell className="text-center">
+                          {l.variancePct != null ? (
+                            <span
+                              className={`text-[10px] font-mono font-semibold ${
+                                l.varianceFlag
+                                  ? "text-red-600 bg-red-50 dark:bg-red-950/30 px-1 py-0.5 rounded"
+                                  : "text-slate-500"
+                              }`}
+                            >
+                              {l.variancePct > 0 ? `+${l.variancePct}%` : `${l.variancePct}%`}
+                            </span>
+                          ) : (
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0">
+                              NEW
+                            </Badge>
+                          )}
+                        </TableCell>
+
+                        {/* Actions */}
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setActiveUserId(l.userId)}
+                              className="h-7 px-2 text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              <span>Details</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDownloadSinglePayslip(l.userId)}
+                              className="h-7 w-7 text-slate-500 hover:text-blue-600"
+                              title="Download Payslip"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Navigation Buttons */}
       <div className="flex items-center justify-between pt-2">
@@ -358,128 +458,30 @@ export default function LguPayrollAdjustStep({
           className="text-xs h-9 flex items-center gap-1.5"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span>Bumalik (Back)</span>
+          <span>Back to Configuration</span>
         </Button>
 
         <Button
           onClick={onProceed}
           disabled={isProcessing || summary.activeHeadcount === 0}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-9 flex items-center gap-1.5 px-5"
+          className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-9 flex items-center gap-1.5 px-6"
         >
-          <span>Ipasa sa Pagproseso (Process)</span>
+          <span>Proceed to Process &amp; Top Sheet</span>
           <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
 
-      {/* Itemized Detail Modal */}
-      <Dialog open={Boolean(detailLine)} onOpenChange={(open) => !open && setDetailLine(null)}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900 dark:text-gray-100 flex items-center gap-2">
-              <Landmark className="h-5 w-5 text-blue-600" />
-              <span>LGU Payroll Breakdown: {detailLine?.employeeName}</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              {detailLine?.position} • {detailLine?.departmentName}
-            </DialogDescription>
-          </DialogHeader>
-
-          {detailLine && (
-            <div className="space-y-4 py-2 text-xs">
-              {/* Earnings */}
-              <div className="rounded-lg bg-slate-50 dark:bg-gray-800/60 p-3 border border-slate-200 dark:border-gray-700 space-y-1.5">
-                <div className="font-bold text-slate-800 dark:text-gray-200 border-b border-slate-200 pb-1 flex justify-between">
-                  <span>Mga Sahod at Allowance (Earnings)</span>
-                  <span className="text-blue-700 font-mono">{formatPhp(detailLine.totalGrossPay)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Basic Pay (11 araw / 1st half):</span>
-                  <span className="font-mono">{formatPhp(detailLine.basicPay)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>PERA Allowance:</span>
-                  <span className="font-mono">{formatPhp(detailLine.peraAllowance)}</span>
-                </div>
-                {detailLine.overtimePay > 0 && (
-                  <div className="flex justify-between">
-                    <span>Overtime Pay:</span>
-                    <span className="font-mono">{formatPhp(detailLine.overtimePay)}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Personal Deductions vs LGU Share Comparison */}
-              <div className="rounded-lg bg-blue-50/50 dark:bg-blue-950/30 p-3 border border-blue-200 dark:border-blue-900/40 space-y-2">
-                <div className="font-bold text-blue-950 dark:text-blue-200 border-b border-blue-200 pb-1">
-                  Statutory Cost-Sharing Scheme (Hati ang LGU at Empleyado)
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 font-semibold text-[11px] text-slate-500 pb-0.5 border-b border-slate-200/60">
-                  <span>Ahensya</span>
-                  <span className="text-right text-blue-700">Personal (Bawas)</span>
-                  <span className="text-right text-emerald-700">LGU Share</span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 font-mono">
-                  <span className="font-sans font-medium text-slate-700 dark:text-gray-300">GSIS (9% vs 12%)</span>
-                  <span className="text-right text-blue-700 font-semibold">{formatPhp(detailLine.statutory.gsisEmployee)}</span>
-                  <span className="text-right text-emerald-700 font-semibold">{formatPhp(detailLine.statutory.gsisGovernment)}</span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 font-mono">
-                  <span className="font-sans font-medium text-slate-700 dark:text-gray-300">PhilHealth (2.5% vs 2.5%)</span>
-                  <span className="text-right text-blue-700 font-semibold">{formatPhp(detailLine.statutory.philhealthEmployee)}</span>
-                  <span className="text-right text-emerald-700 font-semibold">{formatPhp(detailLine.statutory.philhealthGovernment)}</span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 font-mono">
-                  <span className="font-sans font-medium text-slate-700 dark:text-gray-300">Pag-IBIG (DBM standard)</span>
-                  <span className="text-right text-blue-700 font-semibold">{formatPhp(detailLine.statutory.pagibigEmployee)}</span>
-                  <span className="text-right text-emerald-700 font-semibold">{formatPhp(detailLine.statutory.pagibigGovernment)}</span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 font-mono pt-1 border-t border-blue-200/70 font-bold">
-                  <span className="font-sans text-slate-900 dark:text-gray-100">Subtotal Statutory</span>
-                  <span className="text-right text-blue-800">{formatPhp(detailLine.statutory.totalEmployeeStatutory)}</span>
-                  <span className="text-right text-emerald-800">{formatPhp(detailLine.statutory.totalGovernmentStatutory)}</span>
-                </div>
-              </div>
-
-              {/* Net Take-Home vs LGU Budget Impact */}
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200">
-                  <div className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300">Netong Sahod (Kawani)</div>
-                  <div className="text-base font-bold text-emerald-700 dark:text-emerald-400 font-mono">
-                    {formatPhp(detailLine.netPay)}
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200">
-                  <div className="text-[11px] font-medium text-indigo-800 dark:text-indigo-300">Kabuuang Gastos ng LGU</div>
-                  <div className="text-base font-bold text-indigo-700 dark:text-indigo-400 font-mono">
-                    {formatPhp(detailLine.totalLguAppropriation)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDownloadDetailPayslip}
-              className="text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200 flex items-center gap-1.5"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>I-Download ang Payslip (PDF)</span>
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setDetailLine(null)} className="text-xs">
-              Isara (Close)
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Rich Employee Details Slide-out Sheet */}
+      <LguEmployeeDetailsSheet
+        open={activeUserId != null}
+        line={activeLine}
+        cutoff={cutoff}
+        payrollRefNo={payrollRefNo}
+        onClose={() => setActiveUserId(null)}
+        onAddAdjustment={onAddAdjustment}
+        onEditAdjustment={onEditAdjustment}
+        onDeleteAdjustment={onDeleteAdjustment}
+      />
     </div>
   );
 }

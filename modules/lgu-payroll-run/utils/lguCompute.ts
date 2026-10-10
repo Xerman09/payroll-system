@@ -5,6 +5,9 @@ import {
   LguPayrollSummary,
   LguDepartmentSummary,
   LguEmployeeStatutory,
+  LguLoanBreakdown,
+  LguAllowanceBreakdown,
+  LguManualAdjustment,
 } from "../types";
 
 export const PERA_PER_CUTOFF = 1000; // Standard Personnel Economic Relief Allowance (₱2,000/month = ₱1,000/cutoff)
@@ -15,19 +18,73 @@ export const PHILHEALTH_MIN_BASE = 10000;
 export const PHILHEALTH_MAX_BASE = 100000;
 export const PAGIBIG_STANDARD_SHARE = 200; // ₱200 each per DBM
 
-function round2(v: number): number {
+export function round2(v: number): number {
   return Math.round((v + Number.EPSILON) * 100) / 100;
 }
 
+export function formatPhp(amount: number): string {
+  const v = Number.isFinite(Number(amount)) ? Number(amount) : 0;
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(v);
+}
+
+// Salary Grade standard benchmark mapping (SSL V)
+export const SALARY_GRADE_TABLE: Record<number, { grade: string; monthly: number; description: string }> = {
+  1: { grade: "SG-1 Step 1", monthly: 14500, description: "Administrative Aide I" },
+  3: { grade: "SG-3 Step 1", monthly: 15800, description: "Administrative Aide III / Utility" },
+  4: { grade: "SG-4 Step 1", monthly: 16700, description: "Administrative Aide IV / Driver" },
+  6: { grade: "SG-6 Step 1", monthly: 18500, description: "Administrative Aide VI" },
+  8: { grade: "SG-8 Step 1", monthly: 20500, description: "Administrative Assistant II" },
+  10: { grade: "SG-10 Step 1", monthly: 23176, description: "Administrative Assistant IV" },
+  11: { grade: "SG-11 Step 1", monthly: 27000, description: "Administrative Officer I" },
+  14: { grade: "SG-14 Step 1", monthly: 33843, description: "Administrative Officer II" },
+  15: { grade: "SG-15 Step 1", monthly: 36619, description: "Nurse II / Social Welfare Officer II" },
+  16: { grade: "SG-16 Step 1", monthly: 39672, description: "Accountant I / Engineer I" },
+  18: { grade: "SG-18 Step 1", monthly: 46725, description: "Administrative Officer V / Division Chief" },
+  22: { grade: "SG-22 Step 1", monthly: 71511, description: "Assistant Department Head" },
+  24: { grade: "SG-24 Step 1", monthly: 90078, description: "City / Municipal Department Head I" },
+  26: { grade: "SG-26 Step 1", monthly: 116040, description: "City / Municipal Administrator" },
+};
+
+/**
+ * Infer a public sector salary grade from position title or existing salary
+ */
+export function inferSalaryGrade(position: string, salary: number): string {
+  const p = (position || "").toLowerCase();
+  if (p.includes("mayor") || p.includes("administrator")) return "SG-26 Step 1";
+  if (p.includes("head") || p.includes("director") || p.includes("treasurer") || p.includes("assessor")) return "SG-24 Step 1";
+  if (p.includes("assistant head") || p.includes("attorney")) return "SG-22 Step 1";
+  if (p.includes("chief") || p.includes("supervisor")) return "SG-18 Step 1";
+  if (p.includes("accountant") || p.includes("engineer") || p.includes("medical")) return "SG-16 Step 1";
+  if (p.includes("nurse") || p.includes("social welfare")) return "SG-15 Step 1";
+  if (p.includes("officer") || p.includes("specialist")) return "SG-11 Step 1";
+  if (p.includes("assistant") || p.includes("clerk")) return "SG-8 Step 1";
+  if (p.includes("aide") || p.includes("driver") || p.includes("utility")) return "SG-4 Step 1";
+
+  // Check by salary bracket
+  if (salary >= 80000) return "SG-24 Step 1";
+  if (salary >= 60000) return "SG-22 Step 1";
+  if (salary >= 45000) return "SG-18 Step 1";
+  if (salary >= 35000) return "SG-15 Step 1";
+  if (salary >= 25000) return "SG-11 Step 1";
+  if (salary >= 18000) return "SG-8 Step 1";
+  return "SG-4 Step 1";
+}
+
+/**
+ * Compute statutory contributions with government cost-sharing
+ */
 export function computeLguStatutory(
   monthlySalary: number,
-  cutoffType: "FIRST" | "SECOND" = "FIRST"
+  _cutoffType: "FIRST" | "SECOND" = "FIRST"
 ): LguEmployeeStatutory {
   const salary = Math.max(0, monthlySalary || 0);
 
-  // In government payroll, statutory contributions are computed monthly.
-  // When deducted per cutoff (or split 50/50):
-  // GSIS: 9% personal / 12% government
+  // GSIS: 9% personal / 12% government (total 21%)
   const monthlyGsisEmployee = round2(salary * GSIS_EMPLOYEE_RATE);
   const monthlyGsisGovernment = round2(salary * GSIS_GOVERNMENT_RATE);
 
@@ -36,7 +93,7 @@ export function computeLguStatutory(
   const monthlyPhEmployee = round2(phBase * PHILHEALTH_RATE);
   const monthlyPhGovernment = round2(phBase * PHILHEALTH_RATE);
 
-  // Pag-IBIG: ₱200 personal / ₱200 government
+  // Pag-IBIG: ₱200 personal / ₱200 government per DBM circular
   let monthlyPagibigEmployee = PAGIBIG_STANDARD_SHARE;
   let monthlyPagibigGovernment = PAGIBIG_STANDARD_SHARE;
   if (salary > 0 && salary < 1500) {
@@ -44,7 +101,7 @@ export function computeLguStatutory(
     monthlyPagibigGovernment = round2(salary * 0.02);
   }
 
-  // Deduct 50% per cutoff
+  // Deduct 50% per cutoff for bi-monthly payroll
   const gsisEmployee = round2(monthlyGsisEmployee / 2);
   const gsisGovernment = round2(monthlyGsisGovernment / 2);
   const gsisTotal = round2(gsisEmployee + gsisGovernment);
@@ -77,125 +134,329 @@ export function computeLguStatutory(
   };
 }
 
-export function computeLguLine(raw: {
+/**
+ * Compute semi-monthly withholding tax based on TRAIN Law revised withholding tax table
+ */
+export function computeSemiMonthlyTax(taxableIncome: number): number {
+  const ti = Math.max(0, taxableIncome || 0);
+
+  // Semi-Monthly Tax Table:
+  // 1. Up to ₱10,417: 0.00
+  // 2. ₱10,417 - ₱16,667: 15% of excess over ₱10,417
+  // 3. ₱16,667 - ₱33,333: ₱937.50 + 20% of excess over ₱16,667
+  // 4. ₱33,333 - ₱83,333: ₱4,270.83 + 25% of excess over ₱33,333
+  // 5. ₱83,333 - ₱333,333: ₱16,770.83 + 30% of excess over ₱83,333
+  // 6. Above ₱333,333: ₱91,770.83 + 35% of excess over ₱333,333
+
+  if (ti <= 10417) return 0;
+  if (ti <= 16667) return round2((ti - 10417) * 0.15);
+  if (ti <= 33333) return round2(937.5 + (ti - 16667) * 0.2);
+  if (ti <= 83333) return round2(4270.83 + (ti - 33333) * 0.25);
+  if (ti <= 333333) return round2(16770.83 + (ti - 83333) * 0.3);
+  return round2(91770.83 + (ti - 333333) * 0.35);
+}
+
+export interface ComputeLguLineParams {
   userId: number;
+  employeeNo?: string;
   employeeName: string;
   departmentId: number | null;
   departmentName: string;
   position: string;
+  salaryGrade?: string;
+  employmentStatus?: string;
   monthlySalary: number;
+
+  // Attendance & Timekeeping
   daysWorked?: number;
+  standardCutoffDays?: number;
+  absentDays?: number;
   lateMinutes?: number;
   undertimeMinutes?: number;
+
+  // Earnings & Allowances
+  overtimeHours?: number;
   overtimePay?: number;
+  nightDiffPay?: number;
+  rataAllowance?: number;
+  hazardPay?: number;
   otherAllowances?: number;
+  allowancesBreakdown?: LguAllowanceBreakdown[];
+
+  // Loans
   gsisLoan?: number;
   pagibigLoan?: number;
-  taxWithholding?: number;
+  gsisLoansBreakdown?: LguLoanBreakdown[];
+  pagibigLoansBreakdown?: LguLoanBreakdown[];
+
+  // Institutional Deductions
+  coopDeduction?: number;
+  unionDues?: number;
+  disallowanceDeduction?: number;
   otherDeductions?: number;
+
+  // Custom adjustments
+  manualAdditions?: LguManualAdjustment[];
+  manualDeductions?: LguManualAdjustment[];
+
+  taxWithholding?: number;
+  previousNetPay?: number;
   isOnHold?: boolean;
+  remarks?: string;
   cutoffType?: "FIRST" | "SECOND";
-}): LguPayrollLine {
+}
+
+export function computeLguLine(raw: ComputeLguLineParams): LguPayrollLine {
   const monthlySalary = Math.max(0, raw.monthlySalary || 0);
   const cutoffType = raw.cutoffType || "FIRST";
 
-  // Public sector standard: 22 working days per month, 11 per cutoff
-  const standardCutoffDays = 11;
-  const daysWorked = raw.daysWorked != null ? raw.daysWorked : standardCutoffDays;
+  // Civil Service Commission standard: 22 working days per month = 11 days per cutoff
+  const standardCutoffDays = raw.standardCutoffDays || 11;
+  const daysWorked = raw.daysWorked != null ? Math.min(raw.daysWorked, standardCutoffDays) : standardCutoffDays;
+  const absentDays = raw.absentDays != null ? raw.absentDays : Math.max(0, standardCutoffDays - daysWorked);
+
   const dailyRate = round2(monthlySalary / 22);
   const hourlyRate = round2(dailyRate / 8);
-  const minuteRate = hourlyRate / 60;
+  const minuteRate = round2(hourlyRate / 60);
 
-  // Basic Pay for cutoff (prorated by days worked if less than standard)
-  const basicPay = round2(daysWorked >= standardCutoffDays ? monthlySalary / 2 : daysWorked * dailyRate);
+  // Cutoff Basic Pay (prorated by days worked if absences exist)
+  const absentDeduction = round2(absentDays * dailyRate);
+  const basicPay = round2(daysWorked >= standardCutoffDays ? monthlySalary / 2 : Math.max(0, (monthlySalary / 2) - absentDeduction));
 
-  // Allowances: PERA is ₱1,000 per cutoff for active employees
-  const peraAllowance = daysWorked > 0 ? PERA_PER_CUTOFF : 0;
-  const otherAllowances = round2(raw.otherAllowances || 0);
-  const overtimePay = round2(raw.overtimePay || 0);
-
-  const totalGrossPay = round2(basicPay + peraAllowance + otherAllowances + overtimePay);
-
-  // CSC Tardiness & Undertime deductions
+  // Civil Service Commission Tardiness & Undertime Deductions
   const lateMinutes = Math.max(0, raw.lateMinutes || 0);
   const undertimeMinutes = Math.max(0, raw.undertimeMinutes || 0);
   const lateDeduction = round2(lateMinutes * minuteRate);
   const undertimeDeduction = round2(undertimeMinutes * minuteRate);
 
-  // Statutory cost-sharing
+  // Mandated Public Sector Allowances
+  // PERA: Personnel Economic Relief Allowance (₱1,000 / cutoff for active personnel)
+  const peraAllowance = daysWorked > 0 ? PERA_PER_CUTOFF : 0;
+
+  // RATA (Representation & Transportation Allowance): typically for SG-18+ or Dept Heads
+  let rataAllowance = round2(raw.rataAllowance || 0);
+  const posLower = (raw.position || "").toLowerCase();
+  const deptLower = (raw.departmentName || "").toLowerCase();
+
+  if (rataAllowance === 0) {
+    if (posLower.includes("head") || posLower.includes("director") || posLower.includes("mayor")) {
+      rataAllowance = 4500; // ₱9,000/mo = ₱4,500/cutoff
+    } else if (posLower.includes("assistant head") || posLower.includes("chief")) {
+      rataAllowance = 2500; // ₱5,000/mo = ₱2,500/cutoff
+    }
+  }
+
+  // Magna Carta / Hazard Pay (Health Office personnel, DRRMO, etc.)
+  let hazardPay = round2(raw.hazardPay || 0);
+  if (hazardPay === 0) {
+    if (deptLower.includes("health") || posLower.includes("nurse") || posLower.includes("medical") || deptLower.includes("disaster") || deptLower.includes("drrm")) {
+      hazardPay = round2(basicPay * 0.15); // 15% Hazard pay for public health workers
+    }
+  }
+
+  // Overtime & Night Shift Differential
+  const overtimeHours = Math.max(0, raw.overtimeHours || 0);
+  const overtimePay = raw.overtimePay != null ? round2(raw.overtimePay) : round2(overtimeHours * hourlyRate * 1.25);
+  const nightDiffPay = round2(raw.nightDiffPay || 0);
+
+  // Other Allowances
+  const otherAllowances = round2(raw.otherAllowances || 0);
+  const allowancesBreakdown: LguAllowanceBreakdown[] = raw.allowancesBreakdown && raw.allowancesBreakdown.length > 0
+    ? raw.allowancesBreakdown
+    : [
+        { name: "PERA (DBM Mandated)", amount: peraAllowance, isTaxable: false },
+        ...(rataAllowance > 0 ? [{ name: "RATA (Representation & Transport)", amount: rataAllowance, isTaxable: false }] : []),
+        ...(hazardPay > 0 ? [{ name: "Hazard Pay (Magna Carta)", amount: hazardPay, isTaxable: false }] : []),
+        ...(otherAllowances > 0 ? [{ name: "Other General Allowance", amount: otherAllowances, isTaxable: true }] : []),
+      ];
+
+  // Manual Custom Additions
+  const manualAdditions = Array.isArray(raw.manualAdditions) ? raw.manualAdditions : [];
+  const manualAdditionsTotal = round2(manualAdditions.reduce((sum, a) => sum + (Number(a.amount) || 0), 0));
+
+  // Total Gross Pay
+  const totalGrossPay = round2(
+    basicPay +
+    peraAllowance +
+    rataAllowance +
+    hazardPay +
+    overtimePay +
+    nightDiffPay +
+    otherAllowances +
+    manualAdditionsTotal
+  );
+
+  // Statutory Cost Sharing (GSIS, PhilHealth, Pag-IBIG)
   const statutory = computeLguStatutory(monthlySalary, cutoffType);
 
-  // Government Loans & Taxes
-  const gsisLoan = round2(raw.gsisLoan || 0);
-  const pagibigLoan = round2(raw.pagibigLoan || 0);
-  const taxWithholding = round2(raw.taxWithholding || 0);
+  // Taxable Income Calculation (Gross minus tax-exempt PERA and mandatory GSIS/PhilHealth/PagIBIG employee shares)
+  const taxableIncome = Math.max(0, round2(totalGrossPay - peraAllowance - statutory.totalEmployeeStatutory));
+  const taxWithholding = raw.taxWithholding != null && raw.taxWithholding >= 0
+    ? round2(raw.taxWithholding)
+    : computeSemiMonthlyTax(taxableIncome);
+
+  // Itemized Government Loans
+  const gsisLoansBreakdown: LguLoanBreakdown[] = Array.isArray(raw.gsisLoansBreakdown) && raw.gsisLoansBreakdown.length > 0
+    ? raw.gsisLoansBreakdown
+    : raw.gsisLoan && raw.gsisLoan > 0
+      ? [{ loanType: "GSIS Conso-Loan", amount: raw.gsisLoan, balance: raw.gsisLoan * 12 }]
+      : [];
+
+  const pagibigLoansBreakdown: LguLoanBreakdown[] = Array.isArray(raw.pagibigLoansBreakdown) && raw.pagibigLoansBreakdown.length > 0
+    ? raw.pagibigLoansBreakdown
+    : raw.pagibigLoan && raw.pagibigLoan > 0
+      ? [{ loanType: "Pag-IBIG Multi-Purpose Loan (MPL)", amount: raw.pagibigLoan, balance: raw.pagibigLoan * 10 }]
+      : [];
+
+  const gsisLoan = round2(gsisLoansBreakdown.reduce((sum, l) => sum + (Number(l.amount) || 0), 0));
+  const pagibigLoan = round2(pagibigLoansBreakdown.reduce((sum, l) => sum + (Number(l.amount) || 0), 0));
+
+  // Institutional Deductions
+  const coopDeduction = round2(raw.coopDeduction || 0);
+  const unionDues = round2(raw.unionDues || 0);
+  const disallowanceDeduction = round2(raw.disallowanceDeduction || 0);
   const otherDeductions = round2(raw.otherDeductions || 0);
 
+  // Manual Custom Deductions
+  const manualDeductions = Array.isArray(raw.manualDeductions) ? raw.manualDeductions : [];
+  const manualDeductionsTotal = round2(manualDeductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0));
+
+  // Total Personal Deductions
   const totalPersonalDeductions = round2(
     lateDeduction +
     undertimeDeduction +
     statutory.totalEmployeeStatutory +
+    taxWithholding +
     gsisLoan +
     pagibigLoan +
-    taxWithholding +
-    otherDeductions
+    coopDeduction +
+    unionDues +
+    disallowanceDeduction +
+    otherDeductions +
+    manualDeductionsTotal
   );
 
+  // Net Take-Home Pay
   const netPay = round2(Math.max(0, totalGrossPay - totalPersonalDeductions));
 
-  // Government / LGU Counterpart (Sagot ng LGU)
+  // Variance % Calculation
+  const previousNetPay = raw.previousNetPay != null ? raw.previousNetPay : (basicPay + peraAllowance - statutory.totalEmployeeStatutory);
+  let variancePct: number | null = null;
+  let varianceFlag = false;
+
+  if (previousNetPay > 0) {
+    variancePct = round2(((netPay - previousNetPay) / previousNetPay) * 100);
+    // Flag if variance > 10% or < -10%
+    if (Math.abs(variancePct) >= 10) {
+      varianceFlag = true;
+    }
+  }
+
+  // LGU Counterpart (Sagot ng Pamahalaang Lokal)
   const lguGsisShare = statutory.gsisGovernment;
   const lguPhilhealthShare = statutory.philhealthGovernment;
   const lguPagibigShare = statutory.pagibigGovernment;
   const totalLguCounterpart = statutory.totalGovernmentStatutory;
 
-  // Total LGU Appropriation (Gross Pay + LGU Counterpart)
+  // Total Public Fund Appropriation Required (Gross Pay + LGU Counterpart)
   const totalLguAppropriation = round2(totalGrossPay + totalLguCounterpart);
+
+  // Inferred Salary Grade
+  const salaryGrade = raw.salaryGrade || inferSalaryGrade(raw.position, monthlySalary);
 
   return {
     userId: raw.userId,
+    employeeNo: raw.employeeNo || `LGU-${String(raw.userId).padStart(5, "0")}`,
     employeeName: raw.employeeName,
     departmentId: raw.departmentId,
     departmentName: raw.departmentName,
     position: raw.position,
+    salaryGrade,
+    employmentStatus: raw.employmentStatus || (monthlySalary >= 40000 ? "PERMANENT" : "CASUAL"),
+
     monthlySalary,
     dailyRate,
+    hourlyRate,
+    minuteRate,
+    standardCutoffDays,
     daysWorked,
+    absentDays,
+    absentDeduction,
     lateMinutes,
+    lateDeduction,
     undertimeMinutes,
+    undertimeDeduction,
+
     basicPay,
     peraAllowance,
-    otherAllowances,
+    rataAllowance,
+    hazardPay,
+    overtimeHours,
     overtimePay,
+    nightDiffPay,
+    otherAllowances,
+    allowancesBreakdown,
     totalGrossPay,
-    lateDeduction,
-    undertimeDeduction,
+
     statutory,
+    taxWithholding,
+    taxableIncome,
+
     gsisLoan,
     pagibigLoan,
-    taxWithholding,
+    gsisLoansBreakdown,
+    pagibigLoansBreakdown,
+
+    coopDeduction,
+    unionDues,
+    disallowanceDeduction,
     otherDeductions,
+
+    manualAdditions,
+    manualDeductions,
+
     totalPersonalDeductions,
     netPay,
+    previousNetPay,
+    variancePct,
+    varianceFlag,
+
     lguGsisShare,
     lguPhilhealthShare,
     lguPagibigShare,
     totalLguCounterpart,
     totalLguAppropriation,
+
     isOnHold: Boolean(raw.isOnHold),
+    remarks: raw.remarks,
   };
 }
 
+/**
+ * Aggregates summary across all LGU payroll lines
+ */
 export function computeLguSummary(lines: LguPayrollLine[]): LguPayrollSummary {
+  const activeLines = lines.filter((l) => !l.isOnHold);
+
+  const totalHeadcount = lines.length;
+  const activeHeadcount = activeLines.length;
+  const onHoldHeadcount = totalHeadcount - activeHeadcount;
+
   let totalBasicPay = 0;
   let totalPeraAllowance = 0;
+  let totalRataAllowance = 0;
+  let totalHazardPay = 0;
+  let totalOvertimePay = 0;
+  let totalOtherAllowances = 0;
   let totalGrossPay = 0;
 
+  let totalTardinessDeductions = 0;
   let totalGsisEmployee = 0;
   let totalPhilhealthEmployee = 0;
   let totalPagibigEmployee = 0;
   let totalLoans = 0;
   let totalTaxes = 0;
+  let totalOtherDeductions = 0;
   let totalPersonalDeductions = 0;
 
   let totalNetPay = 0;
@@ -204,85 +465,126 @@ export function computeLguSummary(lines: LguPayrollLine[]): LguPayrollSummary {
   let totalPhilhealthGovernment = 0;
   let totalPagibigGovernment = 0;
   let totalLguCounterpart = 0;
-
   let grandTotalAppropriation = 0;
 
-  let activeCount = 0;
-  let onHoldCount = 0;
+  let varianceAlerts = 0;
 
-  const deptMap = new Map<string, LguDepartmentSummary>();
+  // Department aggregation map
+  const deptMap = new Map<string, {
+    departmentId: number | null;
+    departmentName: string;
+    headcount: number;
+    totalBasicPay: number;
+    totalPera: number;
+    totalRata: number;
+    totalOvertime: number;
+    totalGrossPay: number;
+    totalPersonalDeductions: number;
+    totalNetPay: number;
+    totalLguCounterpart: number;
+    totalAppropriation: number;
+  }>();
 
   for (const line of lines) {
-    if (line.isOnHold) {
-      onHoldCount++;
-      continue;
+    if (line.varianceFlag) {
+      varianceAlerts += 1;
     }
 
-    activeCount++;
-
-    totalBasicPay += line.basicPay;
-    totalPeraAllowance += line.peraAllowance;
-    totalGrossPay += line.totalGrossPay;
-
-    totalGsisEmployee += line.statutory.gsisEmployee;
-    totalPhilhealthEmployee += line.statutory.philhealthEmployee;
-    totalPagibigEmployee += line.statutory.pagibigEmployee;
-    totalLoans += line.gsisLoan + line.pagibigLoan;
-    totalTaxes += line.taxWithholding;
-    totalPersonalDeductions += line.totalPersonalDeductions;
-
-    totalNetPay += line.netPay;
-
-    totalGsisGovernment += line.lguGsisShare;
-    totalPhilhealthGovernment += line.lguPhilhealthShare;
-    totalPagibigGovernment += line.lguPagibigShare;
-    totalLguCounterpart += line.totalLguCounterpart;
-
-    grandTotalAppropriation += line.totalLguAppropriation;
-
-    // Department grouping
-    const deptKey = line.departmentName || "General Administrative Services";
-    let d = deptMap.get(deptKey);
-    if (!d) {
-      d = {
+    const dKey = line.departmentName || "General Administration";
+    if (!deptMap.has(dKey)) {
+      deptMap.set(dKey, {
         departmentId: line.departmentId,
-        departmentName: deptKey,
+        departmentName: dKey,
         headcount: 0,
         totalBasicPay: 0,
         totalPera: 0,
+        totalRata: 0,
+        totalOvertime: 0,
         totalGrossPay: 0,
         totalPersonalDeductions: 0,
         totalNetPay: 0,
         totalLguCounterpart: 0,
         totalAppropriation: 0,
-      };
-      deptMap.set(deptKey, d);
+      });
     }
 
-    d.headcount += 1;
-    d.totalBasicPay += line.basicPay;
-    d.totalPera += line.peraAllowance;
-    d.totalGrossPay += line.totalGrossPay;
-    d.totalPersonalDeductions += line.totalPersonalDeductions;
-    d.totalNetPay += line.netPay;
-    d.totalLguCounterpart += line.totalLguCounterpart;
-    d.totalAppropriation += line.totalLguAppropriation;
+    const deptObj = deptMap.get(dKey)!;
+    deptObj.headcount += 1;
+
+    // Only add active employees to the monetary totals
+    if (!line.isOnHold) {
+      totalBasicPay += line.basicPay;
+      totalPeraAllowance += line.peraAllowance;
+      totalRataAllowance += line.rataAllowance;
+      totalHazardPay += line.hazardPay;
+      totalOvertimePay += (line.overtimePay + line.nightDiffPay);
+      totalOtherAllowances += line.otherAllowances;
+      totalGrossPay += line.totalGrossPay;
+
+      totalTardinessDeductions += (line.lateDeduction + line.undertimeDeduction);
+      totalGsisEmployee += line.statutory.gsisEmployee;
+      totalPhilhealthEmployee += line.statutory.philhealthEmployee;
+      totalPagibigEmployee += line.statutory.pagibigEmployee;
+      totalLoans += (line.gsisLoan + line.pagibigLoan);
+      totalTaxes += line.taxWithholding;
+      totalOtherDeductions += (line.coopDeduction + line.unionDues + line.disallowanceDeduction + line.otherDeductions);
+      totalPersonalDeductions += line.totalPersonalDeductions;
+
+      totalNetPay += line.netPay;
+
+      totalGsisGovernment += line.statutory.gsisGovernment;
+      totalPhilhealthGovernment += line.statutory.philhealthGovernment;
+      totalPagibigGovernment += line.statutory.pagibigGovernment;
+      totalLguCounterpart += line.totalLguCounterpart;
+      grandTotalAppropriation += line.totalLguAppropriation;
+
+      deptObj.totalBasicPay += line.basicPay;
+      deptObj.totalPera += line.peraAllowance;
+      deptObj.totalRata += line.rataAllowance;
+      deptObj.totalOvertime += (line.overtimePay + line.nightDiffPay);
+      deptObj.totalGrossPay += line.totalGrossPay;
+      deptObj.totalPersonalDeductions += line.totalPersonalDeductions;
+      deptObj.totalNetPay += line.netPay;
+      deptObj.totalLguCounterpart += line.totalLguCounterpart;
+      deptObj.totalAppropriation += line.totalLguAppropriation;
+    }
   }
 
+  const departmentSummaries: LguDepartmentSummary[] = Array.from(deptMap.values()).map((d) => ({
+    departmentId: d.departmentId,
+    departmentName: d.departmentName,
+    headcount: d.headcount,
+    totalBasicPay: round2(d.totalBasicPay),
+    totalPera: round2(d.totalPera),
+    totalRata: round2(d.totalRata),
+    totalOvertime: round2(d.totalOvertime),
+    totalGrossPay: round2(d.totalGrossPay),
+    totalPersonalDeductions: round2(d.totalPersonalDeductions),
+    totalNetPay: round2(d.totalNetPay),
+    totalLguCounterpart: round2(d.totalLguCounterpart),
+    totalAppropriation: round2(d.totalAppropriation),
+  }));
+
   return {
-    totalHeadcount: lines.length,
-    activeHeadcount: activeCount,
-    onHoldHeadcount: onHoldCount,
+    totalHeadcount,
+    activeHeadcount,
+    onHoldHeadcount,
 
     totalBasicPay: round2(totalBasicPay),
     totalPeraAllowance: round2(totalPeraAllowance),
+    totalRataAllowance: round2(totalRataAllowance),
+    totalHazardPay: round2(totalHazardPay),
+    totalOvertimePay: round2(totalOvertimePay),
+    totalOtherAllowances: round2(totalOtherAllowances),
     totalGrossPay: round2(totalGrossPay),
 
+    totalTardinessDeductions: round2(totalTardinessDeductions),
     totalGsisEmployee: round2(totalGsisEmployee),
     totalPhilhealthEmployee: round2(totalPhilhealthEmployee),
     totalPagibigEmployee: round2(totalPagibigEmployee),
     totalLoans: round2(totalLoans),
     totalTaxes: round2(totalTaxes),
+    totalOtherDeductions: round2(totalOtherDeductions),
     totalPersonalDeductions: round2(totalPersonalDeductions),
 
     totalNetPay: round2(totalNetPay),
@@ -293,24 +595,7 @@ export function computeLguSummary(lines: LguPayrollLine[]): LguPayrollSummary {
     totalLguCounterpart: round2(totalLguCounterpart),
 
     grandTotalAppropriation: round2(grandTotalAppropriation),
-
-    departmentSummaries: Array.from(deptMap.values()).map((d) => ({
-      ...d,
-      totalBasicPay: round2(d.totalBasicPay),
-      totalPera: round2(d.totalPera),
-      totalGrossPay: round2(d.totalGrossPay),
-      totalPersonalDeductions: round2(d.totalPersonalDeductions),
-      totalNetPay: round2(d.totalNetPay),
-      totalLguCounterpart: round2(d.totalLguCounterpart),
-      totalAppropriation: round2(d.totalAppropriation),
-    })),
+    varianceAlerts,
+    departmentSummaries,
   };
-}
-
-export function formatPhp(val: number): string {
-  if (!Number.isFinite(val)) return "₱0.00";
-  return `₱${val.toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
 }

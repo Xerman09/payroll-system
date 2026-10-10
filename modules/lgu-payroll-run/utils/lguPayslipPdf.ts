@@ -1,6 +1,7 @@
 // modules/lgu-payroll-run/utils/lguPayslipPdf.ts
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { format, parseISO } from "date-fns";
 import type { LguPayrollLine, CutoffSetting } from "../types";
 
 function money(v: number): string {
@@ -8,6 +9,17 @@ function money(v: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function formatDateSafe(dateStr?: string | null): string {
+  if (!dateStr) return "—";
+  try {
+    const d = typeof dateStr === "string" && dateStr.includes("T") ? parseISO(dateStr) : new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    return format(d, "MMM dd, yyyy");
+  } catch {
+    return String(dateStr);
+  }
 }
 
 export interface GenerateLguPayslipArgs {
@@ -30,7 +42,7 @@ export async function downloadLguPayslipsPdf({
     : lines.filter((l) => !l.isOnHold);
 
   if (targetLines.length === 0) {
-    throw new Error("Walang payslip na mada-download (lahat ay naka-on-hold o walang napili).");
+    throw new Error("No payslips available to download (all records may be on hold or none selected).");
   }
 
   // Use A4 portrait: 210mm x 297mm
@@ -41,7 +53,7 @@ export async function downloadLguPayslipsPdf({
   });
 
   const periodStr = cutoff
-    ? `${cutoff.cutoff_type} CUTOFF (${cutoff.start_date} to ${cutoff.end_date})`
+    ? `${cutoff.cutoff_type} CUTOFF (${formatDateSafe(cutoff.start_date)} to ${formatDateSafe(cutoff.end_date)})`
     : "REGULAR CUTOFF";
 
   targetLines.forEach((line, index) => {
@@ -70,21 +82,21 @@ export async function downloadLguPayslipsPdf({
     // Box border around employee info
     doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(0.3);
-    doc.roundedRect(14, 28, 182, 22, 2, 2);
+    doc.roundedRect(14, 28, 182, 24, 2, 2);
 
-    doc.text("Kawani / Name:", 18, 34);
+    doc.text("Personnel Name:", 18, 34);
     doc.setFont("helvetica", "normal");
     doc.text(line.employeeName.toUpperCase(), 48, 34);
 
     doc.setFont("helvetica", "bold");
-    doc.text("Departamento:", 18, 40);
+    doc.text("Department:", 18, 40);
     doc.setFont("helvetica", "normal");
     doc.text(line.departmentName, 48, 40);
 
     doc.setFont("helvetica", "bold");
-    doc.text("Posisyon / Title:", 18, 46);
+    doc.text("Position & Grade:", 18, 46);
     doc.setFont("helvetica", "normal");
-    doc.text(line.position, 48, 46);
+    doc.text(`${line.position} (${line.salaryGrade || "SG-11 Step 1"})`, 48, 46);
 
     doc.setFont("helvetica", "bold");
     doc.text("Payroll Ref:", 120, 34);
@@ -92,18 +104,67 @@ export async function downloadLguPayslipsPdf({
     doc.text(payrollRefNo, 145, 34);
 
     doc.setFont("helvetica", "bold");
-    doc.text("Panahon / Cutoff:", 120, 40);
+    doc.text("Cutoff Period:", 120, 40);
     doc.setFont("helvetica", "normal");
     doc.text(periodStr, 145, 40);
 
     doc.setFont("helvetica", "bold");
-    doc.text("Araw ng Pasok:", 120, 46);
+    doc.text("Attendance / Tardiness:", 120, 46);
     doc.setFont("helvetica", "normal");
-    doc.text(`${line.daysWorked} Araw (Late: ${line.lateMinutes} min)`, 145, 46);
+    doc.text(`${line.daysWorked} Days (Late: ${line.lateMinutes}m)`, 156, 46);
+
+    // Build earnings rows
+    const earningsRows: [string, string][] = [
+      ["Monthly Basic Salary", money(line.monthlySalary)],
+      ["Cutoff Basic Pay", money(line.basicPay)],
+      ["PERA Allowance (DBM Mandate)", money(line.peraAllowance)],
+    ];
+    if (line.rataAllowance > 0) earningsRows.push(["RATA Allowance", money(line.rataAllowance)]);
+    if (line.hazardPay > 0) earningsRows.push(["Hazard Pay (Magna Carta)", money(line.hazardPay)]);
+    if (line.overtimePay > 0) earningsRows.push(["Overtime & Night Diff", money(line.overtimePay + line.nightDiffPay)]);
+    if (line.otherAllowances > 0) earningsRows.push(["Other Authorized Allowances", money(line.otherAllowances)]);
+    for (const add of line.manualAdditions) {
+      earningsRows.push([add.description, money(add.amount)]);
+    }
+
+    // Build deductions rows
+    const deductionsRows: [string, string][] = [
+      ["GSIS Personal Share (9%)", money(line.statutory.gsisEmployee)],
+      ["PhilHealth Personal Share (2.5%)", money(line.statutory.philhealthEmployee)],
+      ["Pag-IBIG Personal Contribution", money(line.statutory.pagibigEmployee)],
+    ];
+    if (line.gsisLoan > 0) deductionsRows.push(["GSIS Salary Loans", money(line.gsisLoan)]);
+    if (line.pagibigLoan > 0) deductionsRows.push(["Pag-IBIG MPL / Calamity Loans", money(line.pagibigLoan)]);
+    if (line.taxWithholding > 0) deductionsRows.push(["Withholding Tax (BIR Form 1601-C)", money(line.taxWithholding)]);
+    if (line.lateDeduction + line.undertimeDeduction > 0) {
+      deductionsRows.push(["CSC Tardiness / Undertime Deductions", money(line.lateDeduction + line.undertimeDeduction)]);
+    }
+    if (line.coopDeduction + line.unionDues > 0) {
+      deductionsRows.push(["Coop / Union Dues", money(line.coopDeduction + line.unionDues)]);
+    }
+    for (const ded of line.manualDeductions) {
+      deductionsRows.push([ded.description, money(ded.amount)]);
+    }
+
+    // Pad arrays so table rows align nicely
+    const maxRows = Math.max(earningsRows.length, deductionsRows.length);
+    const tableBody: any[] = [];
+    for (let r = 0; r < maxRows; r++) {
+      const e = earningsRows[r] || ["", ""];
+      const d = deductionsRows[r] || ["", ""];
+      tableBody.push([e[0], e[1], d[0], d[1]]);
+    }
+
+    tableBody.push([
+      { content: "TOTAL GROSS COMPENSATION", styles: { fontStyle: "bold", fillColor: [241, 245, 249] } },
+      { content: money(line.totalGrossPay), styles: { fontStyle: "bold", fillColor: [241, 245, 249] } },
+      { content: "TOTAL PERSONAL DEDUCTIONS", styles: { fontStyle: "bold", fillColor: [254, 242, 242] } },
+      { content: money(line.totalPersonalDeductions), styles: { fontStyle: "bold", textColor: [220, 38, 38], fillColor: [254, 242, 242] } },
+    ]);
 
     // Detailed Earnings & Deductions Table
     autoTable(doc, {
-      startY: 53,
+      startY: 55,
       theme: "grid",
       headStyles: {
         fillColor: [51, 65, 85],
@@ -115,22 +176,8 @@ export async function downloadLguPayslipsPdf({
         fontSize: 7.5,
         cellPadding: 2,
       },
-      head: [["MGA KINITA (EARNINGS)", "HALAGA", "MGA BAWAS (PERSONAL DEDUCTIONS)", "HALAGA"]],
-      body: [
-        ["Monthly Basic Salary", money(line.monthlySalary), "GSIS Personal Share (9%)", money(line.statutory.gsisEmployee)],
-        ["Cutoff Basic Pay", money(line.basicPay), "PhilHealth Personal Share (2.5%)", money(line.statutory.philhealthEmployee)],
-        ["PERA Allowance", money(line.peraAllowance), "Pag-IBIG Personal Contribution", money(line.statutory.pagibigEmployee)],
-        ["Overtime Pay", money(line.overtimePay), "GSIS Salary Loan", money(line.gsisLoan)],
-        ["Iba pang Allowance", money(line.otherAllowances), "Pag-IBIG Calamity/MPL Loan", money(line.pagibigLoan)],
-        ["", "", "Tardy / Undertime Bawas", money(line.lateDeduction + line.undertimeDeduction)],
-        ["", "", "Withholding Tax (BIR)", money(line.taxWithholding)],
-        [
-          { content: "KABUUANG KINITA (GROSS PAY)", styles: { fontStyle: "bold", fillColor: [241, 245, 249] } },
-          { content: money(line.totalGrossPay), styles: { fontStyle: "bold", fillColor: [241, 245, 249] } },
-          { content: "KABUUANG BAWAS (TOTAL DEDUCTIONS)", styles: { fontStyle: "bold", fillColor: [254, 242, 242] } },
-          { content: money(line.totalPersonalDeductions), styles: { fontStyle: "bold", textColor: [220, 38, 38], fillColor: [254, 242, 242] } },
-        ],
-      ],
+      head: [["EARNINGS & ALLOWANCES", "AMOUNT", "MANDATORY & LOAN DEDUCTIONS", "AMOUNT"]],
+      body: tableBody,
       margin: { left: 14, right: 14 },
     });
 
@@ -140,56 +187,56 @@ export async function downloadLguPayslipsPdf({
 
     doc.setFillColor(236, 253, 245); // light emerald
     doc.setDrawColor(52, 211, 153);
-    doc.roundedRect(14, afterTableY, 182, 14, 2, 2, "FD");
+    doc.roundedRect(14, afterTableY, 182, 13, 2, 2, "FD");
 
     doc.setTextColor(6, 95, 70);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text("NET TAKE-HOME PAY (MATITIRANG SAHOD):", 20, afterTableY + 9);
+    doc.setFontSize(9.5);
+    doc.text("NET TAKE-HOME PAY (NET PAY):", 20, afterTableY + 8.5);
 
-    doc.setFontSize(12);
+    doc.setFontSize(11.5);
     doc.setTextColor(4, 120, 87);
-    doc.text(money(line.netPay), 190, afterTableY + 9, { align: "right" });
+    doc.text(money(line.netPay), 190, afterTableY + 8.5, { align: "right" });
 
     // Government Counterpart Section (Hati ng Pamahalaan)
-    const govtY = afterTableY + 18;
+    const govtY = afterTableY + 16;
     doc.setFillColor(238, 242, 255); // light indigo
     doc.setDrawColor(199, 210, 254);
-    doc.roundedRect(14, govtY, 182, 24, 2, 2, "FD");
+    doc.roundedRect(14, govtY, 182, 22, 2, 2, "FD");
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
     doc.setTextColor(49, 46, 129);
-    doc.text("GOVERNMENT COUNTERPART SHARE (SAGOT NG LGU / PAMAHALAAN):", 18, govtY + 5.5);
+    doc.text("GOVERNMENT COUNTERPART SHARE (LGU SHOULDERED CONTRIBUTIONS):", 18, govtY + 5);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(71, 85, 105);
 
-    doc.text(`• GSIS Government Share (12%): ${money(line.statutory.gsisGovernment)}`, 20, govtY + 11.5);
-    doc.text(`• PhilHealth Government Share (2.5%): ${money(line.statutory.philhealthGovernment)}`, 20, govtY + 16.5);
-    doc.text(`• Pag-IBIG Government Share (DBM): ${money(line.statutory.pagibigGovernment)}`, 20, govtY + 21.5);
+    doc.text(`• GSIS Government Share (12%): ${money(line.statutory.gsisGovernment)}`, 20, govtY + 10.5);
+    doc.text(`• PhilHealth Government Share (2.5%): ${money(line.statutory.philhealthGovernment)}`, 20, govtY + 15);
+    doc.text(`• Pag-IBIG Government Share (DBM): ${money(line.statutory.pagibigGovernment)}`, 20, govtY + 19.5);
 
     doc.setFont("helvetica", "bold");
     doc.setTextColor(67, 56, 202);
-    doc.text(`Kabuuang Hulog ng LGU: ${money(line.statutory.totalGovernmentStatutory)}`, 190, govtY + 16.5, { align: "right" });
+    doc.text(`Total LGU Share: ${money(line.statutory.totalGovernmentStatutory)}`, 190, govtY + 15, { align: "right" });
 
     // Signatures / Acknowledgment footer
-    const sigY = govtY + 32;
+    const sigY = govtY + 26;
     doc.setDrawColor(148, 163, 184);
     doc.setLineDashPattern([1, 1], 0);
-    doc.line(20, sigY + 10, 80, sigY + 10);
-    doc.line(130, sigY + 10, 190, sigY + 10);
+    doc.line(20, sigY + 9, 80, sigY + 9);
+    doc.line(130, sigY + 9, 190, sigY + 9);
     doc.setLineDashPattern([], 0);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
     doc.setTextColor(100, 116, 139);
-    doc.text("Inihanda Ni: Municipal / City Accountant", 30, sigY + 14);
-    doc.text("Nilagdaan ng Kawani / Employee Signature", 136, sigY + 14);
+    doc.text("Prepared By: Municipal / City Accountant", 25, sigY + 13);
+    doc.text("Received By: Employee Signature", 138, sigY + 13);
 
     doc.setFontSize(6.5);
-    doc.text("Ito ay opisyal na computerized payslip ng pamahalaang lokal. Walang bura o lagda ayon sa COA/DBM regulations.", 105, sigY + 22, { align: "center" });
+    doc.text("Official computerized payroll slip of the Local Government Unit pursuant to COA/DBM regulations.", 105, sigY + 20, { align: "center" });
   });
 
   const filePrefix = singleEmployeeId && targetLines[0]

@@ -274,8 +274,9 @@ function normalizeWage(row: unknown): WageProfile {
   const r = (row ?? {}) as Record<string, unknown>;
   const daily = n(r.daily_wage);
   const hourly = r.hourly_wage != null ? n(r.hourly_wage) : daily > 0 ? daily / 8 : 0;
-  const monthly =
-    r.monthly_rate != null ? n(r.monthly_rate) : (r.monthly_wage != null ? n(r.monthly_wage) : daily > 0 ? daily * 26 : 0);
+  const workingDays = n(r.working_days_per_month) || 26;
+  const rawMonthly = n(r.monthly_rate ?? r.monthly_wage);
+  const monthly = rawMonthly > 0 ? rawMonthly : (daily > 0 ? daily * workingDays : 0);
 
   return {
     id: n(r.id),
@@ -283,6 +284,7 @@ function normalizeWage(row: unknown): WageProfile {
     daily_wage: daily,
     hourly_wage: hourly,
     monthly_wage: monthly,
+    working_days_per_month: workingDays,
     is_deleted: bitToNum(r.is_deleted ?? r.isDeleted),
     is_card: bitToNum(r.is_card ?? r.isCard),
     isCard: bitToNum(r.isCard ?? r.is_card),
