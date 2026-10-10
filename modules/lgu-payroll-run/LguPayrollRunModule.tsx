@@ -17,6 +17,7 @@ import {
 } from "./utils/lguCompute";
 import * as departmentApi from "@/modules/departments/providers/departmentApi";
 import * as svc from "@/modules/payroll-run/providers/payrollRunService";
+import { computeEmployeeLine } from "@/modules/payroll-run/utils/compute";
 import type {
   LguPayrollStep,
   CutoffSetting,
@@ -25,6 +26,9 @@ import type {
   LguPayrollLine,
   LguPayrollSummary,
   LguManualAdjustment,
+  LguLoanBreakdown,
+  LguAllowanceBreakdown,
+  LguEmployeeStatutory,
 } from "./types";
 
 export default function LguPayrollRunModule() {
@@ -162,8 +166,8 @@ export default function LguPayrollRunModule() {
         return true;
       });
 
-      // Generate detailed LGU payroll lines with public sector salary grade mappings and attendance
-      const initialLines: LguPayrollLine[] = filtered.map((u: any, idx: number) => {
+      // Generate authentic LGU payroll lines using the exact same calculation engine as the company payroll run module
+      const initialLines: LguPayrollLine[] = filtered.map((u: any) => {
         const userId = Number(u.id ?? u.user_id);
         const uDept = u.department_id ?? u.user_department;
         const deptName = uDept
@@ -175,129 +179,173 @@ export default function LguPayrollRunModule() {
         const lastName = u.last_name || u.user_lname || "";
         const employeeName = `${firstName} ${lastName}`.trim() || `Personnel #${userId}`;
 
-        // 1. Determine Monthly Salary and Salary Grade from database wage management
-        const wageProfile = workspace?.wages?.get(userId);
-        let monthlySalary = wageProfile?.monthly_wage || 0;
-        
-        if ((!monthlySalary || monthlySalary <= 0) && (wageProfile?.daily_wage ?? 0) > 0) {
-          // In LGU, casual / JO personnel with daily wage: daily_wage * working_days (standard 22 CSC or configured)
-          const daysInMonth = wageProfile?.working_days_per_month || 26;
-          monthlySalary = Math.round((wageProfile?.daily_wage ?? 0) * daysInMonth * 100) / 100;
-        }
+        // 1. Get exact workspace data loaded from the database
+        const wageProfile = workspace?.wages?.get(userId) ?? null;
+        const attendanceRecords = workspace?.attendance?.get(userId) ?? [];
+        const userManualEntries = workspace?.manualEntries?.get(userId) ?? [];
+        const userLoans = workspace?.employeeLoans?.get(userId) ?? [];
+        const userBenefitLoans = workspace?.benefitLoans?.get(userId) ?? [];
+        const userAllowances = workspace?.allowances?.get(userId) ?? [];
+        const userWageProrations = workspace?.wageProrationLogs?.get(userId) ?? [];
+        const userPaidLeaves = workspace?.paidLeaves?.get(userId) ?? [];
+        const userRetroPays = workspace?.retroPays?.get(userId) ?? [];
+        const userCoopSavings = workspace?.coopSavingsMemberships?.get(userId) ?? [];
 
-        let salaryGrade = inferSalaryGrade(position, monthlySalary);
+        // 2. Compute canonical payroll line using the authoritative payroll run module engine
+        const computed = computeEmployeeLine({
+          user: {
+            id: userId,
+            first_name: firstName,
+            last_name: lastName,
+            department_id: uDept ?? null,
+            position,
+            is_deleted: 0,
+          },
+          wage: wageProfile,
+          attendance: attendanceRecords,
+          holidays: workspace?.holidays ?? [],
+          cutoffStart: selectedCutoff.start_date,
+          cutoffEnd: selectedCutoff.end_date,
+          manualEntries: userManualEntries,
+          departmentName: deptName,
+          previousNetPay: 0,
+          onHold: false,
+          benefitMultipliers: workspace?.benefitMultipliers ?? { SSS: 0.5, PHILHEALTH: 0.5, PAGIBIG: 0.5 },
+          employeeLoans: userLoans,
+          benefitLoans: userBenefitLoans,
+          cutoffType: cutoffType as any,
+          cutoffId: selectedCutoff.id,
+          allowances: userAllowances,
+          wageProrationLogs: userWageProrations,
+          paidLeaves: userPaidLeaves,
+          retroPays: userRetroPays,
+          coopSavingsMemberships: userCoopSavings,
+        });
 
-        if (!monthlySalary || monthlySalary <= 0) {
-          // Benchmark fallback only when no wage record exists in the database
-          const salaryTiers = [16700, 20500, 27000, 33843, 36619, 39672, 46725, 71511, 90078];
-          monthlySalary = salaryTiers[idx % salaryTiers.length];
-          salaryGrade = inferSalaryGrade(position, monthlySalary);
-        }
-
-        // 2. Attendance & Timekeeping
-        const attendanceRecords = workspace?.attendance?.get(userId) || [];
-        let daysWorked = 11;
-        let lateMinutes = 0;
-        let undertimeMinutes = 0;
-        let overtimeHours = 0;
-
-        if (attendanceRecords.length > 0) {
-          daysWorked = Math.min(11, attendanceRecords.length);
-          for (const att of attendanceRecords) {
-            lateMinutes += Number(att.late_minutes || 0);
-            undertimeMinutes += Number(att.undertime_minutes || 0);
-            overtimeHours += Number(att.overtime_hours || 0);
-          }
-        } else {
-          // Realistic variation for demo
-          daysWorked = idx % 9 === 0 ? 10 : 11;
-          lateMinutes = (idx * 11) % 35;
-          undertimeMinutes = idx % 5 === 0 ? 15 : 0;
-          overtimeHours = idx % 4 === 0 ? 4 : 0;
-        }
-
-        // 3. Allowances
-        const userAllowances = workspace?.allowances?.get(userId) || [];
-        let rataAllowance = 0;
-        let hazardPay = 0;
-        let otherAllowances = 0;
-
-        for (const al of userAllowances) {
-          const desc = String(al.description || "").toLowerCase();
-          const amt = Number(al.amount || 0);
-          if (desc.includes("rata") || desc.includes("representation")) {
-            rataAllowance += amt;
-          } else if (desc.includes("hazard") || desc.includes("magna carta")) {
-            hazardPay += amt;
-          } else {
-            otherAllowances += amt;
-          }
-        }
-
-        // 4. Loans
-        const userLoans = workspace?.employeeLoans?.get(userId) || [];
-        const gsisLoansBreakdown: any[] = [];
-        const pagibigLoansBreakdown: any[] = [];
+        // 3. Extract itemized loans strictly from database records (no fake/sample loans)
+        const gsisLoansBreakdown: LguLoanBreakdown[] = [];
+        const pagibigLoansBreakdown: LguLoanBreakdown[] = [];
 
         for (const loan of userLoans) {
           const lt = String(loan.loan_type || "").toUpperCase();
-          const amt = Number(loan.monthly_amortization || loan.amortization || 0);
+          const amt = Math.round(((Number(loan.monthly_payment || 0)) / 2) * 100) / 100;
+          if (amt <= 0) continue;
           if (lt.includes("GSIS")) {
             gsisLoansBreakdown.push({
-              loanType: loan.loan_type || "GSIS Conso-Loan",
+              loanType: loan.loan_type || "GSIS Loan",
               amount: amt,
-              balance: Number(loan.remaining_balance || amt * 10),
+              balance: Number(loan.remaining_balance || 0),
             });
           } else if (lt.includes("PAGIBIG") || lt.includes("HDMF")) {
             pagibigLoansBreakdown.push({
               loanType: loan.loan_type || "Pag-IBIG MPL Loan",
               amount: amt,
-              balance: Number(loan.remaining_balance || amt * 12),
+              balance: Number(loan.remaining_balance || 0),
             });
           }
         }
 
-        // Add standard sample loan if none in DB for realistic demonstration
-        if (gsisLoansBreakdown.length === 0 && idx % 4 === 0) {
-          gsisLoansBreakdown.push({
-            loanType: "GSIS Conso-Loan",
-            amount: 1500,
-            balance: 18000,
-          });
-        }
-        if (pagibigLoansBreakdown.length === 0 && idx % 5 === 0) {
-          pagibigLoansBreakdown.push({
-            loanType: "Pag-IBIG Multi-Purpose Loan (MPL)",
-            amount: 850,
-            balance: 10200,
-          });
+        for (const bl of userBenefitLoans) {
+          const bc = String(bl.benefit_code || "").toUpperCase();
+          const amt = Math.round(((Number(bl.amortization_amount || 0)) / 2) * 100) / 100;
+          if (amt <= 0) continue;
+          if (bc.includes("GSIS")) {
+            gsisLoansBreakdown.push({
+              loanType: bl.loan_name || "GSIS Loan",
+              amount: amt,
+              balance: Number(bl.remaining_balance || 0),
+            });
+          } else if (bc.includes("PAGIBIG") || bc.includes("HDMF")) {
+            pagibigLoansBreakdown.push({
+              loanType: bl.loan_name || "Pag-IBIG Loan",
+              amount: amt,
+              balance: Number(bl.remaining_balance || 0),
+            });
+          }
         }
 
-        // 5. Manual entries
-        const userManualEntries = workspace?.manualEntries?.get(userId) || [];
+        // 4. Extract allowances strictly from database records
+        let rataAllowance = 0;
+        let hazardPay = 0;
+        let peraAllowance = 0;
+        let otherAllowances = 0;
+        const allowancesBreakdown: LguAllowanceBreakdown[] = [];
+
+        for (const al of userAllowances) {
+          const desc = String(al.description || "").trim();
+          const descLower = desc.toLowerCase();
+          const amt = Number(al.amount || 0);
+          if (amt <= 0) continue;
+
+          if (descLower.includes("pera")) {
+            peraAllowance += amt;
+            allowancesBreakdown.push({ name: desc || "PERA", amount: amt, isTaxable: false });
+          } else if (descLower.includes("rata") || descLower.includes("representation") || descLower.includes("transport")) {
+            rataAllowance += amt;
+            allowancesBreakdown.push({ name: desc || "RATA", amount: amt, isTaxable: false });
+          } else if (descLower.includes("hazard") || descLower.includes("magna")) {
+            hazardPay += amt;
+            allowancesBreakdown.push({ name: desc || "Hazard Pay", amount: amt, isTaxable: false });
+          } else {
+            otherAllowances += amt;
+            allowancesBreakdown.push({ name: desc || "Allowance", amount: amt, isTaxable: true });
+          }
+        }
+
+        // 5. Extract manual additions & deductions strictly from database records
         const manualAdditions: LguManualAdjustment[] = [];
         const manualDeductions: LguManualAdjustment[] = [];
 
         for (const me of userManualEntries) {
           const meType = String(me.type || "").toUpperCase();
+          const amt = Number(me.amount || 0);
+          if (amt <= 0) continue;
+
           if (meType === "EARNING" || meType === "ADDITION") {
             manualAdditions.push({
-              id: me.id || Math.random(),
+              id: me.id || `ma-${Math.random()}`,
               type: "EARNING",
               description: me.desc || "Manual Addition",
-              amount: Number(me.amount || 0),
+              amount: amt,
               category: me.category || "Addition",
             });
           } else {
             manualDeductions.push({
-              id: me.id || Math.random(),
+              id: me.id || `md-${Math.random()}`,
               type: "DEDUCTION",
               description: me.desc || "Manual Deduction",
-              amount: Number(me.amount || 0),
+              amount: amt,
               category: me.category || "Deduction",
             });
           }
         }
+
+        // 6. Map statutory contributions (GSIS / SSS, PhilHealth, Pag-IBIG with government cost-sharing)
+        const gsisEmp = computed.benefit_sss;
+        const phEmp = computed.benefit_philhealth;
+        const pagibigEmp = computed.benefit_pagibig;
+
+        // Public Sector / LGU government cost-sharing counterpart
+        const gsisGov = Math.round((computed.monthly_rate * 0.12 / 2) * 100) / 100;
+        const phGov = phEmp; // 1:1 match per PhilHealth Circular
+        const pagibigGov = pagibigEmp > 0 ? pagibigEmp : (computed.total_days_worked > 0 ? 100 : 0);
+
+        const statutory: LguEmployeeStatutory = {
+          gsisEmployee: gsisEmp,
+          gsisGovernment: gsisGov,
+          gsisTotal: Math.round((gsisEmp + gsisGov) * 100) / 100,
+          philhealthEmployee: phEmp,
+          philhealthGovernment: phGov,
+          philhealthTotal: Math.round((phEmp + phGov) * 100) / 100,
+          pagibigEmployee: pagibigEmp,
+          pagibigGovernment: pagibigGov,
+          pagibigTotal: Math.round((pagibigEmp + pagibigGov) * 100) / 100,
+          totalEmployeeStatutory: Math.round((gsisEmp + phEmp + pagibigEmp) * 100) / 100,
+          totalGovernmentStatutory: Math.round((gsisGov + phGov + pagibigGov) * 100) / 100,
+          grandTotalStatutory: Math.round((gsisEmp + phEmp + pagibigEmp + gsisGov + phGov + pagibigGov) * 100) / 100,
+        };
+
+        const salaryGrade = inferSalaryGrade(position, computed.monthly_rate);
 
         return computeLguLine({
           userId,
@@ -307,19 +355,31 @@ export default function LguPayrollRunModule() {
           departmentName: deptName,
           position,
           salaryGrade,
-          monthlySalary,
-          daysWorked,
-          lateMinutes,
-          undertimeMinutes,
-          overtimeHours,
+          employmentStatus: computed.monthly_rate >= 40000 ? "PERMANENT" : "CASUAL",
+          monthlySalary: computed.monthly_rate,
+          daysWorked: computed.total_days_worked,
+          standardCutoffDays: 11,
+          lateMinutes: computed.late_minutes,
+          lateDeduction: computed.late_deduction,
+          undertimeMinutes: computed.undertime_minutes,
+          undertimeDeduction: computed.undertime_deduction,
+          basicPay: computed.basic_pay,
+          overtimeHours: Math.round((computed.overtime_minutes / 60) * 100) / 100,
+          overtimePay: computed.ot_amount,
+          nightDiffPay: computed.night_diff_amount,
+          peraAllowance,
           rataAllowance,
           hazardPay,
-          otherAllowances,
+          otherAllowances: otherAllowances + (computed.leave_amount || 0) + (computed.holiday_pay || 0) + (computed.rest_day_amount || 0) + (computed.retro_pay || 0),
+          allowancesBreakdown,
+          statutory,
           gsisLoansBreakdown,
           pagibigLoansBreakdown,
+          coopDeduction: Math.round((computed.loan_coop + (computed.coop_savings || 0)) * 100) / 100,
+          otherDeductions: Math.round((computed.other_deductions + computed.dr_deduction + computed.shortage_deduction) * 100) / 100,
           manualAdditions,
           manualDeductions,
-          cutoffType,
+          cutoffType: cutoffType as any,
         });
       });
 

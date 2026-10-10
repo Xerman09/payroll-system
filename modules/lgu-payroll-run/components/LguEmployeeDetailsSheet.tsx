@@ -268,19 +268,45 @@ export default function LguEmployeeDetailsSheet({
                 <div className="text-[11px] text-red-600/80">Statutory, Loans &amp; Taxes</div>
               </div>
 
-              <div className="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-950/60 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-sm space-y-1">
-                <div className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 uppercase flex items-center justify-between">
-                  <span>Net Take-Home Pay</span>
-                  {line.netPay >= 5000 ? (
+              <div className={`p-3.5 rounded-xl border shadow-sm space-y-1 ${
+                line.netPay < 0
+                  ? "border-rose-300 dark:border-rose-900 bg-rose-50/60 dark:bg-rose-950/30"
+                  : line.netPay < 5000
+                    ? "border-amber-200 dark:border-amber-950/60 bg-amber-50/40 dark:bg-amber-950/20"
+                    : "border-emerald-200 dark:border-emerald-950/60 bg-emerald-50/40 dark:bg-emerald-950/20"
+              }`}>
+                <div className="text-[11px] font-semibold uppercase flex items-center justify-between">
+                  <span className={
+                    line.netPay < 0
+                      ? "text-rose-800 dark:text-rose-300"
+                      : line.netPay < 5000
+                        ? "text-amber-800 dark:text-amber-300"
+                        : "text-emerald-800 dark:text-emerald-300"
+                  }>Net Take-Home Pay</span>
+                  {line.netPay < 0 ? (
+                    <span className="text-[10px] font-bold text-rose-700 bg-rose-100 dark:bg-rose-900/60 px-1.5 py-0.5 rounded font-mono">Deficit (&lt; 0)</span>
+                  ) : line.netPay >= 5000 ? (
                     <span className="text-[10px] font-bold text-emerald-600 font-mono">GAA OK</span>
                   ) : (
                     <span className="text-[10px] font-bold text-amber-600 font-mono">&lt; ₱5k</span>
                   )}
                 </div>
-                <div className="text-lg font-extrabold font-mono text-emerald-700 dark:text-emerald-400">
+                <div className={`text-lg font-extrabold font-mono ${
+                  line.netPay < 0
+                    ? "text-rose-700 dark:text-rose-400"
+                    : line.netPay < 5000
+                      ? "text-amber-700 dark:text-amber-400"
+                      : "text-emerald-700 dark:text-emerald-400"
+                }`}>
                   {formatPhp(line.netPay)}
                 </div>
-                <div className="text-[11px] text-emerald-600/80">Net disbursement</div>
+                <div className={`text-[11px] ${
+                  line.netPay < 0
+                    ? "text-rose-600/80 font-medium"
+                    : "text-slate-500 dark:text-slate-400"
+                }`}>
+                  {line.netPay < 0 ? "Deduction exceeds earnings" : "Net disbursement"}
+                </div>
               </div>
 
               <div className="p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-950/60 bg-indigo-50/40 dark:bg-indigo-950/20 shadow-sm space-y-1">

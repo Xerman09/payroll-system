@@ -388,7 +388,9 @@ export default function LguPayrollAdjustStep({
                         </TableCell>
 
                         {/* Net Pay */}
-                        <TableCell className="text-right font-mono tabular-nums font-bold text-emerald-700 dark:text-emerald-400">
+                        <TableCell className={`text-right font-mono tabular-nums font-bold ${
+                          l.netPay < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-400"
+                        }`}>
                           {formatPhp(l.netPay)}
                         </TableCell>
 

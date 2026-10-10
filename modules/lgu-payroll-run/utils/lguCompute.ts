@@ -172,9 +172,13 @@ export interface ComputeLguLineParams {
   standardCutoffDays?: number;
   absentDays?: number;
   lateMinutes?: number;
+  lateDeduction?: number;
   undertimeMinutes?: number;
+  undertimeDeduction?: number;
 
   // Earnings & Allowances
+  basicPay?: number;
+  peraAllowance?: number;
   overtimeHours?: number;
   overtimePay?: number;
   nightDiffPay?: number;
@@ -182,6 +186,9 @@ export interface ComputeLguLineParams {
   hazardPay?: number;
   otherAllowances?: number;
   allowancesBreakdown?: LguAllowanceBreakdown[];
+
+  // Statutory
+  statutory?: LguEmployeeStatutory;
 
   // Loans
   gsisLoan?: number;
@@ -219,40 +226,25 @@ export function computeLguLine(raw: ComputeLguLineParams): LguPayrollLine {
   const hourlyRate = round2(dailyRate / 8);
   const minuteRate = round2(hourlyRate / 60);
 
-  // Cutoff Basic Pay (prorated by days worked if absences exist)
+  // Cutoff Basic Pay (if passed from payroll run calculation engine, use exact; otherwise calculate prorated)
   const absentDeduction = round2(absentDays * dailyRate);
-  const basicPay = round2(daysWorked >= standardCutoffDays ? monthlySalary / 2 : Math.max(0, (monthlySalary / 2) - absentDeduction));
+  const basicPay = raw.basicPay != null
+    ? round2(raw.basicPay)
+    : round2(daysWorked >= standardCutoffDays ? monthlySalary / 2 : Math.max(0, (monthlySalary / 2) - absentDeduction));
 
   // Civil Service Commission Tardiness & Undertime Deductions
   const lateMinutes = Math.max(0, raw.lateMinutes || 0);
   const undertimeMinutes = Math.max(0, raw.undertimeMinutes || 0);
-  const lateDeduction = round2(lateMinutes * minuteRate);
-  const undertimeDeduction = round2(undertimeMinutes * minuteRate);
+  const lateDeduction = raw.lateDeduction != null ? round2(raw.lateDeduction) : round2(lateMinutes * minuteRate);
+  const undertimeDeduction = raw.undertimeDeduction != null ? round2(raw.undertimeDeduction) : round2(undertimeMinutes * minuteRate);
 
-  // Mandated Public Sector Allowances
-  // PERA: Personnel Economic Relief Allowance (₱1,000 / cutoff for active personnel)
-  const peraAllowance = daysWorked > 0 ? PERA_PER_CUTOFF : 0;
+  // Mandated Public Sector Allowances (Strictly legitimate from database records or passed params)
+  const peraAllowance = raw.peraAllowance != null
+    ? round2(raw.peraAllowance)
+    : (raw.allowancesBreakdown?.find(a => a.name.toLowerCase().includes("pera"))?.amount ?? (daysWorked > 0 ? PERA_PER_CUTOFF : 0));
 
-  // RATA (Representation & Transportation Allowance): typically for SG-18+ or Dept Heads
-  let rataAllowance = round2(raw.rataAllowance || 0);
-  const posLower = (raw.position || "").toLowerCase();
-  const deptLower = (raw.departmentName || "").toLowerCase();
-
-  if (rataAllowance === 0) {
-    if (posLower.includes("head") || posLower.includes("director") || posLower.includes("mayor")) {
-      rataAllowance = 4500; // ₱9,000/mo = ₱4,500/cutoff
-    } else if (posLower.includes("assistant head") || posLower.includes("chief")) {
-      rataAllowance = 2500; // ₱5,000/mo = ₱2,500/cutoff
-    }
-  }
-
-  // Magna Carta / Hazard Pay (Health Office personnel, DRRMO, etc.)
-  let hazardPay = round2(raw.hazardPay || 0);
-  if (hazardPay === 0) {
-    if (deptLower.includes("health") || posLower.includes("nurse") || posLower.includes("medical") || deptLower.includes("disaster") || deptLower.includes("drrm")) {
-      hazardPay = round2(basicPay * 0.15); // 15% Hazard pay for public health workers
-    }
-  }
+  const rataAllowance = round2(raw.rataAllowance || 0);
+  const hazardPay = round2(raw.hazardPay || 0);
 
   // Overtime & Night Shift Differential
   const overtimeHours = Math.max(0, raw.overtimeHours || 0);
@@ -264,10 +256,10 @@ export function computeLguLine(raw: ComputeLguLineParams): LguPayrollLine {
   const allowancesBreakdown: LguAllowanceBreakdown[] = raw.allowancesBreakdown && raw.allowancesBreakdown.length > 0
     ? raw.allowancesBreakdown
     : [
-        { name: "PERA (DBM Mandated)", amount: peraAllowance, isTaxable: false },
+        ...(peraAllowance > 0 ? [{ name: "PERA (Personnel Economic Relief Allowance)", amount: peraAllowance, isTaxable: false }] : []),
         ...(rataAllowance > 0 ? [{ name: "RATA (Representation & Transport)", amount: rataAllowance, isTaxable: false }] : []),
         ...(hazardPay > 0 ? [{ name: "Hazard Pay (Magna Carta)", amount: hazardPay, isTaxable: false }] : []),
-        ...(otherAllowances > 0 ? [{ name: "Other General Allowance", amount: otherAllowances, isTaxable: true }] : []),
+        ...(otherAllowances > 0 ? [{ name: "Other Allowance", amount: otherAllowances, isTaxable: true }] : []),
       ];
 
   // Manual Custom Additions
@@ -286,8 +278,8 @@ export function computeLguLine(raw: ComputeLguLineParams): LguPayrollLine {
     manualAdditionsTotal
   );
 
-  // Statutory Cost Sharing (GSIS, PhilHealth, Pag-IBIG)
-  const statutory = computeLguStatutory(monthlySalary, cutoffType);
+  // Statutory Cost Sharing (GSIS, PhilHealth, Pag-IBIG) - use exact passed or compute
+  const statutory = raw.statutory || computeLguStatutory(monthlySalary, cutoffType);
 
   // Taxable Income Calculation (Gross minus tax-exempt PERA and mandatory GSIS/PhilHealth/PagIBIG employee shares)
   const taxableIncome = Math.max(0, round2(totalGrossPay - peraAllowance - statutory.totalEmployeeStatutory));
@@ -295,18 +287,9 @@ export function computeLguLine(raw: ComputeLguLineParams): LguPayrollLine {
     ? round2(raw.taxWithholding)
     : computeSemiMonthlyTax(taxableIncome);
 
-  // Itemized Government Loans
-  const gsisLoansBreakdown: LguLoanBreakdown[] = Array.isArray(raw.gsisLoansBreakdown) && raw.gsisLoansBreakdown.length > 0
-    ? raw.gsisLoansBreakdown
-    : raw.gsisLoan && raw.gsisLoan > 0
-      ? [{ loanType: "GSIS Conso-Loan", amount: raw.gsisLoan, balance: raw.gsisLoan * 12 }]
-      : [];
-
-  const pagibigLoansBreakdown: LguLoanBreakdown[] = Array.isArray(raw.pagibigLoansBreakdown) && raw.pagibigLoansBreakdown.length > 0
-    ? raw.pagibigLoansBreakdown
-    : raw.pagibigLoan && raw.pagibigLoan > 0
-      ? [{ loanType: "Pag-IBIG Multi-Purpose Loan (MPL)", amount: raw.pagibigLoan, balance: raw.pagibigLoan * 10 }]
-      : [];
+  // Itemized Government Loans (Strictly legitimate from records)
+  const gsisLoansBreakdown: LguLoanBreakdown[] = Array.isArray(raw.gsisLoansBreakdown) ? raw.gsisLoansBreakdown : [];
+  const pagibigLoansBreakdown: LguLoanBreakdown[] = Array.isArray(raw.pagibigLoansBreakdown) ? raw.pagibigLoansBreakdown : [];
 
   const gsisLoan = round2(gsisLoansBreakdown.reduce((sum, l) => sum + (Number(l.amount) || 0), 0));
   const pagibigLoan = round2(pagibigLoansBreakdown.reduce((sum, l) => sum + (Number(l.amount) || 0), 0));
@@ -336,8 +319,8 @@ export function computeLguLine(raw: ComputeLguLineParams): LguPayrollLine {
     manualDeductionsTotal
   );
 
-  // Net Take-Home Pay
-  const netPay = round2(Math.max(0, totalGrossPay - totalPersonalDeductions));
+  // Net Take-Home Pay (Gross Pay minus Total Personal Deductions)
+  const netPay = round2(totalGrossPay - totalPersonalDeductions);
 
   // Variance % Calculation
   const previousNetPay = raw.previousNetPay != null ? raw.previousNetPay : (basicPay + peraAllowance - statutory.totalEmployeeStatutory);

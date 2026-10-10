@@ -672,7 +672,9 @@ export default function LguPayrollReviewStep({
                       <TableCell className="text-right font-mono text-blue-700">{formatPhp(l.peraAllowance)}</TableCell>
                       <TableCell className="text-right font-mono font-medium">{formatPhp(l.totalGrossPay)}</TableCell>
                       <TableCell className="text-right font-mono text-red-600">({formatPhp(l.totalPersonalDeductions)})</TableCell>
-                      <TableCell className="text-right font-mono font-bold text-emerald-700">{formatPhp(l.netPay)}</TableCell>
+                      <TableCell className={`text-right font-mono font-bold ${
+                        l.netPay < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-400"
+                      }`}>{formatPhp(l.netPay)}</TableCell>
                       <TableCell className="text-right font-mono font-bold text-indigo-700">{formatPhp(l.totalLguCounterpart)}</TableCell>
                       <TableCell className="text-center">
                         <Button
