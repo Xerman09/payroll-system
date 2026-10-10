@@ -261,51 +261,50 @@ export default function LguEmployeeDetailsSheet({
               </div>
 
               <div className="p-3.5 rounded-xl border border-red-200 dark:border-red-950/60 bg-red-50/30 dark:bg-red-950/20 shadow-sm space-y-1">
-                <div className="text-[11px] font-semibold text-red-700 dark:text-red-400 uppercase">Personal Deductions</div>
+                <div className="text-[11px] font-semibold text-red-700 dark:text-red-400 uppercase flex items-center justify-between">
+                  <span>Personal Deductions</span>
+                  {(line.uncollectedDeductions ?? 0) > 0 && (
+                    <span className="text-[10px] font-bold text-amber-600 font-mono">
+                      Deferred
+                    </span>
+                  )}
+                </div>
                 <div className="text-lg font-bold font-mono text-red-600 dark:text-red-400">
                   {formatPhp(line.totalPersonalDeductions)}
                 </div>
-                <div className="text-[11px] text-red-600/80">Statutory, Loans &amp; Taxes</div>
+                <div className="text-[11px] text-red-600/80">
+                  {line.totalGrossPay <= 0 && (line.uncollectedDeductions ?? 0) > 0
+                    ? "Deferred (Zero Gross Pay)"
+                    : "Statutory, Loans & Taxes"}
+                </div>
               </div>
 
               <div className={`p-3.5 rounded-xl border shadow-sm space-y-1 ${
-                line.netPay < 0
-                  ? "border-rose-300 dark:border-rose-900 bg-rose-50/60 dark:bg-rose-950/30"
-                  : line.netPay < 5000
-                    ? "border-amber-200 dark:border-amber-950/60 bg-amber-50/40 dark:bg-amber-950/20"
-                    : "border-emerald-200 dark:border-emerald-950/60 bg-emerald-50/40 dark:bg-emerald-950/20"
+                line.netPay < 5000
+                  ? "border-amber-200 dark:border-amber-950/60 bg-amber-50/40 dark:bg-amber-950/20"
+                  : "border-emerald-200 dark:border-emerald-950/60 bg-emerald-50/40 dark:bg-emerald-950/20"
               }`}>
                 <div className="text-[11px] font-semibold uppercase flex items-center justify-between">
                   <span className={
-                    line.netPay < 0
-                      ? "text-rose-800 dark:text-rose-300"
-                      : line.netPay < 5000
-                        ? "text-amber-800 dark:text-amber-300"
-                        : "text-emerald-800 dark:text-emerald-300"
+                    line.netPay < 5000
+                      ? "text-amber-800 dark:text-amber-300"
+                      : "text-emerald-800 dark:text-emerald-300"
                   }>Net Take-Home Pay</span>
-                  {line.netPay < 0 ? (
-                    <span className="text-[10px] font-bold text-rose-700 bg-rose-100 dark:bg-rose-900/60 px-1.5 py-0.5 rounded font-mono">Deficit (&lt; 0)</span>
-                  ) : line.netPay >= 5000 ? (
+                  {line.netPay >= 5000 ? (
                     <span className="text-[10px] font-bold text-emerald-600 font-mono">GAA OK</span>
                   ) : (
                     <span className="text-[10px] font-bold text-amber-600 font-mono">&lt; ₱5k</span>
                   )}
                 </div>
                 <div className={`text-lg font-extrabold font-mono ${
-                  line.netPay < 0
-                    ? "text-rose-700 dark:text-rose-400"
-                    : line.netPay < 5000
-                      ? "text-amber-700 dark:text-amber-400"
-                      : "text-emerald-700 dark:text-emerald-400"
+                  line.netPay < 5000
+                    ? "text-amber-700 dark:text-amber-400"
+                    : "text-emerald-700 dark:text-emerald-400"
                 }`}>
                   {formatPhp(line.netPay)}
                 </div>
-                <div className={`text-[11px] ${
-                  line.netPay < 0
-                    ? "text-rose-600/80 font-medium"
-                    : "text-slate-500 dark:text-slate-400"
-                }`}>
-                  {line.netPay < 0 ? "Deduction exceeds earnings" : "Net disbursement"}
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {line.netPay <= 0 ? "Zero disbursement" : "Net disbursement"}
                 </div>
               </div>
 
@@ -317,6 +316,15 @@ export default function LguEmployeeDetailsSheet({
                 <div className="text-[11px] text-indigo-600/80">LGU Share (GSIS + PH + HDMF)</div>
               </div>
             </div>
+
+            {(line.uncollectedDeductions ?? 0) > 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 text-xs">
+                <AlertCircle className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
+                <span>
+                  <strong>Zero/Insufficient Earnings Advisory:</strong> Under Philippine and Civil Service payroll rules, deductions cannot exceed gross pay or create a negative disbursement. Because this employee has {formatPhp(line.totalGrossPay)} gross pay, scheduled deductions totaling <strong>{formatPhp(line.uncollectedDeductions!)}</strong> cannot be deducted and are deferred for this cutoff.
+                </span>
+              </div>
+            )}
 
             {isBelowGaaThreshold && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">

@@ -304,8 +304,8 @@ export function computeLguLine(raw: ComputeLguLineParams): LguPayrollLine {
   const manualDeductions = Array.isArray(raw.manualDeductions) ? raw.manualDeductions : [];
   const manualDeductionsTotal = round2(manualDeductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0));
 
-  // Total Personal Deductions
-  const totalPersonalDeductions = round2(
+  // Total Scheduled Personal Deductions
+  const totalScheduledDeductions = round2(
     lateDeduction +
     undertimeDeduction +
     statutory.totalEmployeeStatutory +
@@ -319,7 +319,19 @@ export function computeLguLine(raw: ComputeLguLineParams): LguPayrollLine {
     manualDeductionsTotal
   );
 
-  // Net Take-Home Pay (Gross Pay minus Total Personal Deductions)
+  // In Philippine & Civil Service payroll accounting:
+  // 1. Negative take-home pay is strictly prohibited.
+  // 2. If Gross Pay is 0.00, no deductions can be made from a zero paycheck (all deductions deferred).
+  // 3. Deductions applied are capped at available gross earnings.
+  const totalPersonalDeductions = round2(
+    totalGrossPay <= 0
+      ? 0
+      : Math.min(totalGrossPay, totalScheduledDeductions)
+  );
+
+  const uncollectedDeductions = round2(Math.max(0, totalScheduledDeductions - totalPersonalDeductions));
+
+  // Net Take-Home Pay (Gross Pay minus Applied Deductions: guaranteed >= 0)
   const netPay = round2(totalGrossPay - totalPersonalDeductions);
 
   // Variance % Calculation
@@ -399,6 +411,8 @@ export function computeLguLine(raw: ComputeLguLineParams): LguPayrollLine {
     manualDeductions,
 
     totalPersonalDeductions,
+    totalScheduledDeductions,
+    uncollectedDeductions,
     netPay,
     previousNetPay,
     variancePct,

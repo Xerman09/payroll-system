@@ -126,6 +126,8 @@ export interface LguPayrollLine {
 
   // Total Personal Deductions
   totalPersonalDeductions: number;
+  totalScheduledDeductions?: number;
+  uncollectedDeductions?: number;
 
   // Net Pay (Take-Home Pay)
   netPay: number;
