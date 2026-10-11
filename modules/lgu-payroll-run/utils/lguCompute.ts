@@ -80,9 +80,28 @@ export function inferSalaryGrade(position: string, salary: number): string {
  */
 export function computeLguStatutory(
   monthlySalary: number,
-  _cutoffType: "FIRST" | "SECOND" = "FIRST"
+  _cutoffType: "FIRST" | "SECOND" = "FIRST",
+  daysWorked: number = 11
 ): LguEmployeeStatutory {
   const salary = Math.max(0, monthlySalary || 0);
+
+  // If employee has 0 days worked or 0 salary, statutory contributions and government counterparts are 0
+  if (salary <= 0 || daysWorked <= 0) {
+    return {
+      gsisEmployee: 0,
+      gsisGovernment: 0,
+      gsisTotal: 0,
+      philhealthEmployee: 0,
+      philhealthGovernment: 0,
+      philhealthTotal: 0,
+      pagibigEmployee: 0,
+      pagibigGovernment: 0,
+      pagibigTotal: 0,
+      totalEmployeeStatutory: 0,
+      totalGovernmentStatutory: 0,
+      grandTotalStatutory: 0,
+    };
+  }
 
   // GSIS: 9% personal / 12% government (total 21%)
   const monthlyGsisEmployee = round2(salary * GSIS_EMPLOYEE_RATE);
@@ -279,7 +298,7 @@ export function computeLguLine(raw: ComputeLguLineParams): LguPayrollLine {
   );
 
   // Statutory Cost Sharing (GSIS, PhilHealth, Pag-IBIG) - use exact passed or compute
-  const statutory = raw.statutory || computeLguStatutory(monthlySalary, cutoffType);
+  const statutory = raw.statutory || computeLguStatutory(monthlySalary, cutoffType, daysWorked);
 
   // Taxable Income Calculation (Gross minus tax-exempt PERA and mandatory GSIS/PhilHealth/PagIBIG employee shares)
   const taxableIncome = Math.max(0, round2(totalGrossPay - peraAllowance - statutory.totalEmployeeStatutory));
@@ -348,10 +367,28 @@ export function computeLguLine(raw: ComputeLguLineParams): LguPayrollLine {
   }
 
   // LGU Counterpart (Sagot ng Pamahalaang Lokal)
-  const lguGsisShare = statutory.gsisGovernment;
-  const lguPhilhealthShare = statutory.philhealthGovernment;
-  const lguPagibigShare = statutory.pagibigGovernment;
-  const totalLguCounterpart = statutory.totalGovernmentStatutory;
+  // Government cost-sharing matches active employee contributions.
+  // If the employee has 0 gross pay, 0 days worked, or 0 employee share, LGU counterpart is 0.00.
+  const hasEarnings = totalGrossPay > 0 && daysWorked > 0;
+
+  const lguGsisShare = hasEarnings && statutory.gsisEmployee > 0 ? statutory.gsisGovernment : 0;
+  const lguPhilhealthShare = hasEarnings && statutory.philhealthEmployee > 0 ? statutory.philhealthGovernment : 0;
+  const lguPagibigShare = hasEarnings && statutory.pagibigEmployee > 0 ? statutory.pagibigGovernment : 0;
+  const totalLguCounterpart = round2(lguGsisShare + lguPhilhealthShare + lguPagibigShare);
+
+  // Synchronize statutory government shares with actual active counterpart:
+  // If employee has 0 personal share or no earnings, government counterpart is 0.
+  const syncStatutory: LguEmployeeStatutory = {
+    ...statutory,
+    gsisGovernment: lguGsisShare,
+    gsisTotal: round2(statutory.gsisEmployee + lguGsisShare),
+    philhealthGovernment: lguPhilhealthShare,
+    philhealthTotal: round2(statutory.philhealthEmployee + lguPhilhealthShare),
+    pagibigGovernment: lguPagibigShare,
+    pagibigTotal: round2(statutory.pagibigEmployee + lguPagibigShare),
+    totalGovernmentStatutory: totalLguCounterpart,
+    grandTotalStatutory: round2(statutory.totalEmployeeStatutory + totalLguCounterpart),
+  };
 
   // Total Public Fund Appropriation Required (Gross Pay + LGU Counterpart)
   const totalLguAppropriation = round2(totalGrossPay + totalLguCounterpart);
@@ -393,7 +430,7 @@ export function computeLguLine(raw: ComputeLguLineParams): LguPayrollLine {
     allowancesBreakdown,
     totalGrossPay,
 
-    statutory,
+    statutory: syncStatutory,
     taxWithholding,
     taxableIncome,
 
@@ -452,6 +489,8 @@ export function computeLguSummary(lines: LguPayrollLine[]): LguPayrollSummary {
   let totalPhilhealthEmployee = 0;
   let totalPagibigEmployee = 0;
   let totalLoans = 0;
+  let totalGsisLoan = 0;
+  let totalPagibigLoan = 0;
   let totalTaxes = 0;
   let totalOtherDeductions = 0;
   let totalPersonalDeductions = 0;
@@ -522,6 +561,8 @@ export function computeLguSummary(lines: LguPayrollLine[]): LguPayrollSummary {
       totalGsisEmployee += line.statutory.gsisEmployee;
       totalPhilhealthEmployee += line.statutory.philhealthEmployee;
       totalPagibigEmployee += line.statutory.pagibigEmployee;
+      totalGsisLoan += line.gsisLoan;
+      totalPagibigLoan += line.pagibigLoan;
       totalLoans += (line.gsisLoan + line.pagibigLoan);
       totalTaxes += line.taxWithholding;
       totalOtherDeductions += (line.coopDeduction + line.unionDues + line.disallowanceDeduction + line.otherDeductions);
@@ -529,9 +570,9 @@ export function computeLguSummary(lines: LguPayrollLine[]): LguPayrollSummary {
 
       totalNetPay += line.netPay;
 
-      totalGsisGovernment += line.statutory.gsisGovernment;
-      totalPhilhealthGovernment += line.statutory.philhealthGovernment;
-      totalPagibigGovernment += line.statutory.pagibigGovernment;
+      totalGsisGovernment += line.lguGsisShare;
+      totalPhilhealthGovernment += line.lguPhilhealthShare;
+      totalPagibigGovernment += line.lguPagibigShare;
       totalLguCounterpart += line.totalLguCounterpart;
       grandTotalAppropriation += line.totalLguAppropriation;
 
@@ -580,6 +621,8 @@ export function computeLguSummary(lines: LguPayrollLine[]): LguPayrollSummary {
     totalPhilhealthEmployee: round2(totalPhilhealthEmployee),
     totalPagibigEmployee: round2(totalPagibigEmployee),
     totalLoans: round2(totalLoans),
+    totalGsisLoan: round2(totalGsisLoan),
+    totalPagibigLoan: round2(totalPagibigLoan),
     totalTaxes: round2(totalTaxes),
     totalOtherDeductions: round2(totalOtherDeductions),
     totalPersonalDeductions: round2(totalPersonalDeductions),

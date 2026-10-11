@@ -321,14 +321,16 @@ export default function LguPayrollRunModule() {
         }
 
         // 6. Map statutory contributions (GSIS / SSS, PhilHealth, Pag-IBIG with government cost-sharing)
-        const gsisEmp = computed.benefit_sss;
-        const phEmp = computed.benefit_philhealth;
-        const pagibigEmp = computed.benefit_pagibig;
+        const hasEarnings = computed.gross_pay > 0 && computed.total_days_worked > 0;
 
-        // Public Sector / LGU government cost-sharing counterpart
-        const gsisGov = Math.round((computed.monthly_rate * 0.12 / 2) * 100) / 100;
-        const phGov = phEmp; // 1:1 match per PhilHealth Circular
-        const pagibigGov = pagibigEmp > 0 ? pagibigEmp : (computed.total_days_worked > 0 ? 100 : 0);
+        const gsisEmp = hasEarnings ? computed.benefit_sss : 0;
+        const phEmp = hasEarnings ? computed.benefit_philhealth : 0;
+        const pagibigEmp = hasEarnings ? computed.benefit_pagibig : 0;
+
+        // Government counterpart is only remitted when employee has active earnings & contributions
+        const gsisGov = hasEarnings && gsisEmp > 0 ? Math.round((computed.monthly_rate * 0.12 / 2) * 100) / 100 : 0;
+        const phGov = hasEarnings && phEmp > 0 ? phEmp : 0; // 1:1 match per PhilHealth Circular
+        const pagibigGov = hasEarnings && pagibigEmp > 0 ? pagibigEmp : 0;
 
         const statutory: LguEmployeeStatutory = {
           gsisEmployee: gsisEmp,

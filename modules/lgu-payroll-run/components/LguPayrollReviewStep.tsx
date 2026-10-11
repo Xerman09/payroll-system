@@ -515,12 +515,12 @@ export default function LguPayrollReviewStep({
                 </div>
                 <div className="flex justify-between py-1 border-b">
                   <span>GSIS Loan Amortizations:</span>
-                  <span className="font-mono font-semibold">{formatPhp(summary.totalLoans * 0.7)}</span>
+                  <span className="font-mono font-semibold">{formatPhp(summary.totalGsisLoan ?? 0)}</span>
                 </div>
                 <div className="flex justify-between py-1.5 pt-2 border-t font-bold text-slate-900">
                   <span>Total Check to GSIS:</span>
                   <span className="font-mono text-sm text-blue-700">
-                    {formatPhp(summary.totalGsisEmployee + summary.totalGsisGovernment + (summary.totalLoans * 0.7))}
+                    {formatPhp(summary.totalGsisEmployee + summary.totalGsisGovernment + (summary.totalGsisLoan ?? 0))}
                   </span>
                 </div>
               </CardContent>
@@ -577,12 +577,12 @@ export default function LguPayrollReviewStep({
                 </div>
                 <div className="flex justify-between py-1 border-b">
                   <span>Pag-IBIG MPL &amp; Calamity Loans:</span>
-                  <span className="font-mono font-semibold">{formatPhp(summary.totalLoans * 0.3)}</span>
+                  <span className="font-mono font-semibold">{formatPhp(summary.totalPagibigLoan ?? 0)}</span>
                 </div>
                 <div className="flex justify-between py-1.5 pt-2 border-t font-bold text-slate-900">
                   <span>Total Check to Pag-IBIG:</span>
                   <span className="font-mono text-sm text-amber-700">
-                    {formatPhp(summary.totalPagibigEmployee + summary.totalPagibigGovernment + (summary.totalLoans * 0.3))}
+                    {formatPhp(summary.totalPagibigEmployee + summary.totalPagibigGovernment + (summary.totalPagibigLoan ?? 0))}
                   </span>
                 </div>
               </CardContent>

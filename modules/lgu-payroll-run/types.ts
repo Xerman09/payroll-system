@@ -184,6 +184,8 @@ export interface LguPayrollSummary {
   totalPhilhealthEmployee: number;
   totalPagibigEmployee: number;
   totalLoans: number;
+  totalGsisLoan?: number;
+  totalPagibigLoan?: number;
   totalTaxes: number;
   totalOtherDeductions: number;
   totalPersonalDeductions: number;
