@@ -431,8 +431,13 @@ export function LoansTab({
                   className="h-10 pl-6 bg-gray-100 dark:bg-gray-800/60"
                 />
               </div>
-              <div className="text-xs text-gray-500 mt-1">
-                Auto-calculated: Loan Amount ÷ Months to Pay
+              <div className="text-xs text-gray-500 mt-1 flex flex-wrap items-center justify-between gap-1">
+                <span>Auto-calculated: Loan Amount ÷ Months to Pay</span>
+                {Number(loanDraft.monthly_payment) > 0 && (
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    Per cutoff (50/50): ₱ {money(Number(loanDraft.monthly_payment) / 2)}
+                  </span>
+                )}
               </div>
             </div>
 

@@ -1,9 +1,10 @@
-// @modules/wage/components/tabs/OtherADTab.tsx
-"use client";
-
 import * as React from "react";
-import { Trash2, Plus, Search, X } from "lucide-react";
+import { Trash2, Plus, Search, X, Calendar, Calculator, Sparkles } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+import { resolveUpcomingCutoffs } from "@/modules/payroll-run/providers/payrollAdjustmentsService";
 
 import type {
   Employee,
@@ -183,6 +184,7 @@ export function OtherADTab({
   setDedDraft,
   resetDedDraft,
   saveOtherDeduction,
+  saveMultiCutoffDeductions,
   deleteOtherDeduction,
 
   // cutoff mapper
@@ -218,6 +220,14 @@ export function OtherADTab({
   setDedDraft: React.Dispatch<React.SetStateAction<PayrollOtherADDraft>>;
   resetDedDraft: () => void;
   saveOtherDeduction: () => Promise<void> | void;
+  saveMultiCutoffDeductions?: (params: {
+    totalAmount: number;
+    amountPerCutoff?: number;
+    numCutoffs: number;
+    description: string;
+    startCutoffStart: string;
+    startCutoffEnd: string;
+  }) => Promise<void> | void;
   startEditOtherDeduction?: (r: PayrollOtherDeductionRecord) => void;
   deleteOtherDeduction: (id: number) => Promise<void> | void;
 
@@ -233,6 +243,149 @@ export function OtherADTab({
   const isEditing = Boolean(editingAddId || editingDedId);
 
   const [formKind, setFormKind] = React.useState<"add" | "ded">("add");
+  const [dedMode, setDedMode] = React.useState<"ONE_TIME" | "INSTALLMENT">("ONE_TIME");
+
+  // Multi-cutoff installment states (e.g. 10,000 for 6 cutoffs)
+  const [instTotalAmount, setInstTotalAmount] = React.useState<string>("10000.00");
+  const [instCutoffs, setInstCutoffs] = React.useState<string>("6");
+  const [instCutoffAmount, setInstCutoffAmount] = React.useState<string>("1666.67");
+  const [instDesc, setInstDesc] = React.useState<string>("");
+  const [instCutoffId, setInstCutoffId] = React.useState<number | null>(null);
+  const [instSchedule, setInstSchedule] = React.useState<Array<{ start_date: string; end_date: string; label?: string }>>([]);
+  const [loadingSchedule, setLoadingSchedule] = React.useState<boolean>(false);
+
+  // Sync starting cutoff if not set
+  React.useEffect(() => {
+    if (cutoffs.length > 0 && instCutoffId == null) {
+      setInstCutoffId(cutoffs[0].id);
+    }
+  }, [cutoffs, instCutoffId]);
+
+  const onInstTotalChange = React.useCallback(
+    (val: string) => {
+      setInstTotalAmount(val);
+      const total = Number(val);
+      const count = Math.max(1, Math.floor(Number(instCutoffs)) || 1);
+      if (total > 0 && count > 0) {
+        setInstCutoffAmount((Math.round((total / count) * 100) / 100).toFixed(2));
+      }
+    },
+    [instCutoffs]
+  );
+
+  const onInstCutoffsChange = React.useCallback(
+    (val: string) => {
+      setInstCutoffs(val);
+      const count = Math.max(1, Math.floor(Number(val)) || 1);
+      const total = Number(instTotalAmount);
+      if (total > 0 && count > 0) {
+        setInstCutoffAmount((Math.round((total / count) * 100) / 100).toFixed(2));
+      }
+    },
+    [instTotalAmount]
+  );
+
+  const onInstCutoffAmountChange = React.useCallback(
+    (val: string) => {
+      setInstCutoffAmount(val);
+      const perCutoff = Number(val);
+      const count = Math.max(1, Math.floor(Number(instCutoffs)) || 1);
+      if (perCutoff > 0 && count > 0) {
+        setInstTotalAmount((Math.round(perCutoff * count * 100) / 100).toFixed(2));
+      }
+    },
+    [instCutoffs]
+  );
+
+  // Fetch upcoming cutoffs for live amortization preview
+  React.useEffect(() => {
+    if (!formOpen || formKind !== "ded" || dedMode !== "INSTALLMENT") return;
+    const count = Math.min(Math.max(1, Math.floor(Number(instCutoffs)) || 1), 60);
+    const selectedC = cutoffs.find((c) => c.id === instCutoffId) || cutoffs[0];
+    if (!selectedC) return;
+
+    let active = true;
+    setLoadingSchedule(true);
+    resolveUpcomingCutoffs({
+      currentStart: selectedC.start_date,
+      currentEnd: selectedC.end_date,
+      count,
+    })
+      .then((sched) => {
+        if (active) setInstSchedule(sched);
+      })
+      .catch((err) => {
+        console.warn("Failed to resolve upcoming cutoffs in OtherADTab:", err);
+      })
+      .finally(() => {
+        if (active) setLoadingSchedule(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [formOpen, formKind, dedMode, instCutoffs, instCutoffId, cutoffs]);
+
+  const scheduleRows = React.useMemo(() => {
+    const total = Number(instTotalAmount || 0);
+    const count = Math.max(1, Math.floor(Number(instCutoffs)) || 1);
+    const rows: Array<{
+      step: number;
+      start: string;
+      end: string;
+      amount: number;
+      balance: number;
+    }> = [];
+    let remaining = total;
+    const stdAmort = Math.round((total / count) * 100) / 100;
+
+    for (let i = 0; i < instSchedule.length; i++) {
+      const c = instSchedule[i];
+      const isLast = i === instSchedule.length - 1;
+      const amt = isLast ? Math.round(remaining * 100) / 100 : stdAmort;
+      remaining = Math.max(0, Math.round((remaining - amt) * 100) / 100);
+
+      rows.push({
+        step: i + 1,
+        start: safeFormatDate(c.start_date),
+        end: safeFormatDate(c.end_date),
+        amount: amt,
+        balance: remaining,
+      });
+    }
+
+    return rows;
+  }, [instTotalAmount, instCutoffs, instSchedule]);
+
+  const handleSaveMultiCutoff = async () => {
+    const total = Number(instTotalAmount);
+    const count = Math.max(1, Math.floor(Number(instCutoffs)) || 1);
+    if (!total || total <= 0) {
+      toast.error("Please enter a valid total deduction amount.");
+      return;
+    }
+    const startC = cutoffs.find((c) => c.id === instCutoffId) || cutoffs[0];
+    if (!startC) {
+      toast.error("Please select a starting cutoff period.");
+      return;
+    }
+    if (!instDesc.trim()) {
+      toast.error("Please enter a description for the deduction.");
+      return;
+    }
+
+    if (saveMultiCutoffDeductions) {
+      await saveMultiCutoffDeductions({
+        totalAmount: total,
+        amountPerCutoff: Number(instCutoffAmount),
+        numCutoffs: count,
+        description: instDesc.trim(),
+        startCutoffStart: startC.start_date,
+        startCutoffEnd: startC.end_date,
+      });
+      closeForms();
+    }
+  };
 
   React.useEffect(() => {
     if (editingAddId) setFormKind("add");
@@ -439,80 +592,327 @@ export function OtherADTab({
                 )}
               </div>
 
-              {/* Amount */}
-              <div className="flex flex-col">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  Amount
-                </label>
-                <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">
-                    ₱
-                  </span>
-                  <Input
-                    type="text"
-                    value={draft.amount}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (!/^\d*\.?\d*$/.test(v)) return;
-                      setDraft((p) => ({ ...p, amount: v }));
-                    }}
-                    onBlur={() =>
-                      setDraft((p) => ({ ...p, amount: money(p.amount) }))
-                    }
-                    className="h-10 pl-6"
-                  />
-                </div>
-              </div>
-
-              {/* Description */}
-              <div className="flex flex-col col-span-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  Description
-                </label>
-                <Input
-                  type="text"
-                  value={draft.description}
-                  onChange={(e) =>
-                    setDraft((p) => ({ ...p, description: e.target.value }))
-                  }
-                  className="h-10"
-                  placeholder="Optional"
-                />
-              </div>
-
-              {/* Cutoff */}
-              <div className="flex flex-col col-span-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  Cutoff Period
-                </label>
-
-                <CutoffSelect
-                  value={draft.cutoff_setting_id}
-                  onChange={(id) => applyCutoffToOtherDraft(id, formKind)}
-                  disabled={cutoffsLoading}
-                  loading={cutoffsLoading}
-                  cutoffs={cutoffs}
-                />
-
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <div className="flex flex-col">
-                    <span className="text-xs text-gray-500">Cutoff Start</span>
-                    <Input
-                      value={draft.cutoff_start || ""}
-                      disabled
-                      className="h-9 bg-gray-100 dark:bg-gray-800/60"
-                    />
+              {/* Multi-Cutoff Mode Switcher (only for Deductions when creating new) */}
+              {formKind === "ded" && !isEditing ? (
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                    Deduction Schedule Type
+                  </label>
+                  <div className="flex items-center gap-1 rounded-lg border bg-slate-100 p-1 dark:border-slate-800 dark:bg-slate-900/60 h-10">
+                    <button
+                      type="button"
+                      onClick={() => setDedMode("ONE_TIME")}
+                      className={cn(
+                        "flex-1 rounded-md py-1.5 text-xs font-semibold transition-all",
+                        dedMode === "ONE_TIME"
+                          ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
+                          : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                      )}
+                    >
+                      One-Time Cutoff
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDedMode("INSTALLMENT")}
+                      className={cn(
+                        "flex-1 rounded-md py-1.5 text-xs font-semibold transition-all flex items-center justify-center gap-1.5",
+                        dedMode === "INSTALLMENT"
+                          ? "bg-emerald-600 text-white shadow-sm dark:bg-emerald-600"
+                          : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                      )}
+                    >
+                      <Calculator className="h-3.5 w-3.5" />
+                      Multi-Cutoff Installment
+                    </button>
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs text-gray-500">Cutoff End</span>
+                </div>
+              ) : formKind === "add" ? (
+                /* Amount for Addition */
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                    Amount
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">
+                      ₱
+                    </span>
                     <Input
-                      value={draft.cutoff_end || ""}
-                      disabled
-                      className="h-9 bg-gray-100 dark:bg-gray-800/60"
+                      type="text"
+                      value={draft.amount}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!/^\d*\.?\d*$/.test(v)) return;
+                        setDraft((p) => ({ ...p, amount: v }));
+                      }}
+                      onBlur={() =>
+                        setDraft((p) => ({ ...p, amount: money(p.amount) }))
+                      }
+                      className="h-10 pl-6"
                     />
                   </div>
                 </div>
-              </div>
+              ) : null}
+
+              {/* MULTI-CUTOFF INSTALLMENT DEDUCTION VIEW */}
+              {formKind === "ded" && dedMode === "INSTALLMENT" && !isEditing ? (
+                <>
+                  <div className="col-span-2 rounded-md border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300">
+                    <div className="flex items-center gap-2 font-semibold">
+                      <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      Multi-Cutoff Deduction Amortization (Like Coop Loan)
+                    </div>
+                    <div className="mt-1 text-slate-600 dark:text-slate-400">
+                      Specify the <strong>Total Deduction Amount</strong> and <strong>Number of Cutoffs</strong>. The system will automatically compute how much to deduct each cutoff and generate the cutdown schedule.
+                    </div>
+                  </div>
+
+                  {/* Total Deduction Amount */}
+                  <div className="flex flex-col">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      Total Deduction Amount (₱)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500">₱</span>
+                      <Input
+                        type="text"
+                        value={instTotalAmount}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (!/^\d*\.?\d*$/.test(v)) return;
+                          onInstTotalChange(v);
+                        }}
+                        onBlur={() => {
+                          const n = Number(instTotalAmount || 0);
+                          if (Number.isFinite(n)) onInstTotalChange(n.toFixed(2));
+                        }}
+                        className="h-10 pl-7"
+                        placeholder="e.g. 10000.00"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Number of Cutoffs with quick pills */}
+                  <div className="flex flex-col">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                        Number of Cutoffs to Pay
+                      </label>
+                      <div className="flex items-center gap-1">
+                        {[2, 4, 6, 12, 24].map((count) => (
+                          <button
+                            key={count}
+                            type="button"
+                            onClick={() => onInstCutoffsChange(String(count))}
+                            className={cn(
+                              "rounded px-1.5 py-0.5 text-[11px] font-semibold border transition-all",
+                              Number(instCutoffs) === count
+                                ? "border-emerald-600 bg-emerald-600 text-white"
+                                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                            )}
+                          >
+                            {count}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={60}
+                      value={instCutoffs}
+                      onChange={(e) => onInstCutoffsChange(e.target.value)}
+                      className="h-10"
+                      placeholder="e.g. 6"
+                    />
+                  </div>
+
+                  {/* Computed Deduction per Cutoff */}
+                  <div className="flex flex-col col-span-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                        Computed Deduction per Cutoff (₱)
+                      </label>
+                      <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">
+                        Auto: ₱{money(instTotalAmount)} ÷ {instCutoffs || 1} = ₱{money(instCutoffAmount)} / cutoff
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500">₱</span>
+                      <Input
+                        type="text"
+                        value={instCutoffAmount}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (!/^\d*\.?\d*$/.test(v)) return;
+                          onInstCutoffAmountChange(v);
+                        }}
+                        onBlur={() => {
+                          const n = Number(instCutoffAmount || 0);
+                          if (Number.isFinite(n)) onInstCutoffAmountChange(n.toFixed(2));
+                        }}
+                        className="h-10 pl-7 bg-slate-50/70 font-semibold text-slate-900 dark:bg-slate-900/60 dark:text-slate-100"
+                        placeholder="e.g. 1666.67"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Starting Cutoff Period */}
+                  <div className="flex flex-col col-span-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      Starting Cutoff Period
+                    </label>
+                    <CutoffSelect
+                      value={instCutoffId}
+                      onChange={(id) => setInstCutoffId(id)}
+                      disabled={cutoffsLoading}
+                      loading={cutoffsLoading}
+                      cutoffs={cutoffs}
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div className="flex flex-col col-span-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      Description / Deduction Purpose
+                    </label>
+                    <Input
+                      type="text"
+                      value={instDesc}
+                      onChange={(e) => setInstDesc(e.target.value)}
+                      className="h-10"
+                      placeholder="e.g. Company Loan, Uniform Deduction, Cash Advance"
+                    />
+                  </div>
+
+                  {/* Cutdown Schedule Preview */}
+                  <div className="col-span-2 mt-2 rounded-lg border bg-white p-3 shadow-xs dark:bg-slate-950/40">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                        <Calendar className="h-3.5 w-3.5 text-emerald-600" />
+                        Cutdown Schedule Preview ({scheduleRows.length} Cutoffs)
+                      </div>
+                      <div className="text-xs font-medium text-slate-500">
+                        Total: <strong className="text-slate-900 dark:text-white">₱{money(instTotalAmount)}</strong>
+                      </div>
+                    </div>
+
+                    {loadingSchedule ? (
+                      <div className="py-4 text-center text-xs text-slate-400">Loading upcoming cutoffs...</div>
+                    ) : (
+                      <div className="max-h-48 overflow-y-auto rounded border border-slate-200 dark:border-slate-800">
+                        <table className="w-full text-left text-xs">
+                          <thead className="sticky top-0 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            <tr>
+                              <th className="py-1.5 px-2.5">Installment</th>
+                              <th className="py-1.5 px-2.5">Cutoff Period</th>
+                              <th className="py-1.5 px-2.5 text-right">Deduction</th>
+                              <th className="py-1.5 px-2.5 text-right">Remaining Balance</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                            {scheduleRows.map((item, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-900/40">
+                                <td className="py-1.5 px-2.5 font-medium text-slate-700 dark:text-slate-300">
+                                  #{item.step} of {scheduleRows.length}
+                                </td>
+                                <td className="py-1.5 px-2.5 text-slate-600 dark:text-slate-400">
+                                  {item.start} → {item.end}
+                                </td>
+                                <td className="py-1.5 px-2.5 text-right font-semibold text-rose-600 dark:text-rose-400">
+                                  -₱{money(item.amount)}
+                                </td>
+                                <td className="py-1.5 px-2.5 text-right font-medium text-slate-700 dark:text-slate-300">
+                                  ₱{money(item.balance)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                /* ONE-TIME CUTOFF FORM (Standard Addition or One-time Deduction) */
+                <>
+                  {/* Amount (for one-time deduction) */}
+                  {formKind === "ded" && (
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                        Amount
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500">
+                          ₱
+                        </span>
+                        <Input
+                          type="text"
+                          value={draft.amount}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (!/^\d*\.?\d*$/.test(v)) return;
+                            setDraft((p) => ({ ...p, amount: v }));
+                          }}
+                          onBlur={() =>
+                            setDraft((p) => ({ ...p, amount: money(p.amount) }))
+                          }
+                          className="h-10 pl-6"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Description */}
+                  <div className="flex flex-col col-span-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      Description
+                    </label>
+                    <Input
+                      type="text"
+                      value={draft.description}
+                      onChange={(e) =>
+                        setDraft((p) => ({ ...p, description: e.target.value }))
+                      }
+                      className="h-10"
+                      placeholder="Optional"
+                    />
+                  </div>
+
+                  {/* Cutoff */}
+                  <div className="flex flex-col col-span-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                      Cutoff Period
+                    </label>
+
+                    <CutoffSelect
+                      value={draft.cutoff_setting_id}
+                      onChange={(id) => applyCutoffToOtherDraft(id, formKind)}
+                      disabled={cutoffsLoading}
+                      loading={cutoffsLoading}
+                      cutoffs={cutoffs}
+                    />
+
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div className="flex flex-col">
+                        <span className="text-xs text-gray-500">Cutoff Start</span>
+                        <Input
+                          value={draft.cutoff_start || ""}
+                          disabled
+                          className="h-9 bg-gray-100 dark:bg-gray-800/60"
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-gray-500">Cutoff End</span>
+                        <Input
+                          value={draft.cutoff_end || ""}
+                          disabled
+                          className="h-9 bg-gray-100 dark:bg-gray-800/60"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 mt-4">
@@ -529,14 +929,25 @@ export function OtherADTab({
                 Cancel
               </Button>
 
-              <Button
-                type="button"
-                className={`h-9 ${ui.primary}`}
-                onClick={saveDraft}
-                disabled={anySaving}
-              >
-                {anySaving ? "Saving..." : activeEditingId ? "Update" : "Save"}
-              </Button>
+              {formKind === "ded" && dedMode === "INSTALLMENT" && !isEditing ? (
+                <Button
+                  type="button"
+                  className={`h-9 ${ui.primary}`}
+                  onClick={handleSaveMultiCutoff}
+                  disabled={anySaving}
+                >
+                  {anySaving ? "Saving..." : `Create ${instCutoffs || 1}-Cutoff Schedule`}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  className={`h-9 ${ui.primary}`}
+                  onClick={saveDraft}
+                  disabled={anySaving}
+                >
+                  {anySaving ? "Saving..." : activeEditingId ? "Update" : "Save"}
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -661,10 +1072,23 @@ export function OtherADTab({
                       <TableCell>{typePill(u.kind)}</TableCell>
 
                       <TableCell className="font-medium">
-                        <div className="truncate">
-                          {r.description || (
-                            <span className="text-gray-400">—</span>
-                          )}
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="truncate">
+                            {r.description || (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </span>
+                          {(() => {
+                            const match = String(r.description || "").match(/\((\d+)\/(\d+)\)/);
+                            if (match) {
+                              return (
+                                <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-300 shrink-0">
+                                  Cutoff {match[1]} of {match[2]}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </TableCell>
 
