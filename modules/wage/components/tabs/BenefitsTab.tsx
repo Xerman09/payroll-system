@@ -25,6 +25,7 @@ import type {
 import * as wageApi from "../../providers/wageApi";
 import ConfirmDialog from "../ConfirmDialog";
 import { getLoggedUser } from "@/lib/auth";
+import { SSS_LOAN_OPTIONS, PAGIBIG_LOAN_OPTIONS } from "../../utils/payrollConstants";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -866,6 +867,7 @@ export function BenefitsTab({
       ...defaultDraft(),
       start_cutoff_id: firstCutoffId,
       benefit_code: "SSS",
+      loan_name: SSS_LOAN_OPTIONS[0],
       terms_installments: "1",
       deduct_on: "BOTH",
       status: "ACTIVE",
@@ -1110,9 +1112,21 @@ export function BenefitsTab({
                     <Label className="text-xs">Benefit</Label>
                     <Select
                       value={draft.benefit_code || "SSS"}
-                      onValueChange={(v) =>
-                        setDraft((p) => ({ ...p, benefit_code: v as BenefitCode }))
-                      }
+                      onValueChange={(v) => {
+                        const nextCode = v as BenefitCode;
+                        const nextOptions =
+                          nextCode === "PAGIBIG"
+                            ? PAGIBIG_LOAN_OPTIONS
+                            : SSS_LOAN_OPTIONS;
+                        const hasMatch = (
+                          nextOptions as readonly string[]
+                        ).includes(draft.loan_name);
+                        setDraft((p) => ({
+                          ...p,
+                          benefit_code: nextCode,
+                          loan_name: hasMatch ? p.loan_name : nextOptions[0],
+                        }));
+                      }}
                     >
                       <SelectTrigger className="h-9">
                         <SelectValue />
@@ -1145,14 +1159,64 @@ export function BenefitsTab({
 
                   <div className="space-y-2">
                     <Label className="text-xs">Loan Name</Label>
-                    <Input
-                      className="h-9"
-                      value={draft.loan_name}
-                      onChange={(e) =>
-                        setDraft((p) => ({ ...p, loan_name: e.target.value }))
-                      }
-                      placeholder="e.g., Salary Loan"
-                    />
+                    {(() => {
+                      const options =
+                        draft.benefit_code === "PAGIBIG"
+                          ? PAGIBIG_LOAN_OPTIONS
+                          : SSS_LOAN_OPTIONS;
+                      const isPreset = (
+                        options as readonly string[]
+                      ).includes(draft.loan_name);
+                      const selectVal = isPreset
+                        ? draft.loan_name
+                        : draft.loan_name
+                        ? "OTHER"
+                        : options[0];
+
+                      return (
+                        <div className="space-y-2">
+                          <Select
+                            value={selectVal}
+                            onValueChange={(v) => {
+                              if (v === "OTHER") {
+                                setDraft((p) => ({ ...p, loan_name: "" }));
+                              } else {
+                                setDraft((p) => ({ ...p, loan_name: v }));
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Select Loan Name" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {options.map((opt) => (
+                                <SelectItem key={opt} value={opt}>
+                                  {opt}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="OTHER">
+                                Other (Specify)
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+
+                          {selectVal === "OTHER" && (
+                            <Input
+                              className="h-9"
+                              value={draft.loan_name}
+                              onChange={(e) =>
+                                setDraft((p) => ({
+                                  ...p,
+                                  loan_name: e.target.value,
+                                }))
+                              }
+                              placeholder="Enter custom loan name..."
+                              autoFocus
+                            />
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="space-y-2">
