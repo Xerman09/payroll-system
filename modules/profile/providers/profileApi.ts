@@ -105,8 +105,12 @@ export async function verifyCurrentPassword(email: string, password: string): Pr
  * Fetch list of departments
  */
 export async function fetchDepartments() {
-  const json = await apiFetch("/items/department?limit=-1");
-  return json.data || [];
+  const json = await apiFetch("/items/department?limit=-1&filter[is_delete][_neq]=1").catch(() => apiFetch("/items/department?limit=-1"));
+  const list = ((json && json.data) || []) as any[];
+  return list.filter((d) => {
+    const del = d?.is_delete ?? d?.is_deleted;
+    return !(del === 1 || del === true || del === "1" || del?.data?.[0] === 1);
+  });
 }
 
 /**

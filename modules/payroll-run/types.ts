@@ -98,6 +98,7 @@ export interface CutoffSetting {
 export interface Department {
   id: number;
   name: string;
+  is_delete?: number;
 }
 
 export interface UserRow {

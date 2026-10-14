@@ -255,6 +255,7 @@ function normalizeDepartment(row: unknown): Department {
   return {
     id: n(r.id ?? r.department_id),
     name: s(r.name ?? r.department_name),
+    is_delete: bitToNum(r.is_delete ?? r.is_deleted),
   };
 }
 
@@ -462,8 +463,23 @@ export async function listCutoffs(): Promise<CutoffSetting[]> {
 }
 
 export async function listDepartments(): Promise<Department[]> {
-  const rows = await api.listItems<Department>(RES.departments, { sort: "department_name", limit: 200 });
-  return (rows ?? []).map(normalizeDepartment);
+  let rows: Record<string, unknown>[] = [];
+  try {
+    rows = await api.listItems<Record<string, unknown>>(RES.departments, {
+      sort: "department_name",
+      limit: 500,
+      "filter[is_delete][_neq]": 1,
+    });
+  } catch (err) {
+    console.warn("[payrollRunService] listDepartments filter error, falling back:", err);
+    rows = await api.listItems<Record<string, unknown>>(RES.departments, {
+      sort: "department_name",
+      limit: 500,
+    });
+  }
+  return (rows ?? [])
+    .filter((r) => bitToNum(r.is_delete ?? r.is_deleted) === 0)
+    .map(normalizeDepartment);
 }
 
 export async function findExistingPostedRun(args: {

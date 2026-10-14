@@ -93,7 +93,28 @@ async function fetchAllItems<T>(
 }
 
 export async function fetchDepartments(): Promise<DepartmentRow[]> {
-  return fetchAllItems<DepartmentRow>("department", "department_id,department_name");
+  try {
+    const rows = await fetchAllItems<DepartmentRow & { is_delete?: unknown; is_deleted?: unknown }>(
+      "department",
+      "department_id,department_name,is_delete",
+      { "filter[is_delete][_neq]": 1 },
+    );
+    return rows.filter((r) => {
+      const del = r.is_delete ?? r.is_deleted;
+      if (del === 1 || del === true || del === "1" || (del as any)?.data?.[0] === 1) return false;
+      return true;
+    });
+  } catch {
+    const rows = await fetchAllItems<DepartmentRow & { is_delete?: unknown; is_deleted?: unknown }>(
+      "department",
+      "department_id,department_name,is_delete",
+    );
+    return rows.filter((r) => {
+      const del = r.is_delete ?? r.is_deleted;
+      if (del === 1 || del === true || del === "1" || (del as any)?.data?.[0] === 1) return false;
+      return true;
+    });
+  }
 }
 
 export async function fetchUsersForDeptJoin(): Promise<UserRow[]> {

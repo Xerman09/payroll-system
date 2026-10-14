@@ -80,7 +80,12 @@ async function fetchAllInBatches<T>(endpoint: string): Promise<T[]> {
 }
 
 export async function fetchDepartments(): Promise<Department[]> {
-  return fetchAllInBatches<Department>("/items/department");
+  const rows = await fetchAllInBatches<Department>("/items/department?filter[is_delete][_neq]=1&sort=department_name")
+    .catch(() => fetchAllInBatches<Department>("/items/department"));
+  return rows.filter((d: any) => {
+    const del = d.is_delete ?? d.is_deleted;
+    return !(del === 1 || del === true || del === "1" || del?.data?.[0] === 1);
+  });
 }
 
 export async function fetchEmploymentStatuses(): Promise<EmploymentStatus[]> {

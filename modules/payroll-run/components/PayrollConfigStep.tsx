@@ -101,6 +101,18 @@ export function PayrollConfigStep({
     [cutoffs, config.cutoffId],
   );
 
+  const activeDepartments = React.useMemo(() => {
+    return departments.filter((d) => {
+      const anyD = d as unknown as Record<string, unknown>;
+      const del = anyD.is_delete ?? anyD.is_deleted;
+      if (del === 1 || del === true || del === "1") return false;
+      if (typeof del === "object" && del !== null && Array.isArray((del as any).data)) {
+        if ((del as any).data[0] === 1) return false;
+      }
+      return true;
+    });
+  }, [departments]);
+
   const selectedDepartment = React.useMemo(() => {
     if (config.departmentId == null) return null;
     return departments.find((d) => d.id === config.departmentId) ?? null;
@@ -317,7 +329,7 @@ export function PayrollConfigStep({
                     <CommandEmpty>No department found.</CommandEmpty>
 
                     <CommandGroup heading="Departments">
-                      {departments.map((d) => {
+                      {activeDepartments.map((d) => {
                         const isActive = d.id === config.departmentId;
                         return (
                           <CommandItem

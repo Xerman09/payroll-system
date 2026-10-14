@@ -123,11 +123,18 @@ export async function GET(req: NextRequest) {
       const qp = new URLSearchParams();
       qp.set("limit", "-1");
       qp.set("sort", "department_name");
-      qp.set("fields", ["department_id", "department_name"].join(","));
+      qp.set("fields", ["department_id", "department_name", "is_delete"].join(","));
+      qp.set("filter[is_delete][_neq]", "1");
 
       const r = await directusFetch(`/items/department?${qp.toString()}`);
       if (!r.ok) return json({ error: "External API error", ...r }, config.name, { status: r.status });
-      return json(r.body, config.name);
+      const body = (r.body || {}) as Record<string, any>;
+      const raw = Array.isArray(body?.data) ? body.data : [];
+      const filtered = raw.filter((d: any) => {
+        const del = d.is_delete ?? d.is_deleted;
+        return !(del === 1 || del === true || del === "1" || del?.data?.[0] === 1);
+      });
+      return json({ ...body, data: filtered }, config.name);
     }
 
     if (type === "cutoffs") {

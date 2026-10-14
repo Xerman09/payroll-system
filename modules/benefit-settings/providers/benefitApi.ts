@@ -211,8 +211,13 @@ export async function fetchDepartments(): Promise<Department[]> {
   if (inFlightDepartments) return inFlightDepartments;
   inFlightDepartments = (async () => {
     try {
-      const json = await apiFetch("/items/department?limit=200&fields=department_id,department_name&sort=department_name");
-      return (json?.data || []) as Department[];
+      const json = await apiFetch("/items/department?limit=200&fields=department_id,department_name,is_delete&sort=department_name&filter[is_delete][_neq]=1")
+        .catch(() => apiFetch("/items/department?limit=200&fields=department_id,department_name,is_delete&sort=department_name"));
+      const list = (json?.data || []) as Department[];
+      return list.filter((d: any) => {
+        const del = d.is_delete ?? d.is_deleted;
+        return !(del === 1 || del === true || del === "1" || del?.data?.[0] === 1);
+      });
     } catch (err) {
       console.warn("fetchDepartments failed, falling back to empty list:", err);
       return [] as Department[];
