@@ -85,7 +85,7 @@ export default function DashboardModule() {
         <div className="absolute bottom-[-10%] left-[20%] w-[40%] h-[40%] rounded-full bg-primary/15 blur-[100px] mix-blend-multiply dark:mix-blend-screen" />
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-7xl space-y-8 px-4 pb-10">
+      <div className="relative z-10 w-full max-w-[1600px] mx-auto space-y-8 pb-10">
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -101,7 +101,7 @@ export default function DashboardModule() {
         </motion.div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3.5 sm:gap-4 mb-8">
           <StatsCard
             title="Total Employees"
             value={stats.employees}
@@ -115,7 +115,7 @@ export default function DashboardModule() {
             value={`${stats.cutoffCompletionPercentage}%`}
             icon={CheckCircle2}
             trend={`${stats.completedDepartments}/${stats.totalDepartments} Done`}
-            trendUp={stats.cutoffCompletionPercentage === 100}
+            trendUp={stats.cutoffCompletionPercentage === 100 ? true : undefined}
             description={stats.currentCutoffTitle || "Current Cutoff"}
             loading={loading}
             delay={2}
