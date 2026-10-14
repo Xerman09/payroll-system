@@ -84,6 +84,7 @@ export default function BenefitLoanModal(props: {
 
   // Interest rate input (percentage)
   const [interestRatePct, setInterestRatePct] = React.useState<string>("0");
+  const [isOtherLoan, setIsOtherLoan] = React.useState<boolean>(false);
 
   const [form, setForm] = React.useState<Partial<BenefitLoan>>({
     loan_id: 0,
@@ -116,7 +117,17 @@ export default function BenefitLoanModal(props: {
       const i = toNum(initial.interest_amount);
       const pct = p > 0 ? round2((i / p) * 100) : 0;
       setInterestRatePct(String(pct));
+
+      const options =
+        initial.benefit_code === "PAGIBIG"
+          ? PAGIBIG_LOAN_OPTIONS
+          : SSS_LOAN_OPTIONS;
+      const isPreset = (options as readonly string[]).includes(
+        initial.loan_name ?? ""
+      );
+      setIsOtherLoan(!isPreset && Boolean(initial.loan_name));
     } else {
+      setIsOtherLoan(false);
       setForm({
         loan_id: 0,
         user_id: 0,
@@ -352,14 +363,18 @@ export default function BenefitLoanModal(props: {
                       nextCode === "PAGIBIG"
                         ? PAGIBIG_LOAN_OPTIONS
                         : SSS_LOAN_OPTIONS;
-                    const hasMatch = (
-                      nextOptions as readonly string[]
-                    ).includes(form.loan_name ?? "");
-                    setForm((p) => ({
-                      ...p,
-                      benefit_code: nextCode,
-                      loan_name: hasMatch ? p.loan_name : nextOptions[0],
-                    }));
+                    if (!isOtherLoan) {
+                      setForm((p) => ({
+                        ...p,
+                        benefit_code: nextCode,
+                        loan_name: nextOptions[0],
+                      }));
+                    } else {
+                      setForm((p) => ({
+                        ...p,
+                        benefit_code: nextCode,
+                      }));
+                    }
                   }}
                 >
                   <SelectTrigger className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
@@ -380,15 +395,9 @@ export default function BenefitLoanModal(props: {
                     form.benefit_code === "PAGIBIG"
                       ? PAGIBIG_LOAN_OPTIONS
                       : SSS_LOAN_OPTIONS;
-                  const currentName = form.loan_name ?? "";
-                  const isPreset = (
-                    options as readonly string[]
-                  ).includes(currentName);
-                  const selectVal = isPreset
-                    ? currentName
-                    : currentName
+                  const selectVal = isOtherLoan
                     ? "OTHER"
-                    : options[0];
+                    : form.loan_name || options[0];
 
                   return (
                     <div className="space-y-2">
@@ -396,8 +405,10 @@ export default function BenefitLoanModal(props: {
                         value={selectVal}
                         onValueChange={(v) => {
                           if (v === "OTHER") {
+                            setIsOtherLoan(true);
                             setForm((p) => ({ ...p, loan_name: "" }));
                           } else {
+                            setIsOtherLoan(false);
                             setForm((p) => ({ ...p, loan_name: v }));
                           }
                         }}
@@ -424,7 +435,7 @@ export default function BenefitLoanModal(props: {
                         </SelectContent>
                       </Select>
 
-                      {selectVal === "OTHER" && (
+                      {isOtherLoan && (
                         <Input
                           className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 placeholder:text-gray-500"
                           value={form.loan_name ?? ""}

@@ -322,6 +322,7 @@ export function BenefitsTab({
 
   // Interest rate input (percentage)
   const [interestRatePct, setInterestRatePct] = React.useState<string>("0");
+  const [isOtherLoan, setIsOtherLoan] = React.useState<boolean>(false);
 
   const defaultDraft = React.useCallback((): Draft => {
     return {
@@ -345,6 +346,7 @@ export function BenefitsTab({
     setEditingId(null);
     setEditingRow(null);
     setInterestRatePct("0");
+    setIsOtherLoan(false);
   }, [defaultDraft]);
 
   const loadLoans = React.useCallback(async () => {
@@ -619,6 +621,11 @@ export function BenefitsTab({
       const pct = p > 0 ? round2((i / p) * 100) : 0;
       setInterestRatePct(String(pct));
 
+      const options =
+        r.benefit_code === "PAGIBIG" ? PAGIBIG_LOAN_OPTIONS : SSS_LOAN_OPTIONS;
+      const isPreset = (options as readonly string[]).includes(r.loan_name ?? "");
+      setIsOtherLoan(!isPreset && Boolean(r.loan_name));
+
       setDraft({
         benefit_code: r.benefit_code,
         loan_name: r.loan_name ?? "",
@@ -863,6 +870,7 @@ export function BenefitsTab({
     setEditingId(null);
     setEditingRow(null);
     setInterestRatePct("0");
+    setIsOtherLoan(false);
     setDraft({
       ...defaultDraft(),
       start_cutoff_id: firstCutoffId,
@@ -1118,14 +1126,18 @@ export function BenefitsTab({
                           nextCode === "PAGIBIG"
                             ? PAGIBIG_LOAN_OPTIONS
                             : SSS_LOAN_OPTIONS;
-                        const hasMatch = (
-                          nextOptions as readonly string[]
-                        ).includes(draft.loan_name);
-                        setDraft((p) => ({
-                          ...p,
-                          benefit_code: nextCode,
-                          loan_name: hasMatch ? p.loan_name : nextOptions[0],
-                        }));
+                        if (!isOtherLoan) {
+                          setDraft((p) => ({
+                            ...p,
+                            benefit_code: nextCode,
+                            loan_name: nextOptions[0],
+                          }));
+                        } else {
+                          setDraft((p) => ({
+                            ...p,
+                            benefit_code: nextCode,
+                          }));
+                        }
                       }}
                     >
                       <SelectTrigger className="h-9">
@@ -1164,14 +1176,9 @@ export function BenefitsTab({
                         draft.benefit_code === "PAGIBIG"
                           ? PAGIBIG_LOAN_OPTIONS
                           : SSS_LOAN_OPTIONS;
-                      const isPreset = (
-                        options as readonly string[]
-                      ).includes(draft.loan_name);
-                      const selectVal = isPreset
-                        ? draft.loan_name
-                        : draft.loan_name
+                      const selectVal = isOtherLoan
                         ? "OTHER"
-                        : options[0];
+                        : draft.loan_name || options[0];
 
                       return (
                         <div className="space-y-2">
@@ -1179,8 +1186,10 @@ export function BenefitsTab({
                             value={selectVal}
                             onValueChange={(v) => {
                               if (v === "OTHER") {
+                                setIsOtherLoan(true);
                                 setDraft((p) => ({ ...p, loan_name: "" }));
                               } else {
+                                setIsOtherLoan(false);
                                 setDraft((p) => ({ ...p, loan_name: v }));
                               }
                             }}
@@ -1200,7 +1209,7 @@ export function BenefitsTab({
                             </SelectContent>
                           </Select>
 
-                          {selectVal === "OTHER" && (
+                          {isOtherLoan && (
                             <Input
                               className="h-9"
                               value={draft.loan_name}
