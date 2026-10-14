@@ -261,6 +261,10 @@ function Sidebar() {
               {
                 title: "Benefit Logs",
                 href: `/unified/benefits-logs/${userId}`,
+              },
+              {
+                title: "Payroll Status",
+                href: `/unified/payroll-status/${userId}`,
               }
             ]
           }
