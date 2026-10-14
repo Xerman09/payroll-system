@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { Users, DollarSign, Calendar, FileText } from "lucide-react";
+import { Users, DollarSign, Calendar, FileText, CheckCircle2 } from "lucide-react";
 import { StatsCard } from "./components/StatsCard";
 import { DashboardCharts } from "./components/DashboardCharts";
+import { CutoffProgressCard } from "./components/CutoffProgressCard";
 import { fetchDashboardData } from "./providers/dashboardService";
-import type { DashboardStats, ChartData, DistributionData } from "./types";
+import type { DashboardStats, ChartData, DistributionData, CutoffProgressData } from "./types";
 import { motion } from "framer-motion";
 import { getLoggedUser } from "@/lib/auth";
 
@@ -20,6 +21,25 @@ export default function DashboardModule() {
     payrollPercentageChange: null,
     upcomingLeaves: 0,
     pendingApprovals: 0,
+    cutoffCompletionPercentage: 0,
+    completedDepartments: 0,
+    totalDepartments: 0,
+    currentCutoffTitle: "",
+  });
+
+  const [cutoffProgress, setCutoffProgress] = useState<CutoffProgressData>({
+    cutoffId: null,
+    cutoffTitle: "",
+    cutoffType: null,
+    startDate: null,
+    endDate: null,
+    payoutDate: null,
+    paidDayPlusOne: null,
+    isWindowActive: false,
+    totalDepartments: 0,
+    completedDepartments: 0,
+    percentage: 0,
+    departments: [],
   });
 
   const [payrollTrend, setPayrollTrend] = useState<ChartData[]>([]);
@@ -41,6 +61,7 @@ export default function DashboardModule() {
         const data = await fetchDashboardData();
         
         setStats(data.stats);
+        setCutoffProgress(data.cutoffProgress);
         setPayrollTrend(data.payrollTrend);
         setEmployeeDistribution(data.employeeDistribution);
       } catch (err) {
@@ -80,7 +101,7 @@ export default function DashboardModule() {
         </motion.div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-8">
           <StatsCard
             title="Total Employees"
             value={stats.employees}
@@ -90,6 +111,16 @@ export default function DashboardModule() {
             delay={1}
           />
           <StatsCard
+            title="Cutoff Progress"
+            value={`${stats.cutoffCompletionPercentage}%`}
+            icon={CheckCircle2}
+            trend={`${stats.completedDepartments}/${stats.totalDepartments} Done`}
+            trendUp={stats.cutoffCompletionPercentage === 100}
+            description={stats.currentCutoffTitle || "Current Cutoff"}
+            loading={loading}
+            delay={2}
+          />
+          <StatsCard
             title="Payroll (Latest)"
             value={`₱${stats.payrollThisMonth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             icon={DollarSign}
@@ -97,7 +128,7 @@ export default function DashboardModule() {
             trendUp={stats.payrollPercentageChange !== null ? stats.payrollPercentageChange >= 0 : undefined}
             description="Since last cutoff"
             loading={loading}
-            delay={2}
+            delay={3}
           />
           <StatsCard
             title="Pending Approvals"
@@ -105,7 +136,7 @@ export default function DashboardModule() {
             icon={FileText}
             description="Requires attention"
             loading={loading}
-            delay={3}
+            delay={4}
             trend={stats.pendingApprovals > 0 ? "Action Needed" : "All Clear"}
             trendUp={stats.pendingApprovals === 0}
           />
@@ -115,9 +146,15 @@ export default function DashboardModule() {
             icon={Calendar}
             description="Next 7 days"
             loading={loading}
-            delay={4}
+            delay={5}
           />
         </div>
+
+        {/* Current Cutoff Payroll Progress Section */}
+        <CutoffProgressCard 
+          cutoffProgress={cutoffProgress}
+          loading={loading}
+        />
 
         {/* Charts Section */}
         <DashboardCharts 

@@ -86,3 +86,14 @@ export async function fetchPendingApprovals(): Promise<Record<string, unknown>[]
 
   return fetchAllInBatches<Record<string, unknown>>("/items/attendance_approval", params);
 }
+
+export async function fetchCutoffs(): Promise<Record<string, unknown>[]> {
+  return fetchAllInBatches<Record<string, unknown>>("/items/cutoff_settings", {
+    sort: "start_date",
+    limit: "100",
+  }).catch(() => []);
+}
+
+export async function fetchPayrollRuns(params: Record<string, string> = {}): Promise<Record<string, unknown>[]> {
+  return fetchAllInBatches<Record<string, unknown>>("/items/payroll_run", params).catch(() => []);
+}
