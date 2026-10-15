@@ -212,6 +212,11 @@ function Sidebar() {
             href: `/logistics-payroll-run/${userId}`,
             icon: <Truck size={18} />,
           },
+          {
+            title: "13th Month Pay",
+            href: `/thirteenth-month/${userId}`,
+            icon: <HandCoins size={18} />,
+          },
         ],
       },
       {
