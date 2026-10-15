@@ -11,6 +11,16 @@ export interface CutoffDayItem {
   run_ref: string;
 }
 
+export interface MonthDayItem {
+  month_key: string;          // e.g. "2026-01"
+  month_name: string;         // e.g. "January 2026"
+  month_short: string;        // e.g. "Jan"
+  total_working_days: number; // Standard working days in that month (e.g. 26)
+  days_worked: number;        // Days employee worked in that month (e.g. 25.5)
+  completion_pct: number;     // e.g. 98%
+  cutoffs_count: number;      // Number of cutoffs in that month
+}
+
 export interface ThirteenthMonthHeader {
   id: string;
   batch_number: string;
@@ -49,6 +59,7 @@ export interface ThirteenthMonthEmployeeLine {
   on_hold: boolean;
   remarks?: string;
   days_breakdown: CutoffDayItem[];
+  monthly_breakdown: MonthDayItem[];
 }
 
 export interface ThirteenthMonthSummary {

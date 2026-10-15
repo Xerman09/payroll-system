@@ -5,6 +5,11 @@ export const metadata = {
   description: "Calculate and disburse 13th month compensation based on working days and attendance",
 };
 
-export default function Page() {
-  return <ThirteenthMonthModule />;
+interface PageProps {
+  params: Promise<{ userId: string }>;
+}
+
+export default async function Page({ params }: PageProps) {
+  const resolved = await params;
+  return <ThirteenthMonthModule initialUserId={resolved?.userId} />;
 }

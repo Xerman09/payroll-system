@@ -1,10 +1,11 @@
 // modules/thirteenth-month/components/ThirteenthMonthHeaderCard.tsx
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   CalendarDays,
+  Calendar,
   DollarSign,
   Users,
   Settings2,
@@ -19,7 +20,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ThirteenthMonthHeader, ThirteenthMonthSummary } from "../types";
-import { safeFormatDate } from "../providers/thirteenthMonthService";
+import { safeFormatDate, getMonthIntervals } from "../providers/thirteenthMonthService";
 
 interface ThirteenthMonthHeaderCardProps {
   header: ThirteenthMonthHeader;
@@ -37,6 +38,10 @@ export function ThirteenthMonthHeaderCard({
   isRecalculating = false,
 }: ThirteenthMonthHeaderCardProps) {
   const isPosted = header.status === "POSTED";
+
+  const monthIntervals = useMemo(() => {
+    return getMonthIntervals(header.start_date, header.end_date);
+  }, [header.start_date, header.end_date]);
 
   return (
     <motion.div
@@ -116,6 +121,29 @@ export function ThirteenthMonthHeaderCard({
                   </span>
                 )}
               </div>
+
+              {/* Monthly Working Days Strip */}
+              {monthIntervals.length > 0 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pt-2 pb-0.5 scrollbar-thin">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider shrink-0 flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-primary" />
+                    Month Working Days:
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {monthIntervals.map((mi) => (
+                      <div
+                        key={mi.key}
+                        className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-lg bg-background/80 border border-border/60 text-xs shadow-xs"
+                      >
+                        <span className="font-semibold text-foreground text-[11px]">{mi.short}</span>
+                        <span className="font-mono text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-1 rounded">
+                          {mi.workingDays}d
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Actions */}

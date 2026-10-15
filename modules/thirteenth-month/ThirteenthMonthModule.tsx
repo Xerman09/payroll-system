@@ -43,7 +43,11 @@ const initialHeader: ThirteenthMonthHeader = {
   updated_at: new Date().toISOString(),
 };
 
-export default function ThirteenthMonthModule() {
+interface ThirteenthMonthModuleProps {
+  initialUserId?: string | number;
+}
+
+export default function ThirteenthMonthModule({ initialUserId }: ThirteenthMonthModuleProps = {}) {
   const [loading, setLoading] = useState(true);
   const [recalculating, setRecalculating] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceData | null>(null);
@@ -94,6 +98,14 @@ export default function ThirteenthMonthModule() {
         );
         setLines(computedLines);
         setSummary(computedSummary);
+
+        if (initialUserId) {
+          const target = computedLines.find((l) => String(l.user_id) === String(initialUserId));
+          if (target) {
+            setDetailModalLine(target);
+            setDetailModalOpen(true);
+          }
+        }
       } catch (err: any) {
         console.error("Error loading 13th month workspace:", err);
         toast.error(err.message || "Failed to load 13th month payroll data.");
@@ -103,6 +115,7 @@ export default function ThirteenthMonthModule() {
     }
 
     init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 2. Recalculation Handler
@@ -184,6 +197,9 @@ export default function ThirteenthMonthModule() {
       return;
     }
 
+    const months = lines[0]?.monthly_breakdown || [];
+    const monthHeaders = months.map((m) => `"${m.month_short} Days (${m.total_working_days}d)"`);
+
     const headers = [
       "User ID",
       "Employee Name",
@@ -192,6 +208,7 @@ export default function ThirteenthMonthModule() {
       "Monthly Salary",
       "Period Working Days",
       "Pay Per Day",
+      ...monthHeaders,
       "Total Days Worked",
       "Adjustment Days",
       "Effective Days Worked",
@@ -203,24 +220,28 @@ export default function ThirteenthMonthModule() {
       "Status",
     ];
 
-    const rows = lines.map((l) => [
-      l.user_id,
-      `"${l.employee_name.replace(/"/g, '""')}"`,
-      `"${l.department_name.replace(/"/g, '""')}"`,
-      `"${l.position.replace(/"/g, '""')}"`,
-      l.monthly_salary.toFixed(2),
-      l.period_working_days,
-      l.pay_per_day.toFixed(2),
-      l.actual_days_worked.toFixed(2),
-      l.adjustment_days.toFixed(2),
-      l.effective_days_worked.toFixed(2),
-      l.computed_13th_month.toFixed(2),
-      l.advance_deduction.toFixed(2),
-      l.tax_withheld.toFixed(2),
-      l.net_13th_month.toFixed(2),
-      l.payment_method,
-      l.on_hold ? "ON_HOLD" : "ACTIVE",
-    ]);
+    const rows = lines.map((l) => {
+      const monthVals = (l.monthly_breakdown || []).map((m) => m.days_worked.toFixed(2));
+      return [
+        l.user_id,
+        `"${l.employee_name.replace(/"/g, '""')}"`,
+        `"${l.department_name.replace(/"/g, '""')}"`,
+        `"${l.position.replace(/"/g, '""')}"`,
+        l.monthly_salary.toFixed(2),
+        l.period_working_days,
+        l.pay_per_day.toFixed(2),
+        ...monthVals,
+        l.actual_days_worked.toFixed(2),
+        l.adjustment_days.toFixed(2),
+        l.effective_days_worked.toFixed(2),
+        l.computed_13th_month.toFixed(2),
+        l.advance_deduction.toFixed(2),
+        l.tax_withheld.toFixed(2),
+        l.net_13th_month.toFixed(2),
+        l.payment_method,
+        l.on_hold ? "ON_HOLD" : "ACTIVE",
+      ];
+    });
 
     const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });

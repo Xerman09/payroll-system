@@ -59,6 +59,63 @@ export function calculateWorkingDaysInRange(
   }
 }
 
+export interface MonthInterval {
+  key: string; // YYYY-MM
+  name: string; // "January 2026"
+  short: string; // "Jan"
+  startDateStr: string; // YYYY-MM-DD
+  endDateStr: string;   // YYYY-MM-DD
+  workingDays: number;
+}
+
+export function getMonthIntervals(startStr: string, endStr: string, excludeSaturdays = false): MonthInterval[] {
+  const intervals: MonthInterval[] = [];
+  try {
+    const sParts = startStr.slice(0, 10).split("-");
+    const eParts = endStr.slice(0, 10).split("-");
+    const start = new Date(Number(sParts[0]), Number(sParts[1]) - 1, Number(sParts[2]));
+    const end = new Date(Number(eParts[0]), Number(eParts[1]) - 1, Number(eParts[2]));
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return [];
+
+    let current = new Date(start.getFullYear(), start.getMonth(), 1);
+    const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+
+    while (current <= endMonth) {
+      const y = current.getFullYear();
+      const m = current.getMonth();
+      const key = `${y}-${String(m + 1).padStart(2, "0")}`;
+      const name = format(current, "MMMM yyyy");
+      const short = format(current, "MMM");
+
+      const firstDay = new Date(y, m, 1);
+      const lastDay = new Date(y, m + 1, 0);
+
+      const effStart = firstDay < start ? start : firstDay;
+      const effEnd = lastDay > end ? end : lastDay;
+
+      const effStartStr = format(effStart, "yyyy-MM-dd");
+      const effEndStr = format(effEnd, "yyyy-MM-dd");
+
+      const workingDays = calculateWorkingDaysInRange(effStartStr, effEndStr, excludeSaturdays);
+
+      intervals.push({
+        key,
+        name,
+        short,
+        startDateStr: effStartStr,
+        endDateStr: effEndStr,
+        workingDays,
+      });
+
+      current = new Date(y, m + 1, 1);
+    }
+  } catch (err) {
+    console.error("Error generating month intervals:", err);
+  }
+  return intervals;
+}
+
 export interface WorkspaceData {
   users: Record<string, unknown>[];
   departments: Record<string, unknown>[];
@@ -219,6 +276,45 @@ export function computeEmployeeLines(
 
     const net13thMonth = Math.max(0, Math.round((computed13thMonth - advanceDeduction - taxWithheld) * 100) / 100);
 
+    const monthIntervals = getMonthIntervals(startYmd, endYmd);
+
+    const monthlyBreakdown = monthIntervals.map((mi) => {
+      const cutoffsInMonth = daysBreakdown.filter((item) => {
+        const cEnd = item.cutoff_end ? item.cutoff_end.slice(0, 7) : "";
+        const cStart = item.cutoff_start ? item.cutoff_start.slice(0, 7) : "";
+        return cEnd === mi.key || cStart === mi.key;
+      });
+
+      let days = cutoffsInMonth.reduce((sum, item) => sum + item.days_worked, 0);
+
+      if (cutoffsInMonth.length === 0 && daysBreakdown.length === 0) {
+        if (u.user_dateOfHire) {
+          const hireYmd = String(u.user_dateOfHire).slice(0, 10);
+          if (hireYmd > mi.endDateStr) {
+            days = 0;
+          } else if (hireYmd >= mi.startDateStr && hireYmd <= mi.endDateStr) {
+            days = calculateWorkingDaysInRange(hireYmd, mi.endDateStr);
+          } else {
+            days = mi.workingDays;
+          }
+        } else {
+          days = mi.workingDays;
+        }
+      }
+
+      const completionPct = mi.workingDays > 0 ? Math.min(100, Math.round((days / mi.workingDays) * 100)) : 0;
+
+      return {
+        month_key: mi.key,
+        month_name: mi.name,
+        month_short: mi.short,
+        total_working_days: mi.workingDays,
+        days_worked: days,
+        completion_pct: completionPct,
+        cutoffs_count: cutoffsInMonth.length,
+      };
+    });
+
     return {
       id: `line-${userId}`,
       user_id: userId,
@@ -242,6 +338,7 @@ export function computeEmployeeLines(
       on_hold: Boolean(manual.on_hold),
       remarks: manual.remarks || "",
       days_breakdown: daysBreakdown,
+      monthly_breakdown: monthlyBreakdown,
     };
   });
 

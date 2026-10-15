@@ -51,21 +51,23 @@ export function DaysCalculationDetailModal({
   line,
   onSaveAdjustment,
 }: DaysCalculationDetailModalProps) {
-  if (!line) return null;
-
-  const [adjustmentDays, setAdjustmentDays] = useState(line.adjustment_days || 0);
-  const [advanceDeduction, setAdvanceDeduction] = useState(line.advance_deduction || 0);
-  const [onHold, setOnHold] = useState(line.on_hold);
-  const [remarks, setRemarks] = useState(line.remarks || "");
+  const [adjustmentDays, setAdjustmentDays] = useState(0);
+  const [advanceDeduction, setAdvanceDeduction] = useState(0);
+  const [onHold, setOnHold] = useState(false);
+  const [remarks, setRemarks] = useState("");
+  const [breakdownView, setBreakdownView] = useState<"MONTHLY" | "CUTOFF">("MONTHLY");
 
   useEffect(() => {
     if (open && line) {
       setAdjustmentDays(line.adjustment_days || 0);
       setAdvanceDeduction(line.advance_deduction || 0);
-      setOnHold(line.on_hold);
+      setOnHold(Boolean(line.on_hold));
       setRemarks(line.remarks || "");
+      setBreakdownView("MONTHLY");
     }
   }, [open, line]);
+
+  if (!line) return null;
 
   // Dynamic preview calculation
   const effectiveDays = Math.max(0, line.actual_days_worked + Number(adjustmentDays));
@@ -172,72 +174,184 @@ export function DaysCalculationDetailModal({
             )}
           </div>
 
-          {/* Itemized Table of Total Days Worked Per Cutoff */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
+          {/* Itemized Table Section with Monthly vs Cutoff Switcher */}
+          <div className="space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-primary" />
-                Calculation Breakdown of Days Worked (Cutoffs in Period)
+                Days Worked Calculation Breakdown
               </Label>
-              <Badge variant="secondary" className="font-mono text-xs">
-                {line.days_breakdown.length} cutoffs recorded
-              </Badge>
+
+              {/* Toggle View */}
+              <div className="flex items-center bg-muted/60 p-0.5 rounded-xl border border-white/5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setBreakdownView("MONTHLY")}
+                  className={`px-3 py-1 rounded-lg transition-colors font-medium flex items-center gap-1.5 ${
+                    breakdownView === "MONTHLY"
+                      ? "bg-background text-foreground shadow-sm font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Calendar className="w-3 h-3 text-primary" />
+                  Monthly View ({line.monthly_breakdown?.length || 0} Mos)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBreakdownView("CUTOFF")}
+                  className={`px-3 py-1 rounded-lg transition-colors font-medium flex items-center gap-1.5 ${
+                    breakdownView === "CUTOFF"
+                      ? "bg-background text-foreground shadow-sm font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Clock className="w-3 h-3 text-sky-500" />
+                  Cutoff Runs ({line.days_breakdown?.length || 0})
+                </button>
+              </div>
             </div>
 
-            <div className="border border-border/60 rounded-xl overflow-hidden bg-card/40">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border/60 bg-muted/50 text-muted-foreground font-semibold">
-                    <th className="py-2 px-3 text-left">Cutoff Period</th>
-                    <th className="py-2 px-3 text-left">Reference No.</th>
-                    <th className="py-2 px-3 text-right">Days Worked</th>
-                    <th className="py-2 px-3 text-right">Share Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {line.days_breakdown.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="py-4 text-center text-muted-foreground italic">
-                        No individual historical cutoff runs found for this date range. Base days defaulted from hire date / calendar ({line.actual_days_worked.toFixed(2)} days).
+            {/* MONTHLY BREAKDOWN VIEW */}
+            {breakdownView === "MONTHLY" ? (
+              <div className="border border-border/60 rounded-xl overflow-hidden bg-card/40">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border/60 bg-muted/50 text-muted-foreground font-semibold">
+                      <th className="py-2.5 px-3 text-left">Calendar Month</th>
+                      <th className="py-2.5 px-3 text-right">
+                        <span>Total Working Days</span>
+                        <span className="block text-[9px] font-normal opacity-70">Scheduled In Month</span>
+                      </th>
+                      <th className="py-2.5 px-3 text-right">
+                        <span>Employee Work Days</span>
+                        <span className="block text-[9px] font-normal opacity-70">Actual Rendered</span>
+                      </th>
+                      <th className="py-2.5 px-3 text-center">Attendance %</th>
+                      <th className="py-2.5 px-3 text-right">Month Share</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {(!line.monthly_breakdown || line.monthly_breakdown.length === 0) ? (
+                      <tr>
+                        <td colSpan={5} className="py-4 text-center text-muted-foreground italic">
+                          No monthly intervals generated for this date range.
+                        </td>
+                      </tr>
+                    ) : (
+                      line.monthly_breakdown.map((m, idx) => {
+                        const monthShare = Math.round(m.days_worked * line.pay_per_day * 100) / 100;
+                        const isFull = m.days_worked >= m.total_working_days && m.total_working_days > 0;
+                        return (
+                          <tr key={idx} className="hover:bg-muted/30 transition-colors">
+                            <td className="py-2.5 px-3 font-semibold text-foreground">
+                              {m.month_name}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-muted-foreground">
+                              {m.total_working_days} days
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-foreground">
+                              <span className={m.days_worked > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>
+                                {m.days_worked.toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <Badge
+                                variant="secondary"
+                                className={`text-[10px] font-mono px-1.5 py-0.5 ${
+                                  isFull
+                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25"
+                                    : m.completion_pct > 0
+                                    ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/25"
+                                    : "bg-muted text-muted-foreground"
+                                }`}
+                              >
+                                {m.completion_pct}%
+                              </Badge>
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-medium text-foreground">
+                              ₱{monthShare.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-border/80 bg-muted/60 font-bold text-foreground">
+                      <td className="py-2.5 px-3">Total Across All Months</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-muted-foreground">
+                        {line.period_working_days} days
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400">
+                        {line.actual_days_worked.toFixed(2)} days
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-mono text-xs">
+                        {line.period_working_days > 0 ? `${Math.round((line.actual_days_worked / line.period_working_days) * 100)}%` : "0%"}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-primary">
+                        ₱{(Math.round(line.actual_days_worked * line.pay_per_day * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
-                  ) : (
-                    line.days_breakdown.map((item, idx) => {
-                      const shareAmount = Math.round(item.days_worked * line.pay_per_day * 100) / 100;
-                      return (
-                        <tr key={idx} className="hover:bg-muted/30 transition-colors">
-                          <td className="py-2 px-3 font-medium text-foreground">
-                            {item.cutoff_label}
-                          </td>
-                          <td className="py-2 px-3 font-mono text-muted-foreground">
-                            {item.run_ref}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono font-semibold text-foreground">
-                            {item.days_worked.toFixed(2)}
-                          </td>
-                          <td className="py-2 px-3 text-right font-mono text-muted-foreground">
-                            ₱{shareAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-border/80 bg-muted/60 font-bold text-foreground">
-                    <td colSpan={2} className="py-2.5 px-3">
-                      Total Days Accumulated from Runs
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400">
-                      {line.actual_days_worked.toFixed(2)}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-primary">
-                      ₱{(Math.round(line.actual_days_worked * line.pay_per_day * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                  </tfoot>
+                </table>
+              </div>
+            ) : (
+              /* CUTOFF BREAKDOWN VIEW */
+              <div className="border border-border/60 rounded-xl overflow-hidden bg-card/40">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border/60 bg-muted/50 text-muted-foreground font-semibold">
+                      <th className="py-2 px-3 text-left">Cutoff Period</th>
+                      <th className="py-2 px-3 text-left">Reference No.</th>
+                      <th className="py-2 px-3 text-right">Days Worked</th>
+                      <th className="py-2 px-3 text-right">Share Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {line.days_breakdown.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-4 text-center text-muted-foreground italic">
+                          No individual historical cutoff runs found for this date range. Base days defaulted from hire date / calendar ({line.actual_days_worked.toFixed(2)} days).
+                        </td>
+                      </tr>
+                    ) : (
+                      line.days_breakdown.map((item, idx) => {
+                        const shareAmount = Math.round(item.days_worked * line.pay_per_day * 100) / 100;
+                        return (
+                          <tr key={idx} className="hover:bg-muted/30 transition-colors">
+                            <td className="py-2 px-3 font-medium text-foreground">
+                              {item.cutoff_label}
+                            </td>
+                            <td className="py-2 px-3 font-mono text-muted-foreground">
+                              {item.run_ref}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-semibold text-foreground">
+                              {item.days_worked.toFixed(2)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono text-muted-foreground">
+                              ₱{shareAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-border/80 bg-muted/60 font-bold text-foreground">
+                      <td colSpan={2} className="py-2.5 px-3">
+                        Total Days Accumulated from Runs
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400">
+                        {line.actual_days_worked.toFixed(2)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-primary">
+                        ₱{(Math.round(line.actual_days_worked * line.pay_per_day * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Manual Adjustment & Override Section */}
