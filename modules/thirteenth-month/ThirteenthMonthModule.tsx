@@ -11,6 +11,7 @@ import {
   ThirteenthMonthHeader,
   ThirteenthMonthEmployeeLine,
   ThirteenthMonthSummary,
+  EmployeeManualAdjustment,
 } from "./types";
 import {
   loadThirteenthMonthWorkspace,
@@ -18,6 +19,12 @@ import {
   calculateWorkingDaysInRange,
   WorkspaceData,
 } from "./providers/thirteenthMonthService";
+import {
+  fetch13thMonthConfig,
+  save13thMonthConfig,
+  fetch13thMonthAdjustments,
+  save13thMonthAdjustments,
+} from "./providers/thirteenthMonthApi";
 import { ThirteenthMonthHeaderCard } from "./components/ThirteenthMonthHeaderCard";
 import { ThirteenthMonthTable } from "./components/ThirteenthMonthTable";
 import { CreateHeaderModal } from "./components/CreateHeaderModal";
@@ -52,18 +59,30 @@ export default function ThirteenthMonthModule({ initialUserId }: ThirteenthMonth
   const [recalculating, setRecalculating] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceData | null>(null);
 
-  const [header, setHeader] = useState<ThirteenthMonthHeader>(initialHeader);
+  const [header, setHeader] = useState<ThirteenthMonthHeader>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("13th_month_header_config");
+        if (saved) {
+          return { ...initialHeader, ...JSON.parse(saved) };
+        }
+      } catch {}
+    }
+    return initialHeader;
+  });
   const [manualAdjustments, setManualAdjustments] = useState<
-    Record<
-      number,
-      {
-        adjustment_days?: number;
-        advance_deduction?: number;
-        on_hold?: boolean;
-        remarks?: string;
+    Record<number, EmployeeManualAdjustment>
+  >(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(`13th_month_adjustments_${currentYear}`);
+        return saved ? JSON.parse(saved) : {};
+      } catch {
+        return {};
       }
-    >
-  >({});
+    }
+    return {};
+  });
 
   const [lines, setLines] = useState<ThirteenthMonthEmployeeLine[]>([]);
   const [summary, setSummary] = useState<ThirteenthMonthSummary>({
@@ -91,10 +110,39 @@ export default function ThirteenthMonthModule({ initialUserId }: ThirteenthMonth
         const ws = await loadThirteenthMonthWorkspace();
         setWorkspace(ws);
 
+        // Fetch enterprise-saved configuration & adjustments
+        let activeHeader = header;
+        try {
+          const savedServer = await fetch13thMonthConfig();
+          if (savedServer) {
+            activeHeader = { ...initialHeader, ...savedServer };
+            setHeader(activeHeader);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("13th_month_header_config", JSON.stringify(activeHeader));
+            }
+          }
+        } catch (e) {
+          console.warn("Could not retrieve remote 13th month configuration:", e);
+        }
+
+        let activeAdjustments = manualAdjustments;
+        try {
+          const serverAdjustments = await fetch13thMonthAdjustments(activeHeader.year);
+          if (serverAdjustments) {
+            activeAdjustments = { ...manualAdjustments, ...serverAdjustments };
+            setManualAdjustments(activeAdjustments);
+            if (typeof window !== "undefined") {
+              localStorage.setItem(`13th_month_adjustments_${activeHeader.year}`, JSON.stringify(activeAdjustments));
+            }
+          }
+        } catch (e) {
+          console.warn("Could not retrieve remote 13th month adjustments:", e);
+        }
+
         const { lines: computedLines, summary: computedSummary } = computeEmployeeLines(
-          initialHeader,
+          activeHeader,
           ws,
-          manualAdjustments
+          activeAdjustments
         );
         setLines(computedLines);
         setSummary(computedSummary);
@@ -146,27 +194,57 @@ export default function ThirteenthMonthModule({ initialUserId }: ThirteenthMonth
   };
 
   // 3. Save Header
-  const handleSaveHeader = (newHeader: ThirteenthMonthHeader) => {
+  const handleSaveHeader = async (newHeader: ThirteenthMonthHeader) => {
     setHeader(newHeader);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("13th_month_header_config", JSON.stringify(newHeader));
+      } catch {}
+    }
     runCalculation(newHeader);
+
+    try {
+      const ok = await save13thMonthConfig(newHeader);
+      if (ok) {
+        toast.success("13th Month configuration saved successfully!");
+      } else {
+        toast.info("Configuration saved locally (offline mode).");
+      }
+    } catch (err: any) {
+      console.error("Failed to save header configuration:", err);
+      toast.error("Failed to save configuration to database.");
+    }
   };
+
 
   // 4. Save Adjustment for Individual Employee
   const handleSaveAdjustment = (
     userId: number,
-    data: {
-      adjustment_days: number;
-      advance_deduction: number;
-      on_hold: boolean;
-      remarks: string;
-    }
+    data: EmployeeManualAdjustment
   ) => {
     const updated = {
       ...manualAdjustments,
       [userId]: data,
     };
     setManualAdjustments(updated);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(`13th_month_adjustments_${header.year}`, JSON.stringify(updated));
+      } catch {}
+    }
     runCalculation(header, updated);
+
+    // Persist to database asynchronously
+    save13thMonthAdjustments(header.year, updated).catch((err) => {
+      console.warn("Could not sync adjustments to server:", err);
+    });
+
+    // Update modal line reference if open
+    setDetailModalLine((prev) => {
+      if (!prev || prev.user_id !== userId || !workspace) return prev;
+      const { lines: recalculated } = computeEmployeeLines(header, workspace, updated);
+      return recalculated.find((l) => l.user_id === userId) || prev;
+    });
   };
 
   // 5. Toggle Hold
@@ -180,7 +258,18 @@ export default function ThirteenthMonthModule({ initialUserId }: ThirteenthMonth
       },
     };
     setManualAdjustments(updated);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(`13th_month_adjustments_${header.year}`, JSON.stringify(updated));
+      } catch {}
+    }
     runCalculation(header, updated);
+
+    // Persist to database asynchronously
+    save13thMonthAdjustments(header.year, updated).catch((err) => {
+      console.warn("Could not sync hold state to server:", err);
+    });
+
     toast.info(`Employee #${userId} ${!currentHold ? "placed on hold" : "released from hold"}.`);
   };
 

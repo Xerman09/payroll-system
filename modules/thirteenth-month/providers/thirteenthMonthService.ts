@@ -7,6 +7,8 @@ import type {
   ThirteenthMonthEmployeeLine,
   ThirteenthMonthSummary,
   CutoffDayItem,
+  MonthDayItem,
+  EmployeeManualAdjustment,
 } from "../types";
 
 export function safeFormatDate(dStr?: string | null, pattern = "MMM dd, yyyy"): string {
@@ -136,8 +138,8 @@ export async function loadThirteenthMonthWorkspace(): Promise<WorkspaceData> {
     api.fetchHolidays(),
   ]);
 
-  const runIds = postedRuns.map((r) => r.payroll_run_id || r.id).filter(Boolean) as (number | string)[];
-  const runEmployees = await api.fetchPayrollRunEmployees(runIds.slice(0, 50)); // latest runs
+  // Fetch all real posted run employee records directly (no arbitrary slice limit!)
+  const runEmployees = await api.fetchPayrollRunEmployees();
 
   return {
     users,
@@ -153,7 +155,7 @@ export async function loadThirteenthMonthWorkspace(): Promise<WorkspaceData> {
 export function computeEmployeeLines(
   header: ThirteenthMonthHeader,
   workspace: WorkspaceData,
-  manualAdjustments: Record<number, { adjustment_days?: number; advance_deduction?: number; on_hold?: boolean; remarks?: string }> = {}
+  manualAdjustments: Record<number, EmployeeManualAdjustment> = {}
 ): { lines: ThirteenthMonthEmployeeLine[]; summary: ThirteenthMonthSummary } {
   const { users, departments, wages, postedRuns, runEmployees } = workspace;
 
@@ -176,37 +178,61 @@ export function computeEmployeeLines(
     }
   });
 
+  // Supplement wageMap with real rates from posted payroll runs if wage table is 0
+  runEmployees.forEach((re) => {
+    const uId = Number(re.user_id);
+    if (!uId) return;
+    const existing = wageMap.get(uId);
+    const mRate = Number(re.monthly_rate || 0);
+    const dRate = Number(re.daily_rate || 0);
+    if (!existing || (existing.monthly_rate === 0 && existing.daily_rate === 0)) {
+      if (mRate > 0 || dRate > 0) {
+        wageMap.set(uId, {
+          monthly_rate: mRate,
+          daily_rate: dRate,
+          payment_method: existing?.payment_method || "BANK",
+        });
+      }
+    }
+  });
+
+  // Build lookup map for parent posted runs
+  const postedRunMap = new Map<number, Record<string, unknown>>();
+  postedRuns.forEach((r) => {
+    postedRunMap.set(Number(r.payroll_run_id || r.id), r);
+  });
+
   // Active runs map in the target date range
   const startYmd = header.start_date.slice(0, 10);
   const endYmd = header.end_date.slice(0, 10);
 
-  const runsInRange = postedRuns.filter((r) => {
-    const rStart = r.cutoff_start ? String(r.cutoff_start).slice(0, 10) : "";
-    const rEnd = r.cutoff_end ? String(r.cutoff_end).slice(0, 10) : "";
-    if (!rStart || !rEnd) return false;
-    // Overlaps or inside range
-    return rStart <= endYmd && rEnd >= startYmd;
-  });
-
-  const validRunIds = new Set(runsInRange.map((r) => Number(r.payroll_run_id || r.id)));
-
-  // Map employee days worked across runs
+  // Map employee days worked across real runs
   const employeeDaysMap = new Map<number, CutoffDayItem[]>();
   runEmployees.forEach((re) => {
     const runId = Number(re.payroll_run_id);
     const userId = Number(re.user_id);
     if (!userId) return;
 
-    if (validRunIds.has(runId)) {
-      const parentRun = runsInRange.find((r) => Number(r.payroll_run_id || r.id) === runId);
-      const days = Number(re.total_days_worked ?? re.days_worked ?? 0);
+    const parentRun = postedRunMap.get(runId);
+    const cStart = re.cutoff_start ? String(re.cutoff_start).slice(0, 10) : (parentRun?.cutoff_start ? String(parentRun.cutoff_start).slice(0, 10) : "");
+    const cEnd = re.cutoff_end ? String(re.cutoff_end).slice(0, 10) : (parentRun?.cutoff_end ? String(parentRun.cutoff_end).slice(0, 10) : "");
+
+    // A cutoff belongs canonically to the month it finishes and pays out (cutoff_end)
+    const cutoffMonth = cEnd ? cEnd.slice(0, 7) : (cStart ? cStart.slice(0, 7) : "");
+    const startMonth = startYmd.slice(0, 7);
+    const endMonth = endYmd.slice(0, 7);
+
+    if (cutoffMonth && cutoffMonth >= startMonth && cutoffMonth <= endMonth) {
+      const days = Number(re.total_days_worked ?? (re as any).days_worked ?? 0);
+      const label = re.cutoff_label
+        ? String(re.cutoff_label)
+        : (cStart && cEnd ? `${safeFormatDate(cStart)} – ${safeFormatDate(cEnd)}` : `Run #${runId}`);
+
       const item: CutoffDayItem = {
         cutoff_id: runId,
-        cutoff_label: parentRun?.cutoff_start && parentRun?.cutoff_end
-          ? `${safeFormatDate(String(parentRun.cutoff_start))} – ${safeFormatDate(String(parentRun.cutoff_end))}`
-          : `Run #${runId}`,
-        cutoff_start: String(parentRun?.cutoff_start || ""),
-        cutoff_end: String(parentRun?.cutoff_end || ""),
+        cutoff_label: label,
+        cutoff_start: cStart,
+        cutoff_end: cEnd,
         days_worked: days,
         run_ref: String(parentRun?.payroll_ref_no || `RUN-${runId}`),
       };
@@ -242,78 +268,72 @@ export function computeEmployeeLines(
     const departmentName = deptId != null ? deptMap.get(deptId) || "General" : "Unassigned";
 
     const wage = wageMap.get(userId) || { monthly_rate: 0, daily_rate: 0, payment_method: "BANK" };
-    const monthlySalary = wage.monthly_rate > 0 ? wage.monthly_rate : (wage.daily_rate > 0 ? wage.daily_rate * 26 : 0);
+    let monthlySalary = wage.monthly_rate > 0 ? wage.monthly_rate : (wage.daily_rate > 0 ? wage.daily_rate * 26 : 0);
+
+    // If still 0, look up directly from runEmployees
+    if (monthlySalary === 0) {
+      const userRuns = runEmployees.filter((re) => Number(re.user_id) === userId);
+      if (userRuns.length > 0) {
+        const lastRun = userRuns[userRuns.length - 1];
+        const m = Number(lastRun.monthly_rate || 0);
+        const d = Number(lastRun.daily_rate || 0);
+        if (m > 0) monthlySalary = m;
+        else if (d > 0) monthlySalary = d * 26;
+      }
+    }
 
     // Formula Step 1: Pay Per Day = Monthly Salary / Total Working Days in Period
     const payPerDay = totalPeriodWorkingDays > 0 ? Math.round((monthlySalary / totalPeriodWorkingDays) * 10000) / 10000 : 0;
 
-    // Formula Step 2: Employee total days worked
     const daysBreakdown = employeeDaysMap.get(userId) || [];
-    let actualDaysWorked = daysBreakdown.reduce((sum, item) => sum + item.days_worked, 0);
-
-    // Fallback: If no digitized historical cutoffs exist yet in system, fallback to full period days or prorated from hire date
-    if (actualDaysWorked === 0 && daysBreakdown.length === 0) {
-      if (u.user_dateOfHire) {
-        const hireYmd = String(u.user_dateOfHire).slice(0, 10);
-        const effectiveStart = hireYmd > startYmd ? hireYmd : startYmd;
-        actualDaysWorked = calculateWorkingDaysInRange(effectiveStart, endYmd);
-      } else {
-        actualDaysWorked = totalPeriodWorkingDays;
-      }
-    }
-
-    const manual = manualAdjustments[userId] || {};
-    const adjustmentDays = Number(manual.adjustment_days || 0);
-    const effectiveDaysWorked = Math.max(0, actualDaysWorked + adjustmentDays);
-
-    // Formula Step 3: Total Work * Per Day Pay
-    const computed13thMonth = Math.round(effectiveDaysWorked * payPerDay * 100) / 100;
-
-    // Deductions & Tax (₱90,000 threshold under TRAIN Law)
-    const advanceDeduction = Number(manual.advance_deduction || 0);
-    const taxableAmount = Math.max(0, computed13thMonth - 90000);
-    const taxWithheld = taxableAmount > 0 ? Math.round(taxableAmount * 0.15 * 100) / 100 : 0;
-
-    const net13thMonth = Math.max(0, Math.round((computed13thMonth - advanceDeduction - taxWithheld) * 100) / 100);
+    const userManual = manualAdjustments[userId] || {};
+    const monthlyDaysOverrides = userManual.monthly_days || {};
 
     const monthIntervals = getMonthIntervals(startYmd, endYmd);
 
-    const monthlyBreakdown = monthIntervals.map((mi) => {
+    // Real monthly breakdown of days worked per calendar month (strictly 1 month per cutoff)
+    const monthlyBreakdown: MonthDayItem[] = monthIntervals.map((mi) => {
       const cutoffsInMonth = daysBreakdown.filter((item) => {
-        const cEnd = item.cutoff_end ? item.cutoff_end.slice(0, 7) : "";
-        const cStart = item.cutoff_start ? item.cutoff_start.slice(0, 7) : "";
-        return cEnd === mi.key || cStart === mi.key;
+        const itemMonth = item.cutoff_end ? item.cutoff_end.slice(0, 7) : item.cutoff_start.slice(0, 7);
+        return itemMonth === mi.key;
       });
 
-      let days = cutoffsInMonth.reduce((sum, item) => sum + item.days_worked, 0);
+      const actualCutoffDays = Math.round(cutoffsInMonth.reduce((sum, item) => sum + item.days_worked, 0) * 100) / 100;
+      const hasMonthOverride = monthlyDaysOverrides[mi.key] !== undefined && monthlyDaysOverrides[mi.key] !== null;
+      const rawMonthDays = hasMonthOverride ? Math.max(0, Number(monthlyDaysOverrides[mi.key])) : actualCutoffDays;
+      // Cap at scheduled working days so a month never exceeds its calendar limit
+      const effectiveMonthDays = Math.min(mi.workingDays, rawMonthDays);
 
-      if (cutoffsInMonth.length === 0 && daysBreakdown.length === 0) {
-        if (u.user_dateOfHire) {
-          const hireYmd = String(u.user_dateOfHire).slice(0, 10);
-          if (hireYmd > mi.endDateStr) {
-            days = 0;
-          } else if (hireYmd >= mi.startDateStr && hireYmd <= mi.endDateStr) {
-            days = calculateWorkingDaysInRange(hireYmd, mi.endDateStr);
-          } else {
-            days = mi.workingDays;
-          }
-        } else {
-          days = mi.workingDays;
-        }
-      }
-
-      const completionPct = mi.workingDays > 0 ? Math.min(100, Math.round((days / mi.workingDays) * 100)) : 0;
+      const completionPct = mi.workingDays > 0 ? Math.min(100, Math.round((effectiveMonthDays / mi.workingDays) * 100)) : 0;
 
       return {
         month_key: mi.key,
         month_name: mi.name,
         month_short: mi.short,
         total_working_days: mi.workingDays,
-        days_worked: days,
+        actual_days_worked: actualCutoffDays,
+        days_worked: effectiveMonthDays,
         completion_pct: completionPct,
         cutoffs_count: cutoffsInMonth.length,
+        is_modified: hasMonthOverride && effectiveMonthDays !== actualCutoffDays,
       };
     });
+
+    // Formula Step 2: Total days worked is derived directly from the monthly breakdown
+    const actualDaysWorked = Math.round(monthlyBreakdown.reduce((sum, m) => sum + m.days_worked, 0) * 100) / 100;
+
+    const adjustmentDays = Number(userManual.adjustment_days || 0);
+    const effectiveDaysWorked = Math.max(0, actualDaysWorked + adjustmentDays);
+
+    // Formula Step 3: Total Work * Per Day Pay
+    const computed13thMonth = Math.round(effectiveDaysWorked * payPerDay * 100) / 100;
+
+    // Deductions & Tax (₱90,000 threshold under TRAIN Law)
+    const advanceDeduction = Number(userManual.advance_deduction || 0);
+    const taxableAmount = Math.max(0, computed13thMonth - 90000);
+    const taxWithheld = taxableAmount > 0 ? Math.round(taxableAmount * 0.15 * 100) / 100 : 0;
+
+    const net13thMonth = Math.max(0, Math.round((computed13thMonth - advanceDeduction - taxWithheld) * 100) / 100);
 
     return {
       id: `line-${userId}`,
@@ -335,8 +355,8 @@ export function computeEmployeeLines(
       tax_withheld: taxWithheld,
       net_13th_month: net13thMonth,
       payment_method: (wage.payment_method === "CASH" ? "CASH" : "BANK"),
-      on_hold: Boolean(manual.on_hold),
-      remarks: manual.remarks || "",
+      on_hold: Boolean(userManual.on_hold),
+      remarks: userManual.remarks || "",
       days_breakdown: daysBreakdown,
       monthly_breakdown: monthlyBreakdown,
     };

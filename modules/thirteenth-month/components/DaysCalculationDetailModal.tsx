@@ -25,8 +25,10 @@ import {
   Check,
   AlertCircle,
   ShieldCheck,
+  RotateCcw,
+  Edit3,
 } from "lucide-react";
-import type { ThirteenthMonthEmployeeLine } from "../types";
+import type { ThirteenthMonthEmployeeLine, EmployeeManualAdjustment } from "../types";
 import { safeFormatDate } from "../providers/thirteenthMonthService";
 import { toast } from "sonner";
 
@@ -36,12 +38,7 @@ interface DaysCalculationDetailModalProps {
   line: ThirteenthMonthEmployeeLine | null;
   onSaveAdjustment: (
     userId: number,
-    data: {
-      adjustment_days: number;
-      advance_deduction: number;
-      on_hold: boolean;
-      remarks: string;
-    }
+    data: EmployeeManualAdjustment
   ) => void;
 }
 
@@ -56,6 +53,7 @@ export function DaysCalculationDetailModal({
   const [onHold, setOnHold] = useState(false);
   const [remarks, setRemarks] = useState("");
   const [breakdownView, setBreakdownView] = useState<"MONTHLY" | "CUTOFF">("MONTHLY");
+  const [monthlyDays, setMonthlyDays] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (open && line) {
@@ -64,13 +62,25 @@ export function DaysCalculationDetailModal({
       setOnHold(Boolean(line.on_hold));
       setRemarks(line.remarks || "");
       setBreakdownView("MONTHLY");
+
+      const map: Record<string, number> = {};
+      line.monthly_breakdown.forEach((m) => {
+        map[m.month_key] = m.days_worked;
+      });
+      setMonthlyDays(map);
     }
   }, [open, line]);
 
   if (!line) return null;
 
+  // Sum of editable monthly days
+  const sumMonthlyDays = line.monthly_breakdown.reduce((sum, m) => {
+    const val = monthlyDays[m.month_key] !== undefined ? monthlyDays[m.month_key] : m.days_worked;
+    return sum + val;
+  }, 0);
+
   // Dynamic preview calculation
-  const effectiveDays = Math.max(0, line.actual_days_worked + Number(adjustmentDays));
+  const effectiveDays = Math.max(0, sumMonthlyDays + Number(adjustmentDays));
   const previewGross = Math.round(effectiveDays * line.pay_per_day * 100) / 100;
   const taxable = Math.max(0, previewGross - 90000);
   const previewTax = taxable > 0 ? Math.round(taxable * 0.15 * 100) / 100 : 0;
@@ -82,8 +92,9 @@ export function DaysCalculationDetailModal({
       advance_deduction: Number(advanceDeduction),
       on_hold: onHold,
       remarks: remarks.trim(),
+      monthly_days: monthlyDays,
     });
-    toast.success(`Updated 13th month parameters for ${line.employee_name}`);
+    toast.success(`Saved monthly days & adjustment parameters for ${line.employee_name}`);
     onOpenChange(false);
   };
 
@@ -223,8 +234,11 @@ export function DaysCalculationDetailModal({
                         <span className="block text-[9px] font-normal opacity-70">Scheduled In Month</span>
                       </th>
                       <th className="py-2.5 px-3 text-right">
-                        <span>Employee Work Days</span>
-                        <span className="block text-[9px] font-normal opacity-70">Actual Rendered</span>
+                        <span className="flex items-center justify-end gap-1">
+                          <span>Employee Work Days</span>
+                          <Edit3 className="w-3 h-3 text-primary opacity-80" />
+                        </span>
+                        <span className="block text-[9px] font-normal opacity-70">Directly Editable</span>
                       </th>
                       <th className="py-2.5 px-3 text-center">Attendance %</th>
                       <th className="py-2.5 px-3 text-right">Month Share</th>
@@ -239,20 +253,72 @@ export function DaysCalculationDetailModal({
                       </tr>
                     ) : (
                       line.monthly_breakdown.map((m, idx) => {
-                        const monthShare = Math.round(m.days_worked * line.pay_per_day * 100) / 100;
-                        const isFull = m.days_worked >= m.total_working_days && m.total_working_days > 0;
+                        const currentDays = monthlyDays[m.month_key] !== undefined ? monthlyDays[m.month_key] : m.days_worked;
+                        const isModified = currentDays !== m.actual_days_worked;
+                        const monthShare = Math.round(currentDays * line.pay_per_day * 100) / 100;
+                        const completionPct = m.total_working_days > 0 ? Math.min(100, Math.round((currentDays / m.total_working_days) * 100)) : 0;
+                        const isFull = currentDays >= m.total_working_days && m.total_working_days > 0;
+
                         return (
                           <tr key={idx} className="hover:bg-muted/30 transition-colors">
-                            <td className="py-2.5 px-3 font-semibold text-foreground">
-                              {m.month_name}
+                            <td className="py-2.5 px-3">
+                              <div className="font-semibold text-foreground flex items-center gap-1.5">
+                                <span>{m.month_name}</span>
+                                {isModified && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/50 text-amber-600 dark:text-amber-400 font-mono bg-amber-500/10">
+                                    Custom
+                                  </Badge>
+                                )}
+                              </div>
+                              {m.cutoffs_count > 0 && (
+                                <div className="text-[10px] text-muted-foreground">
+                                  {m.cutoffs_count} cutoffs (DB actual: {m.actual_days_worked}d)
+                                </div>
+                              )}
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono text-muted-foreground">
                               {m.total_working_days} days
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-bold text-foreground">
-                              <span className={m.days_worked > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>
-                                {m.days_worked.toFixed(2)}
-                              </span>
+                            <td className="py-2 px-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  max={m.total_working_days}
+                                  value={currentDays}
+                                  onChange={(e) => {
+                                    const raw = parseFloat(e.target.value);
+                                    const val = isNaN(raw) ? 0 : Math.min(m.total_working_days, Math.max(0, raw));
+                                    setMonthlyDays((prev) => ({
+                                      ...prev,
+                                      [m.month_key]: val,
+                                    }));
+                                  }}
+                                  className={`w-20 h-7 text-right text-xs font-mono font-bold px-2 py-0 rounded-lg ${
+                                    isModified
+                                      ? "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 focus:ring-amber-500"
+                                      : "border-border/60 bg-background/80"
+                                  }`}
+                                />
+                                {isModified && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setMonthlyDays((prev) => ({
+                                        ...prev,
+                                        [m.month_key]: m.actual_days_worked,
+                                      }));
+                                    }}
+                                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                                    title={`Reset to database actual (${m.actual_days_worked} days)`}
+                                  >
+                                    <RotateCcw className="w-3 h-3 text-amber-500" />
+                                  </Button>
+                                )}
+                              </div>
                             </td>
                             <td className="py-2.5 px-3 text-center">
                               <Badge
@@ -260,12 +326,12 @@ export function DaysCalculationDetailModal({
                                 className={`text-[10px] font-mono px-1.5 py-0.5 ${
                                   isFull
                                     ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25"
-                                    : m.completion_pct > 0
+                                    : completionPct > 0
                                     ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/25"
                                     : "bg-muted text-muted-foreground"
                                 }`}
                               >
-                                {m.completion_pct}%
+                                {completionPct}%
                               </Badge>
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono font-medium text-foreground">
@@ -283,13 +349,13 @@ export function DaysCalculationDetailModal({
                         {line.period_working_days} days
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400">
-                        {line.actual_days_worked.toFixed(2)} days
+                        {sumMonthlyDays.toFixed(2)} days
                       </td>
                       <td className="py-2.5 px-3 text-center font-mono text-xs">
-                        {line.period_working_days > 0 ? `${Math.round((line.actual_days_worked / line.period_working_days) * 100)}%` : "0%"}
+                        {line.period_working_days > 0 ? `${Math.round((sumMonthlyDays / line.period_working_days) * 100)}%` : "0%"}
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono text-primary">
-                        ₱{(Math.round(line.actual_days_worked * line.pay_per_day * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ₱{(Math.round(sumMonthlyDays * line.pay_per_day * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
                   </tfoot>

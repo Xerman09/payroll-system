@@ -504,18 +504,24 @@ export function ThirteenthMonthTable({
                           key={m.month_key}
                           className="py-2 px-2 text-center border-l border-border/30 font-mono"
                         >
-                          <div
-                            className={`inline-block px-2 py-0.5 rounded-lg text-xs font-semibold ${
-                              isComplete
+                          <button
+                            type="button"
+                            onClick={() => onOpenDetail(line)}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:scale-105 ${
+                              m.is_modified
+                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-xs"
+                                : isComplete
                                 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                                 : m.days_worked > 0
                                 ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                                : "text-muted-foreground/60"
+                                : "text-muted-foreground/60 hover:bg-muted"
                             }`}
+                            title={`Click to edit ${m.month_name} days (Current: ${m.days_worked}d${m.is_modified ? ` [Edited from ${m.actual_days_worked}d]` : ''})`}
                           >
-                            {m.days_worked.toFixed(1)}
-                            <span className="text-[9px] opacity-60 ml-0.5">/{m.total_working_days}</span>
-                          </div>
+                            <span>{m.days_worked.toFixed(1)}</span>
+                            <span className="text-[9px] opacity-60">/{m.total_working_days}</span>
+                            {m.is_modified && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
+                          </button>
                         </td>
                       );
                     })}

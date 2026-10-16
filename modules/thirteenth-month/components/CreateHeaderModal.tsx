@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calculator, Calendar, FileText, Check } from "lucide-react";
+import { Calculator, Calendar, FileText, Check, Save, Loader2 } from "lucide-react";
 import type { ThirteenthMonthHeader } from "../types";
 import { calculateWorkingDaysInRange } from "../providers/thirteenthMonthService";
 import { toast } from "sonner";
@@ -22,7 +22,7 @@ interface CreateHeaderModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialHeader: ThirteenthMonthHeader;
-  onSaveHeader: (newHeader: ThirteenthMonthHeader) => void;
+  onSaveHeader: (newHeader: ThirteenthMonthHeader) => Promise<void> | void;
   departments: { id: number | string; name: string }[];
 }
 
@@ -40,6 +40,8 @@ export function CreateHeaderModal({
   const [deptFilter, setDeptFilter] = useState(initialHeader.department_filter);
   const [notes, setNotes] = useState(initialHeader.notes || "");
   const [isFiveDayWeek, setIsFiveDayWeek] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
 
   useEffect(() => {
     if (open) {
@@ -66,7 +68,7 @@ export function CreateHeaderModal({
     toast.success(`Computed ${days} working days in selected interval!`);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) {
       toast.error("Please enter a title for the 13th Month batch.");
       return;
@@ -91,9 +93,15 @@ export function CreateHeaderModal({
       updated_at: new Date().toISOString(),
     };
 
-    onSaveHeader(updated);
-    toast.success("13th Month header parameters updated!");
-    onOpenChange(false);
+    setIsSaving(true);
+    try {
+      await onSaveHeader(updated);
+      onOpenChange(false);
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -240,10 +248,20 @@ export function CreateHeaderModal({
           <Button
             type="button"
             onClick={handleSave}
+            disabled={isSaving}
             className="rounded-xl text-xs font-medium bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shadow-md shadow-primary/20"
           >
-            <Check className="w-4 h-4" />
-            Apply & Recalculate
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving Configuration...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Save & Recalculate
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

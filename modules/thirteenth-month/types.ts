@@ -16,9 +16,19 @@ export interface MonthDayItem {
   month_name: string;         // e.g. "January 2026"
   month_short: string;        // e.g. "Jan"
   total_working_days: number; // Standard working days in that month (e.g. 26)
-  days_worked: number;        // Days employee worked in that month (e.g. 25.5)
+  actual_days_worked: number; // Raw historical days worked from cutoffs
+  days_worked: number;        // Effective days worked (editable)
   completion_pct: number;     // e.g. 98%
   cutoffs_count: number;      // Number of cutoffs in that month
+  is_modified?: boolean;      // True if manually edited
+}
+
+export interface EmployeeManualAdjustment {
+  adjustment_days?: number;
+  advance_deduction?: number;
+  on_hold?: boolean;
+  remarks?: string;
+  monthly_days?: Record<string, number>; // key: "YYYY-MM", value: custom days
 }
 
 export interface ThirteenthMonthHeader {
