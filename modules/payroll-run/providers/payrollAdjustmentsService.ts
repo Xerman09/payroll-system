@@ -543,3 +543,234 @@ export async function deleteCoopSavingsMembership(id: number): Promise<void> {
   const url = buildProxyUrl("coop_savings_membership", { id });
   await apiFetch(url, { method: "DELETE" });
 }
+
+/* =========================
+   MULTI-CUTOFF DEDUCTIONS
+========================= */
+
+export type CutoffSettingBrief = {
+  id: number;
+  cutoff_type: "FIRST" | "SECOND" | string;
+  start_date: string;
+  end_date: string;
+  month?: number;
+  year?: number;
+  period_status?: string;
+};
+
+export async function listCutoffSettings(): Promise<CutoffSettingBrief[]> {
+  try {
+    const url = buildProxyUrl("cutoff_settings", {
+      params: {
+        sort: "start_date",
+        limit: "500",
+      },
+    });
+    const out = await apiFetch<DirectusList<CutoffSettingBrief>>(url);
+    return Array.isArray(out?.data) ? out.data : [];
+  } catch (err) {
+    console.warn("[payrollAdjustmentsService] listCutoffSettings error:", err);
+    return [];
+  }
+}
+
+/**
+ * Projects the next cutoff date range based on the current one.
+ * Supports:
+ * - 26th -> 10th (FIRST) followed by 11th -> 25th (SECOND)
+ * - 1st -> 15th followed by 16th -> end of month
+ */
+export function projectNextCutoff(current: { start_date: string; end_date: string }): {
+  start_date: string;
+  end_date: string;
+} {
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const ymd = (y: number, m: number, d: number) => `${y}-${pad2(m)}-${pad2(d)}`;
+
+  const sParts = current.start_date.substring(0, 10).split("-").map(Number);
+  const eParts = current.end_date.substring(0, 10).split("-").map(Number);
+
+  const startYear = sParts[0];
+  const startMonth = sParts[1]; // 1-12
+  const startDay = sParts[2];
+
+  const endYear = eParts[0];
+  const endMonth = eParts[1];
+  const endDay = eParts[2];
+
+  // Pattern 1: 26th-10th & 11th-25th convention
+  if (startDay >= 24 && startDay <= 28) {
+    // Current is FIRST (e.g. 26th of prev month to 10th of this month)
+    // Next is SECOND (11th to 25th of endMonth/endYear)
+    return {
+      start_date: ymd(endYear, endMonth, 11),
+      end_date: ymd(endYear, endMonth, 25),
+    };
+  }
+
+  if (startDay >= 9 && startDay <= 13 && endDay >= 23 && endDay <= 27) {
+    // Current is SECOND (e.g. 11th to 25th of this month)
+    // Next is FIRST (26th of this month to 10th of next month)
+    let nextMonth = startMonth + 1;
+    let nextYear = startYear;
+    if (nextMonth > 12) {
+      nextMonth = 1;
+      nextYear += 1;
+    }
+    return {
+      start_date: ymd(startYear, startMonth, 26),
+      end_date: ymd(nextYear, nextMonth, 10),
+    };
+  }
+
+  // Pattern 2: 1st-15th & 16th-End convention
+  if (startDay === 1 && endDay >= 14 && endDay <= 16) {
+    // Current is 1st to 15th
+    // Next is 16th to end of month
+    const lastDayOfMonth = new Date(startYear, startMonth, 0).getDate();
+    return {
+      start_date: ymd(startYear, startMonth, 16),
+      end_date: ymd(startYear, startMonth, lastDayOfMonth),
+    };
+  }
+
+  if (startDay >= 15 && startDay <= 17) {
+    // Current is 16th to end of month
+    // Next is 1st to 15th of next month
+    let nextMonth = startMonth + 1;
+    let nextYear = startYear;
+    if (nextMonth > 12) {
+      nextMonth = 1;
+      nextYear += 1;
+    }
+    return {
+      start_date: ymd(nextYear, nextMonth, 1),
+      end_date: ymd(nextYear, nextMonth, 15),
+    };
+  }
+
+  // Generic fallback: shift by duration
+  const sDate = new Date(current.start_date);
+  const eDate = new Date(current.end_date);
+  const diffMs = eDate.getTime() - sDate.getTime();
+  const nextStart = new Date(eDate.getTime() + 24 * 60 * 60 * 1000);
+  const nextEnd = new Date(nextStart.getTime() + diffMs);
+
+  return {
+    start_date: nextStart.toISOString().substring(0, 10),
+    end_date: nextEnd.toISOString().substring(0, 10),
+  };
+}
+
+/**
+ * Resolves the next `count` cutoff windows starting from current cutoff.
+ * Tries to use database cutoff_settings first, then projects any remainder.
+ */
+export async function resolveUpcomingCutoffs(args: {
+  currentStart: string;
+  currentEnd: string;
+  count: number;
+}): Promise<Array<{ start_date: string; end_date: string; label?: string }>> {
+  const { currentStart, currentEnd, count } = args;
+  if (count <= 0) return [];
+
+  const cutoffs = await listCutoffSettings();
+  const sorted = [...cutoffs].sort(
+    (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+  );
+
+  const curIdx = sorted.findIndex(
+    (c) => c.start_date.substring(0, 10) === currentStart.substring(0, 10)
+  );
+
+  const results: Array<{ start_date: string; end_date: string; label?: string }> = [];
+
+  if (curIdx >= 0) {
+    const dbCutoffs = sorted.slice(curIdx, curIdx + count);
+    for (const c of dbCutoffs) {
+      results.push({
+        start_date: c.start_date.substring(0, 10),
+        end_date: c.end_date.substring(0, 10),
+        label: c.cutoff_type,
+      });
+    }
+  } else {
+    // Current not found in DB list, use current directly
+    results.push({
+      start_date: currentStart.substring(0, 10),
+      end_date: currentEnd.substring(0, 10),
+    });
+  }
+
+  // If DB didn't have enough future cutoffs, project the rest
+  while (results.length < count) {
+    const last = results[results.length - 1];
+    const next = projectNextCutoff(last);
+    results.push(next);
+  }
+
+  return results.slice(0, count);
+}
+
+/**
+ * Creates multi-cutoff deduction entries for an employee.
+ * It creates one payroll_other_deductions record per cutoff period.
+ */
+export async function createMultiCutoffDeductions(payload: {
+  user_id: number;
+  total_amount?: number;
+  amount_per_cutoff?: number;
+  num_cutoffs: number;
+  description: string;
+  start_cutoff_start: string;
+  start_cutoff_end: string;
+  created_by?: number | null;
+}): Promise<PayrollOtherDeductionRow[]> {
+  const count = Math.max(1, payload.num_cutoffs);
+  const total =
+    payload.total_amount != null && payload.total_amount > 0
+      ? payload.total_amount
+      : (payload.amount_per_cutoff ?? 0) * count;
+
+  const standardAmort = Math.round((total / count) * 100) / 100;
+
+  const cutoffs = await resolveUpcomingCutoffs({
+    currentStart: payload.start_cutoff_start,
+    currentEnd: payload.start_cutoff_end,
+    count,
+  });
+
+  const createdRows: PayrollOtherDeductionRow[] = [];
+  let accumulatedSoFar = 0;
+
+  for (let i = 0; i < cutoffs.length; i++) {
+    const c = cutoffs[i];
+    const isLast = i === cutoffs.length - 1;
+    // On the last cutoff, take the exact remainder so the total matches precisely
+    const cutoffAmount = isLast
+      ? Math.round((total - accumulatedSoFar) * 100) / 100
+      : standardAmort;
+
+    accumulatedSoFar += cutoffAmount;
+
+    const installmentDesc =
+      count > 1
+        ? `${payload.description.trim()} (${i + 1}/${count})`
+        : payload.description.trim();
+
+    const row = await createOtherDeduction({
+      user_id: payload.user_id,
+      amount: cutoffAmount,
+      type: "MANUAL",
+      description: installmentDesc,
+      cutoff_start: c.start_date,
+      cutoff_end: c.end_date,
+      created_by: payload.created_by ?? null,
+    });
+
+    createdRows.push(row);
+  }
+
+  return createdRows;
+}
+

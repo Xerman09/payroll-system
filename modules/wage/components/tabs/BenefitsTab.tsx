@@ -25,6 +25,7 @@ import type {
 import * as wageApi from "../../providers/wageApi";
 import ConfirmDialog from "../ConfirmDialog";
 import { getLoggedUser } from "@/lib/auth";
+import { SSS_LOAN_OPTIONS, PAGIBIG_LOAN_OPTIONS } from "../../utils/payrollConstants";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -321,6 +322,7 @@ export function BenefitsTab({
 
   // Interest rate input (percentage)
   const [interestRatePct, setInterestRatePct] = React.useState<string>("0");
+  const [isOtherLoan, setIsOtherLoan] = React.useState<boolean>(false);
 
   const defaultDraft = React.useCallback((): Draft => {
     return {
@@ -344,6 +346,7 @@ export function BenefitsTab({
     setEditingId(null);
     setEditingRow(null);
     setInterestRatePct("0");
+    setIsOtherLoan(false);
   }, [defaultDraft]);
 
   const loadLoans = React.useCallback(async () => {
@@ -618,6 +621,11 @@ export function BenefitsTab({
       const pct = p > 0 ? round2((i / p) * 100) : 0;
       setInterestRatePct(String(pct));
 
+      const options =
+        r.benefit_code === "PAGIBIG" ? PAGIBIG_LOAN_OPTIONS : SSS_LOAN_OPTIONS;
+      const isPreset = (options as readonly string[]).includes(r.loan_name ?? "");
+      setIsOtherLoan(!isPreset && Boolean(r.loan_name));
+
       setDraft({
         benefit_code: r.benefit_code,
         loan_name: r.loan_name ?? "",
@@ -862,10 +870,12 @@ export function BenefitsTab({
     setEditingId(null);
     setEditingRow(null);
     setInterestRatePct("0");
+    setIsOtherLoan(false);
     setDraft({
       ...defaultDraft(),
       start_cutoff_id: firstCutoffId,
       benefit_code: "SSS",
+      loan_name: SSS_LOAN_OPTIONS[0],
       terms_installments: "1",
       deduct_on: "BOTH",
       status: "ACTIVE",
@@ -1110,9 +1120,25 @@ export function BenefitsTab({
                     <Label className="text-xs">Benefit</Label>
                     <Select
                       value={draft.benefit_code || "SSS"}
-                      onValueChange={(v) =>
-                        setDraft((p) => ({ ...p, benefit_code: v as BenefitCode }))
-                      }
+                      onValueChange={(v) => {
+                        const nextCode = v as BenefitCode;
+                        const nextOptions =
+                          nextCode === "PAGIBIG"
+                            ? PAGIBIG_LOAN_OPTIONS
+                            : SSS_LOAN_OPTIONS;
+                        if (!isOtherLoan) {
+                          setDraft((p) => ({
+                            ...p,
+                            benefit_code: nextCode,
+                            loan_name: nextOptions[0],
+                          }));
+                        } else {
+                          setDraft((p) => ({
+                            ...p,
+                            benefit_code: nextCode,
+                          }));
+                        }
+                      }}
                     >
                       <SelectTrigger className="h-9">
                         <SelectValue />
@@ -1145,14 +1171,61 @@ export function BenefitsTab({
 
                   <div className="space-y-2">
                     <Label className="text-xs">Loan Name</Label>
-                    <Input
-                      className="h-9"
-                      value={draft.loan_name}
-                      onChange={(e) =>
-                        setDraft((p) => ({ ...p, loan_name: e.target.value }))
-                      }
-                      placeholder="e.g., Salary Loan"
-                    />
+                    {(() => {
+                      const options =
+                        draft.benefit_code === "PAGIBIG"
+                          ? PAGIBIG_LOAN_OPTIONS
+                          : SSS_LOAN_OPTIONS;
+                      const selectVal = isOtherLoan
+                        ? "OTHER"
+                        : draft.loan_name || options[0];
+
+                      return (
+                        <div className="space-y-2">
+                          <Select
+                            value={selectVal}
+                            onValueChange={(v) => {
+                              if (v === "OTHER") {
+                                setIsOtherLoan(true);
+                                setDraft((p) => ({ ...p, loan_name: "" }));
+                              } else {
+                                setIsOtherLoan(false);
+                                setDraft((p) => ({ ...p, loan_name: v }));
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Select Loan Name" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {options.map((opt) => (
+                                <SelectItem key={opt} value={opt}>
+                                  {opt}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="OTHER">
+                                Other (Specify)
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+
+                          {isOtherLoan && (
+                            <Input
+                              className="h-9"
+                              value={draft.loan_name}
+                              onChange={(e) =>
+                                setDraft((p) => ({
+                                  ...p,
+                                  loan_name: e.target.value,
+                                }))
+                              }
+                              placeholder="Enter custom loan name..."
+                              autoFocus
+                            />
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="space-y-2">

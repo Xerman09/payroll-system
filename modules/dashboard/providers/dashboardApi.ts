@@ -59,7 +59,13 @@ export async function fetchUsers(params: Record<string, string> = {}): Promise<R
 }
 
 export async function fetchDepartments(): Promise<Record<string, unknown>[]> {
-  return fetchAllInBatches<Record<string, unknown>>("/items/department");
+  const depts = await fetchAllInBatches<Record<string, unknown>>("/items/department", {
+    "filter[is_delete][_neq]": "1",
+  }).catch(() => fetchAllInBatches<Record<string, unknown>>("/items/department"));
+  return depts.filter((d) => {
+    const del = d.is_delete ?? d.is_deleted;
+    return !(del === 1 || del === true || del === "1" || (del as any)?.data?.[0] === 1);
+  });
 }
 
 export async function fetchPostedPayrollRuns(): Promise<Record<string, unknown>[]> {
@@ -79,4 +85,15 @@ export async function fetchPendingApprovals(): Promise<Record<string, unknown>[]
   };
 
   return fetchAllInBatches<Record<string, unknown>>("/items/attendance_approval", params);
+}
+
+export async function fetchCutoffs(): Promise<Record<string, unknown>[]> {
+  return fetchAllInBatches<Record<string, unknown>>("/items/cutoff_settings", {
+    sort: "start_date",
+    limit: "100",
+  }).catch(() => []);
+}
+
+export async function fetchPayrollRuns(params: Record<string, string> = {}): Promise<Record<string, unknown>[]> {
+  return fetchAllInBatches<Record<string, unknown>>("/items/payroll_run", params).catch(() => []);
 }

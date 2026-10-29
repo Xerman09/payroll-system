@@ -155,6 +155,7 @@ export default function TapSheetTab({
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const [previewFilename, setPreviewFilename] = React.useState<string>("");
   const [pdfFilter, setPdfFilter] = React.useState<"ALL" | "BANK" | "CASH">("ALL");
+  const [tablePaymentFilter, setTablePaymentFilter] = React.useState<"ALL" | "BANK" | "CASH">("ALL");
 
   React.useEffect(() => {
     if (!selectedCutoff && uniqueCutoffs.length) {
@@ -231,9 +232,15 @@ export default function TapSheetTab({
     const built = buildTapSheetRows(deduped as any, masters);
 
     const q = search.trim().toLowerCase();
-    const filtered = q
+    let filtered = q
       ? built.filter((r) => r.name_display.toLowerCase().includes(q))
       : built;
+
+    if (tablePaymentFilter === "BANK") {
+      filtered = filtered.filter((r) => r.payment_type === "BANK");
+    } else if (tablePaymentFilter === "CASH") {
+      filtered = filtered.filter((r) => r.payment_type === "CASH");
+    }
 
     const sorted = [...filtered].sort((a, b) => {
       let cmp = 0;
@@ -268,6 +275,7 @@ export default function TapSheetTab({
     sortKey,
     sortDir,
     deptId,
+    tablePaymentFilter,
   ]);
 
   const totals = React.useMemo(() => {
@@ -535,6 +543,23 @@ export default function TapSheetTab({
               {sortDir.toUpperCase()}
             </Button>
 
+            <div className="flex items-center gap-2">
+              <Label className="text-sm">Payment</Label>
+              <Select
+                value={tablePaymentFilter}
+                onValueChange={(v: "ALL" | "BANK" | "CASH") => setTablePaymentFilter(v)}
+              >
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Modes</SelectItem>
+                  <SelectItem value="BANK">Bank Only</SelectItem>
+                  <SelectItem value="CASH">Cash Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {loading && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -562,6 +587,7 @@ export default function TapSheetTab({
               <TableHead>Days</TableHead>
               <TableHead>Hours</TableHead>
               <TableHead>Payment Type</TableHead>
+              <TableHead>Account Number</TableHead>
               <TableHead className="text-right">Gross Pay</TableHead>
               <TableHead className="text-right">Total Additions</TableHead>
               <TableHead className="text-right">Total Deductions</TableHead>
@@ -573,7 +599,7 @@ export default function TapSheetTab({
             {!cutoff || (deptId !== -1 && !departmentName) ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
+                  colSpan={10}
                   className="py-10 text-center text-muted-foreground"
                 >
                   Select a cutoff date and department to generate the Top Sheet.
@@ -584,7 +610,7 @@ export default function TapSheetTab({
             ) : tapRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
+                  colSpan={10}
                   className="py-10 text-center text-muted-foreground"
                 >
                   No records found for the selected cutoff and department.
@@ -603,6 +629,20 @@ export default function TapSheetTab({
                     <TableCell>
                       {r.payment_type}
                     </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {r.account_number ? (
+                        <span>
+                          {r.bank_name ? (
+                            <span className="font-sans font-semibold text-muted-foreground mr-1">
+                              [{r.bank_name}]
+                            </span>
+                          ) : null}
+                          {r.account_number}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {peso(r.gross_pay)}
                     </TableCell>
@@ -620,6 +660,7 @@ export default function TapSheetTab({
 
                 <TableRow className="bg-muted/40">
                   <TableCell className="font-bold">TOTAL</TableCell>
+                  <TableCell />
                   <TableCell />
                   <TableCell />
                   <TableCell />

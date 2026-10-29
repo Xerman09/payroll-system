@@ -94,7 +94,15 @@ export function buildTapSheetRows(
       ? buildNameSortKey(emp)
       : (pr.employee_name ?? `user #${pr.user_id}`).trim().toLowerCase();
 
-    const isCard = isTruthyFlag(pr.is_card);
+    // ✅ "Now all of the user that has a active in the user_bank is now considered as bank"
+    const hasActiveBank = pr.has_active_bank === true || Boolean(pr.bank_account_no);
+    const isCard = pr.has_active_bank !== undefined
+      ? hasActiveBank
+      : (hasActiveBank || isTruthyFlag(pr.is_card));
+
+    const payment_type: "BANK" | "CASH" = isCard ? "BANK" : "CASH";
+    const account_number = pr.bank_account_no || "";
+    const bank_name = pr.bank_name || "";
 
     // Robust extraction of nested metadata
     let ref = pr.payroll_ref_no;
@@ -124,7 +132,9 @@ export function buildTapSheetRows(
       user_id: pr.user_id,
       name_display,
       name_sort_key,
-      payment_type: isCard ? "BANK" : "CASH",
+      payment_type,
+      account_number,
+      bank_name,
       gross_pay: adjustedGross,
       total_additions: adjustedAdds,
       total_deductions: toNumberSafe(pr.total_deductions),

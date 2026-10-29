@@ -98,6 +98,7 @@ export interface CutoffSetting {
 export interface Department {
   id: number;
   name: string;
+  is_delete?: number;
 }
 
 export interface UserRow {
@@ -119,6 +120,7 @@ export interface WageProfile {
   daily_wage: number;
   hourly_wage: number;
   monthly_wage: number;
+  working_days_per_month?: number;
 
   is_deleted?: number; // 0/1
   isCard?: number; // 0/1

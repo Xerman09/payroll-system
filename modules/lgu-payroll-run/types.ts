@@ -34,7 +34,7 @@ export interface LguEmployeeStatutory {
   philhealthGovernment: number;
   philhealthTotal: number;
 
-  // Pag-IBIG: ₱200 Personal / ₱200 LGU
+  // Pag-IBIG: ₱200 Personal / ₱200 LGU (or ₱100 per cutoff)
   pagibigEmployee: number;
   pagibigGovernment: number;
   pagibigTotal: number;
@@ -45,48 +45,103 @@ export interface LguEmployeeStatutory {
   grandTotalStatutory: number;
 }
 
+export interface LguLoanBreakdown {
+  loanType: string;
+  amount: number;
+  balance?: number;
+  referenceNo?: string;
+}
+
+export interface LguAllowanceBreakdown {
+  name: string;
+  amount: number;
+  isTaxable?: boolean;
+}
+
+export interface LguManualAdjustment {
+  id: string | number;
+  type: "EARNING" | "DEDUCTION";
+  description: string;
+  amount: number;
+  category?: string;
+  isCustom?: boolean;
+}
+
 export interface LguPayrollLine {
   userId: number;
+  employeeNo?: string;
   employeeName: string;
   departmentId: number | null;
   departmentName: string;
   position: string;
-  salaryGrade?: string;
-  
-  // Rate and Attendance
+  salaryGrade?: string; // e.g. "SG-11 Step 1"
+  employmentStatus?: "PERMANENT" | "COTERMINOUS" | "CASUAL" | "ELECTIVE" | string;
+
+  // Rate and Attendance (Civil Service Commission Standard)
   monthlySalary: number;
   dailyRate: number;
+  hourlyRate: number;
+  minuteRate: number;
+  standardCutoffDays: number; // 11 days
   daysWorked: number;
+  absentDays: number;
+  absentDeduction: number;
   lateMinutes: number;
+  lateDeduction: number;
   undertimeMinutes: number;
+  undertimeDeduction: number;
 
   // Earnings
   basicPay: number;
   peraAllowance: number; // Personnel Economic Relief Allowance (₱1,000 / cutoff)
-  otherAllowances: number;
+  rataAllowance: number; // Representation and Transportation Allowance (Dept Heads, Chiefs)
+  hazardPay: number; // Magna Carta / Health hazard pay
+  overtimeHours: number;
   overtimePay: number;
+  nightDiffPay: number;
+  otherAllowances: number;
+  allowancesBreakdown: LguAllowanceBreakdown[];
   totalGrossPay: number;
 
   // Personal Deductions (Bawas sa Sahod)
-  lateDeduction: number;
-  undertimeDeduction: number;
   statutory: LguEmployeeStatutory;
+  taxWithholding: number;
+  taxableIncome: number;
+
+  // Public Sector Loans
   gsisLoan: number;
   pagibigLoan: number;
-  taxWithholding: number;
+  gsisLoansBreakdown: LguLoanBreakdown[];
+  pagibigLoansBreakdown: LguLoanBreakdown[];
+
+  // Institutional Deductions
+  coopDeduction: number;
+  unionDues: number;
+  disallowanceDeduction: number;
   otherDeductions: number;
+
+  // Custom adjustments added on the fly
+  manualAdditions: LguManualAdjustment[];
+  manualDeductions: LguManualAdjustment[];
+
+  // Total Personal Deductions
   totalPersonalDeductions: number;
+  totalScheduledDeductions?: number;
+  uncollectedDeductions?: number;
 
-  // Net Pay (Take-Home)
+  // Net Pay (Take-Home Pay)
   netPay: number;
+  previousNetPay?: number;
+  variancePct?: number | null;
+  varianceFlag?: boolean;
 
-  // Government / LGU Counterpart (Sagot ng LGU)
+  // Government / LGU Counterpart (Sagot ng Pamahalaan)
   lguGsisShare: number;
   lguPhilhealthShare: number;
   lguPagibigShare: number;
   totalLguCounterpart: number;
 
-  // Total LGU Appropriation (Gross Pay + LGU Counterpart)
+  // Total LGU Appropriation (Public Fund Required = Gross Pay + LGU Counterpart)
   totalLguAppropriation: number;
 
   // Status
@@ -100,6 +155,8 @@ export interface LguDepartmentSummary {
   headcount: number;
   totalBasicPay: number;
   totalPera: number;
+  totalRata: number;
+  totalOvertime: number;
   totalGrossPay: number;
   totalPersonalDeductions: number;
   totalNetPay: number;
@@ -112,20 +169,28 @@ export interface LguPayrollSummary {
   activeHeadcount: number;
   onHoldHeadcount: number;
 
-  // Earnings
+  // Earnings Breakdown
   totalBasicPay: number;
   totalPeraAllowance: number;
+  totalRataAllowance: number;
+  totalHazardPay: number;
+  totalOvertimePay: number;
+  totalOtherAllowances: number;
   totalGrossPay: number;
 
-  // Deductions
+  // Deductions Breakdown
+  totalTardinessDeductions: number;
   totalGsisEmployee: number;
   totalPhilhealthEmployee: number;
   totalPagibigEmployee: number;
   totalLoans: number;
+  totalGsisLoan?: number;
+  totalPagibigLoan?: number;
   totalTaxes: number;
+  totalOtherDeductions: number;
   totalPersonalDeductions: number;
 
-  // Net Pay
+  // Net Take-Home Pay
   totalNetPay: number;
 
   // Government / LGU Counterparts
@@ -136,6 +201,9 @@ export interface LguPayrollSummary {
 
   // Grand Total Public Fund Required
   grandTotalAppropriation: number;
+
+  // Alerts
+  varianceAlerts: number;
 
   // Departmental breakdown
   departmentSummaries: LguDepartmentSummary[];

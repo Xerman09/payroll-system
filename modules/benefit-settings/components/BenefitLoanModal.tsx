@@ -19,6 +19,7 @@ import {
   cutoffLabel,
   toNum,
 } from "../providers/benefitApi";
+import { SSS_LOAN_OPTIONS, PAGIBIG_LOAN_OPTIONS } from "@/modules/wage/utils/payrollConstants";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,6 +84,7 @@ export default function BenefitLoanModal(props: {
 
   // Interest rate input (percentage)
   const [interestRatePct, setInterestRatePct] = React.useState<string>("0");
+  const [isOtherLoan, setIsOtherLoan] = React.useState<boolean>(false);
 
   const [form, setForm] = React.useState<Partial<BenefitLoan>>({
     loan_id: 0,
@@ -115,12 +117,22 @@ export default function BenefitLoanModal(props: {
       const i = toNum(initial.interest_amount);
       const pct = p > 0 ? round2((i / p) * 100) : 0;
       setInterestRatePct(String(pct));
+
+      const options =
+        initial.benefit_code === "PAGIBIG"
+          ? PAGIBIG_LOAN_OPTIONS
+          : SSS_LOAN_OPTIONS;
+      const isPreset = (options as readonly string[]).includes(
+        initial.loan_name ?? ""
+      );
+      setIsOtherLoan(!isPreset && Boolean(initial.loan_name));
     } else {
+      setIsOtherLoan(false);
       setForm({
         loan_id: 0,
         user_id: 0,
         benefit_code: "SSS",
-        loan_name: null,
+        loan_name: SSS_LOAN_OPTIONS[0],
         reference_no: null,
         principal_amount: 0,
         interest_amount: 0,
@@ -345,12 +357,25 @@ export default function BenefitLoanModal(props: {
                 <Label className="text-xs dark:text-gray-300">Benefit</Label>
                 <Select
                   value={(form.benefit_code ?? "SSS") as LoanBenefitCode}
-                  onValueChange={(v) =>
-                    setForm((p) => ({
-                      ...p,
-                      benefit_code: v as LoanBenefitCode,
-                    }))
-                  }
+                  onValueChange={(v) => {
+                    const nextCode = v as LoanBenefitCode;
+                    const nextOptions =
+                      nextCode === "PAGIBIG"
+                        ? PAGIBIG_LOAN_OPTIONS
+                        : SSS_LOAN_OPTIONS;
+                    if (!isOtherLoan) {
+                      setForm((p) => ({
+                        ...p,
+                        benefit_code: nextCode,
+                        loan_name: nextOptions[0],
+                      }));
+                    } else {
+                      setForm((p) => ({
+                        ...p,
+                        benefit_code: nextCode,
+                      }));
+                    }
+                  }}
                 >
                   <SelectTrigger className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
                     <SelectValue />
@@ -365,17 +390,68 @@ export default function BenefitLoanModal(props: {
               {/* Loan Name */}
               <div className="space-y-2">
                 <Label className="text-xs dark:text-gray-300">Loan Name</Label>
-                <Input
-                  className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 placeholder:text-gray-500"
-                  value={form.loan_name ?? ""}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      loan_name: e.target.value || null,
-                    }))
-                  }
-                  placeholder="e.g., Salary Loan"
-                />
+                {(() => {
+                  const options =
+                    form.benefit_code === "PAGIBIG"
+                      ? PAGIBIG_LOAN_OPTIONS
+                      : SSS_LOAN_OPTIONS;
+                  const selectVal = isOtherLoan
+                    ? "OTHER"
+                    : form.loan_name || options[0];
+
+                  return (
+                    <div className="space-y-2">
+                      <Select
+                        value={selectVal}
+                        onValueChange={(v) => {
+                          if (v === "OTHER") {
+                            setIsOtherLoan(true);
+                            setForm((p) => ({ ...p, loan_name: "" }));
+                          } else {
+                            setIsOtherLoan(false);
+                            setForm((p) => ({ ...p, loan_name: v }));
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+                          <SelectValue placeholder="Select Loan Name" />
+                        </SelectTrigger>
+                        <SelectContent className="dark:bg-gray-900 dark:border-gray-800">
+                          {options.map((opt) => (
+                            <SelectItem
+                              key={opt}
+                              value={opt}
+                              className="dark:text-gray-200 dark:focus:bg-gray-800"
+                            >
+                              {opt}
+                            </SelectItem>
+                          ))}
+                          <SelectItem
+                            value="OTHER"
+                            className="dark:text-gray-200 dark:focus:bg-gray-800"
+                          >
+                            Other (Specify)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {isOtherLoan && (
+                        <Input
+                          className="h-9 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 placeholder:text-gray-500"
+                          value={form.loan_name ?? ""}
+                          onChange={(e) =>
+                            setForm((p) => ({
+                              ...p,
+                              loan_name: e.target.value || null,
+                            }))
+                          }
+                          placeholder="Enter custom loan name..."
+                          autoFocus
+                        />
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Reference */}

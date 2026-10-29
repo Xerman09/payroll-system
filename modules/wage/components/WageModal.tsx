@@ -62,6 +62,7 @@ import {
   computeCoopInterest,
 } from "../utils/loanMath";
 import { COOP_INTEREST_RATE } from "../utils/payrollConstants";
+import { createMultiCutoffDeductions } from "@/modules/payroll-run/providers/payrollAdjustmentsService";
 
 type Props = {
   open: boolean;
@@ -994,6 +995,51 @@ export default function WageModal({
     validateOtherDraft,
   ]);
 
+  const saveMultiCutoffDeductions = React.useCallback(
+    async (params: {
+      totalAmount: number;
+      amountPerCutoff?: number;
+      numCutoffs: number;
+      description: string;
+      startCutoffStart: string;
+      startCutoffEnd: string;
+    }) => {
+      if (!selectedEmployee) return;
+
+      const loggedUserId = getLoggedUserId();
+      setDedSaving(true);
+      try {
+        await createMultiCutoffDeductions({
+          user_id: selectedEmployee.user_id,
+          total_amount: params.totalAmount,
+          amount_per_cutoff: params.amountPerCutoff,
+          num_cutoffs: params.numCutoffs,
+          description: params.description,
+          start_cutoff_start: params.startCutoffStart,
+          start_cutoff_end: params.startCutoffEnd,
+          created_by: loggedUserId ? Number(loggedUserId) : null,
+        });
+
+        toast.success(
+          `Created ${params.numCutoffs}-cutoff deduction schedule totaling ₱${money(params.totalAmount)}.`
+        );
+        resetDedDraft();
+        setDedFormOpen(false);
+        await loadOtherDeductions();
+      } catch (e: unknown) {
+        console.error("[WageModal] Save multi-cutoff deduction failed", e);
+        const msg =
+          e instanceof Error
+            ? e.message
+            : "Failed to create multi-cutoff deduction schedule.";
+        toast.error(msg);
+      } finally {
+        setDedSaving(false);
+      }
+    },
+    [loadOtherDeductions, resetDedDraft, selectedEmployee]
+  );
+
   const startEditOtherAddition = React.useCallback(
     (r: PayrollOtherAdditionRecord) => {
       setEditingAddId(r.id);
@@ -1691,6 +1737,7 @@ export default function WageModal({
                           setDedDraft={setDedDraft}
                           resetDedDraft={resetDedDraft}
                           saveOtherDeduction={saveOtherDeduction}
+                          saveMultiCutoffDeductions={saveMultiCutoffDeductions}
                           startEditOtherDeduction={startEditOtherDeduction}
                           deleteOtherDeduction={deleteOtherDeduction}
                           applyCutoffToOtherDraft={applyCutoffToOtherDraft}

@@ -14,3 +14,23 @@ export const COOP_INTEREST_RATE = 0.03;
  * Default terms for benefit loans (months) if not specified.
  */
 export const DEFAULT_LOAN_TERMS = 12;
+
+/**
+ * Standard SSS loan types in Philippine payroll.
+ */
+export const SSS_LOAN_OPTIONS = [
+  "Salary Loan",
+  "Calamity Loan",
+  "Emergency Loan",
+  "Educational Loan",
+  "Stock Investment Loan",
+] as const;
+
+/**
+ * Standard Pag-IBIG loan types in Philippine payroll.
+ */
+export const PAGIBIG_LOAN_OPTIONS = [
+  "Multi-Purpose Loan (MPL)",
+  "Calamity Loan",
+  "Housing Loan",
+] as const;

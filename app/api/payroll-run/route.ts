@@ -162,6 +162,17 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
         d.data.daily_wage = resolveDaily(d.data);
       }
     }
+
+    // Intercept and filter deleted departments when listing departments
+    if (resource === "department" && data && typeof data === "object") {
+      const d = data as any;
+      if (Array.isArray(d.data)) {
+        d.data = d.data.filter((row: any) => {
+          const del = row?.is_delete ?? row?.is_deleted;
+          return !(del === 1 || del === true || del === "1" || del?.data?.[0] === 1);
+        });
+      }
+    }
   } catch {
     data = text;
   }

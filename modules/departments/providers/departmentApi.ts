@@ -99,7 +99,9 @@ export async function fetchDepartmentsPaged({
     _and?: Array<Record<string, unknown>>;
   };
   const filterParams: DirectusFilter = {};
-  const _and: Array<Record<string, unknown>> = [];
+  const _and: Array<Record<string, unknown>> = [
+    { _or: [{ is_delete: { _null: true } }, { is_delete: { _eq: 0 } }] },
+  ];
 
   const q = (search ?? "").trim();
   const isNumericId = q.length > 0 && /^[0-9]+$/.test(q);
@@ -135,13 +137,23 @@ export async function fetchDepartmentsPaged({
   const url = `/items/department?${query}`;
 
   const json = await apiFetch(BASE_API, url);
-  const rows = (json.data || []) as Department[];
-  const total = Number(json.meta?.filter_count) || 0;
+  const rawRows = (json.data || []) as Department[];
+  const rows = rawRows.filter((d: any) => {
+    const del = d.is_delete ?? d.is_deleted;
+    return !(del === 1 || del === true || del === "1" || del?.data?.[0] === 1);
+  });
+  const total = Number(json.meta?.filter_count) || rows.length;
   return { rows, total };
 }
 
 export async function fetchAllDepartments(): Promise<Department[]> {
-  return fetchAllInBatches<Department>(BASE_API, "/items/department?sort=department_name");
+  const filter = JSON.stringify({ _or: [{ is_delete: { _null: true } }, { is_delete: { _eq: 0 } }] });
+  const raw = await fetchAllInBatches<Department>(BASE_API, `/items/department?filter=${encodeURIComponent(filter)}&sort=department_name`)
+    .catch(() => fetchAllInBatches<Department>(BASE_API, "/items/department?sort=department_name"));
+  return raw.filter((d: any) => {
+    const del = d.is_delete ?? d.is_deleted;
+    return !(del === 1 || del === true || del === "1" || del?.data?.[0] === 1);
+  });
 }
 
 export async function fetchAllUsers(): Promise<UserLookup[]> {

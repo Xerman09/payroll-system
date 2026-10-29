@@ -255,6 +255,7 @@ function normalizeDepartment(row: unknown): Department {
   return {
     id: n(r.id ?? r.department_id),
     name: s(r.name ?? r.department_name),
+    is_delete: bitToNum(r.is_delete ?? r.is_deleted),
   };
 }
 
@@ -274,8 +275,9 @@ function normalizeWage(row: unknown): WageProfile {
   const r = (row ?? {}) as Record<string, unknown>;
   const daily = n(r.daily_wage);
   const hourly = r.hourly_wage != null ? n(r.hourly_wage) : daily > 0 ? daily / 8 : 0;
-  const monthly =
-    r.monthly_rate != null ? n(r.monthly_rate) : (r.monthly_wage != null ? n(r.monthly_wage) : daily > 0 ? daily * 26 : 0);
+  const workingDays = n(r.working_days_per_month) || 26;
+  const rawMonthly = n(r.monthly_rate ?? r.monthly_wage);
+  const monthly = rawMonthly > 0 ? rawMonthly : (daily > 0 ? daily * workingDays : 0);
 
   return {
     id: n(r.id),
@@ -283,6 +285,7 @@ function normalizeWage(row: unknown): WageProfile {
     daily_wage: daily,
     hourly_wage: hourly,
     monthly_wage: monthly,
+    working_days_per_month: workingDays,
     is_deleted: bitToNum(r.is_deleted ?? r.isDeleted),
     is_card: bitToNum(r.is_card ?? r.isCard),
     isCard: bitToNum(r.isCard ?? r.is_card),
@@ -460,8 +463,23 @@ export async function listCutoffs(): Promise<CutoffSetting[]> {
 }
 
 export async function listDepartments(): Promise<Department[]> {
-  const rows = await api.listItems<Department>(RES.departments, { sort: "department_name", limit: 200 });
-  return (rows ?? []).map(normalizeDepartment);
+  let rows: Record<string, unknown>[] = [];
+  try {
+    rows = await api.listItems<Record<string, unknown>>(RES.departments, {
+      sort: "department_name",
+      limit: 500,
+      "filter[is_delete][_neq]": 1,
+    });
+  } catch (err) {
+    console.warn("[payrollRunService] listDepartments filter error, falling back:", err);
+    rows = await api.listItems<Record<string, unknown>>(RES.departments, {
+      sort: "department_name",
+      limit: 500,
+    });
+  }
+  return (rows ?? [])
+    .filter((r) => bitToNum(r.is_delete ?? r.is_deleted) === 0)
+    .map(normalizeDepartment);
 }
 
 export async function findExistingPostedRun(args: {

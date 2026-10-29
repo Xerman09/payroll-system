@@ -7,6 +7,7 @@ export interface Department {
   department_head_id?: number | null;
   tax_id?: number | null;
   date_added?: string | null;
+  is_delete?: number | boolean | null;
 }
 
 export interface UserLookup {
