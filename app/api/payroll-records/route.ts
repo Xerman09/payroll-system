@@ -254,7 +254,57 @@ export async function GET(req: NextRequest) {
         return !isTruthyFlag(rObj?.on_hold);
       });
 
-      return json({ ...(body as object), data: rows, meta: { companyName: config.name } }, config.name);
+      // ✅ Fetch active bank accounts from user_bank
+      const bankMap = new Map<number, { account_number: string; bank_name?: string }>();
+      let fetchedBanksOk = false;
+      try {
+        let bRes = await directusFetch("/items/user_bank?limit=-1&fields=id,user_id,bank_id,account_number_hash,is_active,bank.*");
+        if (!bRes.ok) {
+          bRes = await directusFetch("/items/user_bank?limit=-1&fields=id,user_id,bank_id,account_number_hash,is_active");
+        }
+        if (bRes.ok) {
+          fetchedBanksOk = true;
+          const uBanks = pickArray(bRes.body);
+          for (const ub of uBanks) {
+            const ubObj = ub as Record<string, unknown>;
+            const uid = Number(ubObj?.user_id);
+            if (uid && isTruthyFlag(ubObj?.is_active)) {
+              const acct = String(ubObj?.account_number_hash || ubObj?.account_number || "").trim();
+              const bObj = ubObj?.bank as Record<string, unknown> | undefined;
+              const bName = typeof bObj === "object" ? String(bObj?.bank_name || "").trim() : undefined;
+              bankMap.set(uid, { account_number: acct, bank_name: bName });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to fetch user_bank for top-sheet:", e);
+      }
+
+      // ✅ Map rows: "Now all of the user that has a active in the user_bank is now considered as bank"
+      const enrichedRows = rows.map((row: unknown) => {
+        const rObj = { ...(row as Record<string, unknown>) };
+        const uid = Number(rObj.user_id);
+        const bInfo = bankMap.get(uid);
+
+        if (bInfo) {
+          rObj.has_active_bank = true;
+          rObj.bank_account_no = bInfo.account_number;
+          rObj.bank_name = bInfo.bank_name || "";
+          rObj.is_card = 1;
+        } else if (fetchedBanksOk) {
+          rObj.has_active_bank = false;
+          rObj.bank_account_no = "";
+          rObj.bank_name = "";
+          rObj.is_card = 0;
+        } else {
+          rObj.has_active_bank = isTruthyFlag(rObj.is_card);
+          rObj.bank_account_no = "";
+          rObj.bank_name = "";
+        }
+        return rObj;
+      });
+
+      return json({ ...(body as object), data: enrichedRows, meta: { companyName: config.name } }, config.name);
     }
 
     // ✅ Company-wide Payroll Summary (Dynamic Multi-DB Aggregator)

@@ -175,25 +175,28 @@ export async function buildTapSheetPdf(args: {
 
   // Conditional Column Logic
   const showTypeCol = args.filterType === "ALL";
+  const showAccountCol = args.filterType === "BANK" || args.filterType === "ALL";
 
   // columns (avoid overflow)
   const availableW = pageW - marginX * 2;
 
   const colAmtW = 62;
-  const colTypeW = showTypeCol ? 40 : 0;
   const colIdW = 32;
-  const colDaysW = 32;
-  const colHoursW = 34;
-  
-  const colNameW = availableW - colTypeW - colIdW - colDaysW - colHoursW - colAmtW * 4;
+  const colDaysW = 30;
+  const colHoursW = 32;
+  const colTypeW = showTypeCol ? 34 : 0;
+  const colAccountW = showAccountCol ? (showTypeCol ? 60 : 74) : 0;
+
+  const colNameW = availableW - colTypeW - colAccountW - colIdW - colDaysW - colHoursW - colAmtW * 4;
 
   const x0 = marginX;
   const xName = x0;
   const xId = xName + colNameW;
   const xDays = xId + colIdW;
   const xHours = xDays + colDaysW;
-  const xType = xHours + colHoursW; // if colTypeW is 0, this is start of Gross
-  const xGross = xType + colTypeW;
+  const xType = xHours + colHoursW; // if colTypeW is 0, this is same as xAccount
+  const xAccount = xType + colTypeW;
+  const xGross = xAccount + colAccountW;
   const xAdds = xGross + colAmtW;
   const xDeds = xAdds + colAmtW;
   const xNet = xDeds + colAmtW;
@@ -304,6 +307,10 @@ export async function buildTapSheetPdf(args: {
       doc.text("TYPE", xType + 3, ty);
     }
 
+    if (showAccountCol) {
+      doc.text("ACCOUNT NO", xAccount + 3, ty);
+    }
+
     doc.text("GROSS PAY", xGross + colAmtW - 6, ty, { align: "right" });
     doc.text("ADDITIONS", xAdds + colAmtW - 6, ty, { align: "right" });
     doc.text("DEDUCTIONS", xDeds + colAmtW - 6, ty, { align: "right" });
@@ -318,6 +325,10 @@ export async function buildTapSheetPdf(args: {
 
     if (showTypeCol) {
       doc.line(xType, y, xType, y + rowH);
+    }
+
+    if (showAccountCol) {
+      doc.line(xAccount, y, xAccount, y + rowH);
     }
 
     doc.line(xGross, y, xGross, y + rowH);
@@ -350,6 +361,10 @@ export async function buildTapSheetPdf(args: {
       doc.line(xType, y, xType, y + rowH);
     }
 
+    if (showAccountCol) {
+      doc.line(xAccount, y, xAccount, y + rowH);
+    }
+
     doc.line(xGross, y, xGross, y + rowH);
     doc.line(xAdds, y, xAdds, y + rowH);
     doc.line(xDeds, y, xDeds, y + rowH);
@@ -375,6 +390,13 @@ export async function buildTapSheetPdf(args: {
       doc.setFontSize(6.8);
       const type = r.payment_type === "BANK" ? "BANK" : "CASH";
       doc.text(type, xType + 3, ty);
+    }
+
+    // account no
+    if (showAccountCol) {
+      doc.setFontSize(6.8);
+      const acct = r.account_number ? fitTextEllipsis(doc, r.account_number, colAccountW - 6) : "—";
+      doc.text(acct, xAccount + 3, ty);
     }
 
     // amounts: smaller font
@@ -451,6 +473,10 @@ export async function buildTapSheetPdf(args: {
       doc.line(xType, y, xType, y + rowH + 2);
     }
 
+    if (showAccountCol) {
+      doc.line(xAccount, y, xAccount, y + rowH + 2);
+    }
+
     doc.line(xGross, y, xGross, y + rowH + 2);
     doc.line(xAdds, y, xAdds, y + rowH + 2);
     doc.line(xDeds, y, xDeds, y + rowH + 2);
@@ -462,7 +488,6 @@ export async function buildTapSheetPdf(args: {
 
     const ty = y + 12;
     doc.text("TOTAL", xName + 6, ty);
-    // Removed count from footer per user request
 
     const maxAmtW = colAmtW - 12;
 
@@ -522,7 +547,6 @@ export async function buildTapSheetPdf(args: {
     return y + rowH + 2;
   };
 
-  // ... rest of logic
   const ensureSpace = (y: number, needH: number, pageNoRef: { v: number }) => {
     const limit = pageH - marginBottom;
     if (y + needH <= limit) return y;
