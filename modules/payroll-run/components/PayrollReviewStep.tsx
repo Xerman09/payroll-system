@@ -951,9 +951,13 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
               </div>
             </div>
             <div className="space-y-2">
-              <DialogTitle className="text-xl font-bold tracking-tight">Posting Payroll</DialogTitle>
+              <DialogTitle className="text-xl font-bold tracking-tight">
+                {props.postLabel ? `${props.postLabel}...` : "Posting Payroll"}
+              </DialogTitle>
               <p className="text-sm text-muted-foreground">
-                Finalizing the register and archiving this payroll run.
+                {props.postLabel
+                  ? "Submitting payroll to checker for verification..."
+                  : "Finalizing the register and archiving this payroll run."}
               </p>
             </div>
           </div>
@@ -972,9 +976,13 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
                </div>
             </div>
             <div className="space-y-2">
-              <DialogTitle className="text-xl font-bold text-green-700 tracking-tight">Payroll Posted!</DialogTitle>
+              <DialogTitle className="text-xl font-bold text-green-700 tracking-tight">
+                {props.postLabel ? "Submitted to Checker!" : "Payroll Posted!"}
+              </DialogTitle>
               <p className="text-sm text-muted-foreground">
-                The register is now locked. Redirecting to workspace...
+                {props.postLabel
+                  ? "Payroll submitted successfully. Redirecting to workspace..."
+                  : "The register is now locked. Redirecting to workspace..."}
               </p>
             </div>
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">

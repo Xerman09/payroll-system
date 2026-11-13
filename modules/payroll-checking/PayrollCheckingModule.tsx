@@ -60,6 +60,7 @@ export default function PayrollCheckingModule() {
   const [computedSummary, setComputedSummary] = useState<any>(null);
   const [loadingRun, setLoadingRun] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
   
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -179,13 +180,14 @@ export default function PayrollCheckingModule() {
   }
 
   async function confirmReject() {
-    if (!selectedRun || !loggedUser) return;
+    if (!selectedRun || !loggedUser || isRejecting) return;
     if (!rejectReason.trim()) {
       toast.error("Please provide a reason for rejection.");
       return;
     }
 
     try {
+      setIsRejecting(true);
       await svc.rejectRun({
         payrollRunId: selectedRun.payroll_run_id,
         rejectedBy: Number(loggedUser.user_id),
@@ -198,6 +200,8 @@ export default function PayrollCheckingModule() {
       fetchQueue();
     } catch (e: any) {
       toast.error(e.message || "Failed to reject run");
+    } finally {
+      setIsRejecting(false);
     }
   }
 
@@ -286,11 +290,17 @@ export default function PayrollCheckingModule() {
                 rows={4}
               />
               <DialogFooter>
-                <Button variant="outline" onClick={() => setRejectModalOpen(false)}>
+                <Button variant="outline" onClick={() => setRejectModalOpen(false)} disabled={isRejecting}>
                   Cancel
                 </Button>
-                <Button variant="destructive" onClick={confirmReject}>
-                  Reject Payroll
+                <Button variant="destructive" onClick={confirmReject} disabled={isRejecting}>
+                  {isRejecting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Rejecting...
+                    </>
+                  ) : (
+                    "Reject Payroll"
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
