@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { FileSearch, CheckCircle2, XCircle, ArrowLeft } from "lucide-react";
+import { FileSearch, CheckCircle2, XCircle, ArrowLeft, Loader2 } from "lucide-react";
 
 import { getLoggedUser } from "@/lib/auth";
 import * as svc from "@/modules/payroll-run/providers/payrollRunService";
@@ -59,6 +59,7 @@ export default function PayrollCheckingModule() {
   const [computedLines, setComputedLines] = useState<any[]>([]);
   const [computedSummary, setComputedSummary] = useState<any>(null);
   const [loadingRun, setLoadingRun] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -153,8 +154,9 @@ export default function PayrollCheckingModule() {
   }
 
   async function handleVerify() {
-    if (!selectedRun || !loggedUser) return;
+    if (!selectedRun || !loggedUser || isVerifying) return;
     try {
+      setIsVerifying(true);
       await svc.verifyRun({
         payrollRunId: selectedRun.payroll_run_id,
         verifiedBy: Number(loggedUser.user_id),
@@ -165,6 +167,8 @@ export default function PayrollCheckingModule() {
       fetchQueue();
     } catch (e: any) {
       toast.error(e.message || "Failed to verify run");
+    } finally {
+      setIsVerifying(false);
     }
   }
 
@@ -231,11 +235,19 @@ export default function PayrollCheckingModule() {
             </div>
             {selectedRun.status === "PENDING_CHECKER" && (
               <div className="ml-auto flex gap-2 self-start">
-                <Button variant="destructive" onClick={handleReject}>
+                <Button variant="destructive" onClick={handleReject} disabled={isVerifying}>
                   <XCircle className="mr-2 h-4 w-4" /> Reject
                 </Button>
-                <Button variant="default" onClick={handleVerify} className="bg-green-600 hover:bg-green-700">
-                  <CheckCircle2 className="mr-2 h-4 w-4" /> Verify
+                <Button variant="default" onClick={handleVerify} disabled={isVerifying} className="bg-green-600 hover:bg-green-700">
+                  {isVerifying ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="mr-2 h-4 w-4" /> Verify
+                    </>
+                  )}
                 </Button>
               </div>
             )}

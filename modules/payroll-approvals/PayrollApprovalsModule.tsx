@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { FileSearch, CheckCircle2, XCircle, ArrowLeft } from "lucide-react";
+import { FileSearch, CheckCircle2, XCircle, ArrowLeft, Loader2 } from "lucide-react";
 
 import { getLoggedUser } from "@/lib/auth";
 import * as svc from "@/modules/payroll-run/providers/payrollRunService";
@@ -51,6 +51,7 @@ export default function PayrollApprovalsModule() {
   const [computedLines, setComputedLines] = useState<any[]>([]);
   const [computedSummary, setComputedSummary] = useState<any>(null);
   const [loadingRun, setLoadingRun] = useState(false);
+  const [isPosting, setIsPosting] = useState(false);
   
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -134,8 +135,9 @@ export default function PayrollApprovalsModule() {
   }
 
   async function handleVerify() {
-    if (!selectedRun || !loggedUser) return;
+    if (!selectedRun || !loggedUser || isPosting) return;
     try {
+      setIsPosting(true);
       await svc.postRun({
         payrollRunId: selectedRun.payroll_run_id,
         postedBy: Number(loggedUser.user_id),
@@ -146,6 +148,8 @@ export default function PayrollApprovalsModule() {
       fetchQueue();
     } catch (e: any) {
       toast.error(e.message || "Failed to post run");
+    } finally {
+      setIsPosting(false);
     }
   }
 
@@ -205,11 +209,19 @@ export default function PayrollApprovalsModule() {
               <p className="text-sm text-muted-foreground">Cutoff: {selectedRun.cutoff_start} to {selectedRun.cutoff_end}</p>
             </div>
             <div className="ml-auto flex gap-2">
-              <Button variant="destructive" onClick={handleReject}>
+              <Button variant="destructive" onClick={handleReject} disabled={isPosting}>
                 <XCircle className="mr-2 h-4 w-4" /> Reject
               </Button>
-              <Button variant="default" onClick={handleVerify} className="bg-green-600 hover:bg-green-700">
-                <CheckCircle2 className="mr-2 h-4 w-4" /> Post Payroll
+              <Button variant="default" onClick={handleVerify} disabled={isPosting} className="bg-green-600 hover:bg-green-700">
+                {isPosting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Posting...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="mr-2 h-4 w-4" /> Post Payroll
+                  </>
+                )}
               </Button>
             </div>
           </div>

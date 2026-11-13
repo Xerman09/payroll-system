@@ -12,6 +12,7 @@ import {
   PlayCircle,
   RefreshCcw,
   Scale,
+  Loader2,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -99,6 +100,7 @@ function PrivatePayrollRunContent({ showLaborLawModal = true }: { showLaborLawMo
 
   // posted employees (read-only in adjust step)
   const [postedMap, setPostedMap] = useState<Map<number, boolean>>(new Map());
+  const [submittingToChecker, setSubmittingToChecker] = useState(false);
 
 
   // password dialog
@@ -321,9 +323,10 @@ function PrivatePayrollRunContent({ showLaborLawModal = true }: { showLaborLawMo
   }
 
   async function submitForChecking() {
-    if (!run || !loggedUser) return;
+    if (!run || !loggedUser || submittingToChecker) return;
 
     try {
+      setSubmittingToChecker(true);
       await svc.submitToChecker({
         payrollRunId: run.payroll_run_id,
         submittedBy: Number(loggedUser.user_id),
@@ -335,6 +338,8 @@ function PrivatePayrollRunContent({ showLaborLawModal = true }: { showLaborLawMo
     } catch (e: unknown) {
       const err = e as Error;
       toast.error(err?.message || "Failed to submit payroll to checker");
+    } finally {
+      setSubmittingToChecker(false);
     }
   }
 
@@ -504,11 +509,20 @@ function PrivatePayrollRunContent({ showLaborLawModal = true }: { showLaborLawMo
                 {step === 4 ? (
                   <Button
                     onClick={submitForChecking}
-                    disabled={!canPost}
+                    disabled={!canPost || submittingToChecker}
                     className="gap-2"
                   >
-                    <CheckCircle2 className="h-4 w-4" />
-                    Submit to Checker
+                    {submittingToChecker ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-4 w-4" />
+                        Submit to Checker
+                      </>
+                    )}
                   </Button>
                 ) : null}
               </div>

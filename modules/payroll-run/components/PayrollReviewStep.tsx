@@ -288,7 +288,7 @@ export function PayrollReviewStep(props: PayrollReviewStepProps) {
   }, [previewUrl]);
 
   const handlePostPayroll = async () => {
-    if (!props.onPost) return;
+    if (!props.onPost || isPosting || isPostSuccess) return;
     try {
       setIsPosting(true);
       await props.onPost();

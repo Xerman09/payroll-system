@@ -2355,12 +2355,18 @@ export async function postRun(args: {
   const pid = n(args.payrollRunId);
   if (!pid) return;
 
-  // ✅ Fetch payroll run to get payroll_ref_no
+  // ✅ Fetch payroll run to get payroll_ref_no and verify status
   let payrollRefNo: string | null = null;
   try {
-    const cur = await api.getItem<PayrollRunHeader>(RES.payrollRun, pid, { fields: "payroll_run_id,payroll_ref_no" });
+    const cur = await api.getItem<PayrollRunHeader>(RES.payrollRun, pid, { fields: "payroll_run_id,payroll_ref_no,status" });
+    if (String(cur?.status).toUpperCase() === "POSTED") {
+      throw new Error("This payroll run has already been posted.");
+    }
     payrollRefNo = cur?.payroll_ref_no ? String(cur.payroll_ref_no) : null;
-  } catch {
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes("already been posted")) {
+      throw err;
+    }
     // if read fails, fall through and try patch (existing behavior)
   }
 
