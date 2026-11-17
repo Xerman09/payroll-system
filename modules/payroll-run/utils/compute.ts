@@ -248,6 +248,8 @@ export type OvertimeRateSettings = {
   regularHolidayOt?: number;
   regularRestDayOt?: number;
   nightDiffRate?: number;
+  minimumOtMinutes?: number;
+  incrementalOtMinutes?: number;
 };
 
 /**
@@ -1040,7 +1042,18 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     const omRaw = n(r.overtime_minutes);
 
     const baseMin = Math.min(wmRaw, 480);
-    const otMin = Math.max(omRaw, Math.max(0, wmRaw - 480));
+    const rawOtMin = Math.max(omRaw, Math.max(0, wmRaw - 480));
+
+    // ✅ Apply Minimum OT threshold & Incremental bracket rounding (e.g., minimum 30m, count every 30m)
+    const minOt = n(args.overtimeRates?.minimumOtMinutes ?? 0);
+    const incOt = n(args.overtimeRates?.incrementalOtMinutes ?? 1);
+
+    let otMin = rawOtMin;
+    if (minOt > 0 && otMin < minOt) {
+      otMin = 0;
+    } else if (incOt > 1 && otMin > 0) {
+      otMin = Math.floor(otMin / incOt) * incOt;
+    }
 
     const lm = n(r.late_minutes);
     const um = n(r.undertime_minutes);

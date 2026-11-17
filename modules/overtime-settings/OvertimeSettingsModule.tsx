@@ -28,6 +28,9 @@ import {
   Minus,
   Building,
   Landmark,
+  Layers,
+  Timer,
+  Hourglass,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -92,6 +95,8 @@ export function OvertimeSettingsModule() {
     payroll_ot_rate_regular_holiday: "2.60",
     payroll_ot_rate_regular_rest_day: "3.38",
     payroll_night_diff_rate: "0.10",
+    payroll_ot_minimum_minutes: "30",
+    payroll_ot_incremental_minutes: "30",
   });
 
   const [form, setForm] = useState<OvertimeRateFormState>({
@@ -102,11 +107,13 @@ export function OvertimeSettingsModule() {
     payroll_ot_rate_regular_holiday: "2.60",
     payroll_ot_rate_regular_rest_day: "3.38",
     payroll_night_diff_rate: "0.10",
+    payroll_ot_minimum_minutes: "30",
+    payroll_ot_incremental_minutes: "30",
   });
 
   // Simulator State
-  const [simDailyWage, setSimDailyWage] = useState<number>(610); // Standard NCR Daily Wage
-  const [simOtMinutes, setSimOtMinutes] = useState<number>(120); // 2 hours OT
+  const [simDailyWage, setSimDailyWage] = useState<number>(610); // Standard Daily Wage
+  const [simOtMinutes, setSimOtMinutes] = useState<number>(75); // 75 mins (1 hr 15 mins) to showcase 30m increment
   const [simNightMins, setSimNightMins] = useState<number>(60); // 1 hour Night Diff
 
   // Dialog states for preset confirmations (No browser window.confirm!)
@@ -155,8 +162,11 @@ export function OvertimeSettingsModule() {
 
   const handleStep = (key: keyof OvertimeRateFormState, delta: number) => {
     const cur = parseFloat(form[key]) || 0;
-    const next = Math.max(0, Math.round((cur + delta) * 100) / 100);
-    handleChange(key, next.toFixed(2));
+    const isMinuteField = key.includes("minutes");
+    const next = isMinuteField
+      ? Math.max(0, Math.round(cur + delta))
+      : Math.max(0, Math.round((cur + delta) * 100) / 100);
+    handleChange(key, isMinuteField ? String(next) : next.toFixed(2));
   };
 
   const handleApplyPreset = (type: "dole" | "flat" | "lgu") => {
@@ -194,7 +204,7 @@ export function OvertimeSettingsModule() {
     try {
       await saveOvertimeSettings(form);
       setSavedForm({ ...form });
-      toast.success("Overtime & Rate policies updated successfully!");
+      toast.success("Overtime policies & incremental rules saved successfully!");
       setLastUpdated(new Date().toISOString());
     } catch (err: any) {
       toast.error(err.message || "Failed to save configuration");
@@ -209,8 +219,23 @@ export function OvertimeSettingsModule() {
   const simHourly = useMemo(() => simDailyWage / 8, [simDailyWage]);
   const simMinute = useMemo(() => simDailyWage / 480, [simDailyWage]);
 
+  // Minimum & Incremental logic evaluation for simulator
+  const simMinimumThreshold = useMemo(() => parseFloat(form.payroll_ot_minimum_minutes) || 0, [form.payroll_ot_minimum_minutes]);
+  const simIncrementalBracket = useMemo(() => parseFloat(form.payroll_ot_incremental_minutes) || 1, [form.payroll_ot_incremental_minutes]);
+
+  const simEffectiveOtMinutes = useMemo(() => {
+    const raw = Math.max(0, simOtMinutes);
+    if (simMinimumThreshold > 0 && raw < simMinimumThreshold) {
+      return 0;
+    }
+    if (simIncrementalBracket > 1 && raw > 0) {
+      return Math.floor(raw / simIncrementalBracket) * simIncrementalBracket;
+    }
+    return raw;
+  }, [simOtMinutes, simMinimumThreshold, simIncrementalBracket]);
+
   const simResults = useMemo(() => {
-    const otMins = Math.max(0, simOtMinutes);
+    const otMins = simEffectiveOtMinutes;
     const ndMins = Math.max(0, simNightMins);
 
     const normalMult = parseFloat(form.payroll_overtime_rate) || 1.0;
@@ -286,7 +311,7 @@ export function OvertimeSettingsModule() {
         isBenchmarkMatch: Math.abs(ndRate - 0.10) < 0.001,
       },
     ];
-  }, [form, simMinute, simHourly, simOtMinutes, simNightMins]);
+  }, [form, simMinute, simHourly, simEffectiveOtMinutes, simNightMins]);
 
   return (
     <DashboardLayout>
@@ -317,7 +342,7 @@ export function OvertimeSettingsModule() {
                 )}
               </div>
               <p className="text-sm text-indigo-200/80 leading-relaxed">
-                Configure global multipliers for regular overtime, rest days, holidays, and night shift differentials. These settings are dynamically read during every automated payroll computation.
+                Configure global multipliers for regular overtime, rest days, holidays, night differentials, along with minimum eligibility thresholds and incremental rounding brackets (e.g. every 30 minutes).
               </p>
               <div className="flex items-center gap-2 text-xs text-indigo-300/60 pt-1">
                 <Info className="h-3.5 w-3.5" />
@@ -360,7 +385,7 @@ export function OvertimeSettingsModule() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Sliders className="h-4 w-4 text-primary" />
             <span className="font-medium text-foreground">Standard Presets:</span>
-            <span className="text-xs">Quickly populate policy rates by legal authority</span>
+            <span className="text-xs">Quickly populate policy rates and 30m rounding brackets</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -372,7 +397,7 @@ export function OvertimeSettingsModule() {
               className="h-8 text-xs gap-1.5 border-amber-500/30 hover:bg-amber-500/10 text-amber-700 dark:text-amber-400"
             >
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              DOLE Standard (1.25× / 1.69×)
+              DOLE Standard (1.25× / 30m)
             </Button>
 
             <Button
@@ -384,7 +409,7 @@ export function OvertimeSettingsModule() {
               className="h-8 text-xs gap-1.5 border-blue-500/30 hover:bg-blue-500/10 text-blue-700 dark:text-blue-400"
             >
               <Landmark className="h-3.5 w-3.5 text-blue-500" />
-              LGU / Public Sector
+              LGU / Public Sector (60m min)
             </Button>
 
             <Button
@@ -402,7 +427,7 @@ export function OvertimeSettingsModule() {
         </div>
 
         {/* Quick KPI Overview Stat Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <Card className="border-border/60 shadow-sm bg-gradient-to-br from-blue-500/5 via-card to-card hover:shadow-md transition-all">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
@@ -417,13 +442,13 @@ export function OvertimeSettingsModule() {
                 <span className="text-3xl font-extrabold font-mono tracking-tight text-foreground">
                   {form.payroll_overtime_rate}×
                 </span>
-                <Badge variant="outline" className="text-[11px] font-mono bg-blue-500/10 text-blue-600 border-blue-500/20">
-                  {((parseFloat(form.payroll_overtime_rate || "1") - 1) * 100).toFixed(0)}% Premium
+                <Badge variant="outline" className="text-[10px] font-mono bg-blue-500/10 text-blue-600 border-blue-500/20">
+                  {((parseFloat(form.payroll_overtime_rate || "1") - 1) * 100).toFixed(0)}% Prem
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground pt-0">
-              Work performed beyond 8 hours on scheduled workday.
+              Beyond 8h workday.
             </CardContent>
           </Card>
 
@@ -441,13 +466,13 @@ export function OvertimeSettingsModule() {
                 <span className="text-3xl font-extrabold font-mono tracking-tight text-foreground">
                   {form.payroll_ot_rate_rest_day}×
                 </span>
-                <Badge variant="outline" className="text-[11px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
                   130% × 130%
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground pt-0">
-              Overtime on employee’s scheduled weekly rest day / Sunday.
+              Sunday / scheduled off.
             </CardContent>
           </Card>
 
@@ -465,13 +490,37 @@ export function OvertimeSettingsModule() {
                 <span className="text-3xl font-extrabold font-mono tracking-tight text-foreground">
                   {form.payroll_ot_rate_regular_holiday}×
                 </span>
-                <Badge variant="outline" className="text-[11px] font-mono bg-purple-500/10 text-purple-600 border-purple-500/20">
+                <Badge variant="outline" className="text-[10px] font-mono bg-purple-500/10 text-purple-600 border-purple-500/20">
                   200% × 130%
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground pt-0">
-              Overtime during declared statutory regular national holidays.
+              National holidays.
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/60 shadow-sm bg-gradient-to-br from-cyan-500/5 via-card to-card hover:shadow-md transition-all">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Minimum OT
+                </span>
+                <span className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+                  <Timer className="h-4 w-4" />
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2 pt-1">
+                <span className="text-3xl font-extrabold font-mono tracking-tight text-foreground">
+                  {form.payroll_ot_minimum_minutes || "0"}m
+                </span>
+                <Badge variant="outline" className="text-[10px] font-mono bg-cyan-500/10 text-cyan-600 border-cyan-500/20">
+                  Threshold
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="text-xs text-muted-foreground pt-0">
+              Min continuous minutes.
             </CardContent>
           </Card>
 
@@ -479,23 +528,23 @@ export function OvertimeSettingsModule() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Night Differential
+                  Increment Bracket
                 </span>
                 <span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                  <Moon className="h-4 w-4" />
+                  <Hourglass className="h-4 w-4" />
                 </span>
               </div>
               <div className="flex items-baseline gap-2 pt-1">
                 <span className="text-3xl font-extrabold font-mono tracking-tight text-foreground">
-                  {(parseFloat(form.payroll_night_diff_rate || "0.10") * 100).toFixed(0)}%
+                  {form.payroll_ot_incremental_minutes || "1"}m
                 </span>
-                <Badge variant="outline" className="text-[11px] font-mono bg-amber-500/10 text-amber-600 border-amber-500/20">
-                  10PM – 6AM
+                <Badge variant="outline" className="text-[10px] font-mono bg-amber-500/10 text-amber-600 border-amber-500/20">
+                  Step Count
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground pt-0">
-              Additional hourly premium for night shift duty.
+              Counted in 30m blocks.
             </CardContent>
           </Card>
         </div>
@@ -505,7 +554,7 @@ export function OvertimeSettingsModule() {
           <TabsList className="grid w-full sm:w-auto grid-cols-3 bg-muted/70 p-1 border">
             <TabsTrigger value="rates" className="gap-2">
               <Sliders className="h-4 w-4" />
-              <span>Multipliers Setup</span>
+              <span>Multipliers &amp; Rounding</span>
             </TabsTrigger>
             <TabsTrigger value="simulator" className="gap-2">
               <Calculator className="h-4 w-4" />
@@ -524,12 +573,168 @@ export function OvertimeSettingsModule() {
               {/* Left Column: Form Inputs */}
               <div className="lg:col-span-2 space-y-6">
                 
+                {/* NEW: Overtime Minimum & Incremental Counting Rules */}
+                <Card className="border-border/60 shadow-sm overflow-hidden border-cyan-500/30 bg-gradient-to-r from-cyan-500/5 via-card to-card">
+                  <CardHeader className="bg-muted/30 border-b pb-4">
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <Timer className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+                      Overtime Counting &amp; Incremental Rounding Rules
+                    </CardTitle>
+                    <CardDescription>
+                      Configure the minimum duration required to qualify for overtime, and the incremental block size (e.g. every 30 minutes) used during calculation.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+                      {/* Minimum Threshold */}
+                      <div className="space-y-3 p-4 rounded-xl border border-border/70 bg-card hover:border-cyan-400/40 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="payroll_ot_minimum_minutes" className="text-sm font-semibold flex items-center gap-1.5">
+                            Minimum Overtime (Minutes)
+                          </Label>
+                          <Badge variant="secondary" className="font-mono text-[10px]">
+                            payroll_ot_minimum_minutes
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          Overtime below this threshold is treated as <strong>0 minutes</strong>. (e.g., 30 mins means working 25 mins yields 0 OT).
+                        </p>
+                        
+                        <div className="flex items-center gap-2 pt-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_ot_minimum_minutes", -15)}
+                            disabled={loading || saving}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </Button>
+                          <div className="relative flex-1">
+                            <Input
+                              id="payroll_ot_minimum_minutes"
+                              type="number"
+                              step="5"
+                              min="0"
+                              value={form.payroll_ot_minimum_minutes}
+                              onChange={(e) => handleChange("payroll_ot_minimum_minutes", e.target.value)}
+                              className="font-mono font-bold text-center pr-8 h-9 text-base"
+                              disabled={loading || saving}
+                            />
+                            <span className="absolute right-3 top-2 text-xs font-mono text-muted-foreground">
+                              mins
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_ot_minimum_minutes", 15)}
+                            disabled={loading || saving}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5 pt-2">
+                          {[0, 15, 30, 60].map((mins) => (
+                            <Button
+                              key={mins}
+                              type="button"
+                              variant={form.payroll_ot_minimum_minutes === String(mins) ? "default" : "outline"}
+                              size="sm"
+                              className="h-6 text-[10px] px-2 py-0"
+                              onClick={() => handleChange("payroll_ot_minimum_minutes", String(mins))}
+                              disabled={loading || saving}
+                            >
+                              {mins === 0 ? "No Min" : `${mins}m`}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Incremental Bracket */}
+                      <div className="space-y-3 p-4 rounded-xl border border-border/70 bg-card hover:border-cyan-400/40 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="payroll_ot_incremental_minutes" className="text-sm font-semibold flex items-center gap-1.5">
+                            Incremental Step (Minutes)
+                          </Label>
+                          <Badge variant="secondary" className="font-mono text-[10px]">
+                            payroll_ot_incremental_minutes
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          Overtime is counted in completed multiples of this block (e.g. <strong>every 30 minutes</strong>). 45 mins rounds to 30 mins.
+                        </p>
+                        
+                        <div className="flex items-center gap-2 pt-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_ot_incremental_minutes", -15)}
+                            disabled={loading || saving}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </Button>
+                          <div className="relative flex-1">
+                            <Input
+                              id="payroll_ot_incremental_minutes"
+                              type="number"
+                              step="5"
+                              min="1"
+                              value={form.payroll_ot_incremental_minutes}
+                              onChange={(e) => handleChange("payroll_ot_incremental_minutes", e.target.value)}
+                              className="font-mono font-bold text-center pr-8 h-9 text-base"
+                              disabled={loading || saving}
+                            />
+                            <span className="absolute right-3 top-2 text-xs font-mono text-muted-foreground">
+                              mins
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_ot_incremental_minutes", 15)}
+                            disabled={loading || saving}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5 pt-2">
+                          {[1, 15, 30, 60].map((mins) => (
+                            <Button
+                              key={mins}
+                              type="button"
+                              variant={form.payroll_ot_incremental_minutes === String(mins) ? "default" : "outline"}
+                              size="sm"
+                              className="h-6 text-[10px] px-2 py-0"
+                              onClick={() => handleChange("payroll_ot_incremental_minutes", String(mins))}
+                              disabled={loading || saving}
+                            >
+                              {mins === 1 ? "Exact (1m)" : `${mins}m blocks`}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {/* Regular & Rest Day OT */}
                 <Card className="border-border/60 shadow-sm overflow-hidden">
                   <CardHeader className="bg-muted/30 border-b pb-4">
                     <CardTitle className="text-base font-semibold flex items-center gap-2">
                       <TrendingUp className="h-5 w-5 text-indigo-500" />
-                      Workday & Rest Day Multipliers
+                      Workday &amp; Rest Day Multipliers
                     </CardTitle>
                     <CardDescription>
                       Multipliers applied on approved overtime minutes for normal shifts and rest days.
@@ -542,11 +747,11 @@ export function OvertimeSettingsModule() {
                       <div className="space-y-3 p-4 rounded-xl border border-border/70 bg-card hover:border-indigo-400/40 transition-colors">
                         <div className="flex items-center justify-between">
                           <Label htmlFor="payroll_overtime_rate" className="text-sm font-semibold flex items-center gap-1.5">
-                            Regular Day OT
-                            <Badge variant="secondary" className="font-mono text-[10px]">
-                              Key: payroll_overtime_rate
-                            </Badge>
+                            Regular Day OT Multiplier
                           </Label>
+                          <Badge variant="secondary" className="font-mono text-[10px]">
+                            payroll_overtime_rate
+                          </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground leading-relaxed">
                           Applied to overtime minutes after 8 regular work hours on a standard scheduled day.
@@ -601,10 +806,10 @@ export function OvertimeSettingsModule() {
                         <div className="flex items-center justify-between">
                           <Label htmlFor="payroll_ot_rate_rest_day" className="text-sm font-semibold flex items-center gap-1.5">
                             Rest Day OT (Sunday)
-                            <Badge variant="secondary" className="font-mono text-[10px]">
-                              Key: payroll_ot_rate_rest_day
-                            </Badge>
                           </Label>
+                          <Badge variant="secondary" className="font-mono text-[10px]">
+                            payroll_ot_rate_rest_day
+                          </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground leading-relaxed">
                           Applied to hours worked beyond 8 hours during an employee’s designated rest day.
@@ -935,23 +1140,23 @@ export function OvertimeSettingsModule() {
                   </CardHeader>
                   <CardContent className="text-xs space-y-3.5 text-muted-foreground leading-relaxed">
                     <p>
-                      The system parses attendance approvals and applies multipliers on a daily schedule basis:
+                      The payroll engine parses attendance and rounds overtime minutes prior to rate calculation:
                     </p>
                     
                     <div className="p-3 bg-muted/50 rounded-lg border font-mono text-[11px] space-y-1.5 text-foreground">
-                      <div className="text-muted-foreground font-sans text-[10px] uppercase font-semibold">Base Rates:</div>
-                      <div>Daily Rate = Employee Wage Profile</div>
-                      <div>Hourly Rate = Daily Rate ÷ 8</div>
-                      <div>Minute Rate = Daily Rate ÷ 480</div>
+                      <div className="text-muted-foreground font-sans text-[10px] uppercase font-semibold">1. Eligibility &amp; Increments:</div>
+                      <div>If OT &lt; Minimum Threshold ({form.payroll_ot_minimum_minutes}m) &rarr; <strong>0 mins</strong></div>
+                      <div>Credited OT = Floor(OT ÷ {form.payroll_ot_incremental_minutes}m) × {form.payroll_ot_incremental_minutes}m</div>
                       <Separator className="my-1.5" />
-                      <div className="text-muted-foreground font-sans text-[10px] uppercase font-semibold">Overtime Formula:</div>
+                      <div className="text-muted-foreground font-sans text-[10px] uppercase font-semibold">2. Monetary Pay:</div>
+                      <div>Minute Rate = Daily Rate ÷ 480</div>
                       <div className="text-indigo-600 dark:text-indigo-400 font-bold">
-                        OT Pay = OT Minutes × Minute Rate × Multiplier
+                        OT Pay = Credited Mins × Minute Rate × Multiplier
                       </div>
                     </div>
 
                     <p className="text-[11px]">
-                      Overtime premiums are not stacked arbitrarily. The matrix strictly resolves whether a day is Normal, Rest Day, or Holiday to determine the exact multiplier.
+                      Overtime premiums are evaluated cleanly without stacking. Unfinished incremental brackets are automatically truncated to ensure fair and consistent payroll accounting.
                     </p>
                   </CardContent>
                 </Card>
@@ -961,7 +1166,7 @@ export function OvertimeSettingsModule() {
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
                       <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                      System Audit & Persistence
+                      System Audit &amp; Persistence
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 text-xs">
@@ -972,7 +1177,7 @@ export function OvertimeSettingsModule() {
                     <div className="flex justify-between py-1.5 border-b">
                       <span className="text-muted-foreground">Configured Parameters:</span>
                       <Badge variant="secondary" className="font-mono text-[10px]">
-                        7 active keys
+                        9 active keys
                       </Badge>
                     </div>
                     <div className="flex justify-between py-1.5 border-b">
@@ -1015,10 +1220,10 @@ export function OvertimeSettingsModule() {
                   <div>
                     <CardTitle className="text-base font-semibold flex items-center gap-2">
                       <Calculator className="h-5 w-5 text-indigo-500" />
-                      Interactive Wage & Overtime Simulator
+                      Interactive Wage &amp; Overtime Simulator
                     </CardTitle>
                     <CardDescription>
-                      Simulate how employee daily wages convert into overtime compensation under your current policy multipliers.
+                      Simulate how employee daily wages and raw overtime minutes convert into billable overtime under your minimum threshold and incremental count settings.
                     </CardDescription>
                   </div>
 
@@ -1036,11 +1241,11 @@ export function OvertimeSettingsModule() {
                     </div>
 
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground uppercase font-semibold">OT Duration (Mins)</Label>
+                      <Label className="text-[10px] text-muted-foreground uppercase font-semibold">Raw OT (Mins)</Label>
                       <Input
                         type="number"
                         min="0"
-                        step="15"
+                        step="5"
                         value={simOtMinutes}
                         onChange={(e) => setSimOtMinutes(parseFloat(e.target.value) || 0)}
                         className="h-8 w-28 font-mono text-sm"
@@ -1063,18 +1268,34 @@ export function OvertimeSettingsModule() {
               </CardHeader>
               <CardContent className="p-6 space-y-6">
                 
-                {/* Simulator Base Conversion Badges */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-muted/40 border">
+                {/* Simulator Base Conversion Badges with Rounding Verification */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-muted/40 border">
                   <div>
-                    <div className="text-xs text-muted-foreground">Base Daily Wage</div>
-                    <div className="text-xl font-bold font-mono text-foreground">{formatPhp(simDailyWage)}</div>
-                    <div className="text-[10px] text-muted-foreground">Standard 8-hour workday</div>
+                    <div className="text-xs text-muted-foreground">Raw Overtime Input</div>
+                    <div className="text-xl font-bold font-mono text-foreground">{simOtMinutes} mins</div>
+                    <div className="text-[10px] text-muted-foreground">Logged by attendance</div>
                   </div>
+
+                  <div>
+                    <div className="text-xs text-muted-foreground">Credited / Billable OT</div>
+                    <div className="text-xl font-bold font-mono text-indigo-600 dark:text-indigo-400">
+                      {simEffectiveOtMinutes} mins
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {simMinimumThreshold > 0 && simOtMinutes < simMinimumThreshold ? (
+                        <span className="text-amber-600 font-semibold">Disqualified (&lt;{simMinimumThreshold}m min)</span>
+                      ) : (
+                        `Counted in ${simIncrementalBracket}m brackets`
+                      )}
+                    </div>
+                  </div>
+
                   <div>
                     <div className="text-xs text-muted-foreground">Base Hourly Rate</div>
-                    <div className="text-xl font-bold font-mono text-indigo-600 dark:text-indigo-400">{formatPhp(simHourly)}</div>
+                    <div className="text-xl font-bold font-mono text-foreground">{formatPhp(simHourly)}</div>
                     <div className="text-[10px] text-muted-foreground">Daily ÷ 8 hours</div>
                   </div>
+
                   <div>
                     <div className="text-xs text-muted-foreground">Minute Base Rate</div>
                     <div className="text-xl font-bold font-mono text-foreground">{formatPhp(simMinute)}</div>
@@ -1090,7 +1311,7 @@ export function OvertimeSettingsModule() {
                         <TableHead className="font-semibold">Shift Scenario</TableHead>
                         <TableHead className="font-semibold text-center">Configured Multiplier</TableHead>
                         <TableHead className="font-semibold text-right">Effective Hourly Rate</TableHead>
-                        <TableHead className="font-semibold text-right">Simulated Pay</TableHead>
+                        <TableHead className="font-semibold text-right">Simulated Pay ({simEffectiveOtMinutes}m)</TableHead>
                         <TableHead className="font-semibold text-center">DOLE Benchmark</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1150,10 +1371,10 @@ export function OvertimeSettingsModule() {
                   <div className="space-y-2 p-4 rounded-xl border bg-muted/20">
                     <h3 className="font-semibold text-sm flex items-center gap-2 text-foreground">
                       <Clock className="h-4 w-4 text-blue-500" />
-                      Article 87: Overtime Work
+                      Article 87: Overtime Work &amp; Rounding
                     </h3>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Work performed beyond eight (8) hours on ordinary working days is compensated at an additional compensation equivalent to the regular wage plus at least twenty-five percent (25%) thereof:
+                      Work performed beyond eight (8) hours on ordinary working days is compensated at regular wage plus at least 25% (1.25×). Employers commonly implement minimum increments (e.g. 30 minutes) under company CBA or policy:
                     </p>
                     <div className="p-2.5 bg-background rounded border font-mono text-xs text-blue-600 dark:text-blue-400 font-medium">
                       Regular OT Rate = Hourly Rate × 125% (1.25)
@@ -1223,12 +1444,12 @@ export function OvertimeSettingsModule() {
             <AlertDialogDescription className="text-sm space-y-2 pt-2">
               {presetConfirmDialog === "dole" && (
                 <p>
-                  This will populate the official Philippine DOLE statutory multipliers (<strong>1.25×</strong> for Normal OT, <strong>1.69×</strong> for Rest Day OT, and <strong>2.60×</strong> for Regular Holiday OT). You can inspect and adjust the rates before saving.
+                  This will populate the official Philippine DOLE statutory multipliers (<strong>1.25×</strong> for Normal OT, <strong>1.69×</strong> for Rest Day OT, and <strong>2.60×</strong> for Regular Holiday OT), with <strong>30-minute minimum</strong> and <strong>30-minute incremental brackets</strong>.
                 </p>
               )}
               {presetConfirmDialog === "lgu" && (
                 <p>
-                  This will populate common government and public sector benchmarks (<strong>1.25×</strong> Normal OT, <strong>1.50×</strong> Rest Day OT, and <strong>2.00×</strong> Holiday OT).
+                  This will populate common government and public sector benchmarks (<strong>1.25×</strong> Normal OT, <strong>1.50×</strong> Rest Day OT, and <strong>2.00×</strong> Holiday OT), with a <strong>60-minute minimum</strong>.
                 </p>
               )}
               {presetConfirmDialog === "flat" && (

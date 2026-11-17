@@ -1184,6 +1184,8 @@ export async function loadWorkspace(args: {
     regularHolidayOt: 2.60,
     regularRestDayOt: 3.38,
     nightDiffRate: 0.10,
+    minimumOtMinutes: 0,
+    incrementalOtMinutes: 1,
   };
 
   try {
@@ -1208,6 +1210,8 @@ export async function loadWorkspace(args: {
         regularHolidayOt: sMap.get("payroll_ot_rate_regular_holiday") ?? 2.60,
         regularRestDayOt: sMap.get("payroll_ot_rate_regular_rest_day") ?? 3.38,
         nightDiffRate: sMap.get("payroll_night_diff_rate") ?? 0.10,
+        minimumOtMinutes: sMap.get("payroll_ot_minimum_minutes") ?? 0,
+        incrementalOtMinutes: sMap.get("payroll_ot_incremental_minutes") ?? 1,
       };
     }
   } catch (err) {

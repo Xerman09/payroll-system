@@ -27,6 +27,10 @@ export interface OvertimeRateFormState {
 
   // Night Shift Differential
   payroll_night_diff_rate: string;
+
+  // Minimum & Incremental Overtime Bracket
+  payroll_ot_minimum_minutes: string;
+  payroll_ot_incremental_minutes: string;
 }
 
 export const DOLE_PRESETS: OvertimeRateFormState = {
@@ -37,6 +41,8 @@ export const DOLE_PRESETS: OvertimeRateFormState = {
   payroll_ot_rate_regular_holiday: "2.60",
   payroll_ot_rate_regular_rest_day: "3.38",
   payroll_night_diff_rate: "0.10",
+  payroll_ot_minimum_minutes: "30",
+  payroll_ot_incremental_minutes: "30",
 };
 
 export const FLAT_PRESETS: OvertimeRateFormState = {
@@ -47,6 +53,8 @@ export const FLAT_PRESETS: OvertimeRateFormState = {
   payroll_ot_rate_regular_holiday: "2.00",
   payroll_ot_rate_regular_rest_day: "2.60",
   payroll_night_diff_rate: "0.10",
+  payroll_ot_minimum_minutes: "30",
+  payroll_ot_incremental_minutes: "30",
 };
 
 export const LGU_PRESETS: OvertimeRateFormState = {
@@ -57,5 +65,7 @@ export const LGU_PRESETS: OvertimeRateFormState = {
   payroll_ot_rate_regular_holiday: "2.00",
   payroll_ot_rate_regular_rest_day: "2.00",
   payroll_night_diff_rate: "0.10",
+  payroll_ot_minimum_minutes: "60",
+  payroll_ot_incremental_minutes: "30",
 };
 

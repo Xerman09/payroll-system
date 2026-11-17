@@ -16,6 +16,8 @@ export type OvertimeRateSettings = {
   regularHolidayOt?: number;
   regularRestDayOt?: number;
   nightDiffRate?: number;
+  minimumOtMinutes?: number;
+  incrementalOtMinutes?: number;
 };
 
 export type ManualEntryType = "EARNING" | "DEDUCTION";
