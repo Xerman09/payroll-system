@@ -8,6 +8,16 @@ export type PayrollStep = 1 | 2 | 3 | 4;
 export type CutoffType = "FIRST" | "SECOND";
 export type BenefitCode = "SSS" | "PHILHEALTH" | "PAGIBIG";
 
+export type OvertimeRateSettings = {
+  normalOt?: number;
+  restDayOt?: number;
+  specialHolidayOt?: number;
+  specialRestDayOt?: number;
+  regularHolidayOt?: number;
+  regularRestDayOt?: number;
+  nightDiffRate?: number;
+};
+
 export type ManualEntryType = "EARNING" | "DEDUCTION";
 export type AdjustmentType = "EARNING" | "DEDUCTION";
 
@@ -483,6 +493,9 @@ export interface PayrollWorkspace {
   // ✅ Paid Leave requests overlapping cutoff
   paidLeaves?: Map<number, PaidLeaveRequest[]>;
   
+  // ✅ Configured Overtime and Night Diff multipliers
+  overtimeRates?: OvertimeRateSettings;
+
   companyName?: string;
 }
 

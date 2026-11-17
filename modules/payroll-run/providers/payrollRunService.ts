@@ -71,6 +71,9 @@ export const RES = {
   
   // ✅ Leave Requests
   leaveRequests: "leave_request",
+
+  // ✅ General Settings (Overtime and policy rates)
+  generalSettings: "general_setting",
 } as const;
 
 // ------------------------------
@@ -1172,6 +1175,45 @@ export async function loadWorkspace(args: {
     isActiveByDeletedFlags({ user: u, wage: wages.get(u.id) ?? null }),
   );
 
+  // Fetch dynamic overtime and night differential multipliers from general_setting
+  let overtimeRates = {
+    normalOt: 1.0,
+    restDayOt: 1.69,
+    specialHolidayOt: 1.69,
+    specialRestDayOt: 1.95,
+    regularHolidayOt: 2.60,
+    regularRestDayOt: 3.38,
+    nightDiffRate: 0.10,
+  };
+
+  try {
+    const rawSettings = await safeList<Record<string, unknown>>(RES.generalSettings, {
+      limit: 200,
+    });
+    if (rawSettings && rawSettings.length > 0) {
+      const sMap = new Map<string, number>();
+      for (const s of rawSettings) {
+        const k = String(s.setting_key ?? "").trim();
+        const v = parseFloat(String(s.setting_value ?? ""));
+        if (k && !isNaN(v)) {
+          sMap.set(k, v);
+        }
+      }
+
+      overtimeRates = {
+        normalOt: sMap.get("payroll_overtime_rate") ?? 1.0,
+        restDayOt: sMap.get("payroll_ot_rate_rest_day") ?? 1.69,
+        specialHolidayOt: sMap.get("payroll_ot_rate_special_holiday") ?? 1.69,
+        specialRestDayOt: sMap.get("payroll_ot_rate_special_rest_day") ?? 1.95,
+        regularHolidayOt: sMap.get("payroll_ot_rate_regular_holiday") ?? 2.60,
+        regularRestDayOt: sMap.get("payroll_ot_rate_regular_rest_day") ?? 3.38,
+        nightDiffRate: sMap.get("payroll_night_diff_rate") ?? 0.10,
+      };
+    }
+  } catch (err) {
+    console.warn("Could not load dynamic overtime rates from general_setting, using defaults:", err);
+  }
+
   return {
     cutoff,
     department,
@@ -1194,6 +1236,7 @@ export async function loadWorkspace(args: {
     paidLeaves,
 
     wageProrationLogs,
+    overtimeRates,
     companyName,
   } as PayrollWorkspace;
 }
@@ -1255,6 +1298,8 @@ export function computeRegister(args: {
 
       retroPays: retro,
       coopSavingsMemberships: coop,
+
+      overtimeRates: ws.overtimeRates,
     }) as PayrollComputedLine;
 
     lines.push(line);

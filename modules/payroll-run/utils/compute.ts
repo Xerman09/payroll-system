@@ -48,6 +48,9 @@ type ComputeArgs = {
   // ✅ Option B tables (dedicated collections)
   retroPays?: RetroPayRow[];
   coopSavingsMemberships?: CoopSavingsMembershipRow[];
+
+  // ✅ Overtime and Night Differential rates (from general_setting)
+  overtimeRates?: OvertimeRateSettings;
 };
 
 /**
@@ -237,28 +240,46 @@ function toHolidayFlag(h?: HolidayInfo | null): HolidayFlag {
   return "NONE";
 }
 
+export type OvertimeRateSettings = {
+  normalOt?: number;
+  restDayOt?: number;
+  specialHolidayOt?: number;
+  specialRestDayOt?: number;
+  regularHolidayOt?: number;
+  regularRestDayOt?: number;
+  nightDiffRate?: number;
+};
+
 /**
  * Rate matrix (NO STACKING):
- * - Regular Holiday only => base=2.00, ot=2.60
- * - Rest Day only (Sunday) => base=1.30, ot=1.69
- * - Special + Rest => base=1.50, ot=1.95
- * - Regular + Rest => base=2.60, ot=3.38
+ * - Regular Holiday only => base=2.00, ot=2.60 (or configured)
+ * - Rest Day only (Sunday) => base=1.30, ot=1.69 (or configured)
+ * - Special + Rest => base=1.50, ot=1.95 (or configured)
+ * - Regular + Rest => base=2.60, ot=3.38 (or configured)
  */
 function getDayMultipliers(args: {
   isRestDay: boolean;
   holiday: HolidayFlag;
+  rates?: OvertimeRateSettings;
 }): { baseMult: number; otMult: number; bucket: "NORMAL" | "REST" | "HOLIDAY" } {
-  const { isRestDay, holiday } = args;
+  const { isRestDay, holiday, rates } = args;
 
-  if (isRestDay && holiday === "SPECIAL") return { baseMult: 1.5, otMult: 1.95, bucket: "HOLIDAY" };
-  if (isRestDay && holiday === "REGULAR") return { baseMult: 2.6, otMult: 3.38, bucket: "HOLIDAY" };
+  const normalOt = rates?.normalOt ?? 1.0;
+  const restDayOt = rates?.restDayOt ?? 1.69;
+  const specialHolidayOt = rates?.specialHolidayOt ?? 1.69;
+  const specialRestDayOt = rates?.specialRestDayOt ?? 1.95;
+  const regularHolidayOt = rates?.regularHolidayOt ?? 2.60;
+  const regularRestDayOt = rates?.regularRestDayOt ?? 3.38;
 
-  if (!isRestDay && holiday === "SPECIAL") return { baseMult: 1.3, otMult: 1.69, bucket: "HOLIDAY" };
-  if (!isRestDay && holiday === "REGULAR") return { baseMult: 2.0, otMult: 2.6, bucket: "HOLIDAY" };
+  if (isRestDay && holiday === "SPECIAL") return { baseMult: 1.5, otMult: specialRestDayOt, bucket: "HOLIDAY" };
+  if (isRestDay && holiday === "REGULAR") return { baseMult: 2.6, otMult: regularRestDayOt, bucket: "HOLIDAY" };
 
-  if (isRestDay && holiday === "NONE") return { baseMult: 1.3, otMult: 1.69, bucket: "REST" };
+  if (!isRestDay && holiday === "SPECIAL") return { baseMult: 1.3, otMult: specialHolidayOt, bucket: "HOLIDAY" };
+  if (!isRestDay && holiday === "REGULAR") return { baseMult: 2.0, otMult: regularHolidayOt, bucket: "HOLIDAY" };
 
-  return { baseMult: 1.0, otMult: 1, bucket: "NORMAL" };
+  if (isRestDay && holiday === "NONE") return { baseMult: 1.3, otMult: restDayOt, bucket: "REST" };
+
+  return { baseMult: 1.0, otMult: normalOt, bucket: "NORMAL" };
 }
 
 /* ------------------------------ Allowances ------------------------------ */
@@ -1037,6 +1058,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     const { baseMult, otMult, bucket } = getDayMultipliers({
       isRestDay: rd,
       holiday: holidayFlag,
+      rates: args.overtimeRates,
     });
 
     const basePay = round2(baseMin * dayMR * baseMult);
@@ -1044,7 +1066,8 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     const dayTotal = round2(basePay + otPay);
 
     if (ndm > 0 && dayHourly > 0) {
-      nightDiffAmount += round2((ndm / 60) * dayHourly * 0.1);
+      const ndRate = args.overtimeRates?.nightDiffRate ?? 0.1;
+      nightDiffAmount += round2((ndm / 60) * dayHourly * ndRate);
     }
 
     // ✅ FIX: Apply late/undertime deductions for ALL day types (normal, rest, holiday)

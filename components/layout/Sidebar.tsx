@@ -33,6 +33,7 @@ import {
   Landmark,
   Layers,
   GraduationCap,
+  Clock,
 } from "lucide-react";
 import { getLoggedUser } from "@/lib/auth";
 
@@ -159,6 +160,11 @@ function Sidebar() {
             title: "Cutoff Settings",
             href: `/cutoff-settings/${userId}`,
             icon: <Calendars size={18} />,
+          },
+          {
+            title: "Overtime & Rate Settings",
+            href: `/overtime-settings/${userId}`,
+            icon: <Clock size={18} />,
           },
           {
             title: "Logistics Compensation",

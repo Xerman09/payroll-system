@@ -21,6 +21,7 @@ import {
   Anchor,
   Landmark,
   GraduationCap,
+  Clock,
 } from "lucide-react";
 
 import {
@@ -220,6 +221,12 @@ export function CommandPalette({ open, setOpen }: CommandPaletteProps) {
             <Calendars className="mr-2 h-4 w-4 text-purple-500" />
             <span>Cutoff Settings</span>
             <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-widest">Settings &gt; Dates</span>
+          </CommandItem>
+
+          <CommandItem onSelect={() => runCommand(() => router.push(`/overtime-settings/${userId}`))}>
+            <Clock className="mr-2 h-4 w-4 text-amber-500" />
+            <span>Overtime &amp; Rate Settings</span>
+            <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-widest">Settings &gt; Policy</span>
           </CommandItem>
         </CommandGroup>
 
