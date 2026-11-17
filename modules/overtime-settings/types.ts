@@ -40,12 +40,22 @@ export const DOLE_PRESETS: OvertimeRateFormState = {
 };
 
 export const FLAT_PRESETS: OvertimeRateFormState = {
-  payroll_overtime_rate: "1",
+  payroll_overtime_rate: "1.00",
   payroll_ot_rate_rest_day: "1.30",
   payroll_ot_rate_special_holiday: "1.30",
   payroll_ot_rate_special_rest_day: "1.50",
   payroll_ot_rate_regular_holiday: "2.00",
   payroll_ot_rate_regular_rest_day: "2.60",
+  payroll_night_diff_rate: "0.10",
+};
+
+export const LGU_PRESETS: OvertimeRateFormState = {
+  payroll_overtime_rate: "1.25",
+  payroll_ot_rate_rest_day: "1.50",
+  payroll_ot_rate_special_holiday: "1.50",
+  payroll_ot_rate_special_rest_day: "1.50",
+  payroll_ot_rate_regular_holiday: "2.00",
+  payroll_ot_rate_regular_rest_day: "2.00",
   payroll_night_diff_rate: "0.10",
 };
 

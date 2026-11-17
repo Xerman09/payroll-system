@@ -17,14 +17,34 @@ import {
   Moon,
   ShieldCheck,
   TrendingUp,
+  Calculator,
+  BookOpen,
+  Sliders,
+  DollarSign,
+  ArrowRight,
+  Info,
+  Check,
+  Plus,
+  Minus,
+  Building,
+  Landmark,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,6 +60,7 @@ import {
   OvertimeRateFormState,
   DOLE_PRESETS,
   FLAT_PRESETS,
+  LGU_PRESETS,
 } from "./types";
 import { fetchGeneralSettings, saveOvertimeSettings } from "./providers/overtimeSettingsApi";
 
@@ -48,10 +69,14 @@ function formatDisplayDate(dateStr?: string | null): string {
   try {
     const d = parseISO(dateStr);
     if (!isValid(d)) return "Recently";
-    return format(d, "MMM dd, yyyy hh:mm a");
+    return format(d, "MMM dd, yyyy • hh:mm a");
   } catch {
     return "Recently";
   }
+}
+
+function formatPhp(amount: number): string {
+  return `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function OvertimeSettingsModule() {
@@ -59,8 +84,8 @@ export function OvertimeSettingsModule() {
   const [saving, setSaving] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  const [form, setForm] = useState<OvertimeRateFormState>({
-    payroll_overtime_rate: "1",
+  const [savedForm, setSavedForm] = useState<OvertimeRateFormState>({
+    payroll_overtime_rate: "1.00",
     payroll_ot_rate_rest_day: "1.69",
     payroll_ot_rate_special_holiday: "1.69",
     payroll_ot_rate_special_rest_day: "1.95",
@@ -69,8 +94,27 @@ export function OvertimeSettingsModule() {
     payroll_night_diff_rate: "0.10",
   });
 
+  const [form, setForm] = useState<OvertimeRateFormState>({
+    payroll_overtime_rate: "1.00",
+    payroll_ot_rate_rest_day: "1.69",
+    payroll_ot_rate_special_holiday: "1.69",
+    payroll_ot_rate_special_rest_day: "1.95",
+    payroll_ot_rate_regular_holiday: "2.60",
+    payroll_ot_rate_regular_rest_day: "3.38",
+    payroll_night_diff_rate: "0.10",
+  });
+
+  // Simulator State
+  const [simDailyWage, setSimDailyWage] = useState<number>(610); // Standard NCR Daily Wage
+  const [simOtMinutes, setSimOtMinutes] = useState<number>(120); // 2 hours OT
+  const [simNightMins, setSimNightMins] = useState<number>(60); // 1 hour Night Diff
+
   // Dialog states for preset confirmations (No browser window.confirm!)
-  const [presetConfirmDialog, setPresetConfirmDialog] = useState<"dole" | "flat" | null>(null);
+  const [presetConfirmDialog, setPresetConfirmDialog] = useState<"dole" | "flat" | "lgu" | null>(null);
+
+  const isDirty = useMemo(() => {
+    return JSON.stringify(form) !== JSON.stringify(savedForm);
+  }, [form, savedForm]);
 
   useEffect(() => {
     loadSettings();
@@ -80,7 +124,7 @@ export function OvertimeSettingsModule() {
     setLoading(true);
     try {
       const rows: GeneralSettingRow[] = await fetchGeneralSettings();
-      const newForm: OvertimeRateFormState = { ...form };
+      const newForm: OvertimeRateFormState = { ...savedForm };
       let latestUpdate: string | null = null;
 
       for (const row of rows) {
@@ -95,6 +139,7 @@ export function OvertimeSettingsModule() {
         }
       }
 
+      setSavedForm(newForm);
       setForm(newForm);
       setLastUpdated(latestUpdate);
     } catch (err: any) {
@@ -108,21 +153,35 @@ export function OvertimeSettingsModule() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleApplyPreset = (type: "dole" | "flat") => {
+  const handleStep = (key: keyof OvertimeRateFormState, delta: number) => {
+    const cur = parseFloat(form[key]) || 0;
+    const next = Math.max(0, Math.round((cur + delta) * 100) / 100);
+    handleChange(key, next.toFixed(2));
+  };
+
+  const handleApplyPreset = (type: "dole" | "flat" | "lgu") => {
     if (type === "dole") {
       setForm({ ...DOLE_PRESETS });
-      toast.info("DOLE Standard rates loaded. Click 'Save Configuration' to apply.");
-    } else {
+      toast.info("DOLE Statutory Rates loaded. Click 'Save Changes' to apply.");
+    } else if (type === "flat") {
       setForm({ ...FLAT_PRESETS });
-      toast.info("Flat 1.0x Overtime rates loaded. Click 'Save Configuration' to apply.");
+      toast.info("1.0x Flat Rates loaded. Click 'Save Changes' to apply.");
+    } else if (type === "lgu") {
+      setForm({ ...LGU_PRESETS });
+      toast.info("LGU Government Rates loaded. Click 'Save Changes' to apply.");
     }
     setPresetConfirmDialog(null);
+  };
+
+  const handleResetToSaved = () => {
+    setForm({ ...savedForm });
+    toast.info("Discarded unsaved changes.");
   };
 
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
-    // Basic numerical validation
+    // Numerical validation
     for (const [k, v] of Object.entries(form)) {
       const parsed = parseFloat(v);
       if (isNaN(parsed) || parsed < 0) {
@@ -134,7 +193,8 @@ export function OvertimeSettingsModule() {
     setSaving(true);
     try {
       await saveOvertimeSettings(form);
-      toast.success("Overtime & Rate configuration saved successfully!");
+      setSavedForm({ ...form });
+      toast.success("Overtime & Rate policies updated successfully!");
       setLastUpdated(new Date().toISOString());
     } catch (err: any) {
       toast.error(err.message || "Failed to save configuration");
@@ -145,25 +205,163 @@ export function OvertimeSettingsModule() {
 
   const formattedLastUpdated = useMemo(() => formatDisplayDate(lastUpdated), [lastUpdated]);
 
+  // Calculations for Simulator
+  const simHourly = useMemo(() => simDailyWage / 8, [simDailyWage]);
+  const simMinute = useMemo(() => simDailyWage / 480, [simDailyWage]);
+
+  const simResults = useMemo(() => {
+    const otMins = Math.max(0, simOtMinutes);
+    const ndMins = Math.max(0, simNightMins);
+
+    const normalMult = parseFloat(form.payroll_overtime_rate) || 1.0;
+    const restMult = parseFloat(form.payroll_ot_rate_rest_day) || 1.69;
+    const specMult = parseFloat(form.payroll_ot_rate_special_holiday) || 1.69;
+    const specRestMult = parseFloat(form.payroll_ot_rate_special_rest_day) || 1.95;
+    const regMult = parseFloat(form.payroll_ot_rate_regular_holiday) || 2.60;
+    const regRestMult = parseFloat(form.payroll_ot_rate_regular_rest_day) || 3.38;
+    const ndRate = parseFloat(form.payroll_night_diff_rate) || 0.10;
+
+    return [
+      {
+        scenario: "Regular Workday OT",
+        detail: "Standard shift exceeding 8 hours",
+        multiplier: normalMult,
+        otPay: otMins * simMinute * normalMult,
+        hourlyRateEq: simHourly * normalMult,
+        doleBenchmark: "1.25× (DOLE)",
+        isBenchmarkMatch: Math.abs(normalMult - 1.25) < 0.001,
+      },
+      {
+        scenario: "Rest Day OT (Sunday)",
+        detail: "Exceeding 8 hours on scheduled day-off",
+        multiplier: restMult,
+        otPay: otMins * simMinute * restMult,
+        hourlyRateEq: simHourly * restMult,
+        doleBenchmark: "1.69× (DOLE)",
+        isBenchmarkMatch: Math.abs(restMult - 1.69) < 0.001,
+      },
+      {
+        scenario: "Special Holiday OT",
+        detail: "Exceeding 8 hours on Special Non-Working Day",
+        multiplier: specMult,
+        otPay: otMins * simMinute * specMult,
+        hourlyRateEq: simHourly * specMult,
+        doleBenchmark: "1.69× (DOLE)",
+        isBenchmarkMatch: Math.abs(specMult - 1.69) < 0.001,
+      },
+      {
+        scenario: "Special Holiday + Rest Day OT",
+        detail: "Special Non-Working Day falling on Rest Day",
+        multiplier: specRestMult,
+        otPay: otMins * simMinute * specRestMult,
+        hourlyRateEq: simHourly * specRestMult,
+        doleBenchmark: "1.95× (DOLE)",
+        isBenchmarkMatch: Math.abs(specRestMult - 1.95) < 0.001,
+      },
+      {
+        scenario: "Regular Holiday OT",
+        detail: "Exceeding 8 hours on Regular National Holiday",
+        multiplier: regMult,
+        otPay: otMins * simMinute * regMult,
+        hourlyRateEq: simHourly * regMult,
+        doleBenchmark: "2.60× (DOLE)",
+        isBenchmarkMatch: Math.abs(regMult - 2.60) < 0.001,
+      },
+      {
+        scenario: "Regular Holiday + Rest Day OT",
+        detail: "Regular Holiday falling on employee's Rest Day",
+        multiplier: regRestMult,
+        otPay: otMins * simMinute * regRestMult,
+        hourlyRateEq: simHourly * regRestMult,
+        doleBenchmark: "3.38× (DOLE)",
+        isBenchmarkMatch: Math.abs(regRestMult - 3.38) < 0.001,
+      },
+      {
+        scenario: "Night Shift Differential",
+        detail: "Nocturnal work (10:00 PM to 6:00 AM)",
+        multiplier: ndRate,
+        otPay: (ndMins / 60) * simHourly * ndRate,
+        hourlyRateEq: simHourly * ndRate,
+        doleBenchmark: "10% (DOLE)",
+        isBenchmarkMatch: Math.abs(ndRate - 0.10) < 0.001,
+      },
+    ];
+  }, [form, simMinute, simHourly, simOtMinutes, simNightMins]);
+
   return (
     <DashboardLayout>
-      <div className="flex-1 space-y-6 max-w-7xl mx-auto w-full pt-6 pb-16 px-4 sm:px-6">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="p-2 bg-primary/10 text-primary rounded-xl">
-                <Clock className="h-6 w-6" />
-              </span>
-              <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-                Overtime & Rate Settings
-              </h1>
-            </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Manage overtime multipliers, holiday premiums, and night shift differential for payroll runs.
-            </p>
-          </div>
+      <div className="flex-1 space-y-6 max-w-7xl mx-auto w-full pt-6 pb-20 px-4 sm:px-6">
+        
+        {/* Sleek Top Banner & Header */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-8 shadow-xl border border-indigo-900/40">
+          <div className="absolute right-0 top-0 -mt-8 -mr-8 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute left-1/3 bottom-0 -mb-10 w-48 h-48 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
 
+          <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="p-2 bg-indigo-500/20 text-indigo-300 rounded-xl border border-indigo-400/20 shadow-inner">
+                  <Clock className="h-6 w-6 text-indigo-400" />
+                </span>
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  Overtime & Rate Policies
+                </h1>
+                {isDirty ? (
+                  <Badge className="bg-amber-500 text-amber-950 font-semibold border-amber-400/30 animate-pulse">
+                    Unsaved Changes
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 bg-emerald-500/10 font-medium">
+                    <CheckCircle2 className="h-3 w-3 mr-1 text-emerald-400" /> Active in Payroll Run
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-indigo-200/80 leading-relaxed">
+                Configure global multipliers for regular overtime, rest days, holidays, and night shift differentials. These settings are dynamically read during every automated payroll computation.
+              </p>
+              <div className="flex items-center gap-2 text-xs text-indigo-300/60 pt-1">
+                <Info className="h-3.5 w-3.5" />
+                <span>Last updated: {formattedLastUpdated}</span>
+              </div>
+            </div>
+
+            {/* Action Bar */}
+            <div className="flex flex-wrap items-center gap-2.5 self-stretch md:self-auto justify-end">
+              {isDirty && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetToSaved}
+                  disabled={saving}
+                  className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+                >
+                  <RotateCcw className="h-4 w-4 mr-1.5" />
+                  Discard
+                </Button>
+              )}
+
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSave}
+                disabled={loading || saving}
+                className="bg-indigo-500 hover:bg-indigo-600 text-white font-medium shadow-lg shadow-indigo-500/30 px-5 gap-2"
+              >
+                <Save className="h-4 w-4" />
+                {saving ? "Saving Policies..." : "Save Changes"}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Preset Quick-Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-card/60 backdrop-blur-md rounded-xl border border-border/60 shadow-sm">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Sliders className="h-4 w-4 text-primary" />
+            <span className="font-medium text-foreground">Standard Presets:</span>
+            <span className="text-xs">Quickly populate policy rates by legal authority</span>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
@@ -171,10 +369,22 @@ export function OvertimeSettingsModule() {
               size="sm"
               onClick={() => setPresetConfirmDialog("dole")}
               disabled={loading || saving}
-              className="gap-1.5"
+              className="h-8 text-xs gap-1.5 border-amber-500/30 hover:bg-amber-500/10 text-amber-700 dark:text-amber-400"
             >
-              <Sparkles className="h-4 w-4 text-amber-500" />
-              DOLE Standard
+              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+              DOLE Standard (1.25× / 1.69×)
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPresetConfirmDialog("lgu")}
+              disabled={loading || saving}
+              className="h-8 text-xs gap-1.5 border-blue-500/30 hover:bg-blue-500/10 text-blue-700 dark:text-blue-400"
+            >
+              <Landmark className="h-3.5 w-3.5 text-blue-500" />
+              LGU / Public Sector
             </Button>
 
             <Button
@@ -183,378 +393,818 @@ export function OvertimeSettingsModule() {
               size="sm"
               onClick={() => setPresetConfirmDialog("flat")}
               disabled={loading || saving}
-              className="gap-1.5"
+              className="h-8 text-xs gap-1.5 hover:bg-muted"
             >
-              <RotateCcw className="h-4 w-4 text-blue-500" />
-              1.0x Flat Rates
-            </Button>
-
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleSave}
-              disabled={loading || saving}
-              className="gap-1.5 shadow-sm"
-            >
-              <Save className="h-4 w-4" />
-              {saving ? "Saving..." : "Save Configuration"}
+              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+              Straight-Time (1.0× Flat)
             </Button>
           </div>
         </div>
 
-        <Separator className="bg-gray-200 dark:bg-gray-800" />
-
-        {/* Quick KPI Overview Cards */}
+        {/* Quick KPI Overview Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border-gray-200 dark:border-gray-800 shadow-sm bg-card/60 backdrop-blur-sm">
+          <Card className="border-border/60 shadow-sm bg-gradient-to-br from-blue-500/5 via-card to-card hover:shadow-md transition-all">
             <CardHeader className="pb-2">
-              <CardDescription className="flex items-center justify-between text-xs font-medium">
-                Regular Day OT
-                <Badge variant="outline" className="font-mono text-[10px] bg-blue-500/10 text-blue-600 border-blue-500/20">
-                  Daily Work
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Regular Day OT
+                </span>
+                <span className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                  <Sun className="h-4 w-4" />
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2 pt-1">
+                <span className="text-3xl font-extrabold font-mono tracking-tight text-foreground">
+                  {form.payroll_overtime_rate}×
+                </span>
+                <Badge variant="outline" className="text-[11px] font-mono bg-blue-500/10 text-blue-600 border-blue-500/20">
+                  {((parseFloat(form.payroll_overtime_rate || "1") - 1) * 100).toFixed(0)}% Premium
                 </Badge>
-              </CardDescription>
-              <CardTitle className="text-2xl font-bold font-mono">
-                {form.payroll_overtime_rate || "1.00"}×
-              </CardTitle>
+              </div>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground pt-0">
-              Straight or 125% rate applied on overtime after 8 hours.
+              Work performed beyond 8 hours on scheduled workday.
             </CardContent>
           </Card>
 
-          <Card className="border-gray-200 dark:border-gray-800 shadow-sm bg-card/60 backdrop-blur-sm">
+          <Card className="border-border/60 shadow-sm bg-gradient-to-br from-emerald-500/5 via-card to-card hover:shadow-md transition-all">
             <CardHeader className="pb-2">
-              <CardDescription className="flex items-center justify-between text-xs font-medium">
-                Rest Day OT
-                <Badge variant="outline" className="font-mono text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                  Sunday
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Rest Day OT
+                </span>
+                <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <Calendar className="h-4 w-4" />
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2 pt-1">
+                <span className="text-3xl font-extrabold font-mono tracking-tight text-foreground">
+                  {form.payroll_ot_rate_rest_day}×
+                </span>
+                <Badge variant="outline" className="text-[11px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                  130% × 130%
                 </Badge>
-              </CardDescription>
-              <CardTitle className="text-2xl font-bold font-mono">
-                {form.payroll_ot_rate_rest_day || "1.69"}×
-              </CardTitle>
+              </div>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground pt-0">
-              Rate for working overtime on an employee’s rest day.
+              Overtime on employee’s scheduled weekly rest day / Sunday.
             </CardContent>
           </Card>
 
-          <Card className="border-gray-200 dark:border-gray-800 shadow-sm bg-card/60 backdrop-blur-sm">
+          <Card className="border-border/60 shadow-sm bg-gradient-to-br from-purple-500/5 via-card to-card hover:shadow-md transition-all">
             <CardHeader className="pb-2">
-              <CardDescription className="flex items-center justify-between text-xs font-medium">
-                Regular Holiday OT
-                <Badge variant="outline" className="font-mono text-[10px] bg-purple-500/10 text-purple-600 border-purple-500/20">
-                  Premium
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Regular Holiday OT
+                </span>
+                <span className="p-1.5 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                  <ShieldCheck className="h-4 w-4" />
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2 pt-1">
+                <span className="text-3xl font-extrabold font-mono tracking-tight text-foreground">
+                  {form.payroll_ot_rate_regular_holiday}×
+                </span>
+                <Badge variant="outline" className="text-[11px] font-mono bg-purple-500/10 text-purple-600 border-purple-500/20">
+                  200% × 130%
                 </Badge>
-              </CardDescription>
-              <CardTitle className="text-2xl font-bold font-mono">
-                {form.payroll_ot_rate_regular_holiday || "2.60"}×
-              </CardTitle>
+              </div>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground pt-0">
-              Rate for working overtime on regular national holidays.
+              Overtime during declared statutory regular national holidays.
             </CardContent>
           </Card>
 
-          <Card className="border-gray-200 dark:border-gray-800 shadow-sm bg-card/60 backdrop-blur-sm">
+          <Card className="border-border/60 shadow-sm bg-gradient-to-br from-amber-500/5 via-card to-card hover:shadow-md transition-all">
             <CardHeader className="pb-2">
-              <CardDescription className="flex items-center justify-between text-xs font-medium">
-                Night Differential
-                <Badge variant="outline" className="font-mono text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/20">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Night Differential
+                </span>
+                <span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <Moon className="h-4 w-4" />
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2 pt-1">
+                <span className="text-3xl font-extrabold font-mono tracking-tight text-foreground">
+                  {(parseFloat(form.payroll_night_diff_rate || "0.10") * 100).toFixed(0)}%
+                </span>
+                <Badge variant="outline" className="text-[11px] font-mono bg-amber-500/10 text-amber-600 border-amber-500/20">
                   10PM – 6AM
                 </Badge>
-              </CardDescription>
-              <CardTitle className="text-2xl font-bold font-mono">
-                {(parseFloat(form.payroll_night_diff_rate || "0.10") * 100).toFixed(0)}%
-              </CardTitle>
+              </div>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground pt-0">
-              Additional premium applied per minute of nocturnal work.
+              Additional hourly premium for night shift duty.
             </CardContent>
           </Card>
         </div>
 
-        {/* Configuration Form */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Rate Settings */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card className="border-gray-200 dark:border-gray-800 shadow-sm">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                  Workday & Rest Day Overtime Multipliers
-                </CardTitle>
-                <CardDescription>
-                  Defines the multipliers used to calculate overtime wages on standard schedule days.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2 p-3 rounded-lg border border-border/50 bg-muted/20">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="payroll_overtime_rate" className="text-sm font-semibold">
-                        Regular Day Overtime Multiplier
+        {/* Tabbed Interface: Policies | Live Simulator | Legal Reference */}
+        <Tabs defaultValue="rates" className="space-y-6">
+          <TabsList className="grid w-full sm:w-auto grid-cols-3 bg-muted/70 p-1 border">
+            <TabsTrigger value="rates" className="gap-2">
+              <Sliders className="h-4 w-4" />
+              <span>Multipliers Setup</span>
+            </TabsTrigger>
+            <TabsTrigger value="simulator" className="gap-2">
+              <Calculator className="h-4 w-4" />
+              <span>Live Pay Simulator</span>
+            </TabsTrigger>
+            <TabsTrigger value="reference" className="gap-2">
+              <BookOpen className="h-4 w-4" />
+              <span>DOLE Guidelines</span>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* TAB 1: Rate Configuration */}
+          <TabsContent value="rates" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Left Column: Form Inputs */}
+              <div className="lg:col-span-2 space-y-6">
+                
+                {/* Regular & Rest Day OT */}
+                <Card className="border-border/60 shadow-sm overflow-hidden">
+                  <CardHeader className="bg-muted/30 border-b pb-4">
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-indigo-500" />
+                      Workday & Rest Day Multipliers
+                    </CardTitle>
+                    <CardDescription>
+                      Multipliers applied on approved overtime minutes for normal shifts and rest days.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      
+                      {/* Regular Workday OT */}
+                      <div className="space-y-3 p-4 rounded-xl border border-border/70 bg-card hover:border-indigo-400/40 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="payroll_overtime_rate" className="text-sm font-semibold flex items-center gap-1.5">
+                            Regular Day OT
+                            <Badge variant="secondary" className="font-mono text-[10px]">
+                              Key: payroll_overtime_rate
+                            </Badge>
+                          </Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          Applied to overtime minutes after 8 regular work hours on a standard scheduled day.
+                        </p>
+                        
+                        <div className="flex items-center gap-2 pt-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_overtime_rate", -0.05)}
+                            disabled={loading || saving}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </Button>
+                          <div className="relative flex-1">
+                            <Input
+                              id="payroll_overtime_rate"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={form.payroll_overtime_rate}
+                              onChange={(e) => handleChange("payroll_overtime_rate", e.target.value)}
+                              className="font-mono font-bold text-center pr-8 h-9 text-base"
+                              disabled={loading || saving}
+                            />
+                            <span className="absolute right-3 top-2 text-xs font-mono text-muted-foreground">
+                              ×
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_overtime_rate", 0.05)}
+                            disabled={loading || saving}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+
+                        <div className="flex justify-between items-center text-[11px] text-muted-foreground pt-1 border-t">
+                          <span>Statutory: <strong>1.25×</strong></span>
+                          <span>Flat: <strong>1.00×</strong></span>
+                        </div>
+                      </div>
+
+                      {/* Rest Day OT */}
+                      <div className="space-y-3 p-4 rounded-xl border border-border/70 bg-card hover:border-emerald-400/40 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="payroll_ot_rate_rest_day" className="text-sm font-semibold flex items-center gap-1.5">
+                            Rest Day OT (Sunday)
+                            <Badge variant="secondary" className="font-mono text-[10px]">
+                              Key: payroll_ot_rate_rest_day
+                            </Badge>
+                          </Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          Applied to hours worked beyond 8 hours during an employee’s designated rest day.
+                        </p>
+                        
+                        <div className="flex items-center gap-2 pt-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_ot_rate_rest_day", -0.05)}
+                            disabled={loading || saving}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </Button>
+                          <div className="relative flex-1">
+                            <Input
+                              id="payroll_ot_rate_rest_day"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={form.payroll_ot_rate_rest_day}
+                              onChange={(e) => handleChange("payroll_ot_rate_rest_day", e.target.value)}
+                              className="font-mono font-bold text-center pr-8 h-9 text-base"
+                              disabled={loading || saving}
+                            />
+                            <span className="absolute right-3 top-2 text-xs font-mono text-muted-foreground">
+                              ×
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_ot_rate_rest_day", 0.05)}
+                            disabled={loading || saving}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+
+                        <div className="flex justify-between items-center text-[11px] text-muted-foreground pt-1 border-t">
+                          <span>Statutory: <strong>1.69×</strong></span>
+                          <span>(130% Base × 130% OT)</span>
+                        </div>
+                      </div>
+
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Holiday Overtime Multipliers */}
+                <Card className="border-border/60 shadow-sm overflow-hidden">
+                  <CardHeader className="bg-muted/30 border-b pb-4">
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <Calendar className="h-5 w-5 text-purple-500" />
+                      Statutory Holiday Overtime Multipliers
+                    </CardTitle>
+                    <CardDescription>
+                      Overtime premiums applied during declared Special Non-Working Days and Regular Holidays.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+                      {/* Special Holiday OT */}
+                      <div className="space-y-3 p-4 rounded-xl border border-border/70 bg-card hover:border-purple-400/40 transition-colors">
+                        <Label htmlFor="payroll_ot_rate_special_holiday" className="text-sm font-semibold">
+                          Special Holiday OT Multiplier
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Overtime on Special Non-Working Day (DOLE: 130% × 130% = 1.69×).
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_ot_rate_special_holiday", -0.05)}
+                            disabled={loading || saving}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </Button>
+                          <div className="relative flex-1">
+                            <Input
+                              id="payroll_ot_rate_special_holiday"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={form.payroll_ot_rate_special_holiday}
+                              onChange={(e) => handleChange("payroll_ot_rate_special_holiday", e.target.value)}
+                              className="font-mono font-bold text-center pr-8 h-9 text-base"
+                              disabled={loading || saving}
+                            />
+                            <span className="absolute right-3 top-2 text-xs font-mono text-muted-foreground">×</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_ot_rate_special_holiday", 0.05)}
+                            disabled={loading || saving}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Special Holiday + Rest Day OT */}
+                      <div className="space-y-3 p-4 rounded-xl border border-border/70 bg-card hover:border-purple-400/40 transition-colors">
+                        <Label htmlFor="payroll_ot_rate_special_rest_day" className="text-sm font-semibold">
+                          Special Holiday + Rest Day OT
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Special Day falling on Rest Day (DOLE: 150% × 130% = 1.95×).
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_ot_rate_special_rest_day", -0.05)}
+                            disabled={loading || saving}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </Button>
+                          <div className="relative flex-1">
+                            <Input
+                              id="payroll_ot_rate_special_rest_day"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={form.payroll_ot_rate_special_rest_day}
+                              onChange={(e) => handleChange("payroll_ot_rate_special_rest_day", e.target.value)}
+                              className="font-mono font-bold text-center pr-8 h-9 text-base"
+                              disabled={loading || saving}
+                            />
+                            <span className="absolute right-3 top-2 text-xs font-mono text-muted-foreground">×</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_ot_rate_special_rest_day", 0.05)}
+                            disabled={loading || saving}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Regular Holiday OT */}
+                      <div className="space-y-3 p-4 rounded-xl border border-border/70 bg-card hover:border-purple-400/40 transition-colors">
+                        <Label htmlFor="payroll_ot_rate_regular_holiday" className="text-sm font-semibold">
+                          Regular Holiday OT Multiplier
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Overtime on Regular National Holiday (DOLE: 200% × 130% = 2.60×).
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_ot_rate_regular_holiday", -0.05)}
+                            disabled={loading || saving}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </Button>
+                          <div className="relative flex-1">
+                            <Input
+                              id="payroll_ot_rate_regular_holiday"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={form.payroll_ot_rate_regular_holiday}
+                              onChange={(e) => handleChange("payroll_ot_rate_regular_holiday", e.target.value)}
+                              className="font-mono font-bold text-center pr-8 h-9 text-base"
+                              disabled={loading || saving}
+                            />
+                            <span className="absolute right-3 top-2 text-xs font-mono text-muted-foreground">×</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_ot_rate_regular_holiday", 0.05)}
+                            disabled={loading || saving}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Regular Holiday + Rest Day OT */}
+                      <div className="space-y-3 p-4 rounded-xl border border-border/70 bg-card hover:border-purple-400/40 transition-colors">
+                        <Label htmlFor="payroll_ot_rate_regular_rest_day" className="text-sm font-semibold">
+                          Regular Holiday + Rest Day OT
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Regular Holiday falling on Rest Day (DOLE: 260% × 130% = 3.38×).
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_ot_rate_regular_rest_day", -0.05)}
+                            disabled={loading || saving}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </Button>
+                          <div className="relative flex-1">
+                            <Input
+                              id="payroll_ot_rate_regular_rest_day"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={form.payroll_ot_rate_regular_rest_day}
+                              onChange={(e) => handleChange("payroll_ot_rate_regular_rest_day", e.target.value)}
+                              className="font-mono font-bold text-center pr-8 h-9 text-base"
+                              disabled={loading || saving}
+                            />
+                            <span className="absolute right-3 top-2 text-xs font-mono text-muted-foreground">×</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_ot_rate_regular_rest_day", 0.05)}
+                            disabled={loading || saving}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Night Shift Differential */}
+                <Card className="border-border/60 shadow-sm overflow-hidden">
+                  <CardHeader className="bg-muted/30 border-b pb-4">
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <Moon className="h-5 w-5 text-amber-500" />
+                      Night Shift Differential Rate
+                    </CardTitle>
+                    <CardDescription>
+                      Mandatory additional compensation for work between 10:00 PM and 6:00 AM.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="max-w-md space-y-3 p-4 rounded-xl border border-border/70 bg-card hover:border-amber-400/40 transition-colors">
+                      <Label htmlFor="payroll_night_diff_rate" className="text-sm font-semibold">
+                        Night Shift Differential Premium Rate
                       </Label>
-                      <Badge variant="outline" className="text-[10px]">
-                        Default: 1.00 or 1.25
+                      <p className="text-xs text-muted-foreground">
+                        Expressed as decimal (e.g. 0.10 = 10% premium on hourly wage).
+                      </p>
+                      
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 shrink-0"
+                          onClick={() => handleStep("payroll_night_diff_rate", -0.01)}
+                          disabled={loading || saving}
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </Button>
+                        <div className="relative flex-1">
+                          <Input
+                            id="payroll_night_diff_rate"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="1"
+                            value={form.payroll_night_diff_rate}
+                            onChange={(e) => handleChange("payroll_night_diff_rate", e.target.value)}
+                            className="font-mono font-bold text-center pr-8 h-9 text-base"
+                            disabled={loading || saving}
+                          />
+                          <span className="absolute right-3 top-2 text-xs font-mono text-muted-foreground">%</span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 shrink-0"
+                          onClick={() => handleStep("payroll_night_diff_rate", 0.01)}
+                          disabled={loading || saving}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+
+                      <div className="flex justify-between items-center text-[11px] text-muted-foreground pt-1 border-t">
+                        <span>DOLE Statutory Standard: <strong>10% (0.10)</strong></span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+              </div>
+
+              {/* Right Column: Engine Rules & Audit Guide */}
+              <div className="space-y-6">
+                
+                {/* Computation Engine Formula Card */}
+                <Card className="border-border/60 shadow-sm bg-gradient-to-br from-indigo-500/5 via-card to-card">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2 text-primary">
+                      <Calculator className="h-4 w-4" />
+                      Payroll Engine Logic
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-xs space-y-3.5 text-muted-foreground leading-relaxed">
+                    <p>
+                      The system parses attendance approvals and applies multipliers on a daily schedule basis:
+                    </p>
+                    
+                    <div className="p-3 bg-muted/50 rounded-lg border font-mono text-[11px] space-y-1.5 text-foreground">
+                      <div className="text-muted-foreground font-sans text-[10px] uppercase font-semibold">Base Rates:</div>
+                      <div>Daily Rate = Employee Wage Profile</div>
+                      <div>Hourly Rate = Daily Rate ÷ 8</div>
+                      <div>Minute Rate = Daily Rate ÷ 480</div>
+                      <Separator className="my-1.5" />
+                      <div className="text-muted-foreground font-sans text-[10px] uppercase font-semibold">Overtime Formula:</div>
+                      <div className="text-indigo-600 dark:text-indigo-400 font-bold">
+                        OT Pay = OT Minutes × Minute Rate × Multiplier
+                      </div>
+                    </div>
+
+                    <p className="text-[11px]">
+                      Overtime premiums are not stacked arbitrarily. The matrix strictly resolves whether a day is Normal, Rest Day, or Holiday to determine the exact multiplier.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Audit & Storage Metadata Card */}
+                <Card className="border-border/60 shadow-sm">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                      System Audit & Persistence
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-xs">
+                    <div className="flex justify-between py-1.5 border-b">
+                      <span className="text-muted-foreground">Storage Destination:</span>
+                      <span className="font-mono font-medium text-foreground">general_setting</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b">
+                      <span className="text-muted-foreground">Configured Parameters:</span>
+                      <Badge variant="secondary" className="font-mono text-[10px]">
+                        7 active keys
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Applied when an employee works beyond 480 minutes (8 hours) on a normal workday.
-                    </p>
-                    <div className="relative">
-                      <Input
-                        id="payroll_overtime_rate"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={form.payroll_overtime_rate}
-                        onChange={(e) => handleChange("payroll_overtime_rate", e.target.value)}
-                        className="font-mono text-base pr-8"
-                        disabled={loading || saving}
-                      />
-                      <span className="absolute right-3 top-2.5 text-xs text-muted-foreground font-mono">
-                        ×
-                      </span>
+                    <div className="flex justify-between py-1.5 border-b">
+                      <span className="text-muted-foreground">Sync State:</span>
+                      {isDirty ? (
+                        <span className="text-amber-600 font-medium">Pending Save</span>
+                      ) : (
+                        <span className="text-emerald-600 font-medium flex items-center gap-1">
+                          <Check className="h-3 w-3" /> In Sync
+                        </span>
+                      )}
                     </div>
+                    <div className="flex justify-between py-1.5">
+                      <span className="text-muted-foreground">Last Modified:</span>
+                      <span className="font-medium text-foreground">{formattedLastUpdated}</span>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="pt-0">
+                    <Button
+                      type="button"
+                      className="w-full"
+                      onClick={handleSave}
+                      disabled={loading || saving || !isDirty}
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      {saving ? "Saving Changes..." : isDirty ? "Commit Changes" : "Configuration Saved"}
+                    </Button>
+                  </CardFooter>
+                </Card>
+
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* TAB 2: Live Simulator Sandbox */}
+          <TabsContent value="simulator" className="space-y-6">
+            <Card className="border-border/60 shadow-sm">
+              <CardHeader className="bg-muted/30 border-b pb-4">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div>
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <Calculator className="h-5 w-5 text-indigo-500" />
+                      Interactive Wage & Overtime Simulator
+                    </CardTitle>
+                    <CardDescription>
+                      Simulate how employee daily wages convert into overtime compensation under your current policy multipliers.
+                    </CardDescription>
                   </div>
 
-                  <div className="space-y-2 p-3 rounded-lg border border-border/50 bg-muted/20">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="payroll_ot_rate_rest_day" className="text-sm font-semibold">
-                        Rest Day Overtime Multiplier
-                      </Label>
-                      <Badge variant="outline" className="text-[10px]">
-                        Default: 1.69
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Applied on hours exceeding 8 hours on a Rest Day (130% base × 130% OT).
-                    </p>
-                    <div className="relative">
+                  <div className="flex flex-wrap items-center gap-4 bg-background p-2.5 rounded-lg border shadow-sm">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground uppercase font-semibold">Daily Wage (₱)</Label>
                       <Input
-                        id="payroll_ot_rate_rest_day"
                         type="number"
-                        step="0.01"
                         min="0"
-                        value={form.payroll_ot_rate_rest_day}
-                        onChange={(e) => handleChange("payroll_ot_rate_rest_day", e.target.value)}
-                        className="font-mono text-base pr-8"
-                        disabled={loading || saving}
+                        step="10"
+                        value={simDailyWage}
+                        onChange={(e) => setSimDailyWage(parseFloat(e.target.value) || 0)}
+                        className="h-8 w-28 font-mono text-sm"
                       />
-                      <span className="absolute right-3 top-2.5 text-xs text-muted-foreground font-mono">
-                        ×
-                      </span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground uppercase font-semibold">OT Duration (Mins)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="15"
+                        value={simOtMinutes}
+                        onChange={(e) => setSimOtMinutes(parseFloat(e.target.value) || 0)}
+                        className="h-8 w-28 font-mono text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground uppercase font-semibold">Night Diff (Mins)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="15"
+                        value={simNightMins}
+                        onChange={(e) => setSimNightMins(parseFloat(e.target.value) || 0)}
+                        className="h-8 w-28 font-mono text-sm"
+                      />
                     </div>
                   </div>
                 </div>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                
+                {/* Simulator Base Conversion Badges */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-muted/40 border">
+                  <div>
+                    <div className="text-xs text-muted-foreground">Base Daily Wage</div>
+                    <div className="text-xl font-bold font-mono text-foreground">{formatPhp(simDailyWage)}</div>
+                    <div className="text-[10px] text-muted-foreground">Standard 8-hour workday</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Base Hourly Rate</div>
+                    <div className="text-xl font-bold font-mono text-indigo-600 dark:text-indigo-400">{formatPhp(simHourly)}</div>
+                    <div className="text-[10px] text-muted-foreground">Daily ÷ 8 hours</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Minute Base Rate</div>
+                    <div className="text-xl font-bold font-mono text-foreground">{formatPhp(simMinute)}</div>
+                    <div className="text-[10px] text-muted-foreground">Daily ÷ 480 minutes</div>
+                  </div>
+                </div>
+
+                {/* Scenario Comparison Table */}
+                <div className="rounded-xl border overflow-hidden">
+                  <Table>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow>
+                        <TableHead className="font-semibold">Shift Scenario</TableHead>
+                        <TableHead className="font-semibold text-center">Configured Multiplier</TableHead>
+                        <TableHead className="font-semibold text-right">Effective Hourly Rate</TableHead>
+                        <TableHead className="font-semibold text-right">Simulated Pay</TableHead>
+                        <TableHead className="font-semibold text-center">DOLE Benchmark</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {simResults.map((row, idx) => (
+                        <TableRow key={idx} className="hover:bg-muted/30">
+                          <TableCell>
+                            <div className="font-semibold text-sm text-foreground">{row.scenario}</div>
+                            <div className="text-xs text-muted-foreground">{row.detail}</div>
+                          </TableCell>
+                          <TableCell className="text-center font-mono font-bold text-base">
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {row.multiplier.toFixed(2)}×
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                            {formatPhp(row.hourlyRateEq)} / hr
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-bold text-base text-emerald-600 dark:text-emerald-400">
+                            {formatPhp(row.otPay)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {row.isBenchmarkMatch ? (
+                              <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px]">
+                                Matches DOLE ({row.doleBenchmark})
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-[10px] text-muted-foreground">
+                                Custom vs {row.doleBenchmark}
+                              </Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
+          </TabsContent>
 
-            <Card className="border-gray-200 dark:border-gray-800 shadow-sm">
-              <CardHeader className="pb-4">
+          {/* TAB 3: DOLE Reference Guidelines */}
+          <TabsContent value="reference" className="space-y-6">
+            <Card className="border-border/60 shadow-sm">
+              <CardHeader className="bg-muted/30 border-b pb-4">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-primary" />
-                  Holiday Overtime Multipliers
+                  <BookOpen className="h-5 w-5 text-indigo-500" />
+                  Philippine DOLE Labor Code Statutory Guidelines
                 </CardTitle>
                 <CardDescription>
-                  Configure multipliers applied when overtime work falls on special or regular national holidays.
+                  Official benchmarks per the Labor Code of the Philippines (Presidential Decree No. 442) and DOLE Handbook.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2 p-3 rounded-lg border border-border/50 bg-muted/20">
-                    <Label htmlFor="payroll_ot_rate_special_holiday" className="text-sm font-semibold">
-                      Special Holiday OT Multiplier
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Overtime on a Special Non-Working Day (130% × 130% = 1.69).
+              <CardContent className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  <div className="space-y-2 p-4 rounded-xl border bg-muted/20">
+                    <h3 className="font-semibold text-sm flex items-center gap-2 text-foreground">
+                      <Clock className="h-4 w-4 text-blue-500" />
+                      Article 87: Overtime Work
+                    </h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Work performed beyond eight (8) hours on ordinary working days is compensated at an additional compensation equivalent to the regular wage plus at least twenty-five percent (25%) thereof:
                     </p>
-                    <div className="relative">
-                      <Input
-                        id="payroll_ot_rate_special_holiday"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={form.payroll_ot_rate_special_holiday}
-                        onChange={(e) => handleChange("payroll_ot_rate_special_holiday", e.target.value)}
-                        className="font-mono pr-8"
-                        disabled={loading || saving}
-                      />
-                      <span className="absolute right-3 top-2.5 text-xs text-muted-foreground font-mono">
-                        ×
-                      </span>
+                    <div className="p-2.5 bg-background rounded border font-mono text-xs text-blue-600 dark:text-blue-400 font-medium">
+                      Regular OT Rate = Hourly Rate × 125% (1.25)
                     </div>
                   </div>
 
-                  <div className="space-y-2 p-3 rounded-lg border border-border/50 bg-muted/20">
-                    <Label htmlFor="payroll_ot_rate_special_rest_day" className="text-sm font-semibold">
-                      Special Holiday + Rest Day OT
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Overtime on a Special Day that also falls on a Rest Day (1.95).
+                  <div className="space-y-2 p-4 rounded-xl border bg-muted/20">
+                    <h3 className="font-semibold text-sm flex items-center gap-2 text-foreground">
+                      <Calendar className="h-4 w-4 text-emerald-500" />
+                      Article 93: Rest Day Duty
+                    </h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Work performed on a scheduled rest day receives a 30% premium on the first 8 hours (130%). Work performed beyond 8 hours receives an additional 30% of the rest day rate:
                     </p>
-                    <div className="relative">
-                      <Input
-                        id="payroll_ot_rate_special_rest_day"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={form.payroll_ot_rate_special_rest_day}
-                        onChange={(e) => handleChange("payroll_ot_rate_special_rest_day", e.target.value)}
-                        className="font-mono pr-8"
-                        disabled={loading || saving}
-                      />
-                      <span className="absolute right-3 top-2.5 text-xs text-muted-foreground font-mono">
-                        ×
-                      </span>
+                    <div className="p-2.5 bg-background rounded border font-mono text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                      Rest Day OT = Hourly Rate × 130% × 130% = 169% (1.69)
                     </div>
                   </div>
 
-                  <div className="space-y-2 p-3 rounded-lg border border-border/50 bg-muted/20">
-                    <Label htmlFor="payroll_ot_rate_regular_holiday" className="text-sm font-semibold">
-                      Regular Holiday OT Multiplier
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Overtime on a Regular Holiday (200% base × 130% OT = 2.60).
+                  <div className="space-y-2 p-4 rounded-xl border bg-muted/20">
+                    <h3 className="font-semibold text-sm flex items-center gap-2 text-foreground">
+                      <ShieldCheck className="h-4 w-4 text-purple-500" />
+                      Article 94: Regular Holiday Pay
+                    </h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Employees required to work on a Regular Holiday are paid 200% for the first 8 hours. Overtime beyond 8 hours receives an additional 30% of the holiday rate:
                     </p>
-                    <div className="relative">
-                      <Input
-                        id="payroll_ot_rate_regular_holiday"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={form.payroll_ot_rate_regular_holiday}
-                        onChange={(e) => handleChange("payroll_ot_rate_regular_holiday", e.target.value)}
-                        className="font-mono pr-8"
-                        disabled={loading || saving}
-                      />
-                      <span className="absolute right-3 top-2.5 text-xs text-muted-foreground font-mono">
-                        ×
-                      </span>
+                    <div className="p-2.5 bg-background rounded border font-mono text-xs text-purple-600 dark:text-purple-400 font-medium">
+                      Regular Holiday OT = Hourly Rate × 200% × 130% = 260% (2.60)
                     </div>
                   </div>
 
-                  <div className="space-y-2 p-3 rounded-lg border border-border/50 bg-muted/20">
-                    <Label htmlFor="payroll_ot_rate_regular_rest_day" className="text-sm font-semibold">
-                      Regular Holiday + Rest Day OT
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Overtime on a Regular Holiday that falls on a Rest Day (3.38).
+                  <div className="space-y-2 p-4 rounded-xl border bg-muted/20">
+                    <h3 className="font-semibold text-sm flex items-center gap-2 text-foreground">
+                      <Moon className="h-4 w-4 text-amber-500" />
+                      Article 86: Night Shift Differential
+                    </h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Every employee is paid a night shift differential of not less than ten percent (10%) of their regular wage for each hour of work performed between 10:00 PM and 6:00 AM:
                     </p>
-                    <div className="relative">
-                      <Input
-                        id="payroll_ot_rate_regular_rest_day"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={form.payroll_ot_rate_regular_rest_day}
-                        onChange={(e) => handleChange("payroll_ot_rate_regular_rest_day", e.target.value)}
-                        className="font-mono pr-8"
-                        disabled={loading || saving}
-                      />
-                      <span className="absolute right-3 top-2.5 text-xs text-muted-foreground font-mono">
-                        ×
-                      </span>
+                    <div className="p-2.5 bg-background rounded border font-mono text-xs text-amber-600 dark:text-amber-400 font-medium">
+                      Night Differential = Hourly Rate × 10% (0.10)
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
 
-            <Card className="border-gray-200 dark:border-gray-800 shadow-sm">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Moon className="h-5 w-5 text-primary" />
-                  Night Shift Differential Rate
-                </CardTitle>
-                <CardDescription>
-                  Percentage applied to the hourly rate for work performed between 10:00 PM and 6:00 AM.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="p-3 rounded-lg border border-border/50 bg-muted/20 max-w-sm space-y-2">
-                  <Label htmlFor="payroll_night_diff_rate" className="text-sm font-semibold">
-                    Night Differential Rate
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    DOLE standard is 0.10 (10% of hourly rate).
-                  </p>
-                  <div className="relative">
-                    <Input
-                      id="payroll_night_diff_rate"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="1"
-                      value={form.payroll_night_diff_rate}
-                      onChange={(e) => handleChange("payroll_night_diff_rate", e.target.value)}
-                      className="font-mono pr-8"
-                      disabled={loading || saving}
-                    />
-                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground font-mono">
-                      %
-                    </span>
-                  </div>
                 </div>
               </CardContent>
             </Card>
-          </div>
+          </TabsContent>
+        </Tabs>
 
-          {/* Sidebar / Info Card */}
-          <div className="space-y-6">
-            <Card className="border-gray-200 dark:border-gray-800 shadow-sm bg-primary/5">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-primary">
-                  <ShieldCheck className="h-4 w-4" />
-                  Computation Formula
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs space-y-3 text-muted-foreground">
-                <p>
-                  During the payroll run, each approved overtime minute is calculated using:
-                </p>
-                <div className="p-2.5 bg-background rounded-md border font-mono text-[11px] leading-relaxed text-foreground">
-                  Minute Rate = Daily Rate / 480
-                  <br />
-                  OT Pay = OT Mins × Minute Rate × Multiplier
-                </div>
-                <p>
-                  If an employee’s daily rate is ₱600.00:
-                </p>
-                <ul className="list-disc pl-4 space-y-1">
-                  <li>Minute Rate = ₱1.25/min (₱75.00/hr)</li>
-                  <li>Normal OT (1.25×) = ₱1.5625/min</li>
-                  <li>Rest Day OT (1.69×) = ₱2.1125/min</li>
-                </ul>
-              </CardContent>
-            </Card>
-
-            <Card className="border-gray-200 dark:border-gray-800 shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                  Audit Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-xs">
-                <div className="flex justify-between py-1 border-b">
-                  <span className="text-muted-foreground">Database Table:</span>
-                  <span className="font-mono font-medium">general_setting</span>
-                </div>
-                <div className="flex justify-between py-1 border-b">
-                  <span className="text-muted-foreground">Keys Managed:</span>
-                  <span className="font-mono font-medium">7 items</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-muted-foreground">Last Updated:</span>
-                  <span className="font-medium">{formattedLastUpdated}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
       </div>
 
       {/* Preset Confirmation Dialogs (shadcn/ui AlertDialog - No browser dialogs!) */}
@@ -564,23 +1214,39 @@ export function OvertimeSettingsModule() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {presetConfirmDialog === "dole" ? "Apply DOLE Standard Rates?" : "Apply 1.0x Flat Rates?"}
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-indigo-500" />
+              {presetConfirmDialog === "dole" && "Apply DOLE Statutory Standards?"}
+              {presetConfirmDialog === "lgu" && "Apply LGU / Public Sector Standards?"}
+              {presetConfirmDialog === "flat" && "Apply 1.0× Flat Overtime Rates?"}
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              {presetConfirmDialog === "dole"
-                ? "This will load the Philippine DOLE statutory multipliers (1.25x Normal OT, 1.69x Rest Day OT, 2.60x Regular Holiday OT, etc.)."
-                : "This will load flat 1.0x multipliers for standard overtime. You can review the rates before saving."}
+            <AlertDialogDescription className="text-sm space-y-2 pt-2">
+              {presetConfirmDialog === "dole" && (
+                <p>
+                  This will populate the official Philippine DOLE statutory multipliers (<strong>1.25×</strong> for Normal OT, <strong>1.69×</strong> for Rest Day OT, and <strong>2.60×</strong> for Regular Holiday OT). You can inspect and adjust the rates before saving.
+                </p>
+              )}
+              {presetConfirmDialog === "lgu" && (
+                <p>
+                  This will populate common government and public sector benchmarks (<strong>1.25×</strong> Normal OT, <strong>1.50×</strong> Rest Day OT, and <strong>2.00×</strong> Holiday OT).
+                </p>
+              )}
+              {presetConfirmDialog === "flat" && (
+                <p>
+                  This will populate straight-time <strong>1.00×</strong> multipliers for standard overtime.
+                </p>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
               onClick={() => {
                 if (presetConfirmDialog) handleApplyPreset(presetConfirmDialog);
               }}
             >
-              Confirm
+              Confirm Preset
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -588,4 +1254,3 @@ export function OvertimeSettingsModule() {
     </DashboardLayout>
   );
 }
-
