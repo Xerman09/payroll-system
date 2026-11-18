@@ -31,6 +31,8 @@ import {
   Layers,
   Timer,
   Hourglass,
+  Sunrise,
+  Sunset,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -82,6 +84,21 @@ function formatPhp(amount: number): string {
   return `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function formatTime12h(timeStr?: string | null): string {
+  if (!timeStr) return "10:00 PM";
+  try {
+    const [hStr, mStr] = timeStr.split(":");
+    let h = parseInt(hStr, 10);
+    const m = mStr || "00";
+    const ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12;
+    h = h ? h : 12;
+    return `${h}:${m} ${ampm}`;
+  } catch {
+    return timeStr || "10:00 PM";
+  }
+}
+
 export function OvertimeSettingsModule() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -95,6 +112,8 @@ export function OvertimeSettingsModule() {
     payroll_ot_rate_regular_holiday: "2.60",
     payroll_ot_rate_regular_rest_day: "3.38",
     payroll_night_diff_rate: "0.10",
+    payroll_night_diff_start_time: "22:00",
+    payroll_night_diff_end_time: "06:00",
     payroll_ot_minimum_minutes: "30",
     payroll_ot_incremental_minutes: "30",
   });
@@ -107,6 +126,8 @@ export function OvertimeSettingsModule() {
     payroll_ot_rate_regular_holiday: "2.60",
     payroll_ot_rate_regular_rest_day: "3.38",
     payroll_night_diff_rate: "0.10",
+    payroll_night_diff_start_time: "22:00",
+    payroll_night_diff_end_time: "06:00",
     payroll_ot_minimum_minutes: "30",
     payroll_ot_incremental_minutes: "30",
   });
@@ -193,6 +214,13 @@ export function OvertimeSettingsModule() {
 
     // Numerical validation
     for (const [k, v] of Object.entries(form)) {
+      if (k === "payroll_night_diff_start_time" || k === "payroll_night_diff_end_time") {
+        if (!v || !v.includes(":")) {
+          toast.error(`Please select a valid time for ${k}`);
+          return;
+        }
+        continue;
+      }
       const parsed = parseFloat(v);
       if (isNaN(parsed) || parsed < 0) {
         toast.error(`Invalid rate for ${k}: must be a positive number`);
@@ -204,7 +232,7 @@ export function OvertimeSettingsModule() {
     try {
       await saveOvertimeSettings(form);
       setSavedForm({ ...form });
-      toast.success("Overtime policies & incremental rules saved successfully!");
+      toast.success("Overtime policies & night differential rules saved successfully!");
       setLastUpdated(new Date().toISOString());
     } catch (err: any) {
       toast.error(err.message || "Failed to save configuration");
@@ -302,8 +330,8 @@ export function OvertimeSettingsModule() {
         isBenchmarkMatch: Math.abs(regRestMult - 3.38) < 0.001,
       },
       {
-        scenario: "Night Shift Differential",
-        detail: "Nocturnal work (10:00 PM to 6:00 AM)",
+        scenario: `Night Shift Differential (${formatTime12h(form.payroll_night_diff_start_time)} – ${formatTime12h(form.payroll_night_diff_end_time)})`,
+        detail: `Nocturnal work during active window`,
         multiplier: ndRate,
         otPay: (ndMins / 60) * simHourly * ndRate,
         hourlyRateEq: simHourly * ndRate,
@@ -329,7 +357,7 @@ export function OvertimeSettingsModule() {
                   <Clock className="h-6 w-6 text-indigo-400" />
                 </span>
                 <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                  Overtime & Rate Policies
+                  Overtime &amp; Rate Policies
                 </h1>
                 {isDirty ? (
                   <Badge className="bg-amber-500 text-amber-950 font-semibold border-amber-400/30 animate-pulse">
@@ -342,7 +370,7 @@ export function OvertimeSettingsModule() {
                 )}
               </div>
               <p className="text-sm text-indigo-200/80 leading-relaxed">
-                Configure global multipliers for regular overtime, rest days, holidays, night differentials, along with minimum eligibility thresholds and incremental rounding brackets (e.g. every 30 minutes).
+                Configure global multipliers for regular overtime, rest days, holidays, night differential considered time window, minimum eligibility thresholds, and incremental brackets.
               </p>
               <div className="flex items-center gap-2 text-xs text-indigo-300/60 pt-1">
                 <Info className="h-3.5 w-3.5" />
@@ -385,7 +413,7 @@ export function OvertimeSettingsModule() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Sliders className="h-4 w-4 text-primary" />
             <span className="font-medium text-foreground">Standard Presets:</span>
-            <span className="text-xs">Quickly populate policy rates and 30m rounding brackets</span>
+            <span className="text-xs">Quickly populate policy rates, night differential hours, and brackets</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -397,7 +425,7 @@ export function OvertimeSettingsModule() {
               className="h-8 text-xs gap-1.5 border-amber-500/30 hover:bg-amber-500/10 text-amber-700 dark:text-amber-400"
             >
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              DOLE Standard (1.25× / 30m)
+              DOLE Standard (1.25× / 10PM-6AM)
             </Button>
 
             <Button
@@ -409,7 +437,7 @@ export function OvertimeSettingsModule() {
               className="h-8 text-xs gap-1.5 border-blue-500/30 hover:bg-blue-500/10 text-blue-700 dark:text-blue-400"
             >
               <Landmark className="h-3.5 w-3.5 text-blue-500" />
-              LGU / Public Sector (60m min)
+              LGU / Public Sector
             </Button>
 
             <Button
@@ -504,7 +532,7 @@ export function OvertimeSettingsModule() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Minimum OT
+                  OT Bracket Step
                 </span>
                 <span className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
                   <Timer className="h-4 w-4" />
@@ -512,15 +540,15 @@ export function OvertimeSettingsModule() {
               </div>
               <div className="flex items-baseline gap-2 pt-1">
                 <span className="text-3xl font-extrabold font-mono tracking-tight text-foreground">
-                  {form.payroll_ot_minimum_minutes || "0"}m
+                  {form.payroll_ot_incremental_minutes || "1"}m
                 </span>
                 <Badge variant="outline" className="text-[10px] font-mono bg-cyan-500/10 text-cyan-600 border-cyan-500/20">
-                  Threshold
+                  Min {form.payroll_ot_minimum_minutes || "0"}m
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground pt-0">
-              Min continuous minutes.
+              Counted in {form.payroll_ot_incremental_minutes}m blocks.
             </CardContent>
           </Card>
 
@@ -528,23 +556,23 @@ export function OvertimeSettingsModule() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Increment Bracket
+                  Night Differential
                 </span>
                 <span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                  <Hourglass className="h-4 w-4" />
+                  <Moon className="h-4 w-4" />
                 </span>
               </div>
               <div className="flex items-baseline gap-2 pt-1">
                 <span className="text-3xl font-extrabold font-mono tracking-tight text-foreground">
-                  {form.payroll_ot_incremental_minutes || "1"}m
+                  {(parseFloat(form.payroll_night_diff_rate || "0.10") * 100).toFixed(0)}%
                 </span>
                 <Badge variant="outline" className="text-[10px] font-mono bg-amber-500/10 text-amber-600 border-amber-500/20">
-                  Step Count
+                  {formatTime12h(form.payroll_night_diff_start_time)} – {formatTime12h(form.payroll_night_diff_end_time)}
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground pt-0">
-              Counted in 30m blocks.
+              Active considered nocturnal hours.
             </CardContent>
           </Card>
         </div>
@@ -573,7 +601,7 @@ export function OvertimeSettingsModule() {
               {/* Left Column: Form Inputs */}
               <div className="lg:col-span-2 space-y-6">
                 
-                {/* NEW: Overtime Minimum & Incremental Counting Rules */}
+                {/* Overtime Minimum & Incremental Counting Rules */}
                 <Card className="border-border/60 shadow-sm overflow-hidden border-cyan-500/30 bg-gradient-to-r from-cyan-500/5 via-card to-card">
                   <CardHeader className="bg-muted/30 border-b pb-4">
                     <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -1061,66 +1089,159 @@ export function OvertimeSettingsModule() {
                   </CardContent>
                 </Card>
 
-                {/* Night Shift Differential */}
-                <Card className="border-border/60 shadow-sm overflow-hidden">
+                {/* Night Shift Differential Rate & Considered Time Window */}
+                <Card className="border-border/60 shadow-sm overflow-hidden border-amber-500/30 bg-gradient-to-r from-amber-500/5 via-card to-card">
                   <CardHeader className="bg-muted/30 border-b pb-4">
                     <CardTitle className="text-base font-semibold flex items-center gap-2">
                       <Moon className="h-5 w-5 text-amber-500" />
-                      Night Shift Differential Rate
+                      Night Shift Differential Rate &amp; Considered Time Window
                     </CardTitle>
                     <CardDescription>
-                      Mandatory additional compensation for work between 10:00 PM and 6:00 AM.
+                      Configure the premium multiplier rate and the nocturnal active hours when employees qualify for night differential compensation.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="p-6">
-                    <div className="max-w-md space-y-3 p-4 rounded-xl border border-border/70 bg-card hover:border-amber-400/40 transition-colors">
-                      <Label htmlFor="payroll_night_diff_rate" className="text-sm font-semibold">
-                        Night Shift Differential Premium Rate
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Expressed as decimal (e.g. 0.10 = 10% premium on hourly wage).
-                      </p>
-                      
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-9 w-9 shrink-0"
-                          onClick={() => handleStep("payroll_night_diff_rate", -0.01)}
-                          disabled={loading || saving}
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </Button>
-                        <div className="relative flex-1">
-                          <Input
-                            id="payroll_night_diff_rate"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="1"
-                            value={form.payroll_night_diff_rate}
-                            onChange={(e) => handleChange("payroll_night_diff_rate", e.target.value)}
-                            className="font-mono font-bold text-center pr-8 h-9 text-base"
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+                      {/* Premium Rate */}
+                      <div className="space-y-3 p-4 rounded-xl border border-border/70 bg-card hover:border-amber-400/40 transition-colors">
+                        <Label htmlFor="payroll_night_diff_rate" className="text-sm font-semibold flex items-center justify-between">
+                          <span>NSD Premium Rate</span>
+                          <Badge variant="secondary" className="font-mono text-[10px]">
+                            payroll_night_diff_rate
+                          </Badge>
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Expressed as decimal (e.g. 0.10 = 10% premium on employee’s hourly rate).
+                        </p>
+                        
+                        <div className="flex items-center gap-2 pt-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_night_diff_rate", -0.01)}
                             disabled={loading || saving}
-                          />
-                          <span className="absolute right-3 top-2 text-xs font-mono text-muted-foreground">%</span>
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </Button>
+                          <div className="relative flex-1">
+                            <Input
+                              id="payroll_night_diff_rate"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max="1"
+                              value={form.payroll_night_diff_rate}
+                              onChange={(e) => handleChange("payroll_night_diff_rate", e.target.value)}
+                              className="font-mono font-bold text-center pr-8 h-9 text-base"
+                              disabled={loading || saving}
+                            />
+                            <span className="absolute right-3 top-2 text-xs font-mono text-muted-foreground">%</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_night_diff_rate", 0.01)}
+                            disabled={loading || saving}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="h-9 w-9 shrink-0"
-                          onClick={() => handleStep("payroll_night_diff_rate", 0.01)}
-                          disabled={loading || saving}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </Button>
+
+                        <div className="flex justify-between items-center text-[11px] text-muted-foreground pt-1 border-t">
+                          <span>DOLE Statutory Standard: <strong>10% (0.10)</strong></span>
+                        </div>
                       </div>
 
-                      <div className="flex justify-between items-center text-[11px] text-muted-foreground pt-1 border-t">
-                        <span>DOLE Statutory Standard: <strong>10% (0.10)</strong></span>
+                      {/* Considered Nocturnal Time Window */}
+                      <div className="space-y-3 p-4 rounded-xl border border-border/70 bg-card hover:border-amber-400/40 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-semibold">Considered Nocturnal Window</Label>
+                          <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/20 font-mono">
+                            {formatTime12h(form.payroll_night_diff_start_time)} &rarr; {formatTime12h(form.payroll_night_diff_end_time)}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Shifts or overtime occurring within this time frame are counted towards night differential.
+                        </p>
+
+                        <div className="grid grid-cols-2 gap-3 pt-1">
+                          <div className="space-y-1">
+                            <Label htmlFor="payroll_night_diff_start_time" className="text-xs font-medium flex items-center gap-1 text-muted-foreground">
+                              <Sunset className="h-3 w-3 text-amber-500" /> Start Time
+                            </Label>
+                            <Input
+                              id="payroll_night_diff_start_time"
+                              type="time"
+                              value={form.payroll_night_diff_start_time || "22:00"}
+                              onChange={(e) => handleChange("payroll_night_diff_start_time", e.target.value)}
+                              className="font-mono text-xs h-9"
+                              disabled={loading || saving}
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <Label htmlFor="payroll_night_diff_end_time" className="text-xs font-medium flex items-center gap-1 text-muted-foreground">
+                              <Sunrise className="h-3 w-3 text-amber-500" /> End Time
+                            </Label>
+                            <Input
+                              id="payroll_night_diff_end_time"
+                              type="time"
+                              value={form.payroll_night_diff_end_time || "06:00"}
+                              onChange={(e) => handleChange("payroll_night_diff_end_time", e.target.value)}
+                              className="font-mono text-xs h-9"
+                              disabled={loading || saving}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5 pt-1 border-t">
+                          <Button
+                            type="button"
+                            variant={form.payroll_night_diff_start_time === "22:00" && form.payroll_night_diff_end_time === "06:00" ? "default" : "outline"}
+                            size="sm"
+                            className="h-6 text-[10px] px-2 py-0"
+                            onClick={() => {
+                              handleChange("payroll_night_diff_start_time", "22:00");
+                              handleChange("payroll_night_diff_end_time", "06:00");
+                            }}
+                            disabled={loading || saving}
+                          >
+                            10PM – 6AM (DOLE)
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={form.payroll_night_diff_start_time === "23:00" && form.payroll_night_diff_end_time === "07:00" ? "default" : "outline"}
+                            size="sm"
+                            className="h-6 text-[10px] px-2 py-0"
+                            onClick={() => {
+                              handleChange("payroll_night_diff_start_time", "23:00");
+                              handleChange("payroll_night_diff_end_time", "07:00");
+                            }}
+                            disabled={loading || saving}
+                          >
+                            11PM – 7AM
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={form.payroll_night_diff_start_time === "21:00" && form.payroll_night_diff_end_time === "05:00" ? "default" : "outline"}
+                            size="sm"
+                            className="h-6 text-[10px] px-2 py-0"
+                            onClick={() => {
+                              handleChange("payroll_night_diff_start_time", "21:00");
+                              handleChange("payroll_night_diff_end_time", "05:00");
+                            }}
+                            disabled={loading || saving}
+                          >
+                            9PM – 5AM
+                          </Button>
+                        </div>
                       </div>
+
                     </div>
                   </CardContent>
                 </Card>
@@ -1153,6 +1274,12 @@ export function OvertimeSettingsModule() {
                       <div className="text-indigo-600 dark:text-indigo-400 font-bold">
                         OT Pay = Credited Mins × Minute Rate × Multiplier
                       </div>
+                      <Separator className="my-1.5" />
+                      <div className="text-muted-foreground font-sans text-[10px] uppercase font-semibold">3. Night Differential:</div>
+                      <div>Active Window: {formatTime12h(form.payroll_night_diff_start_time)} to {formatTime12h(form.payroll_night_diff_end_time)}</div>
+                      <div className="text-amber-600 dark:text-amber-400 font-bold">
+                        ND Pay = (ND Mins ÷ 60) × Hourly Rate × {(parseFloat(form.payroll_night_diff_rate || "0.1") * 100).toFixed(0)}%
+                      </div>
                     </div>
 
                     <p className="text-[11px]">
@@ -1177,7 +1304,7 @@ export function OvertimeSettingsModule() {
                     <div className="flex justify-between py-1.5 border-b">
                       <span className="text-muted-foreground">Configured Parameters:</span>
                       <Badge variant="secondary" className="font-mono text-[10px]">
-                        9 active keys
+                        11 active keys
                       </Badge>
                     </div>
                     <div className="flex justify-between py-1.5 border-b">
@@ -1297,9 +1424,11 @@ export function OvertimeSettingsModule() {
                   </div>
 
                   <div>
-                    <div className="text-xs text-muted-foreground">Minute Base Rate</div>
-                    <div className="text-xl font-bold font-mono text-foreground">{formatPhp(simMinute)}</div>
-                    <div className="text-[10px] text-muted-foreground">Daily ÷ 480 minutes</div>
+                    <div className="text-xs text-muted-foreground">Night Window Hours</div>
+                    <div className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">
+                      {formatTime12h(form.payroll_night_diff_start_time)} – {formatTime12h(form.payroll_night_diff_end_time)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">Active considered period</div>
                   </div>
                 </div>
 
@@ -1324,7 +1453,9 @@ export function OvertimeSettingsModule() {
                           </TableCell>
                           <TableCell className="text-center font-mono font-bold text-base">
                             <Badge variant="outline" className="font-mono text-xs">
-                              {row.multiplier.toFixed(2)}×
+                              {typeof row.multiplier === "number" && row.multiplier < 1
+                                ? `${(row.multiplier * 100).toFixed(0)}%`
+                                : `${row.multiplier.toFixed(2)}×`}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm text-muted-foreground">
@@ -1413,7 +1544,7 @@ export function OvertimeSettingsModule() {
                       Article 86: Night Shift Differential
                     </h3>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Every employee is paid a night shift differential of not less than ten percent (10%) of their regular wage for each hour of work performed between 10:00 PM and 6:00 AM:
+                      Every employee is paid a night shift differential of not less than ten percent (10%) of their regular wage for each hour of work performed between <strong>10:00 PM and 6:00 AM</strong> (or the employer&apos;s configured nocturnal window):
                     </p>
                     <div className="p-2.5 bg-background rounded border font-mono text-xs text-amber-600 dark:text-amber-400 font-medium">
                       Night Differential = Hourly Rate × 10% (0.10)
@@ -1444,7 +1575,7 @@ export function OvertimeSettingsModule() {
             <AlertDialogDescription className="text-sm space-y-2 pt-2">
               {presetConfirmDialog === "dole" && (
                 <p>
-                  This will populate the official Philippine DOLE statutory multipliers (<strong>1.25×</strong> for Normal OT, <strong>1.69×</strong> for Rest Day OT, and <strong>2.60×</strong> for Regular Holiday OT), with <strong>30-minute minimum</strong> and <strong>30-minute incremental brackets</strong>.
+                  This will populate the official Philippine DOLE statutory multipliers (<strong>1.25×</strong> for Normal OT, <strong>1.69×</strong> for Rest Day OT, and <strong>2.60×</strong> for Regular Holiday OT), with <strong>10:00 PM &rarr; 06:00 AM Night Window</strong>, and <strong>30-minute incremental brackets</strong>.
                 </p>
               )}
               {presetConfirmDialog === "lgu" && (

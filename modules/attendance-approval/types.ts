@@ -37,6 +37,7 @@ export interface AttendanceApproval {
   late_minutes: number;
   undertime_minutes: number;
   overtime_minutes: number;
+  night_diff_minutes?: number;
   remarks: string | null;
   status: 'approved' | 'rejected';
 }

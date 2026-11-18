@@ -1184,6 +1184,8 @@ export async function loadWorkspace(args: {
     regularHolidayOt: 2.60,
     regularRestDayOt: 3.38,
     nightDiffRate: 0.10,
+    nightDiffStartTime: "22:00",
+    nightDiffEndTime: "06:00",
     minimumOtMinutes: 0,
     incrementalOtMinutes: 1,
   };
@@ -1194,11 +1196,16 @@ export async function loadWorkspace(args: {
     });
     if (rawSettings && rawSettings.length > 0) {
       const sMap = new Map<string, number>();
+      const strMap = new Map<string, string>();
       for (const s of rawSettings) {
         const k = String(s.setting_key ?? "").trim();
-        const v = parseFloat(String(s.setting_value ?? ""));
-        if (k && !isNaN(v)) {
-          sMap.set(k, v);
+        const rawV = String(s.setting_value ?? "").trim();
+        if (k) {
+          strMap.set(k, rawV);
+          const v = parseFloat(rawV);
+          if (!isNaN(v)) {
+            sMap.set(k, v);
+          }
         }
       }
 
@@ -1210,6 +1217,8 @@ export async function loadWorkspace(args: {
         regularHolidayOt: sMap.get("payroll_ot_rate_regular_holiday") ?? 2.60,
         regularRestDayOt: sMap.get("payroll_ot_rate_regular_rest_day") ?? 3.38,
         nightDiffRate: sMap.get("payroll_night_diff_rate") ?? 0.10,
+        nightDiffStartTime: strMap.get("payroll_night_diff_start_time") || "22:00",
+        nightDiffEndTime: strMap.get("payroll_night_diff_end_time") || "06:00",
         minimumOtMinutes: sMap.get("payroll_ot_minimum_minutes") ?? 0,
         incrementalOtMinutes: sMap.get("payroll_ot_incremental_minutes") ?? 1,
       };

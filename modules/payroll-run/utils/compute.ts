@@ -248,6 +248,8 @@ export type OvertimeRateSettings = {
   regularHolidayOt?: number;
   regularRestDayOt?: number;
   nightDiffRate?: number;
+  nightDiffStartTime?: string;
+  nightDiffEndTime?: string;
   minimumOtMinutes?: number;
   incrementalOtMinutes?: number;
 };

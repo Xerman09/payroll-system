@@ -25,6 +25,47 @@ interface ApprovalModalProps {
   onSaved: () => void;
 }
 
+function computeNightDiffMinutes(
+  tIn: Date,
+  tOut: Date,
+  startTimeStr: string = "22:00",
+  endTimeStr: string = "06:00"
+): number {
+  if (tIn >= tOut) return 0;
+
+  const [sH, sM] = (startTimeStr || "22:00").split(":").map(Number);
+  const [eH, eM] = (endTimeStr || "06:00").split(":").map(Number);
+
+  let totalMinutes = 0;
+  const baseDate = new Date(tIn);
+  baseDate.setHours(0, 0, 0, 0);
+
+  for (let offset = -1; offset <= 2; offset++) {
+    const curDate = new Date(baseDate);
+    curDate.setDate(curDate.getDate() + offset);
+
+    const wStart = new Date(curDate);
+    wStart.setHours(sH, sM, 0, 0);
+
+    const wEnd = new Date(curDate);
+    if (sH > eH || (sH === eH && sM >= eM)) {
+      wEnd.setDate(wEnd.getDate() + 1);
+      wEnd.setHours(eH, eM, 0, 0);
+    } else {
+      wEnd.setHours(eH, eM, 0, 0);
+    }
+
+    const oStart = Math.max(tIn.getTime(), wStart.getTime());
+    const oEnd = Math.min(tOut.getTime(), wEnd.getTime());
+
+    if (oEnd > oStart) {
+      totalMinutes += Math.round((oEnd - oStart) / 60000);
+    }
+  }
+
+  return totalMinutes;
+}
+
 export default function ApprovalModal({
   open,
   onOpenChange,
@@ -34,69 +75,76 @@ export default function ApprovalModal({
   const [saving, setSaving] = useState(false);
   const [schedule, setSchedule] = useState<DepartmentSchedule | null>(null);
   const [otRequest, setOtRequest] = useState<OvertimeRequest | null>(null);
+  const [nightDiffConfig, setNightDiffConfig] = useState<{ startTime: string; endTime: string }>({
+    startTime: "22:00",
+    endTime: "06:00",
+  });
   
   const [workMins, setWorkMins] = useState(0);
   const [lateMins, setLateMins] = useState(0);
   const [undertimeMins, setUndertimeMins] = useState(0);
   const [overtimeMins, setOvertimeMins] = useState(0);
+  const [nightDiffMins, setNightDiffMins] = useState(0);
   const [remarks, setRemarks] = useState("");
 
   useEffect(() => {
     if (open && log) {
       setRemarks("");
-      // Fetch schedule to auto-calculate
-      attendanceApi.fetchDepartmentSchedule(log.department_id).then(sched => {
+
+      // Fetch night diff settings and schedule in parallel
+      Promise.all([
+        attendanceApi.fetchDepartmentSchedule(log.department_id),
+        attendanceApi.fetchNightDiffSettings(),
+      ]).then(([sched, ndCfg]) => {
         setSchedule(sched);
+        setNightDiffConfig(ndCfg);
         
-        // Basic calculation logic
         let totalWorked = 0;
         let late = 0;
         let ut = 0;
         let ot = 0;
+        let nd = 0;
         
         if (log.time_in && log.time_out) {
           const tIn = parseISO(log.time_in);
           const tOut = parseISO(log.time_out);
           totalWorked = Math.max(0, differenceInMinutes(tOut, tIn));
+
+          // Nocturnal window calculation
+          nd = computeNightDiffMinutes(tIn, tOut, ndCfg.startTime, ndCfg.endTime);
           
           if (sched) {
-            // Very simplified calculation assuming same-day shifts
             const schedStart = parseISO(`${log.log_date}T${sched.work_start}`);
             const schedEnd = parseISO(`${log.log_date}T${sched.work_end}`);
             
-            // Late: time_in > schedStart
             if (tIn > schedStart) {
               late = differenceInMinutes(tIn, schedStart);
             }
-            
-            // Undertime: time_out < schedEnd
             if (tOut < schedEnd) {
               ut = differenceInMinutes(schedEnd, tOut);
             }
-            
-            // Overtime: time_out > schedEnd
             if (tOut > schedEnd) {
               ot = differenceInMinutes(tOut, schedEnd);
             }
           }
         }
         
-        // Also fetch OT request
-        attendanceApi.fetchOvertimeRequest(log.user_id, log.log_date).then(otReq => {
-          setOtRequest(otReq);
-          // Auto-fill overtime minutes if OT is approved
-          if (otReq && otReq.status?.toLowerCase() === "approved") {
-            setOvertimeMins(otReq.duration_minutes || ot);
-          } else {
-            setOvertimeMins(0); // Only auto-fill if authorized
-          }
-        });
-
         setWorkMins(totalWorked);
         setLateMins(late);
         setUndertimeMins(ut);
+        setNightDiffMins(nd);
+
+        // Fetch OT request
+        attendanceApi.fetchOvertimeRequest(log.user_id, log.log_date).then(otReq => {
+          setOtRequest(otReq);
+          if (otReq && otReq.status?.toLowerCase() === "approved") {
+            setOvertimeMins(otReq.duration_minutes || ot);
+          } else {
+            setOvertimeMins(0);
+          }
+        });
       }).catch(() => {
-        toast.error("Could not load schedule for department");
+        toast.error("Could not load schedule or settings for department");
       });
     }
   }, [open, log]);
@@ -108,7 +156,7 @@ export default function ApprovalModal({
     setSaving(true);
     try {
       const user = getLoggedUser();
-      const approverId = user?.user_id ? Number(user.user_id) : 1; // fallback
+      const approverId = user?.user_id ? Number(user.user_id) : 1;
 
       const payload: Partial<AttendanceApproval> = {
         employee_id: log.user_id,
@@ -118,6 +166,7 @@ export default function ApprovalModal({
         late_minutes: lateMins,
         undertime_minutes: undertimeMins,
         overtime_minutes: overtimeMins,
+        night_diff_minutes: nightDiffMins,
         remarks: remarks || null,
         status: "approved",
       };
@@ -191,28 +240,39 @@ export default function ApprovalModal({
         )}
 
         {schedule && (
-          <div className="text-xs text-gray-500 mb-4">
-            Schedule Reference: {schedule.work_start} to {schedule.work_end}
+          <div className="text-xs text-gray-500 mb-4 flex items-center justify-between">
+            <span>Schedule Reference: {schedule.work_start} to {schedule.work_end}</span>
+            <span className="text-indigo-600 dark:text-indigo-400 font-medium">Night Window: {nightDiffConfig.startTime} – {nightDiffConfig.endTime}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label>Work (Mins)</Label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Work (Mins)</Label>
               <Input type="number" value={workMins} onChange={e => setWorkMins(Number(e.target.value))} required />
             </div>
-            <div className="space-y-2">
-              <Label>Late (Mins)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Late (Mins)</Label>
               <Input type="number" value={lateMins} onChange={e => setLateMins(Number(e.target.value))} required />
             </div>
-            <div className="space-y-2">
-              <Label>UT (Mins)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">UT (Mins)</Label>
               <Input type="number" value={undertimeMins} onChange={e => setUndertimeMins(Number(e.target.value))} required />
             </div>
-            <div className="space-y-2">
-              <Label>OT (Mins)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">OT (Mins)</Label>
               <Input type="number" value={overtimeMins} onChange={e => setOvertimeMins(Number(e.target.value))} required />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">ND (Mins)</Label>
+              <Input 
+                type="number" 
+                value={nightDiffMins} 
+                onChange={e => setNightDiffMins(Number(e.target.value))} 
+                title={`Calculated within ${nightDiffConfig.startTime} - ${nightDiffConfig.endTime}`}
+                required 
+              />
             </div>
           </div>
 
