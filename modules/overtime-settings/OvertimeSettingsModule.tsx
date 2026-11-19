@@ -116,6 +116,7 @@ export function OvertimeSettingsModule() {
     payroll_night_diff_end_time: "06:00",
     payroll_ot_minimum_minutes: "30",
     payroll_ot_incremental_minutes: "30",
+    payroll_max_working_hours: "12",
   });
 
   const [form, setForm] = useState<OvertimeRateFormState>({
@@ -130,6 +131,7 @@ export function OvertimeSettingsModule() {
     payroll_night_diff_end_time: "06:00",
     payroll_ot_minimum_minutes: "30",
     payroll_ot_incremental_minutes: "30",
+    payroll_max_working_hours: "12",
   });
 
   // Simulator State
@@ -183,11 +185,11 @@ export function OvertimeSettingsModule() {
 
   const handleStep = (key: keyof OvertimeRateFormState, delta: number) => {
     const cur = parseFloat(form[key]) || 0;
-    const isMinuteField = key.includes("minutes");
-    const next = isMinuteField
+    const isIntegerField = key.includes("minutes") || key.includes("hours");
+    const next = isIntegerField
       ? Math.max(0, Math.round(cur + delta))
       : Math.max(0, Math.round((cur + delta) * 100) / 100);
-    handleChange(key, isMinuteField ? String(next) : next.toFixed(2));
+    handleChange(key, isIntegerField ? String(next) : next.toFixed(2));
   };
 
   const handleApplyPreset = (type: "dole" | "flat" | "lgu") => {
@@ -247,20 +249,30 @@ export function OvertimeSettingsModule() {
   const simHourly = useMemo(() => simDailyWage / 8, [simDailyWage]);
   const simMinute = useMemo(() => simDailyWage / 480, [simDailyWage]);
 
-  // Minimum & Incremental logic evaluation for simulator
+  // Minimum, Incremental & Max Work Hours logic evaluation for simulator
   const simMinimumThreshold = useMemo(() => parseFloat(form.payroll_ot_minimum_minutes) || 0, [form.payroll_ot_minimum_minutes]);
   const simIncrementalBracket = useMemo(() => parseFloat(form.payroll_ot_incremental_minutes) || 1, [form.payroll_ot_incremental_minutes]);
+  const simMaxWorkHours = useMemo(() => parseFloat(form.payroll_max_working_hours) || 0, [form.payroll_max_working_hours]);
 
   const simEffectiveOtMinutes = useMemo(() => {
     const raw = Math.max(0, simOtMinutes);
+    let credited = raw;
     if (simMinimumThreshold > 0 && raw < simMinimumThreshold) {
-      return 0;
+      credited = 0;
+    } else if (simIncrementalBracket > 1 && raw > 0) {
+      credited = Math.floor(raw / simIncrementalBracket) * simIncrementalBracket;
     }
-    if (simIncrementalBracket > 1 && raw > 0) {
-      return Math.floor(raw / simIncrementalBracket) * simIncrementalBracket;
+
+    // Apply max total daily work hours limit (assuming 8h standard shift = 480 mins)
+    if (simMaxWorkHours > 0) {
+      const maxTotalMins = simMaxWorkHours * 60;
+      const baseMins = 480;
+      if (baseMins + credited > maxTotalMins) {
+        credited = Math.max(0, maxTotalMins - baseMins);
+      }
     }
-    return raw;
-  }, [simOtMinutes, simMinimumThreshold, simIncrementalBracket]);
+    return credited;
+  }, [simOtMinutes, simMinimumThreshold, simIncrementalBracket, simMaxWorkHours]);
 
   const simResults = useMemo(() => {
     const otMins = simEffectiveOtMinutes;
@@ -542,13 +554,18 @@ export function OvertimeSettingsModule() {
                 <span className="text-3xl font-extrabold font-mono tracking-tight text-foreground">
                   {form.payroll_ot_incremental_minutes || "1"}m
                 </span>
-                <Badge variant="outline" className="text-[10px] font-mono bg-cyan-500/10 text-cyan-600 border-cyan-500/20">
-                  Min {form.payroll_ot_minimum_minutes || "0"}m
-                </Badge>
+                <div className="flex flex-col gap-0.5">
+                  <Badge variant="outline" className="text-[9px] font-mono bg-cyan-500/10 text-cyan-600 border-cyan-500/20">
+                    Min {form.payroll_ot_minimum_minutes || "0"}m
+                  </Badge>
+                  <Badge variant="outline" className="text-[9px] font-mono bg-indigo-500/10 text-indigo-600 border-indigo-500/20">
+                    Max {form.payroll_max_working_hours === "0" || !form.payroll_max_working_hours ? "No Limit" : `${form.payroll_max_working_hours}h`}
+                  </Badge>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground pt-0">
-              Counted in {form.payroll_ot_incremental_minutes}m blocks.
+              Counted in {form.payroll_ot_incremental_minutes}m blocks • Limit {form.payroll_max_working_hours === "0" || !form.payroll_max_working_hours ? "unlimited" : `${form.payroll_max_working_hours}h/day`}.
             </CardContent>
           </Card>
 
@@ -606,14 +623,84 @@ export function OvertimeSettingsModule() {
                   <CardHeader className="bg-muted/30 border-b pb-4">
                     <CardTitle className="text-base font-semibold flex items-center gap-2">
                       <Timer className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
-                      Overtime Counting &amp; Incremental Rounding Rules
+                      Daily Work Limit, Minimum &amp; Incremental Overtime Rules
                     </CardTitle>
                     <CardDescription>
-                      Configure the minimum duration required to qualify for overtime, and the incremental block size (e.g. every 30 minutes) used during calculation.
+                      Configure the maximum allowable total working hours per day, the minimum duration required to qualify for overtime, and incremental block sizes.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="p-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                      {/* Total Daily Working Hours Limit */}
+                      <div className="space-y-3 p-4 rounded-xl border border-border/70 bg-card hover:border-indigo-400/40 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="payroll_max_working_hours" className="text-sm font-semibold flex items-center gap-1.5">
+                            Daily Work Limit (Hours)
+                          </Label>
+                          <Badge variant="secondary" className="font-mono text-[10px]">
+                            payroll_max_working_hours
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          Max total work hours (regular + OT) credited per day. Excess time is capped. <strong>0 = No limit</strong>.
+                        </p>
+                        
+                        <div className="flex items-center gap-2 pt-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_max_working_hours", -1)}
+                            disabled={loading || saving}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </Button>
+                          <div className="relative flex-1">
+                            <Input
+                              id="payroll_max_working_hours"
+                              type="number"
+                              step="1"
+                              min="0"
+                              max="24"
+                              value={form.payroll_max_working_hours}
+                              onChange={(e) => handleChange("payroll_max_working_hours", e.target.value)}
+                              className="font-mono font-bold text-center pr-8 h-9 text-base"
+                              disabled={loading || saving}
+                            />
+                            <span className="absolute right-3 top-2 text-xs font-mono text-muted-foreground">
+                              hrs
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => handleStep("payroll_max_working_hours", 1)}
+                            disabled={loading || saving}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5 pt-2">
+                          {[0, 10, 12, 14, 16].map((hrs) => (
+                            <Button
+                              key={hrs}
+                              type="button"
+                              variant={form.payroll_max_working_hours === String(hrs) ? "default" : "outline"}
+                              size="sm"
+                              className="h-6 text-[10px] px-2 py-0"
+                              onClick={() => handleChange("payroll_max_working_hours", String(hrs))}
+                              disabled={loading || saving}
+                            >
+                              {hrs === 0 ? "No Limit" : hrs === 12 ? "12h (DOLE)" : `${hrs}h`}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
 
                       {/* Minimum Threshold */}
                       <div className="space-y-3 p-4 rounded-xl border border-border/70 bg-card hover:border-cyan-400/40 transition-colors">
@@ -1265,9 +1352,10 @@ export function OvertimeSettingsModule() {
                     </p>
                     
                     <div className="p-3 bg-muted/50 rounded-lg border font-mono text-[11px] space-y-1.5 text-foreground">
-                      <div className="text-muted-foreground font-sans text-[10px] uppercase font-semibold">1. Eligibility &amp; Increments:</div>
+                      <div className="text-muted-foreground font-sans text-[10px] uppercase font-semibold">1. Limits &amp; Eligibility:</div>
+                      <div>Daily Limit: {form.payroll_max_working_hours === "0" || !form.payroll_max_working_hours ? "No Limit (Unlimited)" : `Max ${form.payroll_max_working_hours} hours total/day`}</div>
                       <div>If OT &lt; Minimum Threshold ({form.payroll_ot_minimum_minutes}m) &rarr; <strong>0 mins</strong></div>
-                      <div>Credited OT = Floor(OT ÷ {form.payroll_ot_incremental_minutes}m) × {form.payroll_ot_incremental_minutes}m</div>
+                      <div>Credited OT = Floor(OT ÷ {form.payroll_ot_incremental_minutes}m) × {form.payroll_ot_incremental_minutes}m (capped to daily limit)</div>
                       <Separator className="my-1.5" />
                       <div className="text-muted-foreground font-sans text-[10px] uppercase font-semibold">2. Monetary Pay:</div>
                       <div>Minute Rate = Daily Rate ÷ 480</div>
@@ -1304,7 +1392,7 @@ export function OvertimeSettingsModule() {
                     <div className="flex justify-between py-1.5 border-b">
                       <span className="text-muted-foreground">Configured Parameters:</span>
                       <Badge variant="secondary" className="font-mono text-[10px]">
-                        11 active keys
+                        12 active keys
                       </Badge>
                     </div>
                     <div className="flex justify-between py-1.5 border-b">
@@ -1411,6 +1499,8 @@ export function OvertimeSettingsModule() {
                     <div className="text-[10px] text-muted-foreground">
                       {simMinimumThreshold > 0 && simOtMinutes < simMinimumThreshold ? (
                         <span className="text-amber-600 font-semibold">Disqualified (&lt;{simMinimumThreshold}m min)</span>
+                      ) : simMaxWorkHours > 0 && (480 + simOtMinutes) > (simMaxWorkHours * 60) ? (
+                        <span className="text-amber-600 font-semibold">Capped by {simMaxWorkHours}h limit ({simIncrementalBracket}m blocks)</span>
                       ) : (
                         `Counted in ${simIncrementalBracket}m brackets`
                       )}

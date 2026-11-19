@@ -100,14 +100,15 @@ export async function fetchOvertimeRequest(userId: number, date: string): Promis
   return json.data && json.data.length > 0 ? json.data[0] : null;
 }
 
-export async function fetchNightDiffSettings(): Promise<{ startTime: string; endTime: string }> {
+export async function fetchNightDiffSettings(): Promise<{ startTime: string; endTime: string; maxWorkingHours: number }> {
   try {
     const filter = JSON.stringify({
-      setting_key: { _in: ["payroll_night_diff_start_time", "payroll_night_diff_end_time"] }
+      setting_key: { _in: ["payroll_night_diff_start_time", "payroll_night_diff_end_time", "payroll_max_working_hours"] }
     });
     const json = await apiFetch(BASE_API, `/items/general_setting?filter=${filter}`);
     let startTime = "22:00";
     let endTime = "06:00";
+    let maxWorkingHours = 0;
     if (Array.isArray(json?.data)) {
       for (const row of json.data) {
         if (row.setting_key === "payroll_night_diff_start_time" && row.setting_value) {
@@ -116,11 +117,14 @@ export async function fetchNightDiffSettings(): Promise<{ startTime: string; end
         if (row.setting_key === "payroll_night_diff_end_time" && row.setting_value) {
           endTime = row.setting_value;
         }
+        if (row.setting_key === "payroll_max_working_hours" && row.setting_value) {
+          maxWorkingHours = parseFloat(row.setting_value) || 0;
+        }
       }
     }
-    return { startTime, endTime };
+    return { startTime, endTime, maxWorkingHours };
   } catch {
-    return { startTime: "22:00", endTime: "06:00" };
+    return { startTime: "22:00", endTime: "06:00", maxWorkingHours: 0 };
   }
 }
 

@@ -252,6 +252,7 @@ export type OvertimeRateSettings = {
   nightDiffEndTime?: string;
   minimumOtMinutes?: number;
   incrementalOtMinutes?: number;
+  maxWorkingHours?: number;
 };
 
 /**
@@ -1043,7 +1044,7 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
     const wmRaw = n(r.work_minutes);
     const omRaw = n(r.overtime_minutes);
 
-    const baseMin = Math.min(wmRaw, 480);
+    let baseMin = Math.min(wmRaw, 480);
     const rawOtMin = Math.max(omRaw, Math.max(0, wmRaw - 480));
 
     // ✅ Apply Minimum OT threshold & Incremental bracket rounding (e.g., minimum 30m, count every 30m)
@@ -1055,6 +1056,18 @@ export function computeEmployeeLine(args: ComputeArgs): PayrollComputedLine {
       otMin = 0;
     } else if (incOt > 1 && otMin > 0) {
       otMin = Math.floor(otMin / incOt) * incOt;
+    }
+
+    // ✅ Apply Maximum Total Daily Working Hours Limit (Cap)
+    const maxWorkHours = n(args.overtimeRates?.maxWorkingHours ?? 0);
+    if (maxWorkHours > 0) {
+      const maxWorkMin = maxWorkHours * 60;
+      if (baseMin > maxWorkMin) {
+        baseMin = maxWorkMin;
+        otMin = 0;
+      } else if (baseMin + otMin > maxWorkMin) {
+        otMin = Math.max(0, maxWorkMin - baseMin);
+      }
     }
 
     const lm = n(r.late_minutes);

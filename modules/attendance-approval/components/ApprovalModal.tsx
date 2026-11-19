@@ -75,9 +75,10 @@ export default function ApprovalModal({
   const [saving, setSaving] = useState(false);
   const [schedule, setSchedule] = useState<DepartmentSchedule | null>(null);
   const [otRequest, setOtRequest] = useState<OvertimeRequest | null>(null);
-  const [nightDiffConfig, setNightDiffConfig] = useState<{ startTime: string; endTime: string }>({
+  const [limitConfig, setLimitConfig] = useState<{ startTime: string; endTime: string; maxWorkingHours: number }>({
     startTime: "22:00",
     endTime: "06:00",
+    maxWorkingHours: 0,
   });
   
   const [workMins, setWorkMins] = useState(0);
@@ -95,9 +96,9 @@ export default function ApprovalModal({
       Promise.all([
         attendanceApi.fetchDepartmentSchedule(log.department_id),
         attendanceApi.fetchNightDiffSettings(),
-      ]).then(([sched, ndCfg]) => {
+      ]).then(([sched, cfg]) => {
         setSchedule(sched);
-        setNightDiffConfig(ndCfg);
+        setLimitConfig(cfg);
         
         let totalWorked = 0;
         let late = 0;
@@ -111,7 +112,7 @@ export default function ApprovalModal({
           totalWorked = Math.max(0, differenceInMinutes(tOut, tIn));
 
           // Nocturnal window calculation
-          nd = computeNightDiffMinutes(tIn, tOut, ndCfg.startTime, ndCfg.endTime);
+          nd = computeNightDiffMinutes(tIn, tOut, cfg.startTime, cfg.endTime);
           
           if (sched) {
             const schedStart = parseISO(`${log.log_date}T${sched.work_start}`);
@@ -240,9 +241,27 @@ export default function ApprovalModal({
         )}
 
         {schedule && (
-          <div className="text-xs text-gray-500 mb-4 flex items-center justify-between">
+          <div className="text-xs text-gray-500 mb-4 flex flex-wrap items-center justify-between gap-2">
             <span>Schedule Reference: {schedule.work_start} to {schedule.work_end}</span>
-            <span className="text-indigo-600 dark:text-indigo-400 font-medium">Night Window: {nightDiffConfig.startTime} – {nightDiffConfig.endTime}</span>
+            <div className="flex items-center gap-2">
+              {limitConfig.maxWorkingHours > 0 && (
+                <span className="text-amber-600 dark:text-amber-400 font-medium">
+                  Max Limit: {limitConfig.maxWorkingHours}h
+                </span>
+              )}
+              <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                Night Window: {limitConfig.startTime} – {limitConfig.endTime}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {limitConfig.maxWorkingHours > 0 && (workMins + overtimeMins) > (limitConfig.maxWorkingHours * 60) && (
+          <div className="p-2.5 rounded-lg border text-xs bg-amber-500/10 border-amber-500/25 text-amber-700 dark:text-amber-400 flex items-center gap-2 mb-3">
+            <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+            <span>
+              Total hours ({((workMins + overtimeMins) / 60).toFixed(1)} hrs) exceed the daily limit of <b>{limitConfig.maxWorkingHours} hrs</b> ({limitConfig.maxWorkingHours * 60} mins). Excess time will be capped during payroll calculation.
+            </span>
           </div>
         )}
 
@@ -270,7 +289,7 @@ export default function ApprovalModal({
                 type="number" 
                 value={nightDiffMins} 
                 onChange={e => setNightDiffMins(Number(e.target.value))} 
-                title={`Calculated within ${nightDiffConfig.startTime} - ${nightDiffConfig.endTime}`}
+                title={`Calculated within ${limitConfig.startTime} - ${limitConfig.endTime}`}
                 required 
               />
             </div>

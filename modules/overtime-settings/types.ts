@@ -33,6 +33,9 @@ export interface OvertimeRateFormState {
   // Minimum & Incremental Overtime Bracket
   payroll_ot_minimum_minutes: string;
   payroll_ot_incremental_minutes: string;
+
+  // Maximum Total Daily Working Hours Limit (Cap, e.g. "12" or "0" for unlimited)
+  payroll_max_working_hours: string;
 }
 
 export const DOLE_PRESETS: OvertimeRateFormState = {
@@ -47,6 +50,7 @@ export const DOLE_PRESETS: OvertimeRateFormState = {
   payroll_night_diff_end_time: "06:00",
   payroll_ot_minimum_minutes: "30",
   payroll_ot_incremental_minutes: "30",
+  payroll_max_working_hours: "12",
 };
 
 export const FLAT_PRESETS: OvertimeRateFormState = {
@@ -61,6 +65,7 @@ export const FLAT_PRESETS: OvertimeRateFormState = {
   payroll_night_diff_end_time: "06:00",
   payroll_ot_minimum_minutes: "30",
   payroll_ot_incremental_minutes: "30",
+  payroll_max_working_hours: "0",
 };
 
 export const LGU_PRESETS: OvertimeRateFormState = {
@@ -75,5 +80,6 @@ export const LGU_PRESETS: OvertimeRateFormState = {
   payroll_night_diff_end_time: "06:00",
   payroll_ot_minimum_minutes: "60",
   payroll_ot_incremental_minutes: "30",
+  payroll_max_working_hours: "12",
 };
 

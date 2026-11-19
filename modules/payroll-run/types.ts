@@ -20,6 +20,7 @@ export type OvertimeRateSettings = {
   nightDiffEndTime?: string;
   minimumOtMinutes?: number;
   incrementalOtMinutes?: number;
+  maxWorkingHours?: number;
 };
 
 export type ManualEntryType = "EARNING" | "DEDUCTION";

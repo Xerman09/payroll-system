@@ -27,6 +27,7 @@ import type {
   CutoffType,
   AllowancePayCycle,
   PaidLeaveRequest,
+  OvertimeRateSettings,
 } from "../types";
 
 import { computeEmployeeLine } from "../utils/compute";
@@ -1176,7 +1177,7 @@ export async function loadWorkspace(args: {
   );
 
   // Fetch dynamic overtime and night differential multipliers from general_setting
-  let overtimeRates = {
+  let overtimeRates: OvertimeRateSettings = {
     normalOt: 1.0,
     restDayOt: 1.69,
     specialHolidayOt: 1.69,
@@ -1188,6 +1189,7 @@ export async function loadWorkspace(args: {
     nightDiffEndTime: "06:00",
     minimumOtMinutes: 0,
     incrementalOtMinutes: 1,
+    maxWorkingHours: 0,
   };
 
   try {
@@ -1221,6 +1223,7 @@ export async function loadWorkspace(args: {
         nightDiffEndTime: strMap.get("payroll_night_diff_end_time") || "06:00",
         minimumOtMinutes: sMap.get("payroll_ot_minimum_minutes") ?? 0,
         incrementalOtMinutes: sMap.get("payroll_ot_incremental_minutes") ?? 1,
+        maxWorkingHours: sMap.get("payroll_max_working_hours") ?? 0,
       };
     }
   } catch (err) {
