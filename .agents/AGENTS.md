@@ -3,4 +3,4 @@
 - **No Browser Dialogs**: Never use native browser dialogs like `window.confirm`, `window.alert`, or `window.prompt`. Always use UI components like shadcn/ui `AlertDialog`, `Dialog`, or `Toast` for confirmations and messages.
 
 # Git & Workflow Rules
-- **Commit Messages**: Always provide a clear, concise Git commit message (following Conventional Commits, e.g., `feat: ...`, `fix: ...`, `refactor: ...`) at the end of the response whenever code changes or tasks are completed.
+- **Auto Commit & Push**: Whenever code changes or tasks are completed and verified, automatically stage, commit, and push the changes to the active branch using a clear, concise Conventional Commit message (e.g., `feat: ...`, `fix: ...`, `refactor: ...`). State the commit message and push confirmation in the response.
